@@ -8,6 +8,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_VERIFIER_CONFIG_FA
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.PENDING_COMMITMENTS_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.test.handlers.ChannelIndexStubs.stubChannelIndex;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -22,7 +23,6 @@ import com.hedera.hapi.node.clpr.ClprCompleteChannelTransactionBody;
 import com.hedera.hapi.node.clpr.ClprRegisterChannelTransactionBody;
 import com.hedera.hapi.node.clpr.ClprSignatureScheme;
 import com.hedera.hapi.node.state.clpr.ClprChannel;
-import com.hedera.hapi.node.state.clpr.ClprEndpoint;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.token.Account;
@@ -49,7 +49,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.state.spi.WritableStates;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.List;
 import org.hiero.base.crypto.Ed25519;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -123,10 +122,6 @@ class ClprCommitRevealUnitScenariosTest {
             public void onChannelClosed(@NonNull final Bytes channelId) {}
 
             @Override
-            public void seedPeerEndpoints(
-                    @NonNull final Bytes channelId, @NonNull final List<ClprEndpoint> endpoints) {}
-
-            @Override
             public void recordPeerObservedManifestVersion(
                     @NonNull final Bytes channelId, final long peerObservedVersion) {}
         });
@@ -147,6 +142,7 @@ class ClprCommitRevealUnitScenariosTest {
         lenient()
                 .when(writableStates.<ProtoBytes, ClprChannel>get(CHANNELS_STATE_ID))
                 .thenReturn(writableChannels);
+        stubChannelIndex(writableStates);
         channelStore = new WritableChannelStore(writableStates);
     }
 

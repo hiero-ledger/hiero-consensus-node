@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.clpr;
 
 import static com.hedera.node.app.info.DiskStartupNetworks.OVERRIDE_NETWORK_JSON;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.DATA_CONFIG_DIR;
-import static com.hedera.services.bdd.junit.hedera.ExternalPath.WORKING_DIR;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.allNodes;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.awaitStatus;
@@ -47,7 +46,6 @@ import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.DEFAULT_UPGRADE_FILE_ID;
 import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.upgradeFileHashAt;
 import static com.hedera.services.bdd.suites.regression.system.LifecycleTest.confirmFreezeAndShutdown;
-import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -81,7 +79,6 @@ import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -145,8 +142,6 @@ public abstract class HieroToHieroBase implements LifecycleTest {
     static final String SEND_MESSAGE = "sendMessage";
     static final String GET_QUEUE_STATE = "getChannelQueueState";
     static final long GAS = 2_000_000L;
-    /** The node-local CLPR channel registry (default {@code clpr.peerEndpointsFile}), relative to a working dir. */
-    static final String PEER_ENDPOINTS_FILE = "data/clpr/peer-endpoints.json";
 
     static final long MIN_STAKE = 100L;
     /** How long {@link #awaitReceivedMessage} / {@link #awaitAckedMessage} wait for delivery once WRAPS is warm. */
@@ -640,7 +635,6 @@ public abstract class HieroToHieroBase implements LifecycleTest {
             preRestartOps.add(doAdhoc(() -> {
                 network.refreshGenesisNetwork(nodeId);
                 network.runPostInitWorkingDirActions(nodeId);
-                copyPeerEndpointsFile(network, nodeId, nodeIds);
             }));
         }
         ops.add(upgradeWithRosterChange(network, List.of(), preRestartOps.toArray(SpecOperation[]::new)));
@@ -915,38 +909,6 @@ public abstract class HieroToHieroBase implements LifecycleTest {
         }
         throw new AssertionError("Network '" + network.name() + "' never logged pattern /" + pattern + "/ after line "
                 + mark + " within " + timeout);
-    }
-
-    /**
-     * Copies the node-local CLPR channel registry ({@code clpr.peerEndpointsFile}) of a node already in
-     * {@code network} into the working dir of the added node {@code nodeId}, if any such node has one. A node learns
-     * the channels it must sync only from this file when it starts, and an added node never handled their activation.
-     * This stands in for a production mechanism that does not exist yet: a node added to a real network has no such
-     * file.
-     *
-     * @param network the network the node was added to
-     * @param nodeId the added node's id
-     * @param addedNodeIds the ids of every node added in the same upgrade
-     */
-    private static void copyPeerEndpointsFile(
-            final SubProcessNetwork network, final long nodeId, final List<Long> addedNodeIds) {
-        final var source = network.nodes().stream()
-                .filter(node -> !addedNodeIds.contains(node.getNodeId()))
-                .map(node -> node.getExternalPath(WORKING_DIR).resolve(PEER_ENDPOINTS_FILE))
-                .filter(Files::exists)
-                .findFirst();
-        if (source.isEmpty()) {
-            return;
-        }
-        final var target = network.getRequiredNode(byNodeId(nodeId))
-                .getExternalPath(WORKING_DIR)
-                .resolve(PEER_ENDPOINTS_FILE);
-        try {
-            Files.createDirectories(requireNonNull(target.getParent()));
-            Files.copy(source.get(), target, StandardCopyOption.REPLACE_EXISTING);
-        } catch (final IOException e) {
-            throw new UncheckedIOException(e);
-        }
     }
 
     private static void deleteOverrideNetwork(final HederaNode node) {

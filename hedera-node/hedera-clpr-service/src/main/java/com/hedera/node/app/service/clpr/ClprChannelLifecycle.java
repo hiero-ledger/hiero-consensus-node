@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr;
 
-import com.hedera.hapi.node.state.clpr.ClprEndpoint;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.List;
 
 /**
  * SPI hook invoked by CLPR transaction handlers to inform the runtime sync
@@ -30,19 +28,6 @@ public interface ClprChannelLifecycle {
      * @param channelId the 32-byte Channel ID
      */
     void onChannelClosed(@NonNull Bytes channelId);
-
-    /**
-     * Seed the orchestrator's peer endpoint cache for a Channel with the
-     * endpoints attested in the peer's verified ledger configuration. Used by
-     * the complete-channel handler so the first outbound sync tick has
-     * peer endpoints to contact.
-     *
-     * @param channelId the 32-byte Channel ID
-     * @param endpoints the peer's endpoints from its verified ledger configuration, expected to
-     *     have already been truncated to this ledger's {@code max_peer_endpoints} limit
-     *     (spec §3.10.5) by the caller
-     */
-    void seedPeerEndpoints(@NonNull Bytes channelId, @NonNull List<ClprEndpoint> endpoints);
 
     /**
      * Record the peer's most recently reported cache of <em>this</em> ledger's endpoint-manifest

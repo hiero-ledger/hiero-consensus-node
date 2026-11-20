@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.clpr;
 
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema.CHANNEL_INDEX_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema.INDEXED_CHANNELS_STATE_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.awaitility.Awaitility.await;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -26,31 +29,32 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.state.clpr.ClprChannel;
+import com.hedera.hapi.node.state.clpr.ClprChannelIndex;
 import com.hedera.hapi.node.state.clpr.ClprChannelStatus;
 import com.hedera.hapi.node.state.clpr.ClprEndpoint;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
-import com.hedera.hapi.node.state.clpr.ClprPeerEndpoints;
-import com.hedera.hapi.node.state.clpr.ClprPeerEndpointsEntry;
 import com.hedera.hapi.node.state.clpr.ClprServiceEndpoint;
 import com.hedera.hapi.node.state.clpr.ClprThrottles;
-import com.hedera.node.app.service.addressbook.ReadableNodeStore;
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
+import com.hedera.hapi.node.state.primitives.ProtoLong;
+import com.hedera.node.app.service.clpr.ClprService;
 import com.hedera.node.app.service.clpr.ReadableChannelStore;
 import com.hedera.node.app.service.clpr.ReadableLedgerConfigurationStore;
+import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfiguration;
 import com.hedera.node.config.data.ClprConfig;
 import com.hedera.node.config.testfixtures.ClprConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
-import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.state.State;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import com.swirlds.state.spi.ReadableStates;
+import com.swirlds.state.test.fixtures.FunctionReadableSingletonState;
+import com.swirlds.state.test.fixtures.MapReadableKVState;
+import com.swirlds.state.test.fixtures.MapReadableStates;
 import java.time.Duration;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -63,7 +67,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
 import org.mockito.MockedConstruction;
 import org.mockito.Mockito;
@@ -88,9 +91,6 @@ class ClprChannelManagerTest {
 
     @Mock
     private ClprEndpointClientCache clientCache;
-
-    @TempDir
-    private Path tempDir;
 
     private ClprChannelManager subject;
 
@@ -139,22 +139,26 @@ class ClprChannelManagerTest {
         @Test
         @DisplayName("is idempotent — a second call schedules no additional tasks")
         void startIsIdempotent() {
-            // The only periodic task is the peer-endpoints flush; with no active channel the
-            // scheduler queue holds exactly that one task after start().
+            givenLatestStates(clprStatesIndexing());
+            // A channel tracked before start() gets its sync tick scheduled by start()
+            subject.onChannelActivated(CHANNEL_ID_1);
             subject.start();
             assertTrue(subject.started());
             final var executor = (ScheduledThreadPoolExecutor) subject.scheduler();
-            final int scheduledAfterFirstStart = executor.getQueue().size();
+            final var tick = subject.syncTickFuture(CHANNEL_ID_1);
+            assertNotNull(tick);
+            await().atMost(Duration.ofSeconds(1))
+                    .until(() -> executor.getQueue().size() == 1);
 
             // The platform can re-reach ACTIVE with no intervening stop() (e.g. after a reconnect);
-            // the guard must make the re-entry a no-op rather than leak a duplicate flush task.
+            // the guard must make the re-entry a no-op rather than leak a duplicate tick.
             subject.start();
 
             assertTrue(subject.started());
-            assertEquals(
-                    scheduledAfterFirstStart,
-                    executor.getQueue().size(),
-                    "Second start() must not schedule duplicate tasks");
+            assertSame(tick, subject.syncTickFuture(CHANNEL_ID_1));
+            await().during(Duration.ofMillis(100))
+                    .atMost(Duration.ofSeconds(1))
+                    .until(() -> executor.getQueue().size() == 1);
         }
     }
 
@@ -274,7 +278,6 @@ class ClprChannelManagerTest {
 
                 // Null channel is not auto-removed; cleanup is driven by onChannelClosed only.
                 assertThat(subject.knownChannelsIds()).contains(CHANNEL_ID_1);
-                assertThat(subject.getKnownEndpoints(CHANNEL_ID_1)).isEmpty();
             }
             verify(synchronizer, never()).synchronize(any(), any(), anyLong(), anyLong());
         }
@@ -465,30 +468,67 @@ class ClprChannelManagerTest {
         }
 
         @Test
-        @DisplayName("seedPeerEndpoints with an empty list clears a previously cached endpoint")
-        void seedPeerEndpointsWithEmptyListClearsPreviousCache() {
-            subject.seedPeerEndpoints(CHANNEL_ID_1, List.of(makeEndpoint("10.0.0.7", 50211)));
-            assertThat(subject.getKnownEndpoints(CHANNEL_ID_1)).isNotEmpty();
+        @DisplayName("start() registers and schedules every channel in the channel index")
+        void startRegistersIndexedChannels() {
+            givenLatestStates(clprStatesIndexing(CHANNEL_ID_1, CHANNEL_ID_2));
 
-            subject.seedPeerEndpoints(CHANNEL_ID_1, Collections.emptyList());
+            subject.start();
 
-            assertThat(subject.getKnownEndpoints(CHANNEL_ID_1)).isEmpty();
+            // The index is read on the sync scheduler
+            await().atMost(Duration.ofSeconds(1))
+                    .until(() -> subject.syncTickFuture(CHANNEL_ID_1) != null
+                            && subject.syncTickFuture(CHANNEL_ID_2) != null);
+            assertThat(subject.knownChannelsIds()).containsExactlyInAnyOrder(CHANNEL_ID_1, CHANNEL_ID_2);
+        }
+
+        @Test
+        @DisplayName("a repeated start() picks up newly indexed channels and keeps existing ticks")
+        void repeatedStartPicksUpNewlyIndexedChannels() {
+            final var state = givenLatestStates(clprStatesIndexing(CHANNEL_ID_1));
+            subject.start();
+            await().atMost(Duration.ofSeconds(1)).until(() -> subject.syncTickFuture(CHANNEL_ID_1) != null);
+            final var tick = subject.syncTickFuture(CHANNEL_ID_1);
+
+            // E.g. the platform becomes active again after a reconnect, with no stop() in between
+            given(state.getReadableStates(ClprService.NAME)).willReturn(clprStatesIndexing(CHANNEL_ID_1, CHANNEL_ID_2));
+            subject.start();
+
+            await().atMost(Duration.ofSeconds(1)).until(() -> subject.syncTickFuture(CHANNEL_ID_2) != null);
+            assertSame(tick, subject.syncTickFuture(CHANNEL_ID_1));
+            assertFalse(tick.isCancelled());
+        }
+
+        @Test
+        @DisplayName("start() with an unreadable channel index still starts and schedules activated channels")
+        void startWithUnreadableIndexStillStarts() {
+            subject.onChannelActivated(CHANNEL_ID_1);
+            final var state = givenLatestStates(clprStatesIndexing());
+            given(state.getReadableStates(ClprService.NAME)).willThrow(new IllegalStateException("unreadable"));
+
+            subject.start();
+
+            assertTrue(subject.started());
+            assertNotNull(subject.syncTickFuture(CHANNEL_ID_1));
+            verify(state, timeout(1000)).getReadableStates(ClprService.NAME);
+            assertThat(subject.knownChannelsIds()).containsExactly(CHANNEL_ID_1);
+        }
+
+        @Test
+        @DisplayName("a failed channel index read is retried until it succeeds")
+        void failedIndexReadIsRetriedUntilItSucceeds() {
+            final var state = givenLatestStates(clprStatesIndexing());
+            given(state.getReadableStates(ClprService.NAME))
+                    .willThrow(new IllegalStateException("unreadable"))
+                    .willReturn(clprStatesIndexing(CHANNEL_ID_1));
+
+            subject.start();
+
+            await().atMost(Duration.ofSeconds(3)).until(() -> subject.syncTickFuture(CHANNEL_ID_1) != null);
         }
     }
 
     private ClprConfigBuilder defaultClprConfig() {
-        // Isolate the node-local channel cache to a per-test temp file so the orchestrator's
-        // disk persistence/rehydration doesn't leak across tests (or runs) via the default path.
-        return ClprConfigBuilder.newBuilder()
-                .enabled(true)
-                .peerEndpointsFile(tempDir.resolve("clpr-peer-endpoints.json").toString());
-    }
-
-    /** Builds a {@link ReadableNodeStore} mock whose {@code sizeOfState()} returns {@code size}. */
-    private static ReadableNodeStore nodeStoreWithSize(final long size) {
-        final var nodeStore = mock(ReadableNodeStore.class);
-        lenient().when(nodeStore.sizeOfState()).thenReturn(size);
-        return nodeStore;
+        return ClprConfigBuilder.newBuilder().enabled(true);
     }
 
     private static ClprLedgerConfiguration ledgerConfigWithMaxPeerEndpoints(final int maxPeerEndpoints) {
@@ -496,6 +536,37 @@ class ClprChannelManagerTest {
                 .throttles(ClprThrottles.newBuilder()
                         .maxPeerEndpoints(maxPeerEndpoints)
                         .build())
+                .build();
+    }
+
+    /**
+     * Makes the state accessor return a state holding the given CLPR states.
+     */
+    private State givenLatestStates(final ReadableStates clprStates) {
+        final var state = mock(State.class);
+        given(stateAccessor.get()).willAnswer(invocation -> new AutoCloseableWrapper<>(state, () -> {}));
+        lenient().when(state.getReadableStates(ClprService.NAME)).thenReturn(clprStates);
+        lenient().when(state.getReadableStates(EntityIdService.NAME)).thenReturn(mock(ReadableStates.class));
+        return state;
+    }
+
+    /**
+     * Returns CLPR states whose channel index holds the given channels, in index order.
+     */
+    private static ReadableStates clprStatesIndexing(final Bytes... channelIds) {
+        final var indexedChannels = MapReadableKVState.<ProtoLong, ProtoBytes>builder(
+                INDEXED_CHANNELS_STATE_ID, "ClprService:INDEXED_CHANNELS");
+        for (int i = 0; i < channelIds.length; i++) {
+            indexedChannels.value(new ProtoLong(i + 1), new ProtoBytes(channelIds[i]));
+        }
+        final var index =
+                ClprChannelIndex.newBuilder().lastIndexNum(channelIds.length).build();
+        return MapReadableStates.builder()
+                .state(MapReadableKVState.builder(CHANNELS_STATE_ID, "ClprService:CHANNELS")
+                        .build())
+                .state(indexedChannels.build())
+                .state(new FunctionReadableSingletonState<>(
+                        CHANNEL_INDEX_STATE_ID, "ClprService:CHANNEL_INDEX", () -> index))
                 .build();
     }
 
@@ -549,171 +620,11 @@ class ClprChannelManagerTest {
                 .build();
     }
 
-    /**
-     * Variant of {@link #givenMockedStateForSync} for rehydration tests: wires the readable factory
-     * to return the supplied channel + node stores so {@code start()}'s disk rehydration can
-     * check channel status and recover the interval from {@code peer_throttles}.
-     */
-    private MockedConstruction<ReadableStoreFactoryImpl> givenMockedStateForRehydration(
-            final ReadableChannelStore channelStore, final ReadableNodeStore nodeStore) {
-        final var state = mock(State.class);
-        lenient().when(stateAccessor.get()).thenReturn(new AutoCloseableWrapper<>(state, () -> {}));
-        return mockConstruction(ReadableStoreFactoryImpl.class, (factory, ctx) -> {
-            lenient().when(factory.readableStore(ReadableChannelStore.class)).thenReturn(channelStore);
-            lenient().when(factory.readableStore(ReadableNodeStore.class)).thenReturn(nodeStore);
-        });
-    }
-
-    private static boolean cacheHas(final Path cacheFile, final Bytes channelId) {
-        return cacheEntry(cacheFile, channelId) != null;
-    }
-
-    private static boolean cacheHasEndpoint(final Path cacheFile, final Bytes channelId) {
-        final var entry = cacheEntry(cacheFile, channelId);
-        return entry != null && !entry.endpoints().isEmpty();
-    }
-
-    private static ClprPeerEndpointsEntry cacheEntry(final Path cacheFile, final Bytes channelId) {
-        try {
-            if (!Files.exists(cacheFile)) {
-                return null;
-            }
-            try (final var in = Files.newInputStream(cacheFile)) {
-                final var cache = ClprPeerEndpoints.JSON.parse(new ReadableStreamingData(in));
-                return cache.entries().stream()
-                        .filter(e -> e.channelId().equals(channelId))
-                        .findFirst()
-                        .orElse(null);
-            }
-        } catch (final Exception e) {
-            return null;
-        }
-    }
-
-    @Nested
-    @DisplayName("disk persistence + rehydration")
-    class DiskRehydrationTests {
-
-        @Test
-        void ignoresCacheWithUnknownFields() throws Exception {
-            final var cacheFile = tempDir.resolve("clpr-peer-endpoints.json");
-            final var cached = ClprPeerEndpoints.newBuilder()
-                    .entries(ClprPeerEndpointsEntry.newBuilder()
-                            .channelId(CHANNEL_ID_1)
-                            .endpoints(makeEndpoint("10.0.0.7", 50211))
-                            .build())
-                    .build();
-            final var json = ClprPeerEndpoints.JSON.toJSON(cached);
-            Files.writeString(cacheFile, json.replaceFirst("\\{", "{\"unknownField\":1,"));
-
-            subject.start();
-
-            assertThat(subject.knownChannelsIds()).isEmpty();
-            assertThat(subject.getKnownEndpoints(CHANNEL_ID_1)).isEmpty();
-            verifyNoInteractions(stateAccessor);
-        }
-
-        @Test
-        @DisplayName("persists channels + endpoints to disk and rehydrates them on a fresh manager")
-        void persistsAndRehydratesAcrossRestart() {
-            final var cacheFile = tempDir.resolve("clpr-peer-endpoints.json");
-            final var endpoint = makeEndpoint("10.0.0.7", 50211);
-
-            // Manager A: activate a channel and seed peer endpoints — both persist to disk.
-            subject.start();
-            subject.onChannelActivated(CHANNEL_ID_1);
-            subject.seedPeerEndpoints(CHANNEL_ID_1, List.of(endpoint));
-            // Disk writes are offloaded to the scheduler; wait until the file reflects the endpoint.
-            await().atMost(Duration.ofSeconds(5)).until(() -> cacheHasEndpoint(cacheFile, CHANNEL_ID_1));
-            subject.stop();
-
-            // Manager B: fresh instance, same (temp) cache file. It must rebuild the registry, the
-            // peer endpoint cache, the interval, and the timer purely from disk + committed state.
-            final var managerB = new ClprChannelManager(configProvider, stateAccessor, synchronizer, clientCache);
-            final var channelStore = mock(ReadableChannelStore.class);
-            given(channelStore.getChannel(CHANNEL_ID_1))
-                    .willReturn(ClprChannel.newBuilder()
-                            .channelId(CHANNEL_ID_1)
-                            .status(ClprChannelStatus.ACTIVE)
-                            .peerThrottles(ClprThrottles.newBuilder().build())
-                            .build());
-            try (var _ = givenMockedStateForRehydration(channelStore, nodeStoreWithSize(10))) {
-                managerB.start();
-
-                assertThat(managerB.knownChannelsIds()).contains(CHANNEL_ID_1);
-                assertThat(managerB.getKnownEndpoints(CHANNEL_ID_1)).containsExactly(endpoint);
-                assertNotNull(managerB.syncTickFuture(CHANNEL_ID_1));
-            } finally {
-                managerB.stop();
-            }
-        }
-
-        @Test
-        @DisplayName("replacing cached endpoints with an empty manifest clears them on disk and after restart")
-        void seedPeerEndpointsEmptyListClearsDiskCacheAndSurvivesRestart() {
-            final var cacheFile = tempDir.resolve("clpr-peer-endpoints.json");
-            final var endpoint = makeEndpoint("10.0.0.7", 50211);
-
-            subject.start();
-            subject.onChannelActivated(CHANNEL_ID_1);
-            subject.seedPeerEndpoints(CHANNEL_ID_1, List.of(endpoint));
-            await().atMost(Duration.ofSeconds(5)).until(() -> cacheHasEndpoint(cacheFile, CHANNEL_ID_1));
-
-            // A non-empty-to-empty manifest update (e.g. manifest-only recovery, spec §8.1.4) must
-            // flush the cleared cache to disk too, not leave the stale endpoint behind.
-            subject.seedPeerEndpoints(CHANNEL_ID_1, List.of());
-            await().atMost(Duration.ofSeconds(5))
-                    .until(() -> cacheHas(cacheFile, CHANNEL_ID_1) && !cacheHasEndpoint(cacheFile, CHANNEL_ID_1));
-            subject.stop();
-
-            final var managerB = new ClprChannelManager(configProvider, stateAccessor, synchronizer, clientCache);
-            final var channelStore = mock(ReadableChannelStore.class);
-            given(channelStore.getChannel(CHANNEL_ID_1))
-                    .willReturn(ClprChannel.newBuilder()
-                            .channelId(CHANNEL_ID_1)
-                            .status(ClprChannelStatus.ACTIVE)
-                            .peerThrottles(ClprThrottles.newBuilder().build())
-                            .build());
-            try (var _ = givenMockedStateForRehydration(channelStore, nodeStoreWithSize(10))) {
-                managerB.start();
-
-                assertThat(managerB.knownChannelsIds()).contains(CHANNEL_ID_1);
-                assertThat(managerB.getKnownEndpoints(CHANNEL_ID_1)).isEmpty();
-            } finally {
-                managerB.stop();
-            }
-        }
-
-        @Test
-        @DisplayName("rehydration skips a channel that is CLOSED in committed state")
-        void rehydrationSkipsClosed() {
-            final var cacheFile = tempDir.resolve("clpr-peer-endpoints.json");
-            subject.start();
-            subject.onChannelActivated(CHANNEL_ID_1);
-            await().atMost(Duration.ofSeconds(5)).until(() -> cacheHas(cacheFile, CHANNEL_ID_1));
-            subject.stop();
-
-            final var managerB = new ClprChannelManager(configProvider, stateAccessor, synchronizer, clientCache);
-            final var channelStore = mock(ReadableChannelStore.class);
-            given(channelStore.getChannel(CHANNEL_ID_1))
-                    .willReturn(makeChannel(CHANNEL_ID_1, ClprChannelStatus.CLOSED, 0L, 0L));
-            try (var _ = givenMockedStateForRehydration(channelStore, nodeStoreWithSize(10))) {
-                managerB.start();
-
-                assertThat(managerB.knownChannelsIds()).doesNotContain(CHANNEL_ID_1);
-                assertNull(managerB.syncTickFuture(CHANNEL_ID_1));
-            } finally {
-                managerB.stop();
-            }
-        }
-    }
-
     @Test
     void disablingClprBlocksOutboundWorkForAnExistingChannel() {
-        // Populate an eligible channel and peer cache before disabling the master flag.
+        // Track an eligible channel before disabling the master flag.
         final var channel = makeChannel(CHANNEL_ID_1, ClprChannelStatus.ACTIVE, 0L, 2L);
         subject.onChannelActivated(CHANNEL_ID_1);
-        subject.seedPeerEndpoints(CHANNEL_ID_1, List.of(makeEndpoint("10.0.0.7", 50211)));
         Mockito.clearInvocations(stateAccessor, synchronizer, clientCache);
         given(versionedConfig.getConfigData(ClprConfig.class))
                 .willReturn(defaultClprConfig().enabled(false).build());
@@ -727,34 +638,5 @@ class ClprChannelManagerTest {
         assertThat(((ScheduledThreadPoolExecutor) subject.scheduler()).getQueue())
                 .isEmpty();
         verifyNoInteractions(stateAccessor, synchronizer, clientCache);
-    }
-
-    @Test
-    void disabledRestartIgnoresPersistedPeerCacheAndLeavesItUnchanged() throws Exception {
-        final var cacheFile = tempDir.resolve("clpr-peer-endpoints.json");
-        final var cached = ClprPeerEndpoints.newBuilder()
-                .entries(List.of(ClprPeerEndpointsEntry.newBuilder()
-                        .channelId(CHANNEL_ID_1)
-                        .endpoints(List.of(makeEndpoint("10.0.0.7", 50211)))
-                        .build()))
-                .build();
-        try (final var output = Files.newOutputStream(cacheFile)) {
-            ClprPeerEndpoints.JSON.write(cached, new WritableStreamingData(output));
-        }
-        final var before = Files.readAllBytes(cacheFile);
-        given(versionedConfig.getConfigData(ClprConfig.class))
-                .willReturn(defaultClprConfig().enabled(false).build());
-
-        subject.start();
-        subject.syncChannel(CHANNEL_ID_1);
-
-        assertFalse(subject.started());
-        assertThat(subject.knownChannelsIds()).isEmpty();
-        assertThat(subject.getKnownEndpoints(CHANNEL_ID_1)).isEmpty();
-        assertThat(((ScheduledThreadPoolExecutor) subject.scheduler()).getQueue())
-                .isEmpty();
-        verifyNoInteractions(stateAccessor, synchronizer, clientCache);
-        subject.stop();
-        assertThat(Files.readAllBytes(cacheFile)).isEqualTo(before);
     }
 }

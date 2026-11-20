@@ -118,6 +118,9 @@ public final class BlockStreamUtils {
             case STATE_ID_CLPR_PENDING_CONNECTOR_COMMITMENTS -> "ClprService.PENDING_CONNECTOR_COMMITMENTS";
             case STATE_ID_CLPR_ENDPOINT_MANIFEST -> "ClprService.ENDPOINT_MANIFEST";
             case STATE_ID_CLPR_ENDPOINT_MANIFEST_CONSTRUCTION -> "ClprService.ENDPOINT_MANIFEST_CONSTRUCTION";
+            case STATE_ID_CLPR_CHANNEL_INDEX -> "ClprService.CHANNEL_INDEX";
+            case STATE_ID_CLPR_INDEXED_CHANNELS -> "ClprService.INDEXED_CHANNELS";
+            case STATE_ID_CLPR_CHANNEL_INDEX_NUMS -> "ClprService.CHANNEL_INDEX_NUMS";
         };
     }
 
@@ -148,6 +151,7 @@ public final class BlockStreamUtils {
             case CLPR_ENDPOINT_MANIFEST_VALUE -> singletonUpdateChange.clprEndpointManifestValueOrThrow();
             case CLPR_ENDPOINT_MANIFEST_CONSTRUCTION_VALUE ->
                 singletonUpdateChange.clprEndpointManifestConstructionValueOrThrow();
+            case CLPR_CHANNEL_INDEX_VALUE -> singletonUpdateChange.clprChannelIndexValueOrThrow();
         };
     }
 
@@ -232,6 +236,7 @@ public final class BlockStreamUtils {
             case CLPR_MESSAGE_VALUE -> mapChangeValue.clprMessageValueOrThrow();
             case CLPR_CONNECTOR_VALUE -> mapChangeValue.clprConnectorValueOrThrow();
             case HINTS_KEY_WITNESS_RECORD_VALUE -> mapChangeValue.hintsKeyWitnessRecordValueOrThrow();
+            case PROTO_LONG_VALUE -> new ProtoLong(mapChangeValue.protoLongValueOrThrow());
         };
     }
 

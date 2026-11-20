@@ -3,7 +3,6 @@ package com.hedera.node.app.workflows.clpr;
 
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.node.state.clpr.ClprEndpoint;
 import com.hedera.node.app.service.clpr.ClprChannelLifecycle;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.ClprConfig;
@@ -12,7 +11,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
-import java.util.List;
 import javax.inject.Inject;
 import javax.inject.Provider;
 import javax.inject.Singleton;
@@ -78,15 +76,6 @@ public final class ClprRuntimeFacade implements ClprRuntime, ClprChannelLifecycl
         requireNonNull(channelId);
         if (isEnabled()) {
             channelManager().onChannelClosed(channelId);
-        }
-    }
-
-    @Override
-    public void seedPeerEndpoints(@NonNull final Bytes channelId, @NonNull final List<ClprEndpoint> endpoints) {
-        requireNonNull(channelId);
-        requireNonNull(endpoints);
-        if (isEnabled()) {
-            channelManager().seedPeerEndpoints(channelId, endpoints);
         }
     }
 

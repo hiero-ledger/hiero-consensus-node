@@ -31,7 +31,6 @@ import com.hedera.hapi.node.state.clpr.ClprChannelStatus;
 import com.hedera.hapi.node.state.clpr.ClprConfigUpdate;
 import com.hedera.hapi.node.state.clpr.ClprConnectorKey;
 import com.hedera.hapi.node.state.clpr.ClprControlMessage;
-import com.hedera.hapi.node.state.clpr.ClprEndpoint;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.clpr.ClprMessagePayload;
@@ -71,7 +70,6 @@ import com.hedera.node.config.data.ClprConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.List;
@@ -164,19 +162,14 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
             // Node transactions on the allowlist can bypass the ordinary API permission check.
             validateTrue(context.hasPrivilegedAuthorization() == AUTHORIZED, AUTHORIZATION_FAILED);
         }
-        // Step 1b refreshes the node-local peer endpoint cache. That cache is in-memory, so the full-stack rollback
-        // of a later penalizing HandleException would not undo it; the refresh is therefore applied only once the
-        // bundle has been handled without an exception.
-        final var deferredPeerEndpoints = new DeferredPeerEndpoints();
         final var gasAccounting = ClprGasAccounting.forContext(context);
         try {
             if (!recoveringManifest) {
                 gasAccounting.reserveRollbackFee(
                         context.configuration().getConfigData(ClprConfig.class).endpointMisbehaviorPenaltyTinybars());
             }
-            handleBundle(context, deferredPeerEndpoints, gasAccounting);
+            handleBundle(context, gasAccounting);
             gasAccounting.refundUnusedGas();
-            deferredPeerEndpoints.seedInto(channelLifecycle);
         } catch (final HandleException failure) {
             throw gasAccounting.preservingChargesOnRollback(failure);
         } catch (final RuntimeException failure) {
@@ -184,10 +177,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         }
     }
 
-    private void handleBundle(
-            @NonNull final HandleContext context,
-            @NonNull final DeferredPeerEndpoints deferredPeerEndpoints,
-            @NonNull final ClprGasAccounting gasAccounting)
+    private void handleBundle(@NonNull final HandleContext context, @NonNull final ClprGasAccounting gasAccounting)
             throws HandleException {
         final var op = context.body().clprSubmitBundleOrThrow();
         final var nodeAccountId = context.body().transactionIDOrThrow().accountIDOrThrow();
@@ -293,7 +283,6 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                 } catch (final IllegalArgumentException e) {
                     throw new HandleException(CLPR_BUNDLE_VERIFICATION_FAILED);
                 }
-                final var truncatedEndpoints = storedManifest.endpoints();
                 updatedBuilder = updatedBuilder
                         .endpointManifest(storedManifest)
                         .endpointManifestVersion(storedManifest.version());
@@ -303,9 +292,6 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                 if (expectedManifestVersion != null) {
                     updatedBuilder.peerManifestRecovered(true);
                 }
-                // Refresh the orchestrator's node-local peer endpoint cache — deferred until the bundle is
-                // handled without an exception (see doHandle).
-                deferredPeerEndpoints.set(channelId, truncatedEndpoints);
             }
             if (shouldUpdateTrustAnchor) {
                 log.debug(
@@ -1419,29 +1405,6 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                     }
                 }
             });
-        }
-    }
-
-    /**
-     * A Step 1b peer endpoint cache refresh, held until the bundle has been handled without an exception so the
-     * node-local cache only ever mirrors a manifest that is actually committed (see {@link #doHandle}).
-     */
-    private static final class DeferredPeerEndpoints {
-        @Nullable
-        private Bytes channelId;
-
-        @Nullable
-        private List<ClprEndpoint> endpoints;
-
-        void set(@NonNull final Bytes channelId, @NonNull final List<ClprEndpoint> endpoints) {
-            this.channelId = requireNonNull(channelId);
-            this.endpoints = requireNonNull(endpoints);
-        }
-
-        void seedInto(@NonNull final ClprChannelLifecycle channelLifecycle) {
-            if (channelId != null && endpoints != null) {
-                channelLifecycle.seedPeerEndpoints(channelId, endpoints);
-            }
         }
     }
 

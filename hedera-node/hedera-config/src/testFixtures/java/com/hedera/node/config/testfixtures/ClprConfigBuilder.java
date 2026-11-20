@@ -36,7 +36,6 @@ public final class ClprConfigBuilder {
     private int connectorQueueQuotaPct = 50;
     private long verifierGasLimit = 300_000L;
     private boolean verifyProofsAtSender = true;
-    private String peerEndpointsFile = "data/clpr/peer-endpoints.json";
     private long nodeSubmitBundleMaxFee = 1_000_000_000L;
     private Duration manifestGracePeriod = Duration.ofSeconds(300);
     private Duration manifestGraceExtension = Duration.ofSeconds(300);
@@ -181,11 +180,6 @@ public final class ClprConfigBuilder {
         return this;
     }
 
-    public ClprConfigBuilder peerEndpointsFile(final String peerEndpointsFile) {
-        this.peerEndpointsFile = peerEndpointsFile;
-        return this;
-    }
-
     public ClprConfigBuilder manifestGracePeriod(final Duration manifestGracePeriod) {
         this.manifestGracePeriod = manifestGracePeriod;
         return this;
@@ -244,7 +238,6 @@ public final class ClprConfigBuilder {
                 verifierGasLimit,
                 nodeSubmitBundleMaxFee,
                 verifyProofsAtSender,
-                peerEndpointsFile,
                 manifestGracePeriod,
                 manifestGraceExtension,
                 manifestMaxGraceExtensions,

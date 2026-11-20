@@ -11,7 +11,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.state.clpr.ClprChannelStatus;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
-import com.hedera.node.app.service.clpr.ClprChannelLifecycle;
 import com.hedera.node.app.service.clpr.impl.WritableChannelStore;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -26,7 +25,7 @@ import javax.inject.Singleton;
  * Handler for {@link HederaFunctionality#CLPR_EVICT_PEER_ENDPOINT} transactions.
  *
  * <p>Removes every entry matching the given service endpoint from a Channel's cached peer endpoint manifest, so no node
- * dials it, and refreshes the node-local dial cache to match. This is the admin path for an endpoint a Channel's
+ * dials it. This is the admin path for an endpoint a Channel's
  * verifier supplied that turns out to be malicious or unreachable. The manifest version is unchanged, so a later bundle
  * that advances the peer's manifest replaces the cached one and may list the endpoint again.
  *
@@ -35,11 +34,9 @@ import javax.inject.Singleton;
 @Singleton
 public final class ClprEvictPeerEndpointHandler extends AbstractClprHandler {
 
-    private final ClprChannelLifecycle channelLifecycle;
-
     @Inject
-    public ClprEvictPeerEndpointHandler(@NonNull final ClprChannelLifecycle channelLifecycle) {
-        this.channelLifecycle = requireNonNull(channelLifecycle);
+    public ClprEvictPeerEndpointHandler() {
+        // Dagger2
     }
 
     @Override
@@ -73,6 +70,5 @@ public final class ClprEvictPeerEndpointHandler extends AbstractClprHandler {
         channelStore.put(channel.copyBuilder()
                 .endpointManifest(manifest.copyBuilder().endpoints(remaining).build())
                 .build());
-        channelLifecycle.seedPeerEndpoints(op.channelId(), remaining);
     }
 }

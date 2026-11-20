@@ -13,6 +13,7 @@ import static com.hedera.hapi.node.base.SubType.DEFAULT;
 import static com.hedera.node.app.hapi.utils.keys.Ed25519Utils.keyFrom;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.PENDING_COMMITMENTS_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.test.handlers.ChannelIndexStubs.stubChannelIndex;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -182,6 +183,7 @@ class ClprCompleteChannelHandlerTest {
         lenient()
                 .when(writableStates.<ProtoBytes, ClprChannel>get(CHANNELS_STATE_ID))
                 .thenReturn(writableChannels);
+        stubChannelIndex(writableStates);
         channelStore = new WritableChannelStore(writableStates);
 
         // Pending commitments state
@@ -703,7 +705,6 @@ class ClprCompleteChannelHandlerTest {
 
         assertThat(channelStore.getChannel(CHANNEL_ID).endpointManifestOrThrow().endpoints())
                 .isEmpty();
-        then(channelLifecycle).should().seedPeerEndpoints(CHANNEL_ID, List.of());
     }
 
     @Test
@@ -925,7 +926,9 @@ class ClprCompleteChannelHandlerTest {
 
         subject.handle(handleContext);
 
-        then(channelLifecycle).should().seedPeerEndpoints(CHANNEL_ID, peerManifest.endpoints());
+        final var stored = channelStore.getChannel(CHANNEL_ID);
+        assertThat(stored).isNotNull();
+        assertThat(stored.endpointManifestOrThrow().endpoints()).isEqualTo(peerManifest.endpoints());
     }
 
     @Test
@@ -938,9 +941,10 @@ class ClprCompleteChannelHandlerTest {
 
         subject.handle(handleContext);
 
-        then(channelLifecycle)
-                .should()
-                .seedPeerEndpoints(CHANNEL_ID, peerManifest.endpoints().subList(0, 3));
+        final var stored = channelStore.getChannel(CHANNEL_ID);
+        assertThat(stored).isNotNull();
+        assertThat(stored.endpointManifestOrThrow().endpoints())
+                .isEqualTo(peerManifest.endpoints().subList(0, 3));
     }
 
     @Test
