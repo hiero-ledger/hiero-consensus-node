@@ -78,7 +78,7 @@ derived from the network's HIP-26 EVM chain ID, `contracts.chainId`, as `eip155:
 |--------------------|-------------|----------|---------------------------------------------------------------------------|
 | `verifierGasLimit` | `2 000 000` | yes      | Gas for `ClprVerifier.verifyBundle` / `verifyConfig` (`EvmClprVerifier`). |
 
-> `ClprCompleteChannel` and `ClprSubmitBundle` each reserve `verifierGasLimit` from the network gas throttle
+> `ClprOpenChannel` and `ClprSubmitBundle` each reserve `verifierGasLimit` from the network gas throttle
 > (`contracts.maxGasPerSec` / `maxGasPerSecBackend`), the same way a contract call reserves its gas limit, so verifier
 > execution can't run unthrottled.
 >

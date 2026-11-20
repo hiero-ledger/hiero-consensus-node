@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows;
 
-import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CHANNEL;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_OPEN_CHANNEL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
@@ -954,16 +954,16 @@ final class TransactionCheckerTest extends AppTestBase {
                                 new byte[][] {{7, 8, 9}, {1, 2, 3}, {1, 2, 3}})),
                         Arguments.of(Named.of("Duplicate prefixes followed by a unique prefix", (Object)
                                 new byte[][] {{1, 2, 3}, {1, 2, 3}, {7, 8, 9}})),
-                        Arguments.of(Named.of(
-                                "Prefix P followed by a prefix of P", (Object) new byte[][] {{1, 2, 3}, {1, 2}})),
+                        Arguments.of(Named.of("Prefix P followed by a prefix of P", (Object)
+                                new byte[][] {{1, 2, 3}, {1, 2}})),
                         Arguments.of(Named.of("Prefix P followed by unique prefix followed by prefix of P", (Object)
                                 new byte[][] {{1, 2, 3}, {6, 7, 8}, {1, 2}})),
-                        Arguments.of(Named.of(
-                                "Prefix P preceded by a prefix of P", (Object) new byte[][] {{1, 2}, {1, 2, 3}})),
+                        Arguments.of(Named.of("Prefix P preceded by a prefix of P", (Object)
+                                new byte[][] {{1, 2}, {1, 2, 3}})),
                         Arguments.of(Named.of("Little prefix of prefix P, unique prefix, then prefix P", (Object)
                                 new byte[][] {{1, 2}, {6, 7, 8}, {1, 2, 3}})),
-                        Arguments.of(Named.of(
-                                "Empty Prefix followed by non-empty Prefix", (Object) new byte[][] {{}, {6, 7, 8}})),
+                        Arguments.of(Named.of("Empty Prefix followed by non-empty Prefix", (Object)
+                                new byte[][] {{}, {6, 7, 8}})),
                         Arguments.of(Named.of("Empty Prefix between two non-empty Prefixes", (Object)
                                 new byte[][] {{6, 7, 8}, {}, {1}})),
                         // The cases below all place an unrelated prefix "between" P and its extension, so they are
@@ -974,9 +974,9 @@ final class TransactionCheckerTest extends AppTestBase {
                                 new byte[][] {{1}, {2}, {1, 2}})),
                         Arguments.of(Named.of("Prefix P, decoy of intermediate length, then extension of P", (Object)
                                 new byte[][] {{1}, {(byte) 0x99, (byte) 0x99}, {1, 2, 3}})),
-                        Arguments.of(
-                                Named.of("Extension listed before P, with a decoy between them once sorted", (Object)
-                                        new byte[][] {{1, 2, 3}, {1, 3}, {1, 2}})),
+                        Arguments.of(Named.of(
+                                "Extension listed before P, with a decoy between them once sorted",
+                                (Object) new byte[][] {{1, 2, 3}, {1, 3}, {1, 2}})),
                         Arguments.of(Named.of("High-bit prefixes, decoy sorting between P and its extension", (Object)
                                 new byte[][] {{(byte) 0x80}, {(byte) 0x81}, {(byte) 0x80, 1}})));
             }
@@ -1395,7 +1395,7 @@ final class TransactionCheckerTest extends AppTestBase {
         }
 
         @Test
-        void oversizedClprCompleteChannelIsExemptForNonGovernancePayer() throws PreCheckException {
+        void oversizedClprOpenChannelIsExemptForNonGovernancePayer() throws PreCheckException {
             props = () -> new VersionedConfigImpl(
                     HederaTestConfigBuilder.create()
                             .withValue("governanceTransactions.isEnabled", true)
@@ -1411,7 +1411,7 @@ final class TransactionCheckerTest extends AppTestBase {
                     .thenReturn(SignedTransaction.newBuilder()
                             .bodyBytes(Bytes.wrap(new byte[25 * 1024]))
                             .build());
-            when(txInfo.functionality()).thenReturn(CLPR_COMPLETE_CHANNEL);
+            when(txInfo.functionality()).thenReturn(CLPR_OPEN_CHANNEL);
             final var nonGovernancePayer =
                     AccountID.newBuilder().accountNum(1000).build();
 

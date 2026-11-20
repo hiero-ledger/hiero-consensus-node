@@ -32,7 +32,7 @@ import java.util.List;
  *
  * <p>Spec refs: §3.1 (Verifier Contract Interface — {@code verifyConfig(bytes,bytes32,bytes)}
  * returns the proven configuration fields plus the peer endpoint manifest in an ABI tuple);
- * §5.1.3 (Phase 2 — Reveal: the {@code completeChannel} handler invokes the verifier over the
+ * channel setup (the {@code openChannel} handler invokes the verifier over the
  * registrant's {@code config_proof_bytes} and stores the returned config + its
  * {@code initial_trust_anchor} on the new Channel).
  */

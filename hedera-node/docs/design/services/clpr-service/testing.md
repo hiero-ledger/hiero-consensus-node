@@ -27,7 +27,7 @@ All tagged `CLPR` (`TestTags.CLPR`). Multi-network ones additionally tagged
 | `ClprSendMessageSuite`         | CLPR                                                | EVM `0x16e.sendMessage` happy path + throttle / authorization revert paths.                                                                                       |
 | `ClprSubmitBundleSuite`        | CLPR                                                | Submit-bundle handler validation incl. proof verification failure paths.                                                                                          |
 | `ClprOrchestratorSubmitTest`   | CLPR + `@LeakyEmbeddedHapiTest(NEEDS_STATE_ACCESS)` | Embedded test of the orchestrator submitting a bundle through the regular consensus path.                                                                         |
-| `ClprHieroToHieroSuite`        | CLPR + MULTINETWORK + `@MultiNetworkHapiTest`       | End-to-end against two real subprocess networks: register, complete channels+connectors, contract calls, cross-ledger transfer; asserts message delivery on peer. |
+| `ClprHieroToHieroSuite`        | CLPR + MULTINETWORK + `@MultiNetworkHapiTest`       | End-to-end against two real subprocess networks: open channels, register and activate connectors, contract calls, cross-ledger transfer; asserts message delivery on peer. |
 
 ## Multi-network harness (`bdd/junit/`)
 

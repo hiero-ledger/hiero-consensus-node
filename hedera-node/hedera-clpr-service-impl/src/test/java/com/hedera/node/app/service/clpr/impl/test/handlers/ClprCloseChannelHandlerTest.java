@@ -297,8 +297,7 @@ class ClprCloseChannelHandlerTest {
     @Test
     @DisplayName("should delete abandoned pending commitment when no channel record exists")
     void adminClearsAbandonedCommitment() {
-        // Only a pending commitment exists — registerChannel was submitted but
-        // completeChannel was never called.
+        // Only a legacy pending commitment exists.
         commitmentStore.put(COMMITMENT);
         final var op = ClprCloseChannelTransactionBody.newBuilder()
                 .channelId(CHANNEL_ID)

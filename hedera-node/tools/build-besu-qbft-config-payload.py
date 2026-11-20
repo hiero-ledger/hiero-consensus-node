@@ -22,9 +22,8 @@ spec = importlib.util.spec_from_file_location("besu_qbft_common", COMMON_PATH)
 common = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(common)
 
-# SC-189 moved _config to storage slot 23 (adding _endpointManifest / _peerEndpointManifests
-# before it), so _config.serviceAddress = base 23 + field offset 2 = slot 25.
-CONFIG_SERVICE_ADDRESS_SLOT = 25
+# _config.serviceAddress is at struct base 19 + field offset 2.
+CONFIG_SERVICE_ADDRESS_SLOT = 21
 
 
 def json_rpc(url, method, params):

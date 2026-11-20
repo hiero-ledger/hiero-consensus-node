@@ -85,7 +85,7 @@ selects the translator.
 - `ClprMessageSender` — Java mirror of the `sendMessage` Solidity selector; consumed by
   the translator to decode/encode calldata.
 - `ClprChannelLifecycle` — implemented by `ClprChannelManager` (or no-op in
-  standalone). Called from `ClprCompleteChannelHandler` /
+  standalone). Called from `ClprOpenChannelHandler` /
   `ClprCloseChannelHandler`.
 
 ## Wiring summary

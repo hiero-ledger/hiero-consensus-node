@@ -38,29 +38,9 @@ HAPI dispatch table for the CLPR `HederaFunctionality` values. Add new handlers 
 For each: trigger functionality → spec §6 method → key validation → state writes →
 side-effects.
 
-### `ClprRegisterChannelHandler` — commit phase
+### `ClprOpenChannelHandler`
 
-- Functionality: `CLPR_REGISTER_CHANNEL`. Spec §5.1.2 / §6.2 (`registerChannel`).
-- Body: `ClprRegisterChannelTransactionBody`.
-- Validates: payer pays the registration fee; commitment hash well-formed; commitment not
-  already in `PENDING_COMMITMENTS` (pending reveal, or bound to an existing Channel in any
-  status, including `CLOSED`) — otherwise `CLPR_CHANNEL_ALREADY_EXISTS`.
-- Writes: `PENDING_COMMITMENTS[commitment_hash] = commitment_hash`.
-- No channel record is created in this phase.
-
-### `ClprCompleteChannelHandler` — reveal phase
-
-- Functionality: `CLPR_COMPLETE_CHANNEL`. Spec §5.1.3 / §6.2 (`completeChannel`).
-- Validates: preimage matches the prior `PENDING_COMMITMENTS` entry; signer key matches
-  preimage; verifier contract resolves; chain ID, throttles, etc. on the candidate config
-  pass `verifyConfig`. Re-derives `channelId`.
-- Writes: `CHANNELS[channelId] = ClprChannel{ status: ACTIVE, ownership_commitment, … }`. The
-  commitment is **not** removed: it stays in `PENDING_COMMITMENTS` for as long as the Channel
-  record exists. Channel records are kept in every status, including `CLOSED`, so a Channel
-  can never be created again.
-- **Lifecycle hook:** calls `ClprChannelLifecycle.onChannelActivated(channelId)`
-  → `ClprChannelManager` adds the channel to its sync schedule. (In the standalone
-  executor module the lifecycle is a no-op.)
+Any payer can open a channel in one transaction. The selected verifier authenticates the peer configuration and endpoint manifest. The handler derives the channel ID from both ledgers’ chain IDs, service addresses, verifier addresses, and the shared 32-byte salt. If the ID matches the submitted ID and the channel is new, the handler stores the active channel and schedules synchronization with its verified endpoints.
 
 ### `ClprCloseChannelHandler` — admin close
 
@@ -93,7 +73,6 @@ side-effects.
 ### `ClprRegisterConnectorHandler` / `ClprCompleteConnectorHandler`
 
 - Functionalities: `CLPR_REGISTER_CONNECTOR`, `CLPR_COMPLETE_CONNECTOR`. Spec §6.3.
-- Same commit-reveal shape as channel registration.
 - Register requires a 32-byte `channel_id` identifying an existing channel and a 32-byte
   `commitment`. A missing channel fails with `CLPR_CHANNEL_NOT_FOUND` before storing the commitment.
   The channel ID is public metadata; the commitment preimage is verified during reveal.

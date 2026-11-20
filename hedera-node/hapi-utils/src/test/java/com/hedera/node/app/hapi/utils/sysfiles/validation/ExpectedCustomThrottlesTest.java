@@ -4,11 +4,10 @@ package com.hedera.node.app.hapi.utils.sysfiles.validation;
 import static com.hedera.node.app.hapi.utils.sysfiles.validation.ExpectedCustomThrottles.ACTIVE_OPS;
 import static com.hedera.node.app.hapi.utils.sysfiles.validation.ExpectedCustomThrottles.CLPR_OPS;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprCloseChannel;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprCompleteChannel;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprDeregisterConnector;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprEvictPeerEndpoint;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprGetLedgerConfiguration;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprRegisterChannel;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprOpenChannel;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprRegisterConnector;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprSubmitBundle;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprUpdateLedgerConfiguration;
@@ -77,7 +76,7 @@ class ExpectedCustomThrottlesTest {
     // Suppress the warning that we use too many assets
     @SuppressWarnings("java:S5961")
     void releaseTwentyHasExpected() {
-        assertEquals(64, ACTIVE_OPS.size());
+        assertEquals(63, ACTIVE_OPS.size());
 
         assertTrue(ACTIVE_OPS.contains(CryptoCreate), "Missing CryptoCreate!");
         assertTrue(ACTIVE_OPS.contains(CryptoTransfer), "Missing CryptoTransfer!");
@@ -135,8 +134,7 @@ class ExpectedCustomThrottlesTest {
         assertTrue(ACTIVE_OPS.contains(EthereumTransaction), "Missing EthereumTransaction!");
         assertTrue(ACTIVE_OPS.contains(UtilPrng), "Missing UtilPrng!");
         assertTrue(ACTIVE_OPS.contains(ClprUpdateLedgerConfiguration), "Missing ClprUpdateLedgerConfiguration!");
-        assertTrue(ACTIVE_OPS.contains(ClprRegisterChannel), "Missing ClprRegisterChannel!");
-        assertTrue(ACTIVE_OPS.contains(ClprCompleteChannel), "Missing ClprCompleteChannel!");
+        assertTrue(ACTIVE_OPS.contains(ClprOpenChannel), "Missing ClprOpenChannel!");
         assertTrue(ACTIVE_OPS.contains(ClprCloseChannel), "Missing ClprCloseChannel!");
         assertTrue(ACTIVE_OPS.contains(ClprEvictPeerEndpoint), "Missing ClprEvictPeerEndpoint!");
         assertTrue(ACTIVE_OPS.contains(ClprGetLedgerConfiguration), "Missing ClprGetLedgerConfiguration!");

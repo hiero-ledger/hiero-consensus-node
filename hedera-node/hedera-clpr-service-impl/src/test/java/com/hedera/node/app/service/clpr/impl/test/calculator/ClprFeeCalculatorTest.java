@@ -2,10 +2,9 @@
 package com.hedera.node.app.service.clpr.impl.test.calculator;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_CLOSE_CHANNEL;
-import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CHANNEL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CONNECTOR;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_DEREGISTER_CONNECTOR;
-import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_REGISTER_CHANNEL;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_OPEN_CHANNEL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_REGISTER_CONNECTOR;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SUBMIT_BUNDLE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_UPDATE_LEDGER_CONFIGURATION;
@@ -30,7 +29,7 @@ import static org.mockito.Mockito.withSettings;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.FeeData;
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.hapi.node.clpr.ClprCompleteChannelTransactionBody;
+import com.hedera.hapi.node.clpr.ClprOpenChannelTransactionBody;
 import com.hedera.hapi.node.clpr.ClprSubmitBundleTransactionBody;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -118,15 +117,15 @@ class ClprFeeCalculatorTest {
     }
 
     @Test
-    void completeChannelRecordsBaseStoredBytesAndCappedVerifierGasExactlyOnce() {
-        final var fixture = new SettlementFixture(CLPR_COMPLETE_CHANNEL);
+    void openChannelRecordsBaseStoredBytesAndCappedVerifierGasExactlyOnce() {
+        final var fixture = new SettlementFixture(CLPR_OPEN_CHANNEL);
         final var accounting = ClprGasAccounting.forContext(fixture.context);
         assertThat(accounting.prepayVerifier(SettlementFixture.PAYER, SettlementFixture.VERIFIER_LIMIT))
                 .isTrue();
         accounting.settleVerifierWithGasUsage(
                 SettlementFixture.PAYER, SettlementFixture.VERIFIER_LIMIT, gasResult(350_000));
 
-        ClprFeeCalculator.settleCompleteChannelFee(fixture.context, 350_000, SettlementFixture.STORED_BYTES);
+        ClprFeeCalculator.settleOpenChannelFee(fixture.context, 350_000, SettlementFixture.STORED_BYTES);
         accounting.refundUnusedGas();
 
         final long storedByteFee =
@@ -177,7 +176,7 @@ class ClprFeeCalculatorTest {
 
     @Test
     void deferredStoredBytesMustFitTheRemainingSignedFee() {
-        final var fixture = new SettlementFixture(CLPR_COMPLETE_CHANNEL);
+        final var fixture = new SettlementFixture(CLPR_OPEN_CHANNEL);
         final long storedByteFee =
                 (SettlementFixture.STORED_BYTES - SettlementFixture.INCLUDED_BYTES) * SettlementFixture.STATE_RATE;
         final var body = fixture.context
@@ -188,7 +187,7 @@ class ClprFeeCalculatorTest {
         given(fixture.context.body()).willReturn(body);
 
         assertThatThrownBy(() ->
-                        ClprFeeCalculator.settleCompleteChannelFee(fixture.context, 0, SettlementFixture.STORED_BYTES))
+                        ClprFeeCalculator.settleOpenChannelFee(fixture.context, 0, SettlementFixture.STORED_BYTES))
                 .isInstanceOfSatisfying(
                         HandleException.class,
                         failure -> assertThat(failure.getStatus()).isEqualTo(INSUFFICIENT_TX_FEE));
@@ -218,10 +217,10 @@ class ClprFeeCalculatorTest {
         private final AtomicLong recordedFee = new AtomicLong();
 
         private SettlementFixture(final HederaFunctionality functionality) {
-            final var body = functionality == CLPR_COMPLETE_CHANNEL
+            final var body = functionality == CLPR_OPEN_CHANNEL
                     ? TransactionBody.newBuilder()
                             .transactionFee(5_000_000)
-                            .clprCompleteChannel(ClprCompleteChannelTransactionBody.DEFAULT)
+                            .clprOpenChannel(ClprOpenChannelTransactionBody.DEFAULT)
                             .build()
                     : TransactionBody.newBuilder()
                             .transactionFee(5_000_000)
@@ -298,8 +297,7 @@ class ClprFeeCalculatorTest {
                 Arguments.of(
                         CLPR_UPDATE_LEDGER_CONFIGURATION,
                         TransactionBody.DataOneOfType.CLPR_UPDATE_LEDGER_CONFIGURATION),
-                Arguments.of(CLPR_REGISTER_CHANNEL, TransactionBody.DataOneOfType.CLPR_REGISTER_CHANNEL),
-                Arguments.of(CLPR_COMPLETE_CHANNEL, TransactionBody.DataOneOfType.CLPR_COMPLETE_CHANNEL),
+                Arguments.of(CLPR_OPEN_CHANNEL, TransactionBody.DataOneOfType.CLPR_OPEN_CHANNEL),
                 Arguments.of(CLPR_CLOSE_CHANNEL, TransactionBody.DataOneOfType.CLPR_CLOSE_CHANNEL),
                 Arguments.of(CLPR_REGISTER_CONNECTOR, TransactionBody.DataOneOfType.CLPR_REGISTER_CONNECTOR),
                 Arguments.of(CLPR_COMPLETE_CONNECTOR, TransactionBody.DataOneOfType.CLPR_COMPLETE_CONNECTOR),

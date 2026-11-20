@@ -25,10 +25,10 @@ The protocol has three layers:
   *state proof* and uses it to verify incoming data. Alongside it, each network
   keeps an *endpoint manifest* (the endpoints its peers dial), which the other
   side also fetches as a state proof.
-- **Channel** — a bilateral agreement between two specific ledger IDs. Uses a
-  two-phase commit/reveal so neither side can front-run the other's identity.
+- **Channel** — a bilateral agreement opened using both ledgers’ service and verifier addresses,
+  chain IDs, and a shared salt.
 - **Connector** — the on-chain contract that authorises bundle relay for a given
-  channel. Also registered via commit/reveal, and can be slashed for
+  channel. It is registered via commit/reveal, and can be slashed for
   misbehaviour.
 
 ---
@@ -307,7 +307,7 @@ If either `--proof-path` writes 0 bytes the genesis WRAPS proof has not finished
 Wait for the FINISHED line from step 4 and retry.
 
 Verify the observed configs have a trust anchor **and** the observed manifests are
-finalized before proceeding. Without a trust anchor `complete-channel` fails; without
+finalized before proceeding. Without a trust anchor `open-channel` fails; without
 a finalized manifest the channel has no endpoints to dial:
 
 ```bash
@@ -319,98 +319,40 @@ jq '.finalized' bob-observed-manifest.json                           # must be t
 
 ---
 
-### Step 10 — Generate a channel security identity
+### Step 10 — Derive a shared channel ID
 
-**What this does:** This step is not really part of the protocol itself. It
-generates data required to establish a channel between the two ledgers: a
-random channel ID and an asymmetric keypair. Both networks will reference this
-to secure the channel establishment process. The `ownershipCommitment` is a hash
-of the full identity that is submitted first (commit phase), protecting both parties
-from front-running — neither side can observe the other's identity before locking
-in its own commitment.
+Both ledgers in this example use the native CLPR service and Hiero verifier at `0.0.366`. Read each chain ID from its queried configuration and generate the salt once.
 
 ```bash
-./yahcli -n alice -p 2 clpr generate-channel-identity --out channel.json
+SERVICE=000000000000000000000000000000000000016e
+./yahcli -n alice -p 2 clpr generate-channel-identity \
+  --local-chain-id "$(jq -r .configuration.chain_id alice-observed-config.json)" \
+  --local-service "$SERVICE" --local-verifier "$SERVICE" \
+  --peer-chain-id "$(jq -r .configuration.chain_id bob-observed-config.json)" \
+  --peer-service "$SERVICE" --peer-verifier "$SERVICE" --out channel.json
+CHANNEL_ID=$(jq -r .channelId channel.json)
+CHANNEL_SALT=$(jq -r .salt channel.json)
 ```
 
-This writes two files: the public bundle `channel.json` and the private key `channel.json.key`
-(mode 0600). If either already exists it is moved to `<name>.<epochMillis>.bak` rather than overwritten;
-those backups contain live keys and are never pruned — see "Key files and backups" in the yahcli README.
-
-Inspect the result:
+### Step 11 — Open the channel on Alice
 
 ```bash
-jq . channel.json
-```
-
-Capture the commitment for the next step:
-
-```bash
-CHANNEL_COMMIT=$(jq -r .ownershipCommitment channel.json)
-echo "Commitment: $CHANNEL_COMMIT"
-```
-
----
-
-### Step 11 — Register the channel on both networks (commit phase)
-
-**What this does:** Submits the commitment hash to each network's CLPR state,
-indicating the interest in establishing a channel. Locking in the commitment
-prevents front-running: neither side can observe the other's full identity and
-craft a conflicting response before its own commit is recorded. For now, no
-channel is open yet.
-
-```bash
-./yahcli -n alice -p 2 clpr register-channel --commitment "$CHANNEL_COMMIT"
-./yahcli -n bob   -p 2 clpr register-channel --commitment "$CHANNEL_COMMIT"
-```
-
----
-
-### Step 12 — Complete the channel on both networks (reveal phase)
-
-**What this does:** Completes the channel on both networks, using the
-identity generated previously to identify the channel. Trust anchors are
-exchanged between the ledgers, so they can verify each other's messages.
-This step verifies that:
-
-1. The commitment hash matches what was registered in step 11.
-2. The peer's ledger-configuration and endpoint-manifest state proofs (pulled in
-   step 9) validate against the peer's trust anchor using the CLPR verifier
-   system contract at `0.0.366`. The verified manifest becomes the list of
-   endpoints this network dials for the channel.
-
-The `0.0.366` verifier requires both proofs: pass the peer's configuration proof
-with `--config-proof` and its manifest proof with `--endpoint-manifest-proof`.
-
-Completing the channel for Alice network:
-
-```bash
-./yahcli -n alice -p 2 clpr complete-channel \
-  --identity channel.json \
-  --verifier-contract 0.0.366 \
-  --config-proof bob-proof.bin \
+./yahcli -n alice -p 2 clpr open-channel \
+  --channel-id "$CHANNEL_ID" --salt "$CHANNEL_SALT" --peer-verifier "$SERVICE" \
+  --verifier-contract 0.0.366 --config-proof bob-proof.bin \
   --endpoint-manifest-proof bob-manifest-proof.bin
 ```
 
-Completing the channel for Bob network:
+### Step 12 — Open the channel on Bob
+
+Use the same ID and salt with Alice's proofs.
 
 ```bash
-./yahcli -n bob -p 2 clpr complete-channel \
-  --identity channel.json \
-  --verifier-contract 0.0.366 \
-  --config-proof alice-proof.bin \
+./yahcli -n bob -p 2 clpr open-channel \
+  --channel-id "$CHANNEL_ID" --salt "$CHANNEL_SALT" --peer-verifier "$SERVICE" \
+  --verifier-contract 0.0.366 --config-proof alice-proof.bin \
   --endpoint-manifest-proof alice-manifest-proof.bin
 ```
-
-The channel is now ACTIVE on both networks. Capture the channel ID:
-
-```bash
-CHANNEL_ID=$(jq -r .channelId channel.json)
-echo "Channel ID: $CHANNEL_ID"
-```
-
----
 
 ### Step 13 — Deploy the passthrough connector on both networks
 
@@ -445,8 +387,7 @@ echo "PassThroughAuth on bob:   $PASSTHROUGH_B"
 ### Step 14 — Generate a connector identity
 
 **What this does:** Creates a cryptographic identity for the connector — the
-entity responsible for relaying bundles between the two chains. Like the
-channel identity, it uses a commit/reveal cycle. The connector ID is derived
+entity responsible for relaying bundles between the two chains. Connector registration uses a commit/reveal cycle. The connector ID is derived
 from the channel ID, binding this connector to the specific channel.
 
 ```bash
@@ -694,14 +635,14 @@ cd clpr-hiero-bob/hedera-node/yahcli/scripts/clpre2e  && HAPI_PORT=50311 ./start
 |                                                                                            Symptom                                                                                             |                                                                           Cause                                                                           |                                                                                Fix                                                                                 |
 |------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `proof-path` writes 0 bytes                                                                                                                                                                    | Genesis WRAPS proof not finished                                                                                                                          | Wait for "FINISHED" in step 4 and retry step 9                                                                                                                     |
-| `CLPR_VERIFIER_CONFIG_FAILED` at `complete-channel`; `hgcaa.log` shows `requires a non-empty endpoint_manifest_proof_bytes`                                                                    | `--endpoint-manifest-proof` was not passed, or the manifest proof file is empty; the `0.0.366` verifier requires it                                       | Run `get-endpoint-manifest` on the peer (step 9) and pass its `--proof-path` file via `--endpoint-manifest-proof` (step 12)                                        |
-| `INVALID_CLPR_CONFIGURATION` at `update-ledger-configuration`, or `CLPR_VERIFIER_CONFIG_FAILED` at `complete-channel` with `manifest.service_address != config.service_address` in `hgcaa.log` | The config file's `serviceAddress` is not the CLPR system contract address, which the endpoint manifest carries                                           | Set `serviceAddress` to `AAAAAAAAAAAAAAAAAAAAAAAAAW4=` as in the repo-provided `alice-config.json` / `bob-config.json`, then re-run steps 8 and 9                  |
+| `CLPR_VERIFIER_CONFIG_FAILED` at `open-channel`; `hgcaa.log` shows `requires a non-empty endpoint_manifest_proof_bytes`                                                                    | `--endpoint-manifest-proof` was not passed, or the manifest proof file is empty; the `0.0.366` verifier requires it                                       | Run `get-endpoint-manifest` on the peer (step 9) and pass its `--proof-path` file via `--endpoint-manifest-proof` (step 12)                                        |
+| `INVALID_CLPR_CONFIGURATION` at `update-ledger-configuration`, or `CLPR_VERIFIER_CONFIG_FAILED` at `open-channel` with `manifest.service_address != config.service_address` in `hgcaa.log` | The config file's `serviceAddress` is not the CLPR system contract address, which the endpoint manifest carries                                           | Set `serviceAddress` to `AAAAAAAAAAAAAAAAAAAAAAAAAW4=` as in the repo-provided `alice-config.json` / `bob-config.json`, then re-run steps 8 and 9                  |
 | `get-endpoint-manifest` warns `is not finalized yet`, or `jq '.finalized'` prints `false`                                                                                                      | The node has not published its endpoint yet, so the manifest is still the version-1 genesis placeholder with no endpoints                                 | Wait a few seconds (`hgcaa.log` logs `endpoint absent from manifest` while the node publishes) and re-run step 9                                                   |
-| `CLPR_VERIFIER_CONFIG_FAILED` at `complete-channel` — trust anchor empty                                                                                                                       | Step 8 ran before the `[CLPR-SYNC-POINT]` log appeared — block proofs didn't yet carry the WRAPS recursive material needed for cross-network verification | Wait for `[CLPR-SYNC-POINT]` on both networks, wait 30 s, then re-run steps 8 and 9; verify `jq '.configuration.initial_trust_anchor'` is non-null before retrying |
+| `CLPR_VERIFIER_CONFIG_FAILED` at `open-channel` — trust anchor empty                                                                                                                       | Step 8 ran before the `[CLPR-SYNC-POINT]` log appeared — block proofs didn't yet carry the WRAPS recursive material needed for cross-network verification | Wait for `[CLPR-SYNC-POINT]` on both networks, wait 30 s, then re-run steps 8 and 9; verify `jq '.configuration.initial_trust_anchor'` is non-null before retrying |
 | `INSUFFICIENT_PAYER_BALANCE` in hgcaa.log                                                                                                                                                      | Account 0.0.3 ran out of hbar                                                                                                                             | Repeat step 7                                                                                                                                                      |
 | Bob's node never starts / port 50311 not listening                                                                                                                                             | Properties not copied to build dir                                                                                                                        | Verify `clpr-hiero-bob/hedera-node/hedera-app/build/node/data/config/application.properties` contains the port overrides; re-run `./gradlew :app:run`              |
-| `BindException: Address already in use` on port 31013 in `swirlds.log`; bob's node never reaches consensus and CLPR steps fail (e.g. `INVALID_TRANSACTION_BODY` at `complete-channel`)         | Both networks ship the same `genesis-network.json` gossip port (31013) and collide on `127.0.0.1`                                                         | Change bob's gossip port in `genesis-network.json` per step 2, then `./gradlew :app:cleanRun`                                                                      |
-| `yahcli exited non-zero` at register-channel                                                                                                                                                   | Channel already registered from a prior run                                                                                                               | Clean the node state (`./gradlew :app:cleanRun`) and restart both networks                                                                                         |
+| `BindException: Address already in use` on port 31013 in `swirlds.log`; bob's node never reaches consensus and CLPR steps fail (e.g. `INVALID_TRANSACTION_BODY` at `open-channel`)         | Both networks ship the same `genesis-network.json` gossip port (31013) and collide on `127.0.0.1`                                                         | Change bob's gossip port in `genesis-network.json` per step 2, then `./gradlew :app:cleanRun`                                                                      |
+| `CLPR_CHANNEL_ALREADY_EXISTS` at `open-channel` | The shared ID is already in use on that ledger. | Reuse the existing channel or generate a fresh shared salt to open a separate channel. |
 
 ---
 

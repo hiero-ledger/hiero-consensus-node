@@ -17,11 +17,10 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.clprGetEndpointMan
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.clprGetLedgerConfiguration;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCloseChannel;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprDeregisterConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprEvictPeerEndpoint;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterChannel;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprOpenChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprSubmitBundle;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprUpdateLedgerConfiguration;
@@ -71,7 +70,7 @@ import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
-import com.hedera.services.bdd.spec.transactions.clpr.HapiClprRegisterChannel;
+import com.hedera.services.bdd.spec.transactions.clpr.HapiClprOpenChannel;
 import com.hedera.services.bdd.spec.transactions.clpr.HapiClprUpdateLedgerConfiguration;
 import com.hederahashgraph.api.proto.java.ClprChannelStatus;
 import com.hederahashgraph.api.proto.java.ClprEndpoint;
@@ -466,13 +465,12 @@ public class ClprDisabledSuite {
     private static LinkedHashMap<String, HapiTxnOp<?>> clprTxns(final ClprChannelCrypto crypto) {
         final var txns = new LinkedHashMap<String, HapiTxnOp<?>>();
         txns.put("updateLedgerConfiguration", clprUpdateLedgerConfiguration().configuration(ledgerConfig()));
-        txns.put("registerChannel", clprRegisterChannel().ownershipCommitment(crypto.commitment()));
         txns.put(
-                "completeChannel",
-                clprCompleteChannel()
+                "openChannel",
+                clprOpenChannel()
                         .channelId(crypto.channelId())
-                        .publicKey(crypto.publicKey())
-                        .signature(crypto.signature())
+                        .salt(crypto.salt())
+                        .peerVerifier(crypto.peerVerifier())
                         .verifierContract(VERIFIER_CONTRACT)
                         .configProofBytes(toConfigProofBytes(ledgerConfig())));
         txns.put(
@@ -568,10 +566,10 @@ public class ClprDisabledSuite {
                         + "in NODE_INTERNAL_CLPR_FUNCTIONS with the reason it is unreachable from HAPI");
     }
 
-    private static HapiClprRegisterChannel endpointPublicationProbe() {
+    private static HapiClprOpenChannel endpointPublicationProbe() {
         // Reuse a transaction transport but replace its oneof body before signing. This checks
         // the actual parsed functionality, including an internal operation without its own RPC.
-        return clprRegisterChannel()
+        return clprOpenChannel()
                 .payingWith(GENESIS)
                 .withBodyMutation((body, spec) ->
                         body.setClprEndpointPublication(ClprEndpointPublicationTransactionBody.newBuilder()

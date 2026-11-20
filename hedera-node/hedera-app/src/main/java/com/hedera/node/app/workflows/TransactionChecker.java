@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows;
 
-import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CHANNEL;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_OPEN_CHANNEL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SUBMIT_BUNDLE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRS_PUBLICATION;
 import static com.hedera.hapi.node.base.HederaFunctionality.HINTS_PREPROCESSING_VOTE;
@@ -80,7 +80,7 @@ public class TransactionChecker {
     private static final int USER_TRANSACTION_NONCE = 0;
     // These are inner transactions that are not jumbo but sometimes are bigger than 6kb.
     private static final List<HederaFunctionality> NON_JUMBO_TRANSACTIONS_BIGGER_THAN_6_KB = List.of(
-            CRS_PUBLICATION, HISTORY_PROOF_VOTE, HINTS_PREPROCESSING_VOTE, CLPR_COMPLETE_CHANNEL, CLPR_SUBMIT_BUNDLE);
+            CRS_PUBLICATION, HISTORY_PROOF_VOTE, HINTS_PREPROCESSING_VOTE, CLPR_OPEN_CHANNEL, CLPR_SUBMIT_BUNDLE);
 
     // Metric config for keeping track of the number of deprecated transactions received
     private static final String COUNTER_DEPRECATED_TXNS_NAME = "DeprTxnsRcv";

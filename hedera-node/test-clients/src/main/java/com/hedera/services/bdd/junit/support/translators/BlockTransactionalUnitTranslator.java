@@ -3,13 +3,12 @@ package com.hedera.services.bdd.junit.support.translators;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_CLOSE_CHANNEL;
-import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CHANNEL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CONNECTOR;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_DEREGISTER_CONNECTOR;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_ENDPOINT_PUBLICATION;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_EVICT_PEER_ENDPOINT;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_MAINTENANCE;
-import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_REGISTER_CHANNEL;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_OPEN_CHANNEL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_REGISTER_CONNECTOR;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SUBMIT_BUNDLE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_UPDATE_LEDGER_CONFIGURATION;
@@ -213,8 +212,7 @@ public class BlockTransactionalUnitTranslator {
                     put(MIGRATION_ROOT_HASH_VOTE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(CLPR_MAINTENANCE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(CLPR_UPDATE_LEDGER_CONFIGURATION, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
-                    put(CLPR_REGISTER_CHANNEL, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
-                    put(CLPR_COMPLETE_CHANNEL, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
+                    put(CLPR_OPEN_CHANNEL, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(CLPR_CLOSE_CHANNEL, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(CLPR_SUBMIT_BUNDLE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(CLPR_REGISTER_CONNECTOR, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
@@ -226,8 +224,7 @@ public class BlockTransactionalUnitTranslator {
 
     private static final Set<HederaFunctionality> CLPR_FUNCTIONALITIES = EnumSet.of(
             CLPR_UPDATE_LEDGER_CONFIGURATION,
-            CLPR_REGISTER_CHANNEL,
-            CLPR_COMPLETE_CHANNEL,
+            CLPR_OPEN_CHANNEL,
             CLPR_CLOSE_CHANNEL,
             CLPR_SUBMIT_BUNDLE,
             CLPR_REGISTER_CONNECTOR,
