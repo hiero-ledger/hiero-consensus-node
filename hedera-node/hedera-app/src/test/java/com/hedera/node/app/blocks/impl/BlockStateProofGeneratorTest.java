@@ -29,7 +29,6 @@ import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
@@ -75,7 +74,7 @@ class BlockStateProofGeneratorTest {
                     FINAL_SIGNATURE,
                     latestSignedBlockTimestamp,
                     pendingBlocksByBlockNum.values().stream(),
-                    FIXTURE_DIGEST_TYPE);
+                    DigestType.SHA_256);
             // Verify the generated proof matches the expected proof
             Assertions.assertThat(result).isEqualTo(expectedProofs.get(blockNum));
         }
@@ -260,7 +259,7 @@ class BlockStateProofGeneratorTest {
                     FINAL_SIGNATURE,
                     latestSignedBlockTimestamp,
                     pendingBlocksByBlockNum.values().stream(),
-                    FIXTURE_DIGEST_TYPE);
+                    DigestType.SHA_256);
 
             final var computedHash = traverseStateProof(stateProof, currentBlock.blockHash());
             Assertions.assertThat(computedHash)
@@ -293,7 +292,7 @@ class BlockStateProofGeneratorTest {
         for (int i = 0; i < paths.size(); i++) {
             final var path = paths.get(i);
             if (path.hasTimestampLeaf()) {
-                pathHashes[i] = BlockImplUtils.hashLeaf(fixtureDigest(), path.timestampLeafOrThrow());
+                pathHashes[i] = BlockImplUtils.hashLeaf(CommonUtils.sha256DigestOrThrow(), path.timestampLeafOrThrow());
             } else if (!path.siblings().isEmpty()) {
                 // In a valid state proof only mp2 (BLOCK_CONTENTS_PATH_INDEX) carries siblings.
                 // If mp3 or mp4 were to have siblings the hash check below would incorrectly pass
@@ -308,9 +307,11 @@ class BlockStateProofGeneratorTest {
                 for (final SiblingNode sibling : path.siblings()) {
                     if (sibling.isLeft()) {
                         // Left sibling is an indirect block's consensus timestamp
-                        current = BlockImplUtils.hashInternalNode(fixtureDigest(), sibling.hash(), current);
+                        current = BlockImplUtils.hashInternalNode(
+                                CommonUtils.sha256DigestOrThrow(), sibling.hash(), current);
                     } else {
-                        current = BlockImplUtils.hashInternalNode(fixtureDigest(), current, sibling.hash());
+                        current = BlockImplUtils.hashInternalNode(
+                                CommonUtils.sha256DigestOrThrow(), current, sibling.hash());
                     }
                 }
                 pathHashes[i] = current;
@@ -329,8 +330,8 @@ class BlockStateProofGeneratorTest {
                     }
                 }
                 if (timestampChildHash != null && otherChildHash != null) {
-                    pathHashes[i] =
-                            BlockImplUtils.hashInternalNode(fixtureDigest(), timestampChildHash, otherChildHash);
+                    pathHashes[i] = BlockImplUtils.hashInternalNode(
+                            CommonUtils.sha256DigestOrThrow(), timestampChildHash, otherChildHash);
                 }
             }
         }
@@ -341,7 +342,7 @@ class BlockStateProofGeneratorTest {
 
     /**
      * Regenerates the {@code .pnd.json} input files under {@code src/test/resources/state-proof/} with
-     * {@link #FIXTURE_DIGEST_TYPE}. Each block keeps its number and its timestamp from
+     * SHA-256. Each block keeps its number and its timestamp from
      * {@link #EXPECTED_BLOCK_TIMESTAMPS}, and its block root tree is built with the production
      * {@link BlockRootTree}, filling the branches the way {@code BlockStreamManagerImpl} does:
      * <ul>
@@ -349,7 +350,7 @@ class BlockStateProofGeneratorTest {
      *   <li>branch 2 is the streaming root of all earlier block hashes</li>
      *   <li>branches 3-8 are fixed placeholder leaves, since proof generation never looks inside them</li>
      * </ul>
-     * Remove {@code @Disabled} and run once whenever the block root tree or the fixture digest type changes.
+     * Remove {@code @Disabled} and run once whenever the block root tree or the digest type changes.
      * Then copy the printed hashes into {@link #EXPECTED_FIRST_SIBLING_HASHES} and {@link #EXPECTED_BLOCK_HASHES},
      * and run {@link #regenerateGoldenFiles()} in a <i>separate</i> run: both read their inputs from the test
      * classpath, which only picks up the new files on the next build. Restore {@code @Disabled} and commit the
@@ -358,8 +359,9 @@ class BlockStateProofGeneratorTest {
     @Test
     @Disabled("Run manually to regenerate pending block input files after changing the block root tree")
     void regeneratePendingBlockFiles() throws Exception {
-        final var digest = fixtureDigest();
-        final var previousBlockHashes = new IncrementalStreamingHasher(fixtureDigest(), new ArrayList<>(), 0);
+        final var digest = CommonUtils.sha256DigestOrThrow();
+        final var previousBlockHashes =
+                new IncrementalStreamingHasher(CommonUtils.sha256DigestOrThrow(), new ArrayList<>(), 0);
         var previousBlockHash = FIRST_EXPECTED_PREVIOUS_BLOCK_HASH;
 
         final var outDir = Path.of("src/test/resources/state-proof");
@@ -374,7 +376,7 @@ class BlockStateProofGeneratorTest {
             }
             final var timestampLeafHash = BlockImplUtils.hashLeaf(digest, Timestamp.PROTOBUF.toBytes(timestamp));
             final var rootAndSiblings =
-                    BlockRootTree.computeRootAndSiblings(FIXTURE_DIGEST_TYPE, timestampLeafHash, branches);
+                    BlockRootTree.computeRootAndSiblings(DigestType.SHA_256, timestampLeafHash, branches);
             final var blockHash = rootAndSiblings.blockRootHash();
 
             final var pendingProof = PendingProof.newBuilder()
@@ -426,7 +428,7 @@ class BlockStateProofGeneratorTest {
                     FINAL_SIGNATURE,
                     latestSignedBlockTimestamp,
                     pendingBlocksByBlockNum.values().stream(),
-                    FIXTURE_DIGEST_TYPE);
+                    DigestType.SHA_256);
             Files.writeString(outDir.resolve(blockNum + ".proof.json"), StateProof.JSON.toJSON(result));
             System.out.println("Wrote golden file for block " + blockNum);
         }
@@ -519,15 +521,19 @@ class BlockStateProofGeneratorTest {
                 final var currentSibling = allMp2Hashes.get(i);
                 if (currentSibling.isLeft()) {
                     // Left sibling is an indirect block's consensus timestamp
-                    finalHash = BlockImplUtils.hashInternalNode(fixtureDigest(), currentSibling.hash(), finalHash);
+                    finalHash = BlockImplUtils.hashInternalNode(
+                            CommonUtils.sha256DigestOrThrow(), currentSibling.hash(), finalHash);
                 } else {
-                    finalHash = BlockImplUtils.hashInternalNode(fixtureDigest(), finalHash, currentSibling.hash());
+                    finalHash = BlockImplUtils.hashInternalNode(
+                            CommonUtils.sha256DigestOrThrow(), finalHash, currentSibling.hash());
                 }
             }
 
             // Combine the signed block's sub-tree root with its timestamp to reach the signed block root hash
-            final var expectedHashedTsBytes = BlockImplUtils.hashLeaf(fixtureDigest(), expectedSignedTsBytes);
-            finalHash = BlockImplUtils.hashInternalNode(fixtureDigest(), expectedHashedTsBytes, finalHash);
+            final var expectedHashedTsBytes =
+                    BlockImplUtils.hashLeaf(CommonUtils.sha256DigestOrThrow(), expectedSignedTsBytes);
+            finalHash = BlockImplUtils.hashInternalNode(
+                    CommonUtils.sha256DigestOrThrow(), expectedHashedTsBytes, finalHash);
             Assertions.assertThat(finalHash).isEqualTo(expectedFinalBlockHash);
             System.out.println("Verified merkle path two for block " + outerCurrentBlockNum
                     + " produces expected signed block hash " + expectedFinalBlockHash);
@@ -649,18 +655,11 @@ class BlockStateProofGeneratorTest {
                     + "eefb629a01a636206b797b8515764bbda54d5acb4daf54192e1c4e3165be31bc325f9ed2dc9d52342d8abfed0199e343d7"
                     + "888f162394ace1955f1e8d77ed429");
 
-    /** The digest the state-proof fixtures are hashed with, matching the {@code BlockStreamConfig.digestType} default. */
-    private static final DigestType FIXTURE_DIGEST_TYPE = DigestType.SHA_256;
-
-    private static MessageDigest fixtureDigest() {
-        return CommonUtils.digestOrThrow(FIXTURE_DIGEST_TYPE);
-    }
-
     private static String toBase64(@NonNull final Bytes bytes) {
         return Base64.getEncoder().encodeToString(bytes.toByteArray());
     }
 
-    private static final Bytes FIRST_EXPECTED_PREVIOUS_BLOCK_HASH = BlockStreamManager.hashOfZero(FIXTURE_DIGEST_TYPE);
+    private static final Bytes FIRST_EXPECTED_PREVIOUS_BLOCK_HASH = BlockStreamManager.hashOfZero(DigestType.SHA_256);
 
     private static final long MIN_INDIRECT_BLOCK_NUM = 0L;
     private static final long MAX_BLOCK_NUM = 5L; // Includes the final pending (signed) block
