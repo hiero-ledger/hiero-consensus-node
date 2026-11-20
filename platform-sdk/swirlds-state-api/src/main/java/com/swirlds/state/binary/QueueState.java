@@ -10,6 +10,7 @@ import com.hedera.pbj.runtime.ProtoParserTools;
 import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
+import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
 import com.swirlds.state.spi.ReadableQueueState;
 import com.swirlds.state.spi.WritableQueueState;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -108,6 +109,13 @@ public record QueueState(long head, long tail) {
                 out.writeVarLong(value.tail(), false);
             }
             assert out.position() == pos + measureRecord(value);
+        }
+
+        @Override
+        protected long writeImpl(
+                @NonNull final QueueState item, @NonNull final RandomAccessData output, final long offset)
+                throws IOException {
+            return output.putBytes(offset, toBytes(item));
         }
 
         @NonNull

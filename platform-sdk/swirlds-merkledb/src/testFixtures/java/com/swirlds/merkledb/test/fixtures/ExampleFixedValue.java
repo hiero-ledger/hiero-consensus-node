@@ -5,7 +5,9 @@ import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
 import java.util.Random;
 
 public final class ExampleFixedValue extends ExampleByteArrayVirtualValue {
@@ -92,6 +94,13 @@ public final class ExampleFixedValue extends ExampleByteArrayVirtualValue {
         @Override
         protected void writeImpl(@NonNull ExampleFixedValue value, @NonNull WritableSequentialData out) {
             value.writeTo(out);
+        }
+
+        @Override
+        protected long writeImpl(
+                @NonNull final ExampleFixedValue item, @NonNull final RandomAccessData output, final long offset)
+                throws IOException {
+            return output.putBytes(offset, toBytes(item));
         }
 
         @Override

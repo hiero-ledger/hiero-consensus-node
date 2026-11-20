@@ -9,6 +9,7 @@ import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.util.Objects;
@@ -114,6 +115,13 @@ public record StateValue<V>(int stateId, @NonNull V value) {
             if (valueSize > 0) {
                 valueCodec.write(value.value(), out);
             }
+        }
+
+        @Override
+        protected long writeImpl(
+                @NonNull final StateValue<V> item, @NonNull final RandomAccessData output, final long offset)
+                throws IOException {
+            return output.putBytes(offset, toBytes(item));
         }
 
         /**

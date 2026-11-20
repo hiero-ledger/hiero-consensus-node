@@ -4,7 +4,9 @@ package com.swirlds.virtualmap.test.fixtures;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
+import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
 
 public class TestValueCodec extends Codec<TestValue> {
 
@@ -31,6 +33,12 @@ public class TestValueCodec extends Codec<TestValue> {
     @Override
     protected void writeImpl(@NonNull TestValue value, @NonNull WritableSequentialData out) {
         value.writeTo(out);
+    }
+
+    @Override
+    protected long writeImpl(@NonNull final TestValue item, @NonNull final RandomAccessData output, final long offset)
+            throws IOException {
+        return output.putBytes(offset, toBytes(item));
     }
 
     @Override

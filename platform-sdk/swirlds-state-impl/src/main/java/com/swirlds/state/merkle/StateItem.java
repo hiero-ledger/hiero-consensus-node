@@ -17,6 +17,7 @@ import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 
@@ -139,6 +140,13 @@ public record StateItem(@NonNull Bytes key, @NonNull Bytes value) {
                 throws IOException {
             writeDelimited(out, FIELD_KEY, toIntExact(data.key.length()), v -> v.writeBytes(data.key));
             writeDelimited(out, FIELD_VALUE, toIntExact(data.value.length()), v -> v.writeBytes(data.value));
+        }
+
+        @Override
+        protected long writeImpl(
+                @NonNull final StateItem item, @NonNull final RandomAccessData output, final long offset)
+                throws IOException {
+            return output.putBytes(offset, toBytes(item));
         }
 
         /**
