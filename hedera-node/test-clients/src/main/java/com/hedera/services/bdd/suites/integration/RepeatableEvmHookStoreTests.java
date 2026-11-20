@@ -212,6 +212,10 @@ public class RepeatableEvmHookStoreTests {
                 accountEvmHookStore(HOOK_OWNER.name(), EVM_HOOK_ID)
                         .putSlot(B, C)
                         .putSlot(D, E)
+                        .hasKnownStatus(TOO_MANY_EVM_HOOK_STORAGE_UPDATES),
+                // A single update whose mapping entries write more slots than the limit
+                accountEvmHookStore(HOOK_OWNER.name(), EVM_HOOK_ID)
+                        .putMappingEntriesWithKeys(A, List.of(B, D), List.of(C, E))
                         .hasKnownStatus(TOO_MANY_EVM_HOOK_STORAGE_UPDATES));
     }
 
