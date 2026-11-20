@@ -9,8 +9,8 @@ on:
         default: ""
       cores:
         required: true
-        default: '8'
-        description: 'N of CPU cores, per node (AdHoc6)'
+        default: "8"
+        description: "N of CPU cores, per node (AdHoc6)"
         type: choice
         options:
           - 4
@@ -19,8 +19,8 @@ on:
           - 32
       ram:
         required: true
-        default: '32'
-        description: 'Amount of RAM (Gb), per node'
+        default: "32"
+        description: "Amount of RAM (Gb), per node"
         type: choice
         options:
           - 16
