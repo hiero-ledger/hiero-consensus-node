@@ -10,7 +10,6 @@ open module org.hiero.consensus.utility.test.fixtures {
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.main.model;
-    requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.utility;
     requires org.hiero.base.utility.test.fixtures;
     requires org.apache.logging.log4j;

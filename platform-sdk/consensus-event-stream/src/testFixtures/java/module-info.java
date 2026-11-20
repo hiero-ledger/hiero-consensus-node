@@ -5,7 +5,7 @@ open module org.hiero.consensus.event.stream.test.fixtures {
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.event.stream;
-    requires transitive org.hiero.consensus.main.model;
+    requires org.hiero.consensus.main.model;
     requires transitive org.hiero.consensus.model;
     requires com.swirlds.base.test.fixtures;
     requires com.swirlds.base;

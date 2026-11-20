@@ -22,7 +22,6 @@ module com.hedera.node.app.spi.test.fixtures {
     requires com.hedera.node.app.service.token.impl;
     requires org.hiero.base.utility;
     requires org.hiero.consensus.main.model;
-    requires org.hiero.consensus.model;
     requires com.google.common;
     requires org.apache.logging.log4j.core;
     requires static transitive com.github.spotbugs.annotations;

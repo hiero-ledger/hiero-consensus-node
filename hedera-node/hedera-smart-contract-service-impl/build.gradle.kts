@@ -16,7 +16,6 @@ testModuleInfo {
     requires("com.swirlds.config.extensions.test.fixtures")
     requires("org.hiero.consensus.fakes")
     requires("org.hiero.consensus.main.model")
-    requires("org.hiero.consensus.model")
     requires("org.assertj.core")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")

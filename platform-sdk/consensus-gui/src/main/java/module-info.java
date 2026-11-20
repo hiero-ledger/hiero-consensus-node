@@ -6,7 +6,6 @@ module org.hiero.consensus.gui {
     requires transitive com.hedera.node.hapi;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
-    requires transitive org.hiero.consensus.main.model;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.utility;
     requires com.swirlds.base;
@@ -14,6 +13,7 @@ module org.hiero.consensus.gui {
     requires org.hiero.base.crypto;
     requires org.hiero.consensus.hashgraph.impl;
     requires org.hiero.consensus.hashgraph;
+    requires org.hiero.consensus.main.model;
     requires java.desktop;
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
