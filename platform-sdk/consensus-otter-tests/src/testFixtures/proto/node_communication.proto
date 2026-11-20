@@ -9,14 +9,15 @@ import "platform/state/platform_state.proto";
 import "platform/event/gossip_event.proto";
 import "platform/event/event_consensus_data.proto";
 import "platform/event/event_descriptor.proto";
-import "google/protobuf/empty.proto";
+import "container_communication.proto";
 
 option java_multiple_files = true;
 
 // Request to start the remote platform.
 message StartRequest {
-  // Semantic version of the platform.
-  .proto.SemanticVersion version = 1;
+  // Semantic version of the platform. The type is referenced without a leading dot, because the PBJ compiler
+  // does not resolve names that start with one.
+  proto.SemanticVersion version = 1;
   // Roster of nodes participating in the platform.
   com.hedera.hapi.node.state.roster.Roster roster = 2;
   // Cryptographic keys and certificates for the platform.
@@ -233,21 +234,21 @@ message InstrumentationPingRequest {
 service NodeCommunicationService {
 
   // RPC to start the platform. Returns once the platform has been started.
-  rpc Start(StartRequest) returns (google.protobuf.Empty);
+  rpc start(StartRequest) returns (Empty);
 
   // RPC to subscribe to the stream of event messages produced by the platform.
-  rpc Subscribe(SubscribeRequest) returns (stream EventMessage);
+  rpc subscribe(SubscribeRequest) returns (stream EventMessage);
 
   // RPC used by the test harness to submit a transaction to the running
   // platform. Returns an TransactionRequestAnswer weather the platform accepted the transaction or not.
-  rpc SubmitTransaction(TransactionRequest) returns (TransactionRequestAnswer);
+  rpc submitTransaction(TransactionRequest) returns (TransactionRequestAnswer);
 
   // RPC to change the synthetic bottleneck of the handle thread.
-  rpc SyntheticBottleneckUpdate(SyntheticBottleneckRequest) returns (google.protobuf.Empty);
+  rpc syntheticBottleneckUpdate(SyntheticBottleneckRequest) returns (Empty);
 
   // RPC to control quiescence of the node.
-  rpc QuiescenceCommandUpdate(QuiescenceRequest) returns (google.protobuf.Empty);
+  rpc quiescenceCommandUpdate(QuiescenceRequest) returns (Empty);
 
   // RPC to send a ping message to the instrumented modules of the node.
-  rpc InstrumentationPing(InstrumentationPingRequest) returns (google.protobuf.Empty);
+  rpc instrumentationPing(InstrumentationPingRequest) returns (Empty);
 }

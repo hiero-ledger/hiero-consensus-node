@@ -10,6 +10,7 @@ import static org.hiero.otter.fixtures.app.OtterStateUtils.commitState;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
+import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.InitTrigger;
@@ -19,7 +20,6 @@ import com.swirlds.state.merkle.VirtualMapStateImpl;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
@@ -138,12 +138,11 @@ public class OtterApp implements ConsensusStateEventHandler {
         }
         for (final Transaction txn : event.getTransactions()) {
             try {
-                final OtterTransaction transaction = OtterTransaction.parseFrom(
-                        txn.getApplicationTransaction().toInputStream());
+                final OtterTransaction transaction = OtterTransaction.PROTOBUF.parse(txn.getApplicationTransaction());
                 for (final OtterService service : allServices) {
                     service.preHandleTransaction(event, transaction, callback);
                 }
-            } catch (final IOException ex) {
+            } catch (final ParseException ex) {
                 log.error(
                         "Unable to parse OtterTransaction created by node {}",
                         event.getCreatorId().id(),
@@ -170,8 +169,8 @@ public class OtterApp implements ConsensusStateEventHandler {
             }
             for (final ConsensusTransaction consensusTransaction : consensusEvent.getTransactions()) {
                 try {
-                    final OtterTransaction transaction = OtterTransaction.parseFrom(
-                            consensusTransaction.getApplicationTransaction().toInputStream());
+                    final OtterTransaction transaction =
+                            OtterTransaction.PROTOBUF.parse(consensusTransaction.getApplicationTransaction());
                     for (final OtterService service : allServices) {
                         service.handleTransaction(
                                 state.getWritableStates(service.name()),
@@ -180,7 +179,7 @@ public class OtterApp implements ConsensusStateEventHandler {
                                 consensusTransaction.getConsensusTimestamp(),
                                 callback);
                     }
-                } catch (final IOException ex) {
+                } catch (final ParseException ex) {
                     log.error(
                             "Unable to parse OtterTransaction created by node {}",
                             consensusEvent.getCreatorId().id(),

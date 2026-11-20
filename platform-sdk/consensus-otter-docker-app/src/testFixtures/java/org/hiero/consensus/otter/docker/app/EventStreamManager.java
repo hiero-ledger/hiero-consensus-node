@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.otter.docker.app;
 
+import com.hedera.pbj.runtime.grpc.Pipeline;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import io.grpc.stub.StreamObserver;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import org.hiero.otter.fixtures.container.proto.EventMessage;
-import org.hiero.otter.fixtures.container.proto.EventMessage.EventCase;
+import org.hiero.otter.fixtures.container.proto.EventMessage.EventOneOfType;
 import org.hiero.otter.fixtures.container.proto.SyncPoint;
 
 /**
@@ -55,7 +55,7 @@ public final class EventStreamManager {
     /** The sequence number stamped on the most recently published message. */
     private long latestSequence = 0;
 
-    /** The platform's current status, updated whenever a {@link EventCase#PLATFORM_STATUS_CHANGE} is published. */
+    /** The platform's current status, updated whenever a {@link EventOneOfType#PLATFORM_STATUS_CHANGE} is published. */
     private volatile String currentStatus = "";
 
     /** The dispatcher for the single active subscription, or {@code null} if there is none. */
@@ -101,12 +101,12 @@ public final class EventStreamManager {
      */
     public synchronized void publish(@NonNull final EventMessage message) {
         final long sequence = ++latestSequence;
-        final EventMessage stamped = message.toBuilder().setSequence(sequence).build();
+        final EventMessage stamped = message.copyBuilder().sequence(sequence).build();
 
         buffer.addLast(stamped);
-        bufferBytes += stamped.getSerializedSize();
-        if (stamped.getEventCase() == EventCase.PLATFORM_STATUS_CHANGE) {
-            currentStatus = stamped.getPlatformStatusChange().getNewStatus();
+        bufferBytes += stamped.protobufSize();
+        if (stamped.hasPlatformStatusChange()) {
+            currentStatus = stamped.platformStatusChangeOrThrow().newStatus();
         }
         evictWhileOverLimit();
 
@@ -121,27 +121,28 @@ public final class EventStreamManager {
      * greater than {@code afterSequence}, and then live messages as they are published.
      *
      * @param afterSequence only buffered messages with a sequence number strictly greater than this are replayed
-     * @param observer the observer to which messages are delivered
+     * @param replies the pipeline to which messages are delivered
      */
-    public synchronized void subscribe(final long afterSequence, @NonNull final StreamObserver<EventMessage> observer) {
+    public synchronized void subscribe(
+            final long afterSequence, @NonNull final Pipeline<? super EventMessage> replies) {
         // Fence any previous subscription so that only a single consumer is ever active.
         if (dispatcher != null) {
             dispatcher.shutdown();
         }
-        dispatcher = new OutboundDispatcher(dispatchExecutor, observer);
+        dispatcher = new OutboundDispatcher(dispatchExecutor, replies);
 
-        final long oldestBuffered = buffer.isEmpty() ? 0 : buffer.peekFirst().getSequence();
+        final long oldestBuffered = buffer.isEmpty() ? 0 : buffer.peekFirst().sequence();
         final EventMessage syncPoint = EventMessage.newBuilder()
-                .setSyncPoint(SyncPoint.newBuilder()
-                        .setCurrentStatus(currentStatus)
-                        .setOldestBuffered(oldestBuffered)
-                        .setLatestSequence(latestSequence)
+                .syncPoint(SyncPoint.newBuilder()
+                        .currentStatus(currentStatus)
+                        .oldestBuffered(oldestBuffered)
+                        .latestSequence(latestSequence)
                         .build())
                 .build();
         dispatcher.enqueue(syncPoint);
 
         for (final EventMessage message : buffer) {
-            if (message.getSequence() > afterSequence) {
+            if (message.sequence() > afterSequence) {
                 dispatcher.enqueue(message);
             }
         }
@@ -157,7 +158,7 @@ public final class EventStreamManager {
             if (removed == null) {
                 break;
             }
-            bufferBytes -= removed.getSerializedSize();
+            bufferBytes -= removed.protobufSize();
         }
     }
 }

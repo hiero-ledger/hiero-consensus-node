@@ -3,7 +3,6 @@ package org.hiero.sloth.fixtures;
 
 import static org.hiero.base.utility.InstantUtils.instantToMicros;
 
-import com.google.protobuf.ByteString;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -27,15 +26,9 @@ public class TransactionFactory {
      */
     public static SlothTransaction createStateSignatureTransaction(
             final long nonce, @NonNull final StateSignatureTransaction innerTxn) {
-        final com.hedera.hapi.platform.event.legacy.StateSignatureTransaction legacyInnerTxn =
-                com.hedera.hapi.platform.event.legacy.StateSignatureTransaction.newBuilder()
-                        .setRound(innerTxn.round())
-                        .setSignature(ByteString.copyFrom(innerTxn.signature().toByteArray()))
-                        .setHash(ByteString.copyFrom(innerTxn.hash().toByteArray()))
-                        .build();
         return SlothTransaction.newBuilder()
-                .setNonce(nonce)
-                .setStateSignatureTransaction(legacyInnerTxn)
+                .nonce(nonce)
+                .stateSignatureTransaction(innerTxn)
                 .build();
     }
 
@@ -48,8 +41,8 @@ public class TransactionFactory {
     public static SlothTransaction createEmptyTransaction(final long nonce) {
         final EmptyTransaction emptyTransaction = EmptyTransaction.newBuilder().build();
         return SlothTransaction.newBuilder()
-                .setNonce(nonce)
-                .setEmptyTransaction(emptyTransaction)
+                .nonce(nonce)
+                .emptyTransaction(emptyTransaction)
                 .build();
     }
 
@@ -62,11 +55,11 @@ public class TransactionFactory {
      */
     public static SlothTransaction createBenchmarkTransaction(final long nonce, @NonNull final Instant submissionTime) {
         final BenchmarkTransaction benchmarkTransaction = BenchmarkTransaction.newBuilder()
-                .setSubmissionTimeMicros(instantToMicros(submissionTime))
+                .submissionTimeMicros(instantToMicros(submissionTime))
                 .build();
         return SlothTransaction.newBuilder()
-                .setNonce(nonce)
-                .setBenchmarkTransaction(benchmarkTransaction)
+                .nonce(nonce)
+                .benchmarkTransaction(benchmarkTransaction)
                 .build();
     }
 }

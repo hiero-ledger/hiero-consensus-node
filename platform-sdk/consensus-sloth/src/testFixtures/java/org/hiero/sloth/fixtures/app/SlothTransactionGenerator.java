@@ -3,7 +3,6 @@ package org.hiero.sloth.fixtures.app;
 
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.Executors;
@@ -111,13 +110,12 @@ public class SlothTransactionGenerator {
     }
 
     private void generateAndSubmit(@NonNull final SlothTransactionType type) {
-        final SlothTransaction tx =
-                switch (type) {
-                    case EMPTY -> TransactionFactory.createEmptyTransaction(nonceGenerator.incrementAndGet());
-                    case BENCHMARK ->
-                        TransactionFactory.createBenchmarkTransaction(nonceGenerator.incrementAndGet(), time.now());
-                };
-        if (transactionPool.submitApplicationTransaction(Bytes.wrap(tx.toByteArray()))) {
+        final SlothTransaction tx = switch (type) {
+            case EMPTY -> TransactionFactory.createEmptyTransaction(nonceGenerator.incrementAndGet());
+            case BENCHMARK ->
+                TransactionFactory.createBenchmarkTransaction(nonceGenerator.incrementAndGet(), time.now());
+        };
+        if (transactionPool.submitApplicationTransaction(SlothTransaction.PROTOBUF.toBytes(tx))) {
             generatedCount.incrementAndGet();
         }
     }

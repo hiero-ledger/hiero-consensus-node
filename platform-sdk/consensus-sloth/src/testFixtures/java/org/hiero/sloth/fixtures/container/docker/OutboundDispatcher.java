@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.sloth.fixtures.container.docker;
 
+import com.hedera.pbj.runtime.grpc.Pipeline;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import io.grpc.stub.ServerCallStreamObserver;
-import io.grpc.stub.StreamObserver;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -14,7 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.sloth.fixtures.container.proto.EventMessage;
 
 /**
- * Handles queuing {@link EventMessage}s and delivering them to a gRPC {@link StreamObserver} on a
+ * Handles queuing {@link EventMessage}s and delivering them to a gRPC {@link Pipeline} on a
  * single background thread.
  */
 public final class OutboundDispatcher {
@@ -34,16 +33,11 @@ public final class OutboundDispatcher {
      * Creates a new dispatcher instance and immediately starts the background task.
      *
      * @param executor the executor used to run the background task
-     * @param responseObserver the gRPC stream to which messages will be delivered
+     * @param replies the gRPC stream to which messages will be delivered
      */
     public OutboundDispatcher(
-            @NonNull final ExecutorService executor, @NonNull final StreamObserver<EventMessage> responseObserver) {
-
-        if (responseObserver instanceof ServerCallStreamObserver<?> serverObserver) {
-            serverObserver.setOnCancelHandler(this::shutdown);
-        }
-
-        dispatchFuture = executor.submit(() -> runDispatchLoop(responseObserver));
+            @NonNull final ExecutorService executor, @NonNull final Pipeline<? super EventMessage> replies) {
+        dispatchFuture = executor.submit(() -> runDispatchLoop(replies));
     }
 
     /**
@@ -79,14 +73,16 @@ public final class OutboundDispatcher {
     /**
      * Continuously takes messages from the queue and delivers them to the gRPC stream.
      */
-    private void runDispatchLoop(@NonNull final StreamObserver<EventMessage> observer) {
+    private void runDispatchLoop(@NonNull final Pipeline<? super EventMessage> replies) {
         try {
             while (!cancelled.get()) {
                 final EventMessage msg = outboundQueue.take();
                 try {
-                    observer.onNext(msg);
+                    replies.onNext(msg);
                 } catch (final RuntimeException e) {
-                    log.error("Unexpected error while sending event message", e);
+                    // The stream is no longer writable. This is also how the dispatcher learns that the client
+                    // has gone away, because the pipeline does not report a cancellation.
+                    log.warn("Failed to send event message, stopping delivery to this subscriber", e);
                     cancelled.set(true);
                 }
             }

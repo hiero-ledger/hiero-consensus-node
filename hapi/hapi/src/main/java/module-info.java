@@ -56,6 +56,7 @@ module com.hedera.node.hapi {
     exports com.hedera.hapi.node.state.primitives;
     exports com.hedera.hapi.node.state.recordcache.codec;
     exports com.hedera.hapi.node.state.recordcache;
+    exports com.hedera.hapi.node.state.roster.codec;
     exports com.hedera.hapi.node.state.roster;
     exports com.hedera.hapi.node.state.schedule;
     exports com.hedera.hapi.node.state.throttles;
@@ -72,10 +73,12 @@ module com.hedera.node.hapi {
     exports com.hedera.hapi.node.util.codec;
     exports com.hedera.hapi.node.util.schema;
     exports com.hedera.hapi.node.util;
+    exports com.hedera.hapi.platform.event.codec;
     exports com.hedera.hapi.platform.event.legacy;
     exports com.hedera.hapi.platform.event;
     exports com.hedera.hapi.platform.message.legacy;
     exports com.hedera.hapi.platform.message;
+    exports com.hedera.hapi.platform.state.codec;
     exports com.hedera.hapi.platform.state.legacy;
     exports com.hedera.hapi.platform.state;
     exports com.hedera.hapi.services.auxiliary.blockrecords.legacy;

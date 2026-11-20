@@ -3,13 +3,14 @@ package org.hiero.consensus.otter.docker.app;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.hedera.pbj.runtime.grpc.Pipeline;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import io.grpc.stub.StreamObserver;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.Flow;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import org.hiero.otter.fixtures.container.proto.EventMessage;
-import org.hiero.otter.fixtures.container.proto.EventMessage.EventCase;
+import org.hiero.otter.fixtures.container.proto.EventMessage.EventOneOfType;
 import org.hiero.otter.fixtures.container.proto.LogEntry;
 import org.hiero.otter.fixtures.container.proto.PlatformStatusChange;
 import org.hiero.otter.fixtures.container.proto.SyncPoint;
@@ -32,17 +33,17 @@ class EventStreamManagerTest {
 
         // First message is always a sync point.
         final EventMessage syncPoint = observer.poll();
-        assertThat(syncPoint.getEventCase()).isEqualTo(EventCase.SYNC_POINT);
+        assertThat(syncPoint.event().kind()).isEqualTo(EventOneOfType.SYNC_POINT);
 
         manager.publish(logMessage("a"));
         manager.publish(logMessage("b"));
 
         final EventMessage first = observer.poll();
         final EventMessage second = observer.poll();
-        assertThat(first.getSequence()).isEqualTo(1);
-        assertThat(first.getLogEntry().getMessage()).isEqualTo("a");
-        assertThat(second.getSequence()).isEqualTo(2);
-        assertThat(second.getLogEntry().getMessage()).isEqualTo("b");
+        assertThat(first.sequence()).isEqualTo(1);
+        assertThat(first.logEntryOrThrow().message()).isEqualTo("a");
+        assertThat(second.sequence()).isEqualTo(2);
+        assertThat(second.logEntryOrThrow().message()).isEqualTo("b");
     }
 
     @Test
@@ -56,12 +57,12 @@ class EventStreamManagerTest {
         manager.subscribe(2, observer);
 
         final EventMessage syncPoint = observer.poll();
-        assertThat(syncPoint.getEventCase()).isEqualTo(EventCase.SYNC_POINT);
+        assertThat(syncPoint.event().kind()).isEqualTo(EventOneOfType.SYNC_POINT);
 
         // Only messages with sequence > 2 are replayed.
-        assertThat(observer.poll().getSequence()).isEqualTo(3);
-        assertThat(observer.poll().getSequence()).isEqualTo(4);
-        assertThat(observer.poll().getSequence()).isEqualTo(5);
+        assertThat(observer.poll().sequence()).isEqualTo(3);
+        assertThat(observer.poll().sequence()).isEqualTo(4);
+        assertThat(observer.poll().sequence()).isEqualTo(5);
     }
 
     @Test
@@ -73,10 +74,10 @@ class EventStreamManagerTest {
         final RecordingObserver observer = new RecordingObserver();
         manager.subscribe(0, observer);
 
-        final SyncPoint syncPoint = observer.poll().getSyncPoint();
-        assertThat(syncPoint.getCurrentStatus()).isEqualTo("ACTIVE");
-        assertThat(syncPoint.getOldestBuffered()).isEqualTo(1);
-        assertThat(syncPoint.getLatestSequence()).isEqualTo(2);
+        final SyncPoint syncPoint = observer.poll().syncPointOrThrow();
+        assertThat(syncPoint.currentStatus()).isEqualTo("ACTIVE");
+        assertThat(syncPoint.oldestBuffered()).isEqualTo(1);
+        assertThat(syncPoint.latestSequence()).isEqualTo(2);
     }
 
     @Test
@@ -86,17 +87,17 @@ class EventStreamManagerTest {
         final RecordingObserver first = new RecordingObserver();
         manager.subscribe(0, first);
         // Drain the first subscription's sync point.
-        assertThat(first.poll().getEventCase()).isEqualTo(EventCase.SYNC_POINT);
+        assertThat(first.poll().event().kind()).isEqualTo(EventOneOfType.SYNC_POINT);
 
         final RecordingObserver second = new RecordingObserver();
         manager.subscribe(0, second);
-        assertThat(second.poll().getEventCase()).isEqualTo(EventCase.SYNC_POINT);
+        assertThat(second.poll().event().kind()).isEqualTo(EventOneOfType.SYNC_POINT);
 
         manager.publish(logMessage("after fencing"));
 
         // Only the active (second) subscription receives the live message.
         final EventMessage delivered = second.poll();
-        assertThat(delivered.getLogEntry().getMessage()).isEqualTo("after fencing");
+        assertThat(delivered.logEntryOrThrow().message()).isEqualTo("after fencing");
 
         // The fenced (first) subscription receives nothing further.
         assertThat(first.pollNoMessage()).isTrue();
@@ -112,19 +113,19 @@ class EventStreamManagerTest {
         final RecordingObserver observer = new RecordingObserver();
         manager.subscribe(0, observer);
 
-        final SyncPoint syncPoint = observer.poll().getSyncPoint();
+        final SyncPoint syncPoint = observer.poll().syncPointOrThrow();
         // The two oldest (sequences 1 and 2) were evicted.
-        assertThat(syncPoint.getOldestBuffered()).isEqualTo(3);
-        assertThat(observer.poll().getSequence()).isEqualTo(3);
-        assertThat(observer.poll().getSequence()).isEqualTo(4);
-        assertThat(observer.poll().getSequence()).isEqualTo(5);
+        assertThat(syncPoint.oldestBuffered()).isEqualTo(3);
+        assertThat(observer.poll().sequence()).isEqualTo(3);
+        assertThat(observer.poll().sequence()).isEqualTo(4);
+        assertThat(observer.poll().sequence()).isEqualTo(5);
     }
 
     @Test
     void evictsOldestByTotalBytes() throws InterruptedException {
         // Size a stamped message so we can bound the buffer to exactly three of them.
         final int stampedSize =
-                logMessage("payload").toBuilder().setSequence(1).build().getSerializedSize();
+                logMessage("payload").copyBuilder().sequence(1).build().protobufSize();
         final EventStreamManager manager = new EventStreamManager(Integer.MAX_VALUE, 3L * stampedSize);
         for (int i = 1; i <= 5; i++) {
             manager.publish(logMessage("payload"));
@@ -133,35 +134,40 @@ class EventStreamManagerTest {
         final RecordingObserver observer = new RecordingObserver();
         manager.subscribe(0, observer);
 
-        final SyncPoint syncPoint = observer.poll().getSyncPoint();
+        final SyncPoint syncPoint = observer.poll().syncPointOrThrow();
         // Only the three most recent messages fit within the byte budget.
-        assertThat(syncPoint.getOldestBuffered()).isEqualTo(3);
-        assertThat(observer.poll().getSequence()).isEqualTo(3);
-        assertThat(observer.poll().getSequence()).isEqualTo(4);
-        assertThat(observer.poll().getSequence()).isEqualTo(5);
+        assertThat(syncPoint.oldestBuffered()).isEqualTo(3);
+        assertThat(observer.poll().sequence()).isEqualTo(3);
+        assertThat(observer.poll().sequence()).isEqualTo(4);
+        assertThat(observer.poll().sequence()).isEqualTo(5);
     }
 
     @NonNull
     private static EventMessage logMessage(@NonNull final String message) {
         return EventMessage.newBuilder()
-                .setLogEntry(LogEntry.newBuilder().setMessage(message).build())
+                .logEntry(LogEntry.newBuilder().message(message).build())
                 .build();
     }
 
     @NonNull
     private static EventMessage statusMessage(@NonNull final String status) {
         return EventMessage.newBuilder()
-                .setPlatformStatusChange(
-                        PlatformStatusChange.newBuilder().setNewStatus(status).build())
+                .platformStatusChange(
+                        PlatformStatusChange.newBuilder().newStatus(status).build())
                 .build();
     }
 
     /**
-     * A {@link StreamObserver} that records delivered messages into a queue for assertion.
+     * A {@link Pipeline} that records delivered messages into a queue for assertion.
      */
-    private static final class RecordingObserver implements StreamObserver<EventMessage> {
+    private static final class RecordingObserver implements Pipeline<EventMessage> {
 
         private final BlockingQueue<EventMessage> received = new LinkedBlockingQueue<>();
+
+        @Override
+        public void onSubscribe(final Flow.Subscription subscription) {
+            // no-op; the manager delivers messages without waiting for demand
+        }
 
         @Override
         public void onNext(final EventMessage value) {
@@ -174,7 +180,7 @@ class EventStreamManagerTest {
         }
 
         @Override
-        public void onCompleted() {
+        public void onComplete() {
             // no-op
         }
 

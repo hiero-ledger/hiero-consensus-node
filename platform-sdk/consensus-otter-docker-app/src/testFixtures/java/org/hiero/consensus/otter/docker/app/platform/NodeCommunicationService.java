@@ -7,15 +7,16 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.otter.fixtures.internal.helpers.Utils.createConfiguration;
 
-import com.google.protobuf.ByteString;
-import com.google.protobuf.Empty;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.pbj.runtime.grpc.GrpcException;
+import com.hedera.pbj.runtime.grpc.GrpcStatus;
+import com.hedera.pbj.runtime.grpc.Pipeline;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import io.grpc.Status;
-import io.grpc.StatusRuntimeException;
-import io.grpc.stub.StreamObserver;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -24,9 +25,11 @@ import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.otter.docker.app.EventMessageFactory;
 import org.hiero.consensus.otter.docker.app.EventStreamManager;
 import org.hiero.consensus.test.fixtures.eventbus.EventBus;
+import org.hiero.otter.fixtures.container.proto.Empty;
 import org.hiero.otter.fixtures.container.proto.EventMessage;
 import org.hiero.otter.fixtures.container.proto.InstrumentationPingRequest;
-import org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceGrpc.NodeCommunicationServiceImplBase;
+import org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceInterface;
+import org.hiero.otter.fixtures.container.proto.ProtoKeysAndCerts;
 import org.hiero.otter.fixtures.container.proto.QuiescenceRequest;
 import org.hiero.otter.fixtures.container.proto.StartRequest;
 import org.hiero.otter.fixtures.container.proto.SubscribeRequest;
@@ -35,7 +38,6 @@ import org.hiero.otter.fixtures.container.proto.TransactionRequest;
 import org.hiero.otter.fixtures.container.proto.TransactionRequestAnswer;
 import org.hiero.otter.fixtures.internal.InstrumentedModules;
 import org.hiero.otter.fixtures.internal.KeysAndCertsConverter;
-import org.hiero.otter.fixtures.internal.ProtobufConverter;
 import org.hiero.otter.fixtures.logging.internal.InMemorySubscriptionManager;
 import org.hiero.otter.fixtures.result.SubscriberAction;
 
@@ -43,7 +45,7 @@ import org.hiero.otter.fixtures.result.SubscriberAction;
  * Responsible for all gRPC communication between the test framework and the consensus node. This class acts as an
  * intermediary between the test framework and the consensus node.
  */
-public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
+public class NodeCommunicationService implements NodeCommunicationServiceInterface {
 
     /** Logger */
     private static final Logger log = LogManager.getLogger(NodeCommunicationService.class);
@@ -59,8 +61,17 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
      */
     private final EventStreamManager eventStreamManager = new EventStreamManager();
 
-    /** Manages the consensus node, including setup, tear down, and all interactions in between. */
-    private ConsensusNodeManager consensusNodeManager;
+    /**
+     * Manages the consensus node, including setup, tear down, and all interactions in between. It is set by the thread
+     * that constructs the platform, see {@link #start(StartRequest)}.
+     */
+    private volatile ConsensusNodeManager consensusNodeManager;
+
+    /**
+     * Completes when the platform requested by the last accepted start request has been constructed and started, or
+     * has failed to. Guarded by the monitor of this service.
+     */
+    private CompletableFuture<Void> platformStartup = CompletableFuture.completedFuture(null);
 
     /**
      * Constructs a {@link NodeCommunicationService} with the specified self ID.
@@ -88,38 +99,55 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
      * through this call's response.
      *
      * @param request The request containing details required to construct the platform.
-     * @param responseObserver The observer used to acknowledge that the start request has been accepted.
-     * @throws StatusRuntimeException if the platform is already started, or if the request contains invalid arguments.
+     * @return an empty response acknowledging that the start request has been accepted
+     * @throws GrpcException if the platform is already started, or if the request contains invalid arguments.
      */
     @Override
-    public synchronized void start(
-            @NonNull final StartRequest request, @NonNull final StreamObserver<Empty> responseObserver) {
+    @NonNull
+    public synchronized Empty start(@NonNull final StartRequest request) {
         log.info(STARTUP.getMarker(), "Received start request: {}", request);
 
-        if (isInvalidRequest(request, responseObserver)) {
-            return;
-        }
+        validateStartRequest(request);
 
+        // An earlier start request may still be constructing the platform.
+        platformStartup.join();
         if (consensusNodeManager != null) {
-            responseObserver.onError(Status.ALREADY_EXISTS.asRuntimeException());
             log.info(ERROR.getMarker(), "Invalid request, platform already started: {}", request);
-            return;
+            throw new GrpcException(GrpcStatus.ALREADY_EXISTS);
         }
 
-        final Configuration platformConfig = createConfiguration(request.getOverriddenPropertiesMap());
-        final Roster genesisRoster = ProtobufConverter.toPbj(request.getRoster());
-        final SemanticVersion version = ProtobufConverter.toPbj(request.getVersion());
-        final KeysAndCerts keysAndCerts = KeysAndCertsConverter.fromProto(request.getKeysAndCerts());
+        final Configuration platformConfig = createConfiguration(request.overriddenProperties());
+        final Roster genesisRoster = request.rosterOrThrow();
+        final SemanticVersion version = request.versionOrThrow();
+        final KeysAndCerts keysAndCerts =
+                KeysAndCertsConverter.fromProto(request.keysAndCertsOrElse(ProtoKeysAndCerts.DEFAULT));
 
-        // Acknowledge the request *before* constructing and starting the platform. Platform construction is
-        // expensive, and the test harness starts nodes sequentially with a blocking call; waiting for
-        // construction to finish here would serialize startup across the whole network and make the
-        // last-started nodes fall so far behind that they have to reconnect. Replying first lets every node
-        // construct its platform in parallel. Construction failures can no longer be returned to the caller,
-        // so they are logged instead.
-        responseObserver.onNext(Empty.getDefaultInstance());
-        responseObserver.onCompleted();
+        // The request is acknowledged by returning from this method, so the platform is constructed and started
+        // on a separate thread. Platform construction is expensive, and the test harness starts nodes
+        // sequentially with a blocking call; waiting for construction to finish here would serialize startup
+        // across the whole network and make the last-started nodes fall so far behind that they have to
+        // reconnect. Replying first lets every node construct its platform in parallel. Construction failures
+        // can no longer be returned to the caller, so they are logged instead.
+        platformStartup = CompletableFuture.runAsync(
+                () -> constructAndStartPlatform(platformConfig, genesisRoster, version, keysAndCerts),
+                NodeCommunicationService::runOnPlatformStartupThread);
+        return Empty.DEFAULT;
+    }
 
+    /**
+     * Constructs and starts the platform. Failures are logged, because the start request that triggered the
+     * construction has already been acknowledged.
+     *
+     * @param platformConfig the configuration of the platform
+     * @param genesisRoster the roster the platform starts with
+     * @param version the software version of the platform
+     * @param keysAndCerts the keys and certificates of this node
+     */
+    private void constructAndStartPlatform(
+            @NonNull final Configuration platformConfig,
+            @NonNull final Roster genesisRoster,
+            @NonNull final SemanticVersion version,
+            @NonNull final KeysAndCerts keysAndCerts) {
         try {
             consensusNodeManager =
                     new ConsensusNodeManager(selfId, platformConfig, genesisRoster, version, keysAndCerts);
@@ -131,17 +159,28 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
     }
 
     /**
+     * Runs the given task on a new daemon thread that is dedicated to constructing and starting the platform.
+     *
+     * @param task the task that constructs and starts the platform
+     */
+    private static void runOnPlatformStartupThread(@NonNull final Runnable task) {
+        final Thread thread = new Thread(task, "platform-startup");
+        thread.setDaemon(true);
+        thread.start();
+    }
+
+    /**
      * Subscribes the caller to the stream of event messages produced by the platform. Delivery begins with a sync point,
      * followed by a replay of every buffered message after the requested sequence, and then live messages.
      *
      * @param request the subscription request carrying the last sequence number the caller has already seen
-     * @param responseObserver the observer to which event messages are delivered
+     * @param replies the pipeline to which event messages are delivered
      */
     @Override
     public void subscribe(
-            @NonNull final SubscribeRequest request, @NonNull final StreamObserver<EventMessage> responseObserver) {
-        log.info(STARTUP.getMarker(), "Received subscribe request after sequence {}", request.getAfterSequence());
-        eventStreamManager.subscribe(request.getAfterSequence(), responseObserver);
+            @NonNull final SubscribeRequest request, @NonNull final Pipeline<? super EventMessage> replies) {
+        log.info(STARTUP.getMarker(), "Received subscribe request after sequence {}", request.afterSequence());
+        eventStreamManager.subscribe(request.afterSequence(), replies);
     }
 
     /**
@@ -156,31 +195,20 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
     }
 
     /**
-     * Checks if the provided {@link StartRequest} is invalid and sends an error response if necessary.
-     * <p>
-     * This method validates the fields of the {@link StartRequest}. If any of the conditions are not met, an
-     * appropriate error is sent to the {@link StreamObserver}.
+     * Validates the fields of the provided {@link StartRequest}.
      *
      * @param request The {@link StartRequest} containing the details for starting the platform.
-     * @param responseObserver The observer used to send error messages back to the test framework.
-     * @return {@code true} if the request is invalid; {@code false} otherwise.
+     * @throws GrpcException if the request does not specify a version or a roster
      */
-    private static boolean isInvalidRequest(final StartRequest request, final StreamObserver<Empty> responseObserver) {
+    private static void validateStartRequest(@NonNull final StartRequest request) {
         if (!request.hasVersion()) {
             log.info(ERROR.getMarker(), "Invalid request - version must be specified: {}", request);
-            responseObserver.onError(Status.INVALID_ARGUMENT
-                    .withDescription("version has to be specified")
-                    .asRuntimeException());
-            return true;
+            throw new GrpcException(GrpcStatus.INVALID_ARGUMENT, "version has to be specified");
         }
         if (!request.hasRoster()) {
             log.info(ERROR.getMarker(), "Invalid request - roster must be specified: {}", request);
-            responseObserver.onError(Status.INVALID_ARGUMENT
-                    .withDescription("roster has to be specified")
-                    .asRuntimeException());
-            return true;
+            throw new GrpcException(GrpcStatus.INVALID_ARGUMENT, "roster has to be specified");
         }
-        return false;
     }
 
     /**
@@ -189,30 +217,24 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
      * This method sends the transaction payload to the platform for processing.
      *
      * @param request The transaction request containing the payload.
-     * @param responseObserver The observer used to confirm transaction submission.
-     * @throws StatusRuntimeException if the platform is not started or if an internal error occurs.
+     * @return the answer stating how many transactions could not be submitted
+     * @throws GrpcException if the platform is not started or if an internal error occurs.
      */
     @Override
-    public synchronized void submitTransaction(
-            @NonNull final TransactionRequest request,
-            @NonNull final StreamObserver<TransactionRequestAnswer> responseObserver) {
+    @NonNull
+    public synchronized TransactionRequestAnswer submitTransaction(@NonNull final TransactionRequest request) {
         log.debug(DEMO_INFO.getMarker(), "Received submit transaction request: {}", request);
-        if (consensusNodeManager == null) {
-            setPlatformNotStartedResponse(responseObserver);
-            return;
-        }
+        platformStartup.join();
+        requirePlatformStarted();
 
-        wrapWithErrorHandling(responseObserver, () -> {
+        return wrapWithErrorHandling(() -> {
             int numFailed = 0;
-            for (final ByteString payload : request.getPayloadList()) {
+            for (final Bytes payload : request.payload()) {
                 if (!consensusNodeManager.submitTransaction(payload.toByteArray())) {
                     numFailed++;
                 }
             }
-            responseObserver.onNext(TransactionRequestAnswer.newBuilder()
-                    .setNumFailed(numFailed)
-                    .build());
-            responseObserver.onCompleted();
+            return TransactionRequestAnswer.newBuilder().numFailed(numFailed).build();
         });
     }
 
@@ -222,46 +244,44 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
      * This method allows the test framework to control the synthetic bottleneck behavior of the platform.
      *
      * @param request The request containing the sleep duration per round.
-     * @param responseObserver The observer used to confirm the update.
+     * @return an empty response confirming the update
+     * @throws GrpcException if the platform is not started or if an internal error occurs.
      */
     @Override
-    public synchronized void syntheticBottleneckUpdate(
-            @NonNull final SyntheticBottleneckRequest request, @NonNull final StreamObserver<Empty> responseObserver) {
-        log.info(
-                DEMO_INFO.getMarker(),
-                "Received synthetic bottleneck request: {} ms",
-                request.getSleepMillisPerRound());
-        if (consensusNodeManager == null) {
-            setPlatformNotStartedResponse(responseObserver);
-            return;
-        }
-        wrapWithErrorHandling(responseObserver, () -> {
-            consensusNodeManager.updateSyntheticBottleneck(request.getSleepMillisPerRound());
-            responseObserver.onNext(Empty.getDefaultInstance());
-            responseObserver.onCompleted();
+    @NonNull
+    public synchronized Empty syntheticBottleneckUpdate(@NonNull final SyntheticBottleneckRequest request) {
+        log.info(DEMO_INFO.getMarker(), "Received synthetic bottleneck request: {} ms", request.sleepMillisPerRound());
+        platformStartup.join();
+        requirePlatformStarted();
+
+        return wrapWithErrorHandling(() -> {
+            consensusNodeManager.updateSyntheticBottleneck(request.sleepMillisPerRound());
+            return Empty.DEFAULT;
         });
     }
 
+    /**
+     * Sends a quiescence command to the platform.
+     *
+     * @param request The request containing the quiescence command.
+     * @return an empty response confirming that the command has been sent
+     * @throws GrpcException if the platform is not started or if an internal error occurs.
+     */
     @Override
-    public void quiescenceCommandUpdate(
-            @NonNull final QuiescenceRequest request, @NonNull final StreamObserver<Empty> responseObserver) {
-        log.info(DEMO_INFO.getMarker(), "Received quiescence request: {}", request.getCommand());
-        if (consensusNodeManager == null) {
-            setPlatformNotStartedResponse(responseObserver);
-            return;
-        }
+    @NonNull
+    public Empty quiescenceCommandUpdate(@NonNull final QuiescenceRequest request) {
+        log.info(DEMO_INFO.getMarker(), "Received quiescence request: {}", request.command());
+        requirePlatformStarted();
 
-        wrapWithErrorHandling(responseObserver, () -> {
-            final QuiescenceCommand command =
-                    switch (request.getCommand()) {
-                        case QUIESCE -> QuiescenceCommand.QUIESCE;
-                        case BREAK_QUIESCENCE -> QuiescenceCommand.BREAK_QUIESCENCE;
-                        default -> QuiescenceCommand.DONT_QUIESCE;
-                    };
+        return wrapWithErrorHandling(() -> {
+            final QuiescenceCommand command = switch (request.command()) {
+                case QUIESCE -> QuiescenceCommand.QUIESCE;
+                case BREAK_QUIESCENCE -> QuiescenceCommand.BREAK_QUIESCENCE;
+                default -> QuiescenceCommand.DONT_QUIESCE;
+            };
 
             consensusNodeManager.sendQuiescenceCommand(command);
-            responseObserver.onNext(Empty.getDefaultInstance());
-            responseObserver.onCompleted();
+            return Empty.DEFAULT;
         });
     }
 
@@ -270,43 +290,39 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
      * All instrumented modules of the node receive it.
      *
      * @param request the ping request
-     * @param responseObserver the observer used to confirm the ping
+     * @return an empty response confirming the ping
+     * @throws GrpcException if the platform is not started or if an internal error occurs.
      */
     @Override
-    public void instrumentationPing(
-            @NonNull final InstrumentationPingRequest request, @NonNull final StreamObserver<Empty> responseObserver) {
-        log.info(DEMO_INFO.getMarker(), "Received instrumentation ping request: {}", request.getMessage());
-        if (consensusNodeManager == null) {
-            setPlatformNotStartedResponse(responseObserver);
-            return;
-        }
+    @NonNull
+    public Empty instrumentationPing(@NonNull final InstrumentationPingRequest request) {
+        log.info(DEMO_INFO.getMarker(), "Received instrumentation ping request: {}", request.message());
+        requirePlatformStarted();
 
-        wrapWithErrorHandling(responseObserver, () -> {
-            EventBus.getInstance(selfId).publish(InstrumentedModules.PING_CHANNEL, request.getMessage());
-            responseObserver.onNext(Empty.getDefaultInstance());
-            responseObserver.onCompleted();
+        return wrapWithErrorHandling(() -> {
+            EventBus.getInstance(selfId).publish(InstrumentedModules.PING_CHANNEL, request.message());
+            return Empty.DEFAULT;
         });
     }
 
-    private void setPlatformNotStartedResponse(@NonNull final StreamObserver<?> responseObserver) {
-        responseObserver.onError(Status.FAILED_PRECONDITION
-                .withDescription("Platform not started yet")
-                .asRuntimeException());
+    private void requirePlatformStarted() {
+        if (consensusNodeManager == null) {
+            throw new GrpcException(GrpcStatus.FAILED_PRECONDITION, "Platform not started yet");
+        }
     }
 
-    private static void wrapWithErrorHandling(
-            @NonNull final StreamObserver<?> responseObserver, @NonNull final Runnable action) {
+    private static <T> T wrapWithErrorHandling(@NonNull final Supplier<T> action) {
         try {
-            action.run();
+            return action.get();
         } catch (final IllegalArgumentException e) {
             log.error(DEMO_INFO.getMarker(), "Error processing gRPC request", e);
-            responseObserver.onError(Status.INVALID_ARGUMENT.withCause(e).asRuntimeException());
+            throw new GrpcException(GrpcStatus.INVALID_ARGUMENT, e);
         } catch (final UnsupportedOperationException e) {
             log.error(DEMO_INFO.getMarker(), "Error processing gRPC request", e);
-            responseObserver.onError(Status.UNIMPLEMENTED.withCause(e).asRuntimeException());
+            throw new GrpcException(GrpcStatus.UNIMPLEMENTED, e);
         } catch (final Exception e) {
             log.error(DEMO_INFO.getMarker(), "Error processing gRPC request", e);
-            responseObserver.onError(Status.INTERNAL.withCause(e).asRuntimeException());
+            throw new GrpcException(GrpcStatus.INTERNAL, e);
         }
     }
 }

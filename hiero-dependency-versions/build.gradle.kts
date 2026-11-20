@@ -79,7 +79,6 @@ dependencies.constraints {
     api("io.grpc:grpc-netty:$grpc") { because("io.grpc.netty") }
     api("io.grpc:grpc-protobuf:$grpc") { because("io.grpc.protobuf") }
     api("io.grpc:grpc-stub:$grpc") { because("io.grpc.stub") }
-    api("io.grpc:grpc-netty-shaded:$grpc") { because("io.grpc.netty.shaded") }
     api("com.esaulpaugh:headlong:13.3.1") { because("com.esaulpaugh.headlong") }
     api("info.picocli:picocli:4.7.7") { because("info.picocli") }
     api("io.github.classgraph:classgraph:4.8.184") { because("io.github.classgraph") }
