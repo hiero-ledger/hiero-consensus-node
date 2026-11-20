@@ -5,17 +5,19 @@ import static com.hedera.hapi.node.state.history.WrapsPhase.AGGREGATE;
 import static com.hedera.hapi.node.state.history.WrapsPhase.R1;
 import static com.hedera.hapi.node.state.history.WrapsPhase.R2;
 import static com.hedera.hapi.node.state.history.WrapsPhase.R3;
+import static com.hedera.node.app.history.HistoryLibrary.MISSING_SCHNORR_KEY;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.hedera.hapi.node.state.history.WrapsPhase;
+import com.hedera.node.app.history.HistoryLibrary.AddressBook;
 import com.hedera.node.app.history.ReadableHistoryStore.WrapsMessagePublication;
 import com.hedera.node.app.history.impl.WrapsMpcStateMachine.Transition;
-import com.hedera.node.app.service.roster.impl.RosterTransitionWeights;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,15 +34,13 @@ class WrapsMpcStateMachineTest {
 
     private WrapsMpcStateMachine subject;
     private SortedMap<Long, Long> sourceWeights;
-    private SortedMap<Long, Long> targetWeights;
-    private RosterTransitionWeights weights;
+    private WrapsSigningQuorum quorum;
     private Map<WrapsPhase, SortedMap<Long, WrapsMessagePublication>> phaseMessages;
 
     @BeforeEach
     void setUp() {
         subject = new WrapsMpcStateMachine();
         sourceWeights = new TreeMap<>();
-        targetWeights = new TreeMap<>();
         phaseMessages = new HashMap<>();
     }
 
@@ -87,7 +87,7 @@ class WrapsMpcStateMachineTest {
             setupTwoNodeWeights();
             final var publication = createPublication(NODE_1, AGGREGATE, BASE_TIME);
 
-            final var transition = subject.onNext(publication, AGGREGATE, weights, GRACE_PERIOD, phaseMessages);
+            final var transition = subject.onNext(publication, AGGREGATE, quorum, GRACE_PERIOD, phaseMessages);
 
             assertFalse(transition.publicationAccepted());
             assertEquals(AGGREGATE, transition.newCurrentPhase());
@@ -102,7 +102,7 @@ class WrapsMpcStateMachineTest {
             setupTwoNodeWeights();
             final var publication = createPublication(NODE_1, R2, BASE_TIME);
 
-            final var transition = subject.onNext(publication, R1, weights, GRACE_PERIOD, phaseMessages);
+            final var transition = subject.onNext(publication, R1, quorum, GRACE_PERIOD, phaseMessages);
 
             assertFalse(transition.publicationAccepted());
             assertEquals(R1, transition.newCurrentPhase());
@@ -113,7 +113,7 @@ class WrapsMpcStateMachineTest {
             setupTwoNodeWeights();
             final var publication = createPublication(NODE_1, R1, BASE_TIME);
 
-            final var transition = subject.onNext(publication, R2, weights, GRACE_PERIOD, phaseMessages);
+            final var transition = subject.onNext(publication, R2, quorum, GRACE_PERIOD, phaseMessages);
 
             assertFalse(transition.publicationAccepted());
             assertEquals(R2, transition.newCurrentPhase());
@@ -124,7 +124,7 @@ class WrapsMpcStateMachineTest {
             setupTwoNodeWeights();
             final var publication = createPublication(NODE_1, R3, BASE_TIME);
 
-            final var transition = subject.onNext(publication, R2, weights, GRACE_PERIOD, phaseMessages);
+            final var transition = subject.onNext(publication, R2, quorum, GRACE_PERIOD, phaseMessages);
 
             assertFalse(transition.publicationAccepted());
             assertEquals(R2, transition.newCurrentPhase());
@@ -138,7 +138,7 @@ class WrapsMpcStateMachineTest {
             setupTwoNodeWeights();
             final var publication = createPublication(NODE_1, R1, BASE_TIME);
 
-            final var transition = subject.onNext(publication, R1, weights, GRACE_PERIOD, phaseMessages);
+            final var transition = subject.onNext(publication, R1, quorum, GRACE_PERIOD, phaseMessages);
 
             assertTrue(transition.publicationAccepted());
             assertEquals(R1, transition.newCurrentPhase());
@@ -151,8 +151,8 @@ class WrapsMpcStateMachineTest {
             final var first = createPublication(NODE_1, R1, BASE_TIME);
             final var duplicate = createPublication(NODE_1, R1, BASE_TIME.plusSeconds(1));
 
-            subject.onNext(first, R1, weights, GRACE_PERIOD, phaseMessages);
-            final var transition = subject.onNext(duplicate, R1, weights, GRACE_PERIOD, phaseMessages);
+            subject.onNext(first, R1, quorum, GRACE_PERIOD, phaseMessages);
+            final var transition = subject.onNext(duplicate, R1, quorum, GRACE_PERIOD, phaseMessages);
 
             assertFalse(transition.publicationAccepted());
             assertEquals(R1, transition.newCurrentPhase());
@@ -164,8 +164,8 @@ class WrapsMpcStateMachineTest {
             final var first = createPublication(NODE_1, R1, BASE_TIME);
             final var second = createPublication(NODE_2, R1, BASE_TIME.plusSeconds(1));
 
-            subject.onNext(first, R1, weights, GRACE_PERIOD, phaseMessages);
-            final var transition = subject.onNext(second, R1, weights, GRACE_PERIOD, phaseMessages);
+            subject.onNext(first, R1, quorum, GRACE_PERIOD, phaseMessages);
+            final var transition = subject.onNext(second, R1, quorum, GRACE_PERIOD, phaseMessages);
 
             assertTrue(transition.publicationAccepted());
             assertEquals(R2, transition.newCurrentPhase());
@@ -177,7 +177,7 @@ class WrapsMpcStateMachineTest {
             setupThreeNodeWeightsWithMajorityRequired();
             final var first = createPublication(NODE_1, R1, BASE_TIME);
 
-            final var transition = subject.onNext(first, R1, weights, GRACE_PERIOD, phaseMessages);
+            final var transition = subject.onNext(first, R1, quorum, GRACE_PERIOD, phaseMessages);
 
             assertTrue(transition.publicationAccepted());
             assertEquals(R1, transition.newCurrentPhase());
@@ -189,8 +189,8 @@ class WrapsMpcStateMachineTest {
             final var first = createPublication(NODE_1, R1, BASE_TIME);
             final var second = createPublication(NODE_2, R1, BASE_TIME.plusSeconds(1));
 
-            subject.onNext(first, R1, weights, GRACE_PERIOD, phaseMessages);
-            final var transition = subject.onNext(second, R1, weights, GRACE_PERIOD, phaseMessages);
+            subject.onNext(first, R1, quorum, GRACE_PERIOD, phaseMessages);
+            final var transition = subject.onNext(second, R1, quorum, GRACE_PERIOD, phaseMessages);
 
             assertTrue(transition.publicationAccepted());
             assertEquals(R2, transition.newCurrentPhase());
@@ -211,7 +211,7 @@ class WrapsMpcStateMachineTest {
         void rejectsR2PublicationFromNodeNotInR1() {
             final var publication = createPublication(NODE_3, R2, BASE_TIME);
 
-            final var transition = subject.onNext(publication, R2, weights, GRACE_PERIOD, phaseMessages);
+            final var transition = subject.onNext(publication, R2, quorum, GRACE_PERIOD, phaseMessages);
 
             assertFalse(transition.publicationAccepted());
             assertEquals(R2, transition.newCurrentPhase());
@@ -221,7 +221,7 @@ class WrapsMpcStateMachineTest {
         void acceptsR2PublicationFromR1Participant() {
             final var publication = createPublication(NODE_1, R2, BASE_TIME);
 
-            final var transition = subject.onNext(publication, R2, weights, GRACE_PERIOD, phaseMessages);
+            final var transition = subject.onNext(publication, R2, quorum, GRACE_PERIOD, phaseMessages);
 
             assertTrue(transition.publicationAccepted());
             assertEquals(R2, transition.newCurrentPhase());
@@ -232,8 +232,8 @@ class WrapsMpcStateMachineTest {
             final var first = createPublication(NODE_1, R2, BASE_TIME);
             final var duplicate = createPublication(NODE_1, R2, BASE_TIME.plusSeconds(1));
 
-            subject.onNext(first, R2, weights, GRACE_PERIOD, phaseMessages);
-            final var transition = subject.onNext(duplicate, R2, weights, GRACE_PERIOD, phaseMessages);
+            subject.onNext(first, R2, quorum, GRACE_PERIOD, phaseMessages);
+            final var transition = subject.onNext(duplicate, R2, quorum, GRACE_PERIOD, phaseMessages);
 
             assertFalse(transition.publicationAccepted());
             assertEquals(R2, transition.newCurrentPhase());
@@ -244,8 +244,8 @@ class WrapsMpcStateMachineTest {
             final var first = createPublication(NODE_1, R2, BASE_TIME);
             final var second = createPublication(NODE_2, R2, BASE_TIME.plusSeconds(1));
 
-            subject.onNext(first, R2, weights, GRACE_PERIOD, phaseMessages);
-            final var transition = subject.onNext(second, R2, weights, GRACE_PERIOD, phaseMessages);
+            subject.onNext(first, R2, quorum, GRACE_PERIOD, phaseMessages);
+            final var transition = subject.onNext(second, R2, quorum, GRACE_PERIOD, phaseMessages);
 
             assertTrue(transition.publicationAccepted());
             assertEquals(R3, transition.newCurrentPhase());
@@ -270,7 +270,7 @@ class WrapsMpcStateMachineTest {
         void rejectsR3PublicationFromNodeNotInR1() {
             final var publication = createPublication(NODE_3, R3, BASE_TIME);
 
-            final var transition = subject.onNext(publication, R3, weights, GRACE_PERIOD, phaseMessages);
+            final var transition = subject.onNext(publication, R3, quorum, GRACE_PERIOD, phaseMessages);
 
             assertFalse(transition.publicationAccepted());
             assertEquals(R3, transition.newCurrentPhase());
@@ -280,7 +280,7 @@ class WrapsMpcStateMachineTest {
         void acceptsR3PublicationFromR1Participant() {
             final var publication = createPublication(NODE_1, R3, BASE_TIME);
 
-            final var transition = subject.onNext(publication, R3, weights, GRACE_PERIOD, phaseMessages);
+            final var transition = subject.onNext(publication, R3, quorum, GRACE_PERIOD, phaseMessages);
 
             assertTrue(transition.publicationAccepted());
             assertEquals(R3, transition.newCurrentPhase());
@@ -291,8 +291,8 @@ class WrapsMpcStateMachineTest {
             final var first = createPublication(NODE_1, R3, BASE_TIME);
             final var duplicate = createPublication(NODE_1, R3, BASE_TIME.plusSeconds(1));
 
-            subject.onNext(first, R3, weights, GRACE_PERIOD, phaseMessages);
-            final var transition = subject.onNext(duplicate, R3, weights, GRACE_PERIOD, phaseMessages);
+            subject.onNext(first, R3, quorum, GRACE_PERIOD, phaseMessages);
+            final var transition = subject.onNext(duplicate, R3, quorum, GRACE_PERIOD, phaseMessages);
 
             assertFalse(transition.publicationAccepted());
             assertEquals(R3, transition.newCurrentPhase());
@@ -303,12 +303,94 @@ class WrapsMpcStateMachineTest {
             final var first = createPublication(NODE_1, R3, BASE_TIME);
             final var second = createPublication(NODE_2, R3, BASE_TIME.plusSeconds(1));
 
-            subject.onNext(first, R3, weights, GRACE_PERIOD, phaseMessages);
-            final var transition = subject.onNext(second, R3, weights, GRACE_PERIOD, phaseMessages);
+            subject.onNext(first, R3, quorum, GRACE_PERIOD, phaseMessages);
+            final var transition = subject.onNext(second, R3, quorum, GRACE_PERIOD, phaseMessages);
 
             assertTrue(transition.publicationAccepted());
             assertEquals(AGGREGATE, transition.newCurrentPhase());
             assertNull(transition.gracePeriodEndTimeUpdate());
+        }
+    }
+
+    @Nested
+    class CanonicalQuorumTests {
+        @Test
+        void keepsR1OpenForFourthEligibleSignerDespiteSparseHintsMajority() {
+            final var canonicalWeights = new TreeMap<Long, Long>();
+            final var hintsWeights = new TreeMap<Long, Long>();
+            for (long nodeId = 0; nodeId < 7; nodeId++) {
+                canonicalWeights.put(nodeId, 1L);
+                if (nodeId < 5) {
+                    hintsWeights.put(nodeId, 1L);
+                }
+            }
+            quorum = new WrapsSigningQuorum(
+                    AddressBook.from(canonicalWeights, nodeId -> new byte[] {1}), hintsWeights, true);
+
+            for (long nodeId = 0; nodeId < 3; nodeId++) {
+                final var transition = subject.onNext(
+                        createPublication(nodeId, R1, BASE_TIME), R1, quorum, GRACE_PERIOD, phaseMessages);
+                assertEquals(R1, transition.newCurrentPhase());
+            }
+            final var fourth = subject.onNext(
+                    createPublication(3L, R1, BASE_TIME.plusSeconds(1)), R1, quorum, GRACE_PERIOD, phaseMessages);
+
+            assertEquals(R2, fourth.newCurrentPhase());
+            assertEquals(BASE_TIME.plusSeconds(1).plus(GRACE_PERIOD), fourth.gracePeriodEndTimeUpdate());
+            assertEquals(Set.of(0L, 1L, 2L, 3L), phaseMessages.get(R1).keySet());
+        }
+
+        @Test
+        void excludesSentinelWeightAndRejectsSentinelPublisher() {
+            final var canonicalWeights = new TreeMap<>(Map.of(1L, 1L, 2L, 1L, 3L, 1_000L));
+            quorum = new WrapsSigningQuorum(
+                    AddressBook.from(
+                            canonicalWeights,
+                            nodeId -> nodeId == NODE_3 ? MISSING_SCHNORR_KEY.toByteArray() : new byte[] {1}),
+                    canonicalWeights,
+                    false);
+
+            final var invalid =
+                    subject.onNext(createPublication(NODE_3, R1, BASE_TIME), R1, quorum, GRACE_PERIOD, phaseMessages);
+            assertFalse(invalid.publicationAccepted());
+            assertFalse(phaseMessages.get(R1).containsKey(NODE_3));
+            assertEquals(
+                    R1,
+                    subject.onNext(createPublication(NODE_1, R1, BASE_TIME), R1, quorum, GRACE_PERIOD, phaseMessages)
+                            .newCurrentPhase());
+            assertEquals(
+                    R2,
+                    subject.onNext(createPublication(NODE_2, R1, BASE_TIME), R1, quorum, GRACE_PERIOD, phaseMessages)
+                            .newCurrentPhase());
+        }
+
+        @Test
+        void doesNotFreezeOnNativeMajorityWithoutSourceProvenanceWeight() {
+            final var canonicalWeights = new TreeMap<>(Map.of(1L, 10L, 2L, 1L, 3L, 1L));
+            quorum = new WrapsSigningQuorum(
+                    AddressBook.from(canonicalWeights, nodeId -> new byte[] {1}), Map.of(1L, 4L, 2L, 4L, 3L, 4L), true);
+
+            assertEquals(
+                    R1,
+                    subject.onNext(createPublication(NODE_1, R1, BASE_TIME), R1, quorum, GRACE_PERIOD, phaseMessages)
+                            .newCurrentPhase());
+            assertEquals(
+                    R2,
+                    subject.onNext(createPublication(NODE_2, R1, BASE_TIME), R1, quorum, GRACE_PERIOD, phaseMessages)
+                            .newCurrentPhase());
+        }
+
+        @Test
+        void rejectsRealKeyPublisherOutsideCapturedSourceHintsAuthority() {
+            final var canonicalWeights = new TreeMap<>(Map.of(1L, 1L, 2L, 1L, 3L, 1L));
+            quorum = new WrapsSigningQuorum(
+                    AddressBook.from(canonicalWeights, nodeId -> new byte[] {1}), Map.of(1L, 1L, 2L, 1L), true);
+
+            final var transition =
+                    subject.onNext(createPublication(NODE_3, R1, BASE_TIME), R1, quorum, GRACE_PERIOD, phaseMessages);
+
+            assertFalse(transition.publicationAccepted());
+            assertTrue(phaseMessages.get(R1).isEmpty());
         }
     }
 
@@ -318,7 +400,7 @@ class WrapsMpcStateMachineTest {
         void throwsOnNullPublication() {
             setupTwoNodeWeights();
             assertThrows(
-                    NullPointerException.class, () -> subject.onNext(null, R1, weights, GRACE_PERIOD, phaseMessages));
+                    NullPointerException.class, () -> subject.onNext(null, R1, quorum, GRACE_PERIOD, phaseMessages));
         }
 
         @Test
@@ -327,11 +409,11 @@ class WrapsMpcStateMachineTest {
             final var publication = createPublication(NODE_1, R1, BASE_TIME);
             assertThrows(
                     NullPointerException.class,
-                    () -> subject.onNext(publication, null, weights, GRACE_PERIOD, phaseMessages));
+                    () -> subject.onNext(publication, null, quorum, GRACE_PERIOD, phaseMessages));
         }
 
         @Test
-        void throwsOnNullWeights() {
+        void throwsOnNullQuorum() {
             final var publication = createPublication(NODE_1, R1, BASE_TIME);
             assertThrows(
                     NullPointerException.class,
@@ -343,34 +425,30 @@ class WrapsMpcStateMachineTest {
             setupTwoNodeWeights();
             final var publication = createPublication(NODE_1, R1, BASE_TIME);
             assertThrows(
-                    NullPointerException.class, () -> subject.onNext(publication, R1, weights, null, phaseMessages));
+                    NullPointerException.class, () -> subject.onNext(publication, R1, quorum, null, phaseMessages));
         }
 
         @Test
         void throwsOnNullPhaseMessages() {
             setupTwoNodeWeights();
             final var publication = createPublication(NODE_1, R1, BASE_TIME);
-            assertThrows(
-                    NullPointerException.class, () -> subject.onNext(publication, R1, weights, GRACE_PERIOD, null));
+            assertThrows(NullPointerException.class, () -> subject.onNext(publication, R1, quorum, GRACE_PERIOD, null));
         }
     }
 
     private void setupTwoNodeWeights() {
         sourceWeights.put(NODE_1, 1L);
         sourceWeights.put(NODE_2, 1L);
-        targetWeights.put(NODE_1, 1L);
-        targetWeights.put(NODE_2, 1L);
-        weights = new RosterTransitionWeights(sourceWeights, targetWeights);
+        quorum =
+                new WrapsSigningQuorum(AddressBook.from(sourceWeights, nodeId -> new byte[] {1}), sourceWeights, false);
     }
 
     private void setupThreeNodeWeightsWithMajorityRequired() {
         sourceWeights.put(NODE_1, 1L);
         sourceWeights.put(NODE_2, 1L);
         sourceWeights.put(NODE_3, 1L);
-        targetWeights.put(NODE_1, 1L);
-        targetWeights.put(NODE_2, 1L);
-        targetWeights.put(NODE_3, 1L);
-        weights = new RosterTransitionWeights(sourceWeights, targetWeights);
+        quorum =
+                new WrapsSigningQuorum(AddressBook.from(sourceWeights, nodeId -> new byte[] {1}), sourceWeights, false);
     }
 
     private WrapsMessagePublication createPublication(long nodeId, WrapsPhase phase, Instant receiptTime) {

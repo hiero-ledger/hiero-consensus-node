@@ -1,9 +1,17 @@
 # Explicit hinTS key provenance
 
 Each hinTS signing generation authorizes its successor by signing the successor's
-verification key. This supplements the WRAPS chain of trust with an explicit
-sequence of adjacent-key signatures. It does not replace the ledger ID or WRAPS
-proof as the network's trust anchor.
+verification key. Native Hiero verifiers still trust the ledger ID and use WRAPS
+to authenticate the current signing key. For CLPR peers using the compact EVM
+Hiero verifier, the channel starts from a trusted hinTS key hash and follows
+these predecessor certificates instead of verifying WRAPS. Adoption witnesses
+prove that a batch endpoint used its key to sign a block.
+
+A channel retains the trust assumptions of its current anchor until it advances.
+If more than one third of a retired roster's signing weight is compromised
+later, it can forge proofs for channels still anchored to that roster's key.
+See [CLPR sync](services/clpr-service/sync-workflow.md#outbound-proof-format)
+for format negotiation and catch-up.
 
 ## Signed message and identity
 
@@ -42,13 +50,11 @@ target verification key. The companion is persisted with the WRAPS message so
 restart and reconnect reconstruct the same accepted R1 set. Duplicate, malformed,
 wrong-generation, or wrong-key companions do not add signing weight.
 
-The WRAPS implementation freezes its R1 participants after their source weight
-is **strictly greater than one half**, then requires R2 and R3 messages from that
-same set. Its source weights come from the persisted active hinTS scheme. Because
-every admitted R1 participant supplies a valid companion, the frozen set also
-exceeds the provenance signature's **strictly greater than one third** threshold.
-The provenance check uses the fixed fraction `1/3`, independent of the configurable
-block-signature threshold. Exactly one third is insufficient.
+WRAPS freezes R1 once the participants hold a strict majority of the canonical book's effective Schnorr weight
+and strictly more than one third of the weight committed in the source hinTS key. R2 and R3 require messages
+from that same set. A history-backed source key from preprocessing started with TSS 3.29.1 commits the full listed
+roster weight. Older keys commit participant weight. The fixed provenance fraction is independent of the
+configurable block-signature threshold.
 
 This requirement also prevents a Byzantine participant from supplying its WRAPS
 message while withholding the companion needed to authorize the next key. A node

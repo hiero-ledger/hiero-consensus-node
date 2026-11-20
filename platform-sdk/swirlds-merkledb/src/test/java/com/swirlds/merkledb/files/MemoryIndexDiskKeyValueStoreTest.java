@@ -7,7 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
-import com.swirlds.merkledb.collections.LongListOffHeap;
 import com.swirlds.merkledb.collections.LongListSegment;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.test.fixtures.files.FilesTestType;
@@ -265,7 +264,7 @@ class MemoryIndexDiskKeyValueStoreTest {
             });
         }
         // open snapshot and check data
-        final LongListOffHeap snapshotIndex = new LongListOffHeap(1024, 1_000_000, 256);
+        final LongListSegment snapshotIndex = new LongListSegment(1024, 1_000_000, 256);
         final MemoryIndexDiskKeyValueStore storeFromSnapshot = new MemoryIndexDiskKeyValueStore(
                 DEFAULT_CONFIGURATION.getConfigData(MerkleDbConfig.class),
                 tempSnapshotDir,

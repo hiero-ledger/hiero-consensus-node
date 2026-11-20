@@ -33,6 +33,7 @@ import com.hedera.hapi.node.state.clpr.ClprChannel;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.node.app.service.clpr.ClprService;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -310,6 +311,47 @@ public class ClprChannelCommitRevealSuite {
                         .signature(crypto.signature())
                         .signatureScheme(ClprSignatureScheme.ED25519)
                         .verifierContractId(bogusContractId)
+                        .configProofBytes(defaultConfigProofBytes())
+                        .payingWith(GENESIS)
+                        .hasKnownStatus(CLPR_INVALID_VERIFIER_CONTRACT));
+    }
+
+    @HapiTest
+    @DisplayName("Reveal with the unsupported Sei verifier (0x170) fails INVALID_VERIFIER_CONTRACT")
+    final Stream<DynamicTest> seiVerifierFails() {
+        final var byNumber = new ClprChannelCrypto();
+        final var byEvmAddress = new ClprChannelCrypto();
+        final var seiVerifierByNumber = ContractID.newBuilder()
+                .setShardNum(0)
+                .setRealmNum(0)
+                .setContractNum(0x170L)
+                .build();
+        final var seiVerifierByEvmAddress = ContractID.newBuilder()
+                .setShardNum(0)
+                .setRealmNum(0)
+                .setEvmAddress(ByteString.copyFrom(
+                        new byte[] {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01, (byte) 0x70}))
+                .build();
+        return hapiTest(
+                clprRegisterChannel().ownershipCommitment(byNumber.commitment()).payingWith(GENESIS),
+                clprCompleteChannel()
+                        .channelId(byNumber.channelId())
+                        .publicKey(byNumber.publicKey())
+                        .signature(byNumber.signature())
+                        .signatureScheme(ClprSignatureScheme.ED25519)
+                        .verifierContractId(seiVerifierByNumber)
+                        .configProofBytes(defaultConfigProofBytes())
+                        .payingWith(GENESIS)
+                        .hasKnownStatus(CLPR_INVALID_VERIFIER_CONTRACT),
+                clprRegisterChannel()
+                        .ownershipCommitment(byEvmAddress.commitment())
+                        .payingWith(GENESIS),
+                clprCompleteChannel()
+                        .channelId(byEvmAddress.channelId())
+                        .publicKey(byEvmAddress.publicKey())
+                        .signature(byEvmAddress.signature())
+                        .signatureScheme(ClprSignatureScheme.ED25519)
+                        .verifierContractId(seiVerifierByEvmAddress)
                         .configProofBytes(defaultConfigProofBytes())
                         .payingWith(GENESIS)
                         .hasKnownStatus(CLPR_INVALID_VERIFIER_CONTRACT));

@@ -183,10 +183,13 @@ Returned `SlashResult(updatedConnector, penaltyAmount, banned)` is consumed by
 ### Which `ClprMessageReplyStatus` triggers a slash?
 
 (Spec §4.6, Hiero implementation):
-- `APPLICATION_ERROR` — slashes destination connector (target was unsuitable).
-- `CONNECTOR_NOT_FOUND` — slashes source connector (lied about their own ID).
-- `CONNECTOR_UNDERFUNDED` — slashes source connector.
-- `SUCCESS`, `CHANNEL_CLOSED`, `REDACTED` — no slash.
+- `APPLICATION_ERROR` — no slash (the destination application call failed or could not run).
+- `CONNECTOR_NOT_FOUND` — slashes source connector when the reply arrives (lied about their own ID).
+- `CONNECTOR_UNDERFUNDED` — slashes the destination connector when the Data Message is processed,
+and the source connector when the reply arrives.
+- `SUCCESS` — no slash. `CLOSING` and `DRAINED` channels still dispatch inbound Data Messages
+and use the normal charging and reply-status rules; there is no separate channel-closed reply status.
+See canonical [§2.1.1](https://github.com/LFDT-CLPR/clpr-spec/blob/945082d69e65dd0fd9e9bdf8d59cb8121579f6fd/clpr-service-spec.md#211-channel-status-transitions).
 
 The endpoint payout always goes to the *submitting* endpoint, regardless of which side
 is at fault. See `ClprSubmitBundleHandler` for the exact branches.
@@ -200,9 +203,18 @@ and endpoint incentives.
 
 ### Per-message charge on successful dispatch
 
-Application execution gas is paid to the network by the original bundle payer before
-any EVM execution. The parent holds the full transaction gas allowance until completion,
+Application execution gas is paid to the network by the original bundle payer through
+one escrow created immediately before the first EVM dispatch. Early validation failures
+create no escrow. Bundles reserve before processing DATA or response payloads,
+including before reversible connector compensation or slashing payouts. This prevents
+those transfers from backing the parent's gas payment, even when a callback is later
+skipped. The parent holds the full transaction gas allowance until completion,
 then refunds unused fees. A later parent rollback retains payment for executed gas.
+Verifier billing is capped at 300,000 units and collected only once, even when the native
+fee calculator also settles byte charges. Already charged base/byte fees count against
+the payer's signed maximum together with the escrow and the full possible endpoint
+misbehavior penalty. Penalty headroom is reserved before bundle validation without
+collecting the penalty; collection occurs only when the penalty applies.
 
 A receiving DATA connector reimburses actual gas plus the existing flat endpoint
 compensation (`messageExecutionCost + messageExecutionCost * endpointMarginPercent / 100`).

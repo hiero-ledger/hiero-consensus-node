@@ -263,7 +263,20 @@ public class ClprBundleValidator {
     private static boolean advancesManifest(
             @NonNull final ClprChannel channel, @NonNull final ClprBundleContent content) {
         final var newManifest = content.newEndpointManifest();
-        return newManifest != null && newManifest.version() > channel.endpointManifestVersion();
+        return newManifest != null
+                && newManifest.version() > channel.endpointManifestVersion()
+                && (!channel.peerManifestRecovered() || hasNewerManifestProof(channel, content));
+    }
+
+    /** Whether the manifest is proven against a valid source block newer than the recorded one. */
+    public static boolean hasNewerManifestProof(
+            @NonNull final ClprChannel channel, @NonNull final ClprBundleContent content) {
+        final var timestamp = content.manifestProofTimestamp();
+        return timestamp != null
+                && timestamp.seconds() >= 0
+                && timestamp.nanos() >= 0
+                && timestamp.nanos() < 1_000_000_000
+                && isTimestampBefore(channel.endpointManifestProofTimestamp(), timestamp);
     }
 
     /**
@@ -342,7 +355,7 @@ public class ClprBundleValidator {
     }
 
     /**
-     * Checks the bundle's message count and, when the limit is positive, each data message's payload size.
+     * Checks the bundle's message count and, when the limit is positive, each data message's complete serialized payload size.
      *
      * @param messages the bundle's messages
      * @param throttles this ledger's throttles
@@ -358,7 +371,8 @@ public class ClprBundleValidator {
             for (final var payload : messages) {
                 if (payload.hasMessage()) {
                     validateTruePreCheck(
-                            payload.messageOrThrow().messageData().length() <= maxPayloadBytes, CLPR_PAYLOAD_TOO_LARGE);
+                            ClprMessagePayload.PROTOBUF.measureRecord(payload) <= maxPayloadBytes,
+                            CLPR_PAYLOAD_TOO_LARGE);
                 }
             }
         }

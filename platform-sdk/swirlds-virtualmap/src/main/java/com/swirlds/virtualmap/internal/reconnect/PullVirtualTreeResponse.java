@@ -29,7 +29,7 @@ import java.io.UncheckedIOException;
  *
  * <p>The teacher sends one response for every {@link PullVirtualTreeRequest} received from the
  * learner. Every response includes a path followed by a boolean flag that indicates if the node
- * is clean (node hash on the teacher is the same as sent by the learner), or not. If the path
+ * is clean (node hash on the teacher starts with the hash prefix sent by the learner), or not. If the path
  * is the root path, the response also includes first and last leaf paths. If the path corresponds
  * to a dirty leaf node, a {@link VirtualLeafBytes} for the node is included.
  *

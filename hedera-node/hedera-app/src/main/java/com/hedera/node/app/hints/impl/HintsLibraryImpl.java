@@ -100,15 +100,15 @@ public class HintsLibraryImpl implements HintsLibrary {
         requireNonNull(hintsKeys);
         requireNonNull(weights);
         requireExactCapacity(crs, n);
-        if (!hintsKeys.keySet().equals(weights.keySet())) {
-            throw new IllegalArgumentException("The number of hint keys and weights must be the same");
+        if (!weights.keySet().containsAll(hintsKeys.keySet())) {
+            throw new IllegalArgumentException("Every hinTS key must have a party weight");
         }
-        hintsKeys.keySet().forEach(partyId -> requireValidPartyId(partyId, n));
+        weights.keySet().forEach(partyId -> requireValidPartyId(partyId, n));
         final int[] parties =
-                hintsKeys.keySet().stream().mapToInt(Integer::intValue).toArray();
+                weights.keySet().stream().mapToInt(Integer::intValue).toArray();
         final byte[][] hintsPublicKeys = Arrays.stream(parties)
                 .mapToObj(hintsKeys::get)
-                .map(Bytes::toByteArray)
+                .map(key -> key == null ? null : key.toByteArray())
                 .toArray(byte[][]::new);
         final long[] weightsArray =
                 Arrays.stream(parties).mapToLong(weights::get).toArray();

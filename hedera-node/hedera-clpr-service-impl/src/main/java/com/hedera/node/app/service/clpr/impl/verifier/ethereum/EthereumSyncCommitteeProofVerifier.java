@@ -6,6 +6,7 @@ import static com.hedera.node.app.service.clpr.impl.verifier.evm.ProofBytes.left
 
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
+import com.hedera.node.app.service.clpr.impl.verifier.EvmChannelContext;
 import com.hedera.node.app.service.clpr.impl.verifier.ProofException;
 import com.hedera.node.app.service.clpr.impl.verifier.ProvenQueueMetadata;
 import com.hedera.node.app.service.clpr.impl.verifier.Rlp;
@@ -560,9 +561,12 @@ public final class EthereumSyncCommitteeProofVerifier {
     /**
      * Proves every storage entry against the account's storage root, then decodes the queue metadata of
      * {@code channelId32} from the proven storage. {@link ClprContractStorage#decodeQueueMetadata} derives the Channel
-     * slot keys from the channel id, so every decoded value is bound to this channel.
+     * slot keys from the channel id, so every decoded value is bound to this channel. Before decoding,
+     * {@link EvmChannelContext#orderQueueSlots} also checks that the optional sixth slot is this channel's
+     * last-message running-hash slot, which {@code decodeQueueMetadata} does not check on its own.
      *
-     * @throws ProofException if a slot key repeats, a proof does not verify, or a Channel slot is missing
+     * @throws ProofException if a slot key repeats, a proof does not verify, a Channel slot is missing, or a proven
+     *     slot does not belong to this channel
      */
     @NonNull
     private static ProvenQueueMetadata proveQueueMetadata(
@@ -570,12 +574,21 @@ public final class EthereumSyncCommitteeProofVerifier {
             @NonNull final EvmAccount provenAccount,
             @NonNull final byte[] channelId32) {
         final ClprContractStorage storage = new ClprContractStorage();
+        final byte[][] slotKeys = new byte[storageProof.size()][];
+        final byte[][] slotValues = new byte[storageProof.size()][];
         for (int i = 0; i < storageProof.size(); i++) {
             final byte[] slot32 = leftPad32(storageProof.get(i).key(), "storageProof[" + i + "].key");
-            storage.addProvenSlot(
-                    slot32,
-                    proveStorageValue(provenAccount, slot32, storageProof.get(i).proofNodes()));
+            final byte[] value32 =
+                    proveStorageValue(provenAccount, slot32, storageProof.get(i).proofNodes());
+            storage.addProvenSlot(slot32, value32);
+            slotKeys[i] = slot32;
+            slotValues[i] = value32;
         }
+        // Called only for its checks; the ordered values it returns are not needed because decodeQueueMetadata
+        // looks slots up by key. It rejects any proven slot that is not one of this channel's five Channel slots
+        // or the running-hash slot of message (proven nextMessageId - 1), which decodeQueueMetadata would
+        // otherwise accept as the last-message running hash.
+        EvmChannelContext.orderQueueSlots(slotKeys, slotValues, channelId32);
         return storage.decodeQueueMetadata(channelId32);
     }
 

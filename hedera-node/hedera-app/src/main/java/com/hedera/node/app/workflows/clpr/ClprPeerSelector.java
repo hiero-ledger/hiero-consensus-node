@@ -3,6 +3,7 @@ package com.hedera.node.app.workflows.clpr;
 
 import static java.util.Objects.requireNonNull;
 
+import com.google.common.net.InetAddresses;
 import com.hedera.hapi.node.state.clpr.ClprChannel;
 import com.hedera.hapi.node.state.clpr.ClprEndpoint;
 import com.hedera.node.app.spi.info.NetworkInfo;
@@ -19,6 +20,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
+import java.util.function.LongSupplier;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
@@ -36,8 +39,10 @@ public final class ClprPeerSelector {
 
     private final ConfigProvider configProvider;
     private final NetworkInfo networkInfo;
+    private final LongSupplier nanoTime;
     private final Map<String, CircuitBreaker> circuitBreakers = new ConcurrentHashMap<>();
     private final Map<String, PeerReputation> peerReputations = new ConcurrentHashMap<>();
+    private final Map<String, RetrySchedule> retrySchedules = new ConcurrentHashMap<>();
 
     /**
      * A peer endpoint chosen for one sync.
@@ -53,8 +58,16 @@ public final class ClprPeerSelector {
      */
     @Inject
     public ClprPeerSelector(@NonNull final ConfigProvider configProvider, @NonNull final NetworkInfo networkInfo) {
+        this(configProvider, networkInfo, System::nanoTime);
+    }
+
+    ClprPeerSelector(
+            @NonNull final ConfigProvider configProvider,
+            @NonNull final NetworkInfo networkInfo,
+            @NonNull final LongSupplier nanoTime) {
         this.configProvider = requireNonNull(configProvider);
         this.networkInfo = requireNonNull(networkInfo);
+        this.nanoTime = requireNonNull(nanoTime);
     }
 
     /**
@@ -85,15 +98,16 @@ public final class ClprPeerSelector {
                         "[CLPR-SYNC-OUTBOUND] endpoint missing serviceEndpoint channel={} endpoint={}", channelId, ep);
                 continue;
             }
-            if (thisNodeIdentity.isSelf(svc.ipAddress(), svc.port())) {
+            final var host = canonicalHost(svc.ipAddress());
+            if (thisNodeIdentity.isSelf(host, svc.port())) {
                 logger.debug(
                         "[CLPR-SYNC-OUTBOUND] skipping self endpoint channel={} endpoint={}:{}",
                         channelId,
-                        svc.ipAddress(),
+                        host,
                         svc.port());
                 continue;
             }
-            final var peerId = svc.ipAddress() + ":" + svc.port();
+            final var peerId = host + ":" + svc.port();
             endpointsById.put(peerId, ep);
         }
 
@@ -108,10 +122,20 @@ public final class ClprPeerSelector {
         return selectedPeer == null ? null : new SelectedPeer(selectedPeer, endpointsById.get(selectedPeer));
     }
 
+    private static String canonicalHost(@NonNull final String host) {
+        try {
+            return InetAddresses.toAddrString(InetAddresses.forString(host));
+        } catch (final IllegalArgumentException e) {
+            // The client cache reports malformed destinations; retain their original spelling for retry tracking.
+            return host;
+        }
+    }
+
     /**
      * Records a sync with {@code peerId} that went as expected.
      */
     void recordSuccess(@NonNull final String peerId) {
+        retrySchedules.remove(peerId);
         getCircuitBreaker(peerId).recordSuccess();
         getReputation(peerId).recordSuccess();
     }
@@ -120,6 +144,20 @@ public final class ClprPeerSelector {
      * Records a sync with {@code peerId} that failed, counting against its breaker and reputation.
      */
     void recordFailure(@NonNull final String peerId) {
+        final var clprConfig = configProvider.getConfiguration().getConfigData(ClprConfig.class);
+        final long initialDelayMs = Math.max(0, clprConfig.retryInitialDelayMs());
+        final long maxDelayMs = Math.max(0, clprConfig.retryMaxDelayMs());
+        retrySchedules.compute(peerId, (id, previous) -> {
+            final long delayMs;
+            if (previous == null) {
+                delayMs = Math.min(initialDelayMs, maxDelayMs);
+            } else {
+                // Saturate before doubling, including when the configured cap changes between failures.
+                delayMs =
+                        previous.delayMs() > maxDelayMs / 2 ? maxDelayMs : Math.min(previous.delayMs() * 2, maxDelayMs);
+            }
+            return new RetrySchedule(delayMs, nanoTime.getAsLong());
+        });
         final var breaker = getCircuitBreaker(peerId);
         final boolean wasOpen = breaker.state() == CircuitBreaker.State.OPEN;
         breaker.recordFailure();
@@ -137,8 +175,9 @@ public final class ClprPeerSelector {
 
     /**
      * Selects a peer endpoint for sync using reputation-weighted random selection. Higher-reputation peers are more
-     * likely to be chosen, but all candidates have some chance. When peer exclusion is enabled, peers with open circuit
-     * breakers are filtered out. Returns null if no peer is available.
+     * likely to be chosen, but all candidates have some chance. Failed peers wait for their bounded retry delay,
+     * independently of peer exclusion. When peer exclusion is enabled, peers with open circuit breakers are also
+     * filtered out. Returns null if no peer is available.
      *
      * @param channelId       the Channel ID in hex, for logging
      * @param peerEndpointIds the set of known peer endpoint IDs
@@ -149,6 +188,7 @@ public final class ClprPeerSelector {
             @NonNull final String channelId, @NonNull final Collection<String> peerEndpointIds) {
         final var clprConfig = configProvider.getConfiguration().getConfigData(ClprConfig.class);
         final boolean peerExclusionEnabled = clprConfig.syncPeerExclusionEnabled();
+        final long now = nanoTime.getAsLong();
 
         // Optionally filter to peers whose circuit breaker allows requests.
         final var candidates = new ArrayList<String>();
@@ -156,6 +196,11 @@ public final class ClprPeerSelector {
         double totalWeight = 0.0;
 
         for (final var peerId : peerEndpointIds) {
+            final var retry = retrySchedules.get(peerId);
+            if (retry != null && now - retry.failedAtNanos() < TimeUnit.MILLISECONDS.toNanos(retry.delayMs())) {
+                logger.debug("[CLPR-SYNC-OUTBOUND] peer waiting for retry delay peer={}", peerId);
+                continue;
+            }
             if (peerExclusionEnabled && !getCircuitBreaker(peerId).allowRequest()) {
                 logger.debug("[CLPR-SYNC-OUTBOUND] peer excluded by circuit breaker peer={}", peerId);
                 continue;
@@ -168,10 +213,9 @@ public final class ClprPeerSelector {
         }
 
         if (candidates.isEmpty()) {
-            // DEBUG, not WARN: every tick repeats this until a breaker's cooldown lets a probe through, and the
-            // failures that opened the breakers were already logged — including the opening itself, at INFO.
+            // Every tick repeats this while retry delays or circuit breakers defer the next attempt.
             logger.debug(
-                    "[CLPR-SYNC-OUTBOUND] every candidate peer's circuit breaker is open channel={} candidates={}",
+                    "[CLPR-SYNC-OUTBOUND] no candidate peer is ready for sync channel={} candidates={}",
                     channelId,
                     peerEndpointIds.size());
             return null;
@@ -224,4 +268,7 @@ public final class ClprPeerSelector {
         return peerReputations.computeIfAbsent(
                 peerEndpointId, id -> new PeerReputation(Duration.ofSeconds(clprConfig.reputationDecaySeconds())));
     }
+
+    /** A bounded delay measured from the last failure using monotonic time. */
+    private record RetrySchedule(long delayMs, long failedAtNanos) {}
 }

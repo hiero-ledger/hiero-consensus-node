@@ -46,7 +46,7 @@ class LongListSegmentTest extends AbstractLongListTest<LongListSegment> {
     /**
      * Provides a stream of writer-reader pairs specifically for the {@link LongListSegment}
      * implementation. The writer is always {@link LongListSegment}, and it is paired with
-     * all reader implementations (heap, off-heap, disk-based, and segment-based). This
+     * all reader implementations (disk-based and segment-based). This
      * allows for testing whether data written by the {@link LongListSegment} can be correctly
      * read back by all supported long list implementations.
      *

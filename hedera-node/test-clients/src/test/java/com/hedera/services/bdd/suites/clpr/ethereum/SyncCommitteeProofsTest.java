@@ -2,16 +2,22 @@
 package com.hedera.services.bdd.suites.clpr.ethereum;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.esaulpaugh.headlong.rlp.RLPDecoder;
 import com.esaulpaugh.headlong.rlp.RLPItem;
 import com.esaulpaugh.headlong.rlp.RLPList;
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
+import com.hedera.node.app.service.clpr.impl.verifier.ProofException;
+import com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumSyncCommitteeProofVerifier;
+import com.hedera.node.app.service.clpr.impl.verifier.ethereum.NativeBlsSignatureVerifier;
 import com.hedera.services.bdd.suites.clpr.ethereum.SyncCommitteeProofs.Preset;
+import com.hederahashgraph.api.proto.java.ClprBundleContent;
 import com.hederahashgraph.api.proto.java.ClprChannelStatus;
 import com.hederahashgraph.api.proto.java.ClprMessage;
 import com.hederahashgraph.api.proto.java.ClprMessagePayload;
+import com.hederahashgraph.api.proto.java.ClprQueueMetadata;
 import com.hederahashgraph.api.proto.java.EthereumPosLedgerConfigurationPayload;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -20,6 +26,8 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 /**
  * Round-trips {@link SyncCommitteeProofs} output through an <em>independent</em> RLP + Merkle-Patricia
@@ -119,14 +127,15 @@ class SyncCommitteeProofsTest {
         assertThat(accountValue).as("account must be present in state trie").isNotNull();
         final byte[] storageRoot = topList(accountValue).elements().get(2).data();
 
-        // Re-prove every storage slot against that storage root.
-        final byte[][] slotValues = new byte[5][];
+        // Re-prove every storage slot against that storage root. A single-message bundle proves the five Channel
+        // slots plus the last message's running-hash slot.
+        final byte[][] slotValues = new byte[6][];
         final List<RLPItem> entries = delivery.get(7).asRLPList().elements();
-        assertThat(entries).hasSize(5);
+        assertThat(entries).hasSize(6);
         assertThat(HexFormat.of()
                         .formatHex(entries.get(0).asRLPList().elements().get(0).data()))
                 .isEqualTo(FIRST_CHANNEL_SLOT);
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < 6; i++) {
             final List<RLPItem> entry = entries.get(i).asRLPList().elements();
             final byte[] key = entry.get(0).data();
             final List<byte[]> nodes = rawList(entry.get(1));
@@ -141,6 +150,98 @@ class SyncCommitteeProofsTest {
         assertThat(readUint64(slotValues[1], 16)).isEqualTo(meta.getReceivedMessageId());
         assertThat(slotValues[2]).isEqualTo(meta.getSentRunningHash().toByteArray());
         assertThat(slotValues[3]).isEqualTo(meta.getReceivedRunningHash().toByteArray());
+        assertThat(readUint64(slotValues[4], 24)).isEqualTo(meta.getEndpointManifestVersion());
+        // The last message's running hash is the queue's sent running hash.
+        assertThat(slotValues[5]).isEqualTo(meta.getSentRunningHash().toByteArray());
+    }
+
+    /**
+     * The generator must key every slot, including the last-message slot, to the channel it is asked for: the
+     * production verifier accepts the bundle under that channel's context and rejects it under any other.
+     */
+    @Test
+    void generatedProofVerifiesOnlyForItsRequestedChannel() {
+        final var content = messageContent();
+        final byte[] channelId = new byte[32];
+        channelId[0] = 0x42;
+        final byte[] context = channelContext(channelId);
+        final var verifier = new EthereumSyncCommitteeProofVerifier(NativeBlsSignatureVerifier.INSTANCE);
+        final byte[] anchor = verifier.verifyConfigPayload(SyncCommitteeProofs.configPayload())
+                .ledgerConfiguration()
+                .initialTrustAnchor()
+                .toByteArray();
+        final byte[] bundle = SyncCommitteeProofs.bundlePayload(channelId, content);
+
+        final var verified = verifier.verifyBundle(bundle, anchor, context);
+
+        assertThat(verified.queueMetadata().nextMessageId())
+                .isEqualTo(content.getMetadata().getNextMessageId());
+        assertThat(verified.queueMetadata().lastMessageRunningHash())
+                .isEqualTo(content.getMetadata().getSentRunningHash().toByteArray());
+        // Same service address, different channel ID.
+        final byte[] otherContext = context.clone();
+        otherContext[0] ^= 1;
+        assertThatThrownBy(() -> verifier.verifyBundle(bundle, anchor, otherContext))
+                .isInstanceOf(ProofException.class);
+    }
+
+    /** Correct channel keys must not mask a broken account proof: the tampered bundle still fails verification. */
+    @Test
+    void tamperedAccountProofStillFailsWithCanonicalChannelKeys() {
+        final byte[] channelId = new byte[32];
+        final var verifier = new EthereumSyncCommitteeProofVerifier(NativeBlsSignatureVerifier.INSTANCE);
+        final byte[] anchor = verifier.verifyConfigPayload(SyncCommitteeProofs.configPayload())
+                .ledgerConfiguration()
+                .initialTrustAnchor()
+                .toByteArray();
+        final byte[] bundle = SyncCommitteeProofs.tamperedBundlePayload(channelId, messageContent());
+
+        assertThatThrownBy(() -> verifier.verifyBundle(bundle, anchor, channelContext(channelId)))
+                .isInstanceOf(ProofException.class);
+    }
+
+    /**
+     * With {@code nextMessageId} 0 or 1 no message has been sent, so the generator proves only the five Channel slots
+     * and the verifier accepts the bundle without a last-message slot.
+     */
+    @ParameterizedTest
+    @ValueSource(longs = {0, 1})
+    void metadataWithoutSentMessagesKeepsFiveChannelProofs(final long nextMessageId) {
+        final var metadata = ClprQueueMetadata.newBuilder()
+                .setNextMessageId(nextMessageId)
+                .setStatus(ClprChannelStatus.ACTIVE)
+                .setSentRunningHash(ByteString.copyFrom(new byte[32]))
+                .setReceivedRunningHash(ByteString.copyFrom(new byte[32]))
+                .setEndpointManifestVersion(7)
+                .build();
+        final var content = ClprBundleContent.newBuilder().setMetadata(metadata).build();
+        final byte[] bundle = SyncCommitteeProofs.bundlePayload(CHANNEL_ID, content);
+        final List<RLPItem> delivery =
+                topList(bundle).elements().get(1).asRLPList().elements();
+        assertThat(delivery.get(7).asRLPList().elements()).hasSize(5);
+        final var verifier = new EthereumSyncCommitteeProofVerifier(NativeBlsSignatureVerifier.INSTANCE);
+        final byte[] anchor = verifier.verifyConfigPayload(SyncCommitteeProofs.configPayload())
+                .ledgerConfiguration()
+                .initialTrustAnchor()
+                .toByteArray();
+
+        final var verified = verifier.verifyBundle(bundle, anchor, channelContext(CHANNEL_ID));
+
+        assertThat(verified.queueMetadata().nextMessageId()).isEqualTo(nextMessageId);
+        assertThat(verified.queueMetadata().status()).isEqualTo(ClprChannelStatus.ACTIVE.getNumber());
+        assertThat(verified.queueMetadata().endpointManifestVersion()).isEqualTo(7);
+    }
+
+    /** {@code channelId(32) || serviceAddress(20)}, as the CLPR service stores it on the Channel record. */
+    private static byte[] channelContext(final byte[] channelId) {
+        final byte[] context = new byte[52];
+        System.arraycopy(channelId, 0, context, 0, channelId.length);
+        System.arraycopy(SyncCommitteeProofs.SERVICE_ADDRESS, 0, context, 32, 20);
+        return context;
+    }
+
+    private static ClprBundleContent messageContent() {
+        return SyncCommitteeProofs.singleMessageBundleContent(message());
     }
 
     private static ClprMessagePayload message() {

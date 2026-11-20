@@ -6,6 +6,7 @@ import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.CODE_TOO_LARG
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.ILLEGAL_STATE_CHANGE;
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.INSUFFICIENT_GAS;
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
@@ -173,6 +174,8 @@ class CustomCreateOperationTest extends CreateOperationTestBase {
 
         verify(messageFrameStack).addFirst(frameCaptor.capture());
         final var childFrame = frameCaptor.getValue();
+        // The CREATE value operand is a raw tinybar amount, passed on unscaled to the child frame
+        assertEquals(Wei.of(VALUE), childFrame.getValue());
         childFrame.setState(MessageFrame.State.COMPLETED_SUCCESS);
         childFrame.notifyCompletion();
         verify(worldUpdater).setupInternalAliasedCreate(RECIEVER_ADDRESS, EXPECTED_CREATE1_ADDRESS);

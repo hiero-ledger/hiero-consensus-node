@@ -16,6 +16,12 @@ import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.sync.LearningSynchronizer;
 import com.swirlds.virtualmap.sync.TeachingSynchronizer;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
+import java.io.DataInputStream;
+import java.io.FilterInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.base.concurrent.manager.ThreadManager;
@@ -57,6 +63,26 @@ public final class ReconnectTestUtils {
     public static VirtualMap testSynchronization(
             final VirtualMap learnerMap, final VirtualMap teacherMap, final Configuration configuration)
             throws Exception {
+        return testSynchronization(learnerMap, teacherMap, configuration, null);
+    }
+
+    /**
+     * Performs synchronization between learner and teacher maps, and copies everything the teacher reads from the
+     * learner to the given stream.
+     *
+     * @param learnerMap leaner map to synchronize with teacher map
+     * @param teacherMap teacher map as desired virtual map
+     * @param configuration configuration
+     * @param teacherInputCopy the stream to copy the bytes the teacher reads to, or null
+     * @return resulting map after synchronization
+     * @throws Exception if any exception happens during synchronization
+     */
+    public static VirtualMap testSynchronization(
+            final VirtualMap learnerMap,
+            final VirtualMap teacherMap,
+            final Configuration configuration,
+            @Nullable final OutputStream teacherInputCopy)
+            throws Exception {
         System.out.println("------------");
         System.out.println("learner map: " + learnerMap.getMetadata());
         System.out.println("teacher map: " + teacherMap.getMetadata());
@@ -89,7 +115,11 @@ public final class ReconnectTestUtils {
             final AtomicReference<VirtualMap> syncMapContainer = new AtomicReference<>();
             try (final StandardWorkGroup workGroup = new StandardWorkGroup(
                     getStaticThreadManager(), "synchronization-test", streams::disconnect, true)) {
-                workGroup.fork("teaching-synchronizer-main", () -> teachingSynchronizerThread(streams, teacher));
+                final DataInputStream teacherInput = (teacherInputCopy == null)
+                        ? streams.getTeacherInput()
+                        : new DataInputStream(new CopyingInputStream(streams.getTeacherInput(), teacherInputCopy));
+                workGroup.fork(
+                        "teaching-synchronizer-main", () -> teachingSynchronizerThread(streams, teacherInput, teacher));
                 workGroup.fork(
                         "learning-synchronizer-main",
                         () -> learningSynchronizerThread(streams, learnerMap, learner, syncMapContainer));
@@ -129,9 +159,10 @@ public final class ReconnectTestUtils {
         assertVmsAreEqual(teacherMap, reconnectMap);
     }
 
-    private static void teachingSynchronizerThread(final PairedStreams streams, final TeachingSynchronizer teacher) {
+    private static void teachingSynchronizerThread(
+            final PairedStreams streams, final DataInputStream teacherInput, final TeachingSynchronizer teacher) {
         try {
-            teacher.synchronize(streams.getTeacherInput(), streams.getTeacherOutput(), streams::disconnect);
+            teacher.synchronize(teacherInput, streams.getTeacherOutput(), streams::disconnect);
         } catch (final InterruptedException ex) {
             Thread.currentThread().interrupt();
         }
@@ -147,6 +178,37 @@ public final class ReconnectTestUtils {
                     learnerMap, streams.getLearnerInput(), streams.getLearnerOutput(), streams::disconnect));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+        }
+    }
+
+    /**
+     * An input stream that copies all bytes read from it to another stream.
+     */
+    private static final class CopyingInputStream extends FilterInputStream {
+
+        private final OutputStream copy;
+
+        CopyingInputStream(final InputStream in, final OutputStream copy) {
+            super(in);
+            this.copy = copy;
+        }
+
+        @Override
+        public int read() throws IOException {
+            final int b = super.read();
+            if (b >= 0) {
+                copy.write(b);
+            }
+            return b;
+        }
+
+        @Override
+        public int read(final byte[] b, final int off, final int len) throws IOException {
+            final int n = super.read(b, off, len);
+            if (n > 0) {
+                copy.write(b, off, n);
+            }
+            return n;
         }
     }
 }
