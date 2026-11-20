@@ -442,8 +442,9 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         verify(metrics).recordMultiItemRequestExceedsSoftLimit();
         verify(metrics, times(3)).recordRequestLatency(eq(ConnectionType.BLOCK_STREAMING), anyLong());
         verify(metrics, times(2)).recordBlockItemsSent(2);
-        verify(metrics, times(2)).recordRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.BLOCK_ITEMS);
-        verify(metrics).recordRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.END_OF_BLOCK);
+        verify(metrics, times(2))
+                .recordPublisherRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.BLOCK_ITEMS);
+        verify(metrics).recordPublisherRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.END_OF_BLOCK);
         verify(metrics, atLeastOnce()).recordRequestBlockItemCount(anyInt());
         verify(metrics, atLeastOnce()).recordRequestBytes(eq(ConnectionType.BLOCK_STREAMING), anyLong());
         verify(metrics, atLeastOnce()).recordStreamingBlockNumber(anyLong());
@@ -532,8 +533,9 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         assertThat(connection.closeReason()).isEqualTo(CloseReason.INTERNAL_ERROR);
 
         verify(metrics).recordRequestExceedsHardLimit();
-        verify(metrics).recordRequestEndStreamSent(ConnectionType.BLOCK_STREAMING, EndStream.Code.ERROR);
+        verify(metrics).recordPublisherRequestEndStreamSent(ConnectionType.BLOCK_STREAMING, EndStream.Code.ERROR);
         verify(metrics).recordRequestLatency(eq(ConnectionType.BLOCK_STREAMING), anyLong());
+        verify(metrics).recordRequestBytes(eq(ConnectionType.BLOCK_STREAMING), anyLong());
         verify(metrics).recordConnectionClosed(ConnectionType.BLOCK_STREAMING, CloseReason.INTERNAL_ERROR);
         verify(requestCall).completeRequests();
         verify(bufferService).getEarliestAvailableBlockNumber();
@@ -645,7 +647,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
 
         // Wait up to 20 seconds for all block end messages to be sent
         verify(metrics, timeout(20_000).times(numBlocks))
-                .recordRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.END_OF_BLOCK);
+                .recordPublisherRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.END_OF_BLOCK);
         verify(requestCall, atLeast(numBlocks + 1)).sendRequest(requestCaptor.capture(), anyBoolean());
 
         // Stop the worker thread before verifying no more interactions
@@ -692,7 +694,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
 
         verify(metrics, times(requests.size())).recordRequestLatency(eq(ConnectionType.BLOCK_STREAMING), anyLong());
         verify(metrics, times(requests.size() - numBlocks))
-                .recordRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.BLOCK_ITEMS);
+                .recordPublisherRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.BLOCK_ITEMS);
 
         final ArgumentCaptor<Integer> numItemsSentCaptor = ArgumentCaptor.forClass(Integer.class);
         verify(metrics, atLeastOnce()).recordBlockItemsSent(numItemsSentCaptor.capture());
@@ -842,8 +844,9 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         verify(metrics, times(6)).recordMultiItemRequestExceedsSoftLimit();
         verify(metrics, times(3)).recordRequestLatency(eq(ConnectionType.BLOCK_STREAMING), anyLong());
         verify(metrics, times(2)).recordBlockItemsSent(anyInt());
-        verify(metrics, times(2)).recordRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.BLOCK_ITEMS);
-        verify(metrics).recordRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.END_OF_BLOCK);
+        verify(metrics, times(2))
+                .recordPublisherRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.BLOCK_ITEMS);
+        verify(metrics).recordPublisherRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.END_OF_BLOCK);
         verify(metrics, atLeastOnce()).recordRequestBlockItemCount(anyInt());
         verify(metrics, atLeastOnce()).recordRequestBytes(eq(ConnectionType.BLOCK_STREAMING), anyLong());
         verify(metrics, atLeastOnce()).recordStreamingBlockNumber(anyLong());
@@ -987,8 +990,9 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         verify(metrics, times(6)).recordMultiItemRequestExceedsSoftLimit();
         verify(metrics, times(3)).recordRequestLatency(eq(ConnectionType.BLOCK_STREAMING), anyLong());
         verify(metrics, times(2)).recordBlockItemsSent(anyInt());
-        verify(metrics, times(2)).recordRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.BLOCK_ITEMS);
-        verify(metrics).recordRequestEndStreamSent(ConnectionType.BLOCK_STREAMING, EndStream.Code.ERROR);
+        verify(metrics, times(2))
+                .recordPublisherRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.BLOCK_ITEMS);
+        verify(metrics).recordPublisherRequestEndStreamSent(ConnectionType.BLOCK_STREAMING, EndStream.Code.ERROR);
         verify(metrics, atLeastOnce()).recordRequestBlockItemCount(anyInt());
         verify(metrics, atLeastOnce()).recordRequestBytes(eq(ConnectionType.BLOCK_STREAMING), anyLong());
         verify(metrics, atLeastOnce()).recordStreamingBlockNumber(anyLong());
@@ -1028,7 +1032,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
                     return null;
                 })
                 .when(metrics)
-                .recordRequestSent(any(ConnectionType.class), any(RequestOneOfType.class));
+                .recordPublisherRequestSent(any(ConnectionType.class), any(RequestOneOfType.class));
 
         // Create the request pipeline before starting the worker thread
         connection.initialize();
@@ -1043,8 +1047,8 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
 
         assertThat(workerThreadRef).doesNotHaveNullValue();
         verify(requestCall, times(2)).sendRequest(any(PublishStreamRequestBytes.class), anyBoolean());
-        verify(metrics).recordRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.BLOCK_ITEMS);
-        verify(metrics).recordRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.END_OF_BLOCK);
+        verify(metrics).recordPublisherRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.BLOCK_ITEMS);
+        verify(metrics).recordPublisherRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.END_OF_BLOCK);
         verify(metrics).recordBlockItemsSent(1);
         verify(metrics, times(2)).recordRequestLatency(eq(ConnectionType.BLOCK_STREAMING), anyLong());
     }
@@ -1112,7 +1116,8 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         verify(bufferService).getHighestAckedBlockNumber();
         verify(metrics).recordConnectionOpened(ConnectionType.BLOCK_STREAMING);
         verify(metrics).recordRequestLatency(eq(ConnectionType.BLOCK_STREAMING), anyLong());
-        verify(metrics).recordRequestEndStreamSent(ConnectionType.BLOCK_STREAMING, EndStream.Code.RESET);
+        verify(metrics).recordRequestBytes(eq(ConnectionType.BLOCK_STREAMING), anyLong());
+        verify(metrics).recordPublisherRequestEndStreamSent(ConnectionType.BLOCK_STREAMING, EndStream.Code.RESET);
         verify(metrics).recordConnectionClosed(ConnectionType.BLOCK_STREAMING, CloseReason.SHUTDOWN);
 
         verifyNoMoreInteractions(metrics);
@@ -1242,10 +1247,11 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         verify(metrics, atLeastOnce()).recordStreamingBlockNumber(anyLong());
         verify(metrics).recordConnectionOpened(ConnectionType.BLOCK_STREAMING);
         verify(metrics, atLeastOnce()).recordRequestLatency(eq(ConnectionType.BLOCK_STREAMING), anyLong());
-        verify(metrics, atLeastOnce()).recordRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.BLOCK_ITEMS);
+        verify(metrics, atLeastOnce())
+                .recordPublisherRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.BLOCK_ITEMS);
         verify(metrics, atLeastOnce()).recordBlockItemsSent(anyInt());
-        verify(metrics).recordRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.END_OF_BLOCK);
-        verify(metrics).recordRequestEndStreamSent(ConnectionType.BLOCK_STREAMING, EndStream.Code.RESET);
+        verify(metrics).recordPublisherRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.END_OF_BLOCK);
+        verify(metrics).recordPublisherRequestEndStreamSent(ConnectionType.BLOCK_STREAMING, EndStream.Code.RESET);
         verify(metrics).recordConnectionClosed(ConnectionType.BLOCK_STREAMING, CloseReason.SHUTDOWN);
 
         verifyNoMoreInteractions(metrics);
@@ -1462,9 +1468,9 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         }
 
         verify(metrics, times(endOfBlockRequest))
-                .recordRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.END_OF_BLOCK);
+                .recordPublisherRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.END_OF_BLOCK);
         verify(metrics, times(totalRequestsSent - endOfBlockRequest))
-                .recordRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.BLOCK_ITEMS);
+                .recordPublisherRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.BLOCK_ITEMS);
         verify(metrics, times(totalRequestsSent - endOfBlockRequest)).recordBlockItemsSent(anyInt());
         verify(metrics, times(totalRequestsSent)).recordRequestLatency(eq(ConnectionType.BLOCK_STREAMING), anyLong());
         verify(stats).recordBlockProofSent(eq(10L), any(Instant.class));
@@ -1581,12 +1587,13 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         verify(metrics, times(3)).recordOperationTimeout(ConnectionType.BLOCK_STREAMING);
         verify(metrics, times(3)).recordRequestSendFailure(ConnectionType.BLOCK_STREAMING);
         verify(metrics, times(3)).recordStreamingBlockNumber(10L);
-        verify(metrics, times(3)).recordRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.BLOCK_ITEMS);
+        verify(metrics, times(3))
+                .recordPublisherRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.BLOCK_ITEMS);
         verify(metrics, times(3)).recordBlockItemsSent(2);
         verify(metrics, times(3)).recordRequestBlockItemCount(2);
-        verify(metrics, times(3)).recordRequestBytes(eq(ConnectionType.BLOCK_STREAMING), anyLong());
+        verify(metrics, times(4)).recordRequestBytes(eq(ConnectionType.BLOCK_STREAMING), anyLong());
         verify(metrics, times(4)).recordRequestLatency(eq(ConnectionType.BLOCK_STREAMING), anyLong());
-        verify(metrics).recordRequestEndStreamSent(ConnectionType.BLOCK_STREAMING, EndStream.Code.ERROR);
+        verify(metrics).recordPublisherRequestEndStreamSent(ConnectionType.BLOCK_STREAMING, EndStream.Code.ERROR);
         verify(requestCall, times(7)).sendRequest(any(PublishStreamRequestBytes.class), anyBoolean());
         verify(requestCall).completeRequests();
         verifyNoMoreInteractions(requestCall);
@@ -1717,13 +1724,14 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         assertThat(req8.endOfBlock()).isNotNull();
 
         // recording of the block end being sent will only happen once, since the other time failed
-        verify(metrics).recordRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.END_OF_BLOCK);
+        verify(metrics).recordPublisherRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.END_OF_BLOCK);
         // similarly, there are only 7 out of 8 successful requests that will have latency recorded
         verify(metrics, times(7)).recordRequestLatency(eq(ConnectionType.BLOCK_STREAMING), anyLong());
-        verify(metrics, times(6)).recordRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.BLOCK_ITEMS);
+        verify(metrics, times(6))
+                .recordPublisherRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.BLOCK_ITEMS);
         verify(metrics, times(6)).recordBlockItemsSent(anyInt());
         verify(metrics, times(6)).recordRequestBlockItemCount(anyInt());
-        verify(metrics, times(6)).recordRequestBytes(eq(ConnectionType.BLOCK_STREAMING), anyLong());
+        verify(metrics, times(7)).recordRequestBytes(eq(ConnectionType.BLOCK_STREAMING), anyLong());
         verify(metrics).recordRequestSendFailure(ConnectionType.BLOCK_STREAMING);
         verify(metrics).recordOperationTimeout(ConnectionType.BLOCK_STREAMING);
         verify(metrics, times(2)).recordStreamingBlockNumber(10);

@@ -19,7 +19,9 @@ import com.hedera.node.app.blocks.impl.streaming.BlockNodeServiceConnection.Clos
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeServiceConnection.CreateClientTask;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeServiceConnection.GetBlockNodeStatusTask;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeServiceConnection.ServiceClientHolder;
+import com.hedera.node.app.blocks.impl.streaming.ConnectionId.ConnectionType;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
+import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.types.BlockStreamGrpcCompressionType;
 import com.hedera.pbj.runtime.grpc.ServiceInterface;
@@ -77,6 +79,7 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
     private ExecutorService executorService;
     private BlockNodeClientFactory clientFactory;
     private BlockNodeServiceClient client;
+    private BlockStreamMetrics metrics;
 
     @BeforeEach
     void beforeEach() {
@@ -85,6 +88,7 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
         executorService = mock(ExecutorService.class);
         clientFactory = mock(BlockNodeClientFactory.class);
         client = mock(BlockNodeServiceClient.class);
+        metrics = mock(BlockStreamMetrics.class);
 
         lenient()
                 .doReturn(client)
@@ -100,7 +104,7 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
                 .requestOptionsForCorrelationId(anyString());
 
         connection = new BlockNodeServiceConnection(
-                configProvider, nodeConfiguration, executorService, clientFactory, NODE_ID);
+                configProvider, nodeConfiguration, executorService, clientFactory, NODE_ID, metrics);
     }
 
     @AfterEach
@@ -131,6 +135,7 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
         verifyNoInteractions(executorService);
         verifyNoInteractions(client);
         verifyNoMoreInteractions(clientFactory);
+        verifyNoInteractions(metrics);
     }
 
     @Test
@@ -176,6 +181,7 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
         verifyNoMoreInteractions(executorService);
         verifyNoInteractions(client);
         verifyNoMoreInteractions(clientFactory);
+        verifyNoInteractions(metrics);
     }
 
     @Test
@@ -223,6 +229,7 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
         verifyNoMoreInteractions(executorService);
         verifyNoInteractions(client);
         verifyNoMoreInteractions(clientFactory);
+        verifyNoInteractions(metrics);
     }
 
     @Test
@@ -239,6 +246,8 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
         verifyNoMoreInteractions(executorService);
         verifyNoInteractions(client);
         verifyNoInteractions(clientFactory);
+        verify(metrics).recordConnectionOpened(ConnectionType.SERVER_STATUS);
+        verifyNoMoreInteractions(metrics);
     }
 
     @Test
@@ -252,6 +261,7 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
         verifyNoInteractions(client);
         verifyNoInteractions(clientFactory);
         verifyNoInteractions(executorService);
+        verifyNoInteractions(metrics);
     }
 
     @Test
@@ -262,7 +272,7 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
 
         assertThatThrownBy(() -> connection.initialize())
                 .isInstanceOf(RuntimeException.class)
-                .hasMessage("Error initializing connection")
+                .hasMessage("Pipeline creation timed out")
                 .hasCauseInstanceOf(TimeoutException.class);
 
         verify(future).cancel(true);
@@ -272,6 +282,8 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
         verifyNoInteractions(client);
         verifyNoInteractions(clientFactory);
         verifyNoMoreInteractions(executorService);
+        verify(metrics).recordOperationTimeout(ConnectionType.SERVER_STATUS);
+        verifyNoMoreInteractions(metrics);
     }
 
     @Test
@@ -300,17 +312,17 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(errorRef.get())
                 .isNotNull()
                 .isInstanceOf(RuntimeException.class)
-                .hasMessage("Error initializing connection")
+                .hasMessage("Interrupted while creating pipeline")
                 .hasCauseInstanceOf(InterruptedException.class);
         assertThat(thread.isInterrupted()).isTrue();
 
         verify(executorService).submit(any(CreateClientTask.class));
-        verify(future).cancel(true);
 
         verifyNoMoreInteractions(future);
         verifyNoInteractions(client);
         verifyNoInteractions(clientFactory);
         verifyNoMoreInteractions(executorService);
+        verifyNoInteractions(metrics);
     }
 
     @Test
@@ -322,16 +334,16 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
 
         assertThatThrownBy(() -> connection.initialize())
                 .isInstanceOf(RuntimeException.class)
-                .hasMessage("Error initializing connection")
+                .hasMessage("Error creating pipeline")
                 .hasCause(error);
 
         verify(executorService).submit(any(CreateClientTask.class));
-        verify(future).cancel(true);
 
         verifyNoMoreInteractions(future);
         verifyNoInteractions(client);
         verifyNoInteractions(clientFactory);
         verifyNoMoreInteractions(executorService);
+        verifyNoInteractions(metrics);
     }
 
     @Test
@@ -344,6 +356,7 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
         verifyNoMoreInteractions(client);
         verifyNoInteractions(clientFactory);
         verifyNoInteractions(executorService);
+        verifyNoInteractions(metrics);
     }
 
     @Test
@@ -376,6 +389,8 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
         verifyNoMoreInteractions(executorService);
         verifyNoInteractions(client);
         verifyNoInteractions(clientFactory);
+        verify(metrics).recordConnectionClosed(ConnectionType.SERVER_STATUS, CloseReason.OBSOLETE);
+        verifyNoMoreInteractions(metrics);
     }
 
     @Test
@@ -391,6 +406,7 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
         verifyNoInteractions(client);
         verifyNoInteractions(clientFactory);
         verifyNoInteractions(executorService);
+        verifyNoInteractions(metrics);
     }
 
     @Test
@@ -419,6 +435,8 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
         verifyNoMoreInteractions(future);
         verifyNoInteractions(client);
         verifyNoInteractions(clientFactory);
+        verify(metrics).recordConnectionClosed(ConnectionType.SERVER_STATUS, CloseReason.OBSOLETE);
+        verifyNoMoreInteractions(metrics);
     }
 
     @Test
@@ -464,6 +482,8 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
         verifyNoMoreInteractions(future);
         verifyNoInteractions(client);
         verifyNoInteractions(clientFactory);
+        verify(metrics).recordConnectionClosed(ConnectionType.SERVER_STATUS, CloseReason.OBSOLETE);
+        verifyNoMoreInteractions(metrics);
     }
 
     @Test
@@ -491,7 +511,8 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
                     nodeConfiguration,
                     realExecutor,
                     clientFactory,
-                    NODE_ID);
+                    NODE_ID,
+                    metrics);
 
             // Force into ACTIVE state with the same shared client mock
             ((AtomicReference<ServiceClientHolder>) clientRefHandle.get(conn)).set(new ServiceClientHolder(1, client));
@@ -544,6 +565,8 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
         verifyNoMoreInteractions(client);
         verifyNoMoreInteractions(clientFactory);
         verifyNoInteractions(executorService);
+        verify(metrics).recordRequestBytes(eq(ConnectionType.SERVER_STATUS), anyLong());
+        verifyNoMoreInteractions(metrics);
     }
 
     @Test
@@ -568,13 +591,17 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(status).isNotNull();
         assertThat(status.wasReachable()).isTrue();
         assertThat(status.nextExpectedBlock()).isEqualTo(2346L);
-        assertThat(status.latencyMillis()).isGreaterThan(-1L);
+        assertThat(status.latencyMicros()).isGreaterThan(-1L);
 
         verify(executorService).submit(any(GetBlockNodeStatusTask.class));
 
         verifyNoInteractions(clientFactory);
         verifyNoInteractions(client);
         verifyNoMoreInteractions(executorService);
+        verify(metrics).recordRequestLatency(eq(ConnectionType.SERVER_STATUS), anyLong());
+        verify(metrics).recordServiceRequestSent();
+        verify(metrics).recordServiceResponseReceived();
+        verifyNoMoreInteractions(metrics);
     }
 
     @Test
@@ -588,6 +615,7 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
         verifyNoInteractions(client);
         verifyNoInteractions(clientFactory);
         verifyNoInteractions(executorService);
+        verifyNoInteractions(metrics);
     }
 
     @Test
@@ -605,7 +633,7 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(status).isNotNull();
         assertThat(status.wasReachable()).isFalse();
         assertThat(status.nextExpectedBlock()).isEqualTo(-1L);
-        assertThat(status.latencyMillis()).isEqualTo(-1L);
+        assertThat(status.latencyMicros()).isEqualTo(-1L);
 
         assertThat(stateRef()).hasValue(ConnectionState.ACTIVE); // errors do not affect connection state
 
@@ -615,6 +643,9 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
         verifyNoMoreInteractions(future);
         verifyNoInteractions(client);
         verifyNoInteractions(clientFactory);
+        verify(metrics).recordRequestSendFailure(ConnectionType.SERVER_STATUS);
+        verify(metrics).recordOperationTimeout(ConnectionType.SERVER_STATUS);
+        verifyNoMoreInteractions(metrics);
     }
 
     @Test
@@ -652,15 +683,16 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(status).isNotNull();
         assertThat(status.wasReachable()).isFalse();
         assertThat(status.nextExpectedBlock()).isEqualTo(-1L);
-        assertThat(status.latencyMillis()).isEqualTo(-1L);
+        assertThat(status.latencyMicros()).isEqualTo(-1L);
 
         assertThat(stateRef()).hasValue(ConnectionState.ACTIVE); // errors do not affect connection state
 
         verify(executorService).submit(any(GetBlockNodeStatusTask.class));
-        verify(future).cancel(true);
         verifyNoMoreInteractions(future);
         verifyNoInteractions(client);
         verifyNoInteractions(clientFactory);
+        verify(metrics).recordRequestSendFailure(ConnectionType.SERVER_STATUS);
+        verifyNoMoreInteractions(metrics);
     }
 
     @Test
@@ -679,16 +711,17 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(status).isNotNull();
         assertThat(status.wasReachable()).isFalse();
         assertThat(status.nextExpectedBlock()).isEqualTo(-1L);
-        assertThat(status.latencyMillis()).isEqualTo(-1L);
+        assertThat(status.latencyMicros()).isEqualTo(-1L);
 
         assertThat(stateRef()).hasValue(ConnectionState.ACTIVE); // errors do not affect connection state
 
         verify(executorService).submit(any(GetBlockNodeStatusTask.class));
-        verify(future).cancel(true);
 
         verifyNoMoreInteractions(future);
         verifyNoInteractions(client);
         verifyNoInteractions(clientFactory);
+        verify(metrics).recordRequestSendFailure(ConnectionType.SERVER_STATUS);
+        verifyNoMoreInteractions(metrics);
     }
 
     // Utils =======

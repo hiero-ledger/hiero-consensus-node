@@ -322,7 +322,8 @@ public class BlockNodePublisherConnectionTest extends BlockNodeCommunicationTest
         // verifications for sending EndStream.RESET
         verify(requestCall).sendRequest(any(), anyBoolean());
         verify(metrics).recordRequestLatency(eq(ConnectionType.BLOCK_STREAMING), anyLong());
-        verify(metrics).recordRequestEndStreamSent(ConnectionType.BLOCK_STREAMING, EndStream.Code.RESET);
+        verify(metrics).recordRequestBytes(eq(ConnectionType.BLOCK_STREAMING), anyLong());
+        verify(metrics).recordPublisherRequestEndStreamSent(ConnectionType.BLOCK_STREAMING, EndStream.Code.RESET);
         // remaining verifications
         verify(metrics).recordConnectionClosed(connection.connectionType(), CloseReason.CONFIG_UPDATE);
         verify(requestCall).completeRequests();
@@ -346,7 +347,8 @@ public class BlockNodePublisherConnectionTest extends BlockNodeCommunicationTest
         // verifications for sending EndStream.RESET
         verify(requestCall).sendRequest(any(), anyBoolean());
         verify(metrics).recordRequestLatency(eq(ConnectionType.BLOCK_STREAMING), anyLong());
-        verify(metrics).recordRequestEndStreamSent(ConnectionType.BLOCK_STREAMING, EndStream.Code.RESET);
+        verify(metrics).recordRequestBytes(eq(ConnectionType.BLOCK_STREAMING), anyLong());
+        verify(metrics).recordPublisherRequestEndStreamSent(ConnectionType.BLOCK_STREAMING, EndStream.Code.RESET);
         // remaining verifications
         // Should not call onComplete when callOnComplete is false
         verify(metrics).recordConnectionClosed(connection.connectionType(), CloseReason.UNKNOWN);
@@ -647,7 +649,7 @@ public class BlockNodePublisherConnectionTest extends BlockNodeCommunicationTest
         assertThat(sendArgs.result.status()).isEqualTo(SendRequestStatus.SUCCESS);
 
         verify(requestCall).sendRequest(request, false);
-        verify(metrics).recordRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.BLOCK_ITEMS);
+        verify(metrics).recordPublisherRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.BLOCK_ITEMS);
         verify(metrics).recordBlockItemsSent(1);
         verify(metrics).recordRequestLatency(eq(ConnectionType.BLOCK_STREAMING), anyLong());
         verify(metrics).recordRequestBlockItemCount(1);
@@ -744,7 +746,7 @@ public class BlockNodePublisherConnectionTest extends BlockNodeCommunicationTest
 
         // Verify the request was sent successfully
         verify(requestCall).sendRequest(request, false);
-        verify(metrics).recordRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.BLOCK_ITEMS);
+        verify(metrics).recordPublisherRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.BLOCK_ITEMS);
         verify(metrics).recordBlockItemsSent(1);
         verify(metrics).recordRequestLatency(eq(ConnectionType.BLOCK_STREAMING), anyLong());
 

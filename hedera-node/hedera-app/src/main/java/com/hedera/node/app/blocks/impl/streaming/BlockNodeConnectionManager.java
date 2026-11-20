@@ -1330,7 +1330,7 @@ public class BlockNodeConnectionManager extends BlockStreamingBase {
             } else if (isBlockNodeWithinRange(
                     node, status.nextExpectedBlock(), earliestBlockAvailable, latestBlockProduced)) {
                 nodesInRangeByLatency
-                        .computeIfAbsent(status.latencyMillis(), _ -> new HashSet<>())
+                        .computeIfAbsent(status.latencyMicros(), _ -> new HashSet<>())
                         .add(new BlockNodeResult(node, status));
             } else {
                 nodesOutOfRange.add(new BlockNodeResult(node, status));
@@ -1421,7 +1421,12 @@ public class BlockNodeConnectionManager extends BlockStreamingBase {
         final List<BlockNodeConnectionManager.RetrieveBlockNodeStatusTask> tasks = new ArrayList<>();
         for (final BlockNode node : nodes) {
             final BlockNodeServiceConnection svcConnection = new BlockNodeServiceConnection(
-                    configProvider(), node.configuration(), blockingIoExecutor, clientFactory, selfNodeId);
+                    configProvider(),
+                    node.configuration(),
+                    blockingIoExecutor,
+                    clientFactory,
+                    selfNodeId,
+                    blockStreamMetrics);
             tasks.add(new RetrieveBlockNodeStatusTask(svcConnection));
         }
 
