@@ -4,6 +4,8 @@ package com.hedera.node.app.workflows;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
+import static com.hedera.node.app.hapi.utils.CommonUtils.clampedAdd;
+import static com.hedera.node.app.hapi.utils.CommonUtils.clampedMultiply;
 import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.OfferedFeeCheck;
 import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.OfferedFeeCheck.CHECK_OFFERED_FEE;
 import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.WorkflowCheck;
@@ -180,7 +182,7 @@ public class SolvencyPreCheck {
             throw new InsufficientBalanceException(INVALID_TRANSACTION_BODY, totalFee);
         }
 
-        if (availableBalance < totalFee + additionalCosts) {
+        if (availableBalance < clampedAdd(totalFee, additionalCosts)) {
             // FUTURE: This should be checked earlier
             expiryValidation.checkAccountExpiry(account);
             throw new InsufficientNonFeeDebitsException(INSUFFICIENT_PAYER_BALANCE, totalFee);
@@ -207,12 +209,15 @@ public class SolvencyPreCheck {
             }
             case CONTRACT_CREATE -> {
                 final var contractCreate = txBody.contractCreateInstanceOrThrow();
-                yield contractCreate.initialBalance()
-                        + contractCreate.gas() * estimatedGasPriceInTinybars(consensusTime);
+                yield clampedAdd(
+                        contractCreate.initialBalance(),
+                        clampedMultiply(contractCreate.gas(), estimatedGasPriceInTinybars(consensusTime)));
             }
             case CONTRACT_CALL -> {
                 final var contractCall = txBody.contractCallOrThrow();
-                yield contractCall.amount() + contractCall.gas() * estimatedGasPriceInTinybars(consensusTime);
+                yield clampedAdd(
+                        contractCall.amount(),
+                        clampedMultiply(contractCall.gas(), estimatedGasPriceInTinybars(consensusTime)));
             }
             case ETHEREUM_TRANSACTION -> {
                 final var ethTxn = txBody.ethereumTransactionOrThrow();

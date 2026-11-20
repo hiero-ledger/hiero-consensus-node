@@ -4,6 +4,7 @@ package com.hedera.node.app.service.contract.impl.exec.gas;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
+import static com.hedera.node.app.hapi.utils.CommonUtils.clampedAdd;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
@@ -252,7 +253,8 @@ public class CustomGasCharging {
         } else {
             validateTrue(relayer.getBalance().toLong() >= relayerGasCost, INSUFFICIENT_PAYER_BALANCE);
             validateTrue(
-                    sender.getBalance().toLong() >= senderGasCost + transaction.value(), INSUFFICIENT_PAYER_BALANCE);
+                    sender.getBalance().toLong() >= clampedAdd(senderGasCost, transaction.value()),
+                    INSUFFICIENT_PAYER_BALANCE);
         }
         worldUpdater.collectGasFee(relayer.hederaId(), relayerGasCost, false);
         worldUpdater.collectGasFee(sender.hederaId(), senderGasCost, true);
