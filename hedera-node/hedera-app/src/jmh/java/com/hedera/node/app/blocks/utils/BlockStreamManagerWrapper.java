@@ -7,6 +7,7 @@ import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.blocks.BlockStreamManager;
@@ -37,9 +38,9 @@ import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ForkJoinPool;
@@ -48,6 +49,7 @@ import java.util.function.Supplier;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.RunningHash;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.platformstate.V0540PlatformStateSchema;
@@ -102,13 +104,13 @@ public class BlockStreamManagerWrapper {
                 }
 
                 @Override
-                public void flushPendingBlock(@NonNull PendingProof pendingProof) {
-                    original.flushPendingBlock(pendingProof);
+                public Path flushPendingBlock(@NonNull PendingProof pendingProof) {
+                    return original.flushPendingBlock(pendingProof);
                 }
 
                 @Override
-                public void flushIncompleteBlock() {
-                    original.flushIncompleteBlock();
+                public Path flushIncompleteBlock() {
+                    return original.flushIncompleteBlock();
                 }
             };
         };
@@ -186,11 +188,6 @@ public class BlockStreamManagerWrapper {
         }
 
         @Override
-        public @NonNull Iterator<ConsensusEvent> iterator() {
-            return Collections.emptyIterator();
-        }
-
-        @Override
         public long getRoundNum() {
             return roundNum;
         }
@@ -200,9 +197,10 @@ public class BlockStreamManagerWrapper {
             return true;
         }
 
+        @NonNull
         @Override
-        public int getEventCount() {
-            return 0;
+        public List<? extends ConsensusEvent> getConsensusEvents() {
+            return List.of();
         }
 
         @Override
@@ -213,6 +211,29 @@ public class BlockStreamManagerWrapper {
         @Override
         public @NonNull Instant getConsensusTimestamp() {
             return consensusTimestamp;
+        }
+
+        @NonNull
+        @Override
+        public ConsensusSnapshot getConsensusSnapshot() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean isPcesRound() {
+            throw new UnsupportedOperationException();
+        }
+
+        @NonNull
+        @Override
+        public Instant getReachedConsTimestamp() {
+            throw new UnsupportedOperationException();
+        }
+
+        @NonNull
+        @Override
+        public RunningHash getLastEventRunningHash() {
+            throw new UnsupportedOperationException();
         }
     }
 

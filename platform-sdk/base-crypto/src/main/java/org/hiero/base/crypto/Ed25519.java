@@ -29,6 +29,7 @@ public final class Ed25519 {
     private Ed25519() {}
 
     /// Generate 32 bytes publicKey and 64 bytes secretKey from a 32 bytes seed.
+    /// secretKey is seed || publicKey, and the publicKey is derived from the seed by libsodium.
     public static void newKeypair(byte[] publicKey, byte[] secretKey, byte[] seed) {
         final int ret = LIBSODIUM.cryptoSignSeedKeypair(
                 MemorySegment.ofArray(publicKey), MemorySegment.ofArray(secretKey), MemorySegment.ofArray(seed));
@@ -49,5 +50,21 @@ public final class Ed25519 {
         if (ret != 0) {
             throw new Ed25519Exception("LIBSODIUM.cryptoSignDetached returned non-zero " + ret);
         }
+    }
+
+    /// Produces a new 64 bytes signature for a given message using 64 bytes secret key.
+    public static byte[] sign(byte[] message, byte[] secretKey) {
+        final byte[] signature = new byte[Ed25519.SIGNATURE_BYTES];
+        Ed25519.sign(signature, message, secretKey);
+        return signature;
+    }
+
+    /// Produces a new 64 bytes signature for a given message using a seed of the secret key.
+    public static byte[] signWithSeed(byte[] message, byte[] seed) {
+        byte[] publicKey = new byte[Ed25519.PUBLIC_KEY_BYTES];
+        byte[] secretKey = new byte[Ed25519.SECRET_KEY_BYTES];
+        Ed25519.newKeypair(publicKey, secretKey, seed);
+
+        return sign(message, secretKey);
     }
 }

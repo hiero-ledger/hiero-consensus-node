@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.roster;
 
+import static com.hedera.hapi.util.HapiUtils.asReadableIp;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -29,8 +30,8 @@ import java.nio.charset.StandardCharsets;
  *
  * <p>CLPR {@code sync} is served on the HAPI ports. Fields:
  * <ul>
- *   <li>{@code service_endpoint.ip_address} = the node's first address-book service endpoint
- *       (IPv4 literal or domain name).</li>
+ *   <li>{@code service_endpoint.ip_address} comes from the node's first IPv4 HAPI service endpoint
+ *       in address-book order.</li>
  *   <li>{@code service_endpoint.port} — when the node has a HAPI TLS certificate, {@code grpc.tlsPort}
  *       (the HAPI TLS listener); otherwise the node falls back to its address-book HAPI gRPC port, on
  *       which plaintext {@code sync} runs.</li>
@@ -47,7 +48,7 @@ public final class ClprEndpointBuilder {
 
     /**
      * Build the {@link ClprEndpoint} for the given (self) node, or return {@code null} if the
-     * node is missing / deleted / lacks an address-book service endpoint. A {@code null} result
+     * node is missing / deleted / lacks an IPv4 HAPI service endpoint. A {@code null} result
      * means the reconciler should not attempt to publish for this node.
      *
      * @param nodeId the node whose endpoint to build (expected to be the running node)
@@ -66,21 +67,19 @@ public final class ClprEndpointBuilder {
         requireNonNull(nodeStore);
         requireNonNull(tlsCertificateDer);
         final var node = nodeStore.get(nodeId);
-        if (node == null || node.deleted() || node.serviceEndpoint().isEmpty()) {
+        if (node == null || node.deleted()) {
             return null;
         }
-        return buildEndpoint(node, tlsPort, tlsCertificateDer);
-    }
-
-    private static ClprEndpoint buildEndpoint(
-            @NonNull final Node node, final int tlsPort, @NonNull final Bytes tlsCertificateDer) {
-        final ServiceEndpoint hapiEndpoint = node.serviceEndpoint().getFirst();
+        final var hapiEndpoint = firstIpv4Endpoint(node);
+        if (hapiEndpoint == null) {
+            return null;
+        }
         // HAPI TLS certificate present: advertise the HAPI TLS port. Absent: plaintext sync on the
         // address-book HAPI gRPC port.
         final int port = tlsCertificateDer.length() > 0 ? tlsPort : hapiEndpoint.port();
         return ClprEndpoint.newBuilder()
                 .serviceEndpoint(ClprServiceEndpoint.newBuilder()
-                        .ipAddress(ipOf(hapiEndpoint))
+                        .ipAddress(asReadableIp(hapiEndpoint.ipAddressV4()))
                         .port(port)
                         .build())
                 .tlsCertificate(tlsCertificateDer)
@@ -91,7 +90,7 @@ public final class ClprEndpointBuilder {
     /**
      * The IP address string this builder would advertise for {@code nodeId}, derived from the
      * address book exactly as {@link #buildFor} does, or {@code null} if the node is missing /
-     * deleted / has no service endpoint. This is the only part of a peer's endpoint that is
+     * deleted / has no IPv4 HAPI service endpoint. This is the only part of a peer's endpoint that is
      * derivable from the shared address book (the HAPI TLS port and certificate are node-local), so the
      * reconciler uses it as the address-book-derivable identity for its open-construction trigger.
      */
@@ -99,14 +98,21 @@ public final class ClprEndpointBuilder {
     public static String ipAddressOf(final long nodeId, @NonNull final ReadableNodeStore nodeStore) {
         requireNonNull(nodeStore);
         final var node = nodeStore.get(nodeId);
-        if (node == null || node.deleted() || node.serviceEndpoint().isEmpty()) {
+        if (node == null || node.deleted()) {
             return null;
         }
-        return ipOf(node.serviceEndpoint().getFirst());
+        final var hapiEndpoint = firstIpv4Endpoint(node);
+        return hapiEndpoint == null ? null : asReadableIp(hapiEndpoint.ipAddressV4());
     }
 
-    private static String ipOf(@NonNull final ServiceEndpoint hapi) {
-        return hapi.ipAddressV4().length() == 4 ? formatIpv4(hapi.ipAddressV4()) : hapi.domainName();
+    @Nullable
+    private static ServiceEndpoint firstIpv4Endpoint(@NonNull final Node node) {
+        for (final var endpoint : node.serviceEndpoint()) {
+            if (endpoint.ipAddressV4().length() == 4) {
+                return endpoint;
+            }
+        }
+        return null;
     }
 
     /**
@@ -122,10 +128,5 @@ public final class ClprEndpointBuilder {
             return Bytes.wrap(svc.ipAddress().getBytes(StandardCharsets.UTF_8));
         }
         return endpoint.tlsCertificate();
-    }
-
-    private static String formatIpv4(@NonNull final Bytes ipv4) {
-        final byte[] bytes = ipv4.toByteArray();
-        return (bytes[0] & 0xff) + "." + (bytes[1] & 0xff) + "." + (bytes[2] & 0xff) + "." + (bytes[3] & 0xff);
     }
 }

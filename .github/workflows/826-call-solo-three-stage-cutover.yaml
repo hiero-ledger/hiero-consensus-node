@@ -12,7 +12,7 @@ on:
         required: false
         type: string
       solo-version:
-        description: "The Solo version to install for this cutover. Block Node versions are pinned in the scenario script."
+        description: "The Solo version to install for this cutover. The Block Node version is block-node-version in .citr-env."
         required: true
         type: string
       java-version:
@@ -70,16 +70,28 @@ jobs:
           setup-go: "true"
           go-version: "1.26.4"
 
+      # The one Block Node pin is block-node-version in .citr-env; the scenario script reads the same key.
+      - name: Read Block Node Version
+        id: block-node-version
+        run: |
+          set -eo pipefail
+          VERSION="$(sed -n 's/^block-node-version=//p' .github/workflows/support/citr/.citr-env | head -n 1)"
+          if [[ ! "${VERSION}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$ ]]; then
+            echo "::error::block-node-version in .citr-env is missing or not a version tag: '${VERSION}'"
+            exit 1
+          fi
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+
       - name: Checkout Block Node
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           repository: hiero-ledger/hiero-block-node
-          # Pinned rather than caller-supplied: this checks out an external repository and the
-          # job holds a writable Gradle cache, so a caller-influenced ref is a cache-poisoning
-          # vector (CodeQL actions/cache-poisoning/poisonable-step, alert #135). The deployed
-          # Block Node chart version is pinned separately inside the scenario script; these sources are
-          # used for offline wrapping, jumpstart generation and serverStatus/proto diagnostics.
-          ref: v0.45.0-rc2
+          # Read from the checked-out .citr-env rather than caller-supplied: this checks out an
+          # external repository and the job holds a writable Gradle cache, so a caller-influenced
+          # ref is a cache-poisoning vector (CodeQL actions/cache-poisoning/poisonable-step,
+          # alert #135). These sources are used for offline wrapping, jumpstart generation and
+          # serverStatus/proto diagnostics.
+          ref: ${{ steps.block-node-version.outputs.version }}
           path: hiero-block-node
           fetch-depth: 0
           token: ${{ github.token }}
@@ -92,7 +104,7 @@ jobs:
           solo --version
 
       - name: Setup Kind
-        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
+        uses: helm/kind-action@ea822c7bf1874f08e5a491df991c228edffc3376 # v1.15.2
         with:
           install_only: true
           node_image: kindest/node:v1.32.0

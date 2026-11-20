@@ -7,9 +7,7 @@ import com.swirlds.base.time.Time;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
-import java.util.List;
 import java.util.function.Consumer;
-import org.hiero.consensus.benchmark.tools.event.EventStreamGenerator;
 import org.hiero.consensus.event.creator.impl.EventCreationManager;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -57,42 +55,13 @@ final class RecordingEventCreationManager implements EventCreationManager {
     }
 
     /**
-     * Copies an event as a step holds it: as the node receives it through gossip if the origin is
-     * {@link EventOrigin#GOSSIP}, sent through the gossip streams with {@link EventStreamGenerator#receive}, otherwise
-     * as its event creator built it. Either way, the copy keeps the hash, and the time received, sender,
-     * non-deterministic generation and sequence number the event has now.
-     *
-     * @param event the event
-     * @param origin the origin of the copy
-     * @return the copy
-     */
-    @NonNull
-    static PlatformEvent copyEvent(@NonNull final PlatformEvent event, @NonNull final EventOrigin origin) {
-        final PlatformEvent copy;
-        if (origin == EventOrigin.GOSSIP) {
-            copy = EventStreamGenerator.receive(List.of(event)).getFirst();
-        } else {
-            copy = new PlatformEvent(event.getGossipEvent(), origin);
-            copy.setHash(event.getHash());
-        }
-        copy.setTimeReceived(event.getTimeReceived());
-        if (event.getSenderId() != null) {
-            copy.setSenderId(event.getSenderId());
-        }
-        copy.setNGen(event.getNGen());
-        copy.setSequenceNumber(event.getSequenceNumber());
-        return copy;
-    }
-
-    /**
      * {@inheritDoc}
      */
     @Override
     @Nullable
     public PlatformEvent maybeCreateEvent() {
         final PlatformEvent created = delegate.maybeCreateEvent();
-        stepRecorder.accept(
-                new CreationAttempt(time.now(), created == null ? null : copyEvent(created, EventOrigin.RUNTIME)));
+        stepRecorder.accept(CreationAttempt.of(time.now(), created));
         return created;
     }
 
@@ -102,7 +71,7 @@ final class RecordingEventCreationManager implements EventCreationManager {
     @Override
     public void registerEvent(@NonNull final PlatformEvent event) {
         final EventOrigin origin = event.getCreatorId().equals(selfId) ? EventOrigin.RUNTIME : EventOrigin.GOSSIP;
-        stepRecorder.accept(new Released(time.now(), copyEvent(event, origin)));
+        stepRecorder.accept(Released.of(time.now(), event, origin));
         delegate.registerEvent(event);
     }
 

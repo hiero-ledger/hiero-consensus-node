@@ -4,13 +4,16 @@ package com.hedera.node.app.service.token.impl.test.handlers;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_REPEATED_IN_ACCOUNT_AMOUNTS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ALIAS_KEY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSFER_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.hapi.util.HapiUtils.EMPTY_KEY_LIST;
 import static com.hedera.node.app.service.token.AliasUtils.extractEvmAddress;
 import static com.hedera.node.app.service.token.AliasUtils.isEntityNumAlias;
 import static com.hedera.node.app.service.token.impl.test.handlers.transfer.AccountAmountUtils.aaWith;
 import static com.hedera.node.app.service.token.impl.test.handlers.transfer.AccountAmountUtils.nftTransferWith;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.EXPLICIT_WRITE_TRACING;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertAll;
@@ -24,6 +27,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.EvmHookCall;
 import com.hedera.hapi.node.base.HookCall;
@@ -53,6 +57,7 @@ import com.hedera.node.app.workflows.prehandle.PreHandleContextImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Stream;
@@ -83,6 +88,12 @@ class CryptoTransferAccountResolutionTest extends CryptoTransferHandlerTestBase 
         HBAR,
         FUNGIBLE,
         NFT
+    }
+
+    enum HookUse {
+        NONE,
+        PRE,
+        PRE_POST
     }
 
     @Override
@@ -135,10 +146,33 @@ class CryptoTransferAccountResolutionTest extends CryptoTransferHandlerTestBase 
         lenient().when(preHandleStores.readableStore(ReadableTokenStore.class)).thenReturn(writableTokenStore);
     }
 
+    @ParameterizedTest
+    @EnumSource(Kind.class)
+    void hollowReceiverSignatureRequirementKeepsLegacyRejection(final Kind kind) throws PreCheckException {
+        final var hollowId = AccountID.newBuilder().accountNum(2002).build();
+        final var hollow = tokenReceiverAccount
+                .copyBuilder()
+                .accountId(hollowId)
+                .key(EMPTY_KEY_LIST)
+                .alias(EVM_ALIAS)
+                .receiverSigRequired(true)
+                .build();
+        writableAccountStore.put(hollow);
+        givenTxn(operation(kind, ownerId, hollowId), payerId);
+        final var pre = preHandleContext();
+
+        assertThatThrownBy(() -> subject.preHandle(pre))
+                .isInstanceOf(PreCheckException.class)
+                .has(responseCode(INVALID_TRANSFER_ACCOUNT_ID));
+        assertThat(pre.requiredHollowAccounts()).doesNotContain(hollow);
+    }
+
     static Stream<Arguments> existingForms() {
-        return Arrays.stream(Form.values()).flatMap(form -> Arrays.stream(Kind.values())
-                .flatMap(kind -> Stream.of(false, true).flatMap(sender -> Stream.of(0, 1, 2, 3)
-                        .map(domain -> Arguments.of(form, kind, sender, domain)))));
+        return Arrays.stream(Form.values())
+                .flatMap(form -> Arrays.stream(Kind.values())
+                        .flatMap(kind -> Stream.of(false, true)
+                                .flatMap(sender -> Stream.of(0, 1, 2, 3)
+                                        .map(domain -> Arguments.of(form, kind, sender, domain)))));
     }
 
     @ParameterizedTest(name = "{0} {1}, sender={2}, domain={3}")
@@ -200,8 +234,9 @@ class CryptoTransferAccountResolutionTest extends CryptoTransferHandlerTestBase 
     }
 
     static Stream<Arguments> missingLongZeros() {
-        return Arrays.stream(Kind.values()).flatMap(kind -> Stream.of(1, 2, 3)
-                .flatMap(domain -> Stream.of(0L, 1L).map(seed -> Arguments.of(kind, domain, seed))));
+        return Arrays.stream(Kind.values())
+                .flatMap(kind -> Stream.of(1, 2, 3)
+                        .flatMap(domain -> Stream.of(0L, 1L).map(seed -> Arguments.of(kind, domain, seed))));
     }
 
     @ParameterizedTest(name = "{0}, foreign domain={1}, seed credit={2}")
@@ -290,22 +325,27 @@ class CryptoTransferAccountResolutionTest extends CryptoTransferHandlerTestBase 
     static Stream<Arguments> missingIds() {
         final var missingNumber = AccountID.newBuilder().accountNum(9_876_543).build();
         return Arrays.stream(Kind.values())
-                .flatMap(kind -> Stream.of(false, true).flatMap(sender -> Stream.of(
-                                AccountID.DEFAULT,
-                                AccountID.newBuilder().accountNum(0).build(),
-                                AccountID.newBuilder().accountNum(-1).build(),
-                                longZero(AccountID.newBuilder().accountNum(0).build()),
-                                AccountID.newBuilder().alias(Bytes.EMPTY).build(),
-                                AccountID.newBuilder()
-                                        .alias(Bytes.fromHex("ff"))
-                                        .build(),
-                                missingNumber,
-                                inDomain(missingNumber, 1),
-                                inDomain(missingNumber, 2),
-                                longZero(missingNumber),
-                                inDomain(longZero(missingNumber), 1),
-                                inDomain(longZero(missingNumber), 2))
-                        .map(id -> Arguments.of(kind, sender, id))));
+                .flatMap(kind -> Stream.of(false, true)
+                        .flatMap(sender -> Stream.of(
+                                        AccountID.DEFAULT,
+                                        AccountID.newBuilder().accountNum(0).build(),
+                                        AccountID.newBuilder().accountNum(-1).build(),
+                                        longZero(AccountID.newBuilder()
+                                                .accountNum(0)
+                                                .build()),
+                                        AccountID.newBuilder()
+                                                .alias(Bytes.EMPTY)
+                                                .build(),
+                                        AccountID.newBuilder()
+                                                .alias(Bytes.fromHex("ff"))
+                                                .build(),
+                                        missingNumber,
+                                        inDomain(missingNumber, 1),
+                                        inDomain(missingNumber, 2),
+                                        longZero(missingNumber),
+                                        inDomain(longZero(missingNumber), 1),
+                                        inDomain(longZero(missingNumber), 2))
+                                .map(id -> Arguments.of(kind, sender, id))));
     }
 
     @ParameterizedTest
@@ -334,8 +374,9 @@ class CryptoTransferAccountResolutionTest extends CryptoTransferHandlerTestBase 
     }
 
     static Stream<Arguments> missingLongZeroAmounts() {
-        return Stream.of(Kind.HBAR, Kind.FUNGIBLE).flatMap(kind -> Stream.of(0, 1, 2, 3)
-                .flatMap(domain -> Stream.of(-1L, 0L, 1L).map(amount -> Arguments.of(kind, domain, amount))));
+        return Stream.of(Kind.HBAR, Kind.FUNGIBLE)
+                .flatMap(kind -> Stream.of(0, 1, 2, 3)
+                        .flatMap(domain -> Stream.of(-1L, 0L, 1L).map(amount -> Arguments.of(kind, domain, amount))));
     }
 
     @ParameterizedTest
@@ -372,17 +413,14 @@ class CryptoTransferAccountResolutionTest extends CryptoTransferHandlerTestBase 
     @ParameterizedTest
     @EnumSource(Form.class)
     void unknownAliasesCannotBeSendersEvenWithAHook(Form form) throws PreCheckException {
-        final var missing =
-                switch (form) {
-                    case NUMBER -> inDomain(ownerId, 1);
-                    case LONG_ZERO -> inDomain(longZero(ownerId), 1);
-                    case EVM -> AccountID.newBuilder().alias(EVM_ALIAS).build();
-                    case ED25519 ->
-                        AccountID.newBuilder()
-                                .alias(Key.PROTOBUF.toBytes(RECEIVER_KEY))
-                                .build();
-                    case ECDSA, ECDSA_DERIVED -> unknownAliasedId;
-                };
+        final var missing = switch (form) {
+            case NUMBER -> inDomain(ownerId, 1);
+            case LONG_ZERO -> inDomain(longZero(ownerId), 1);
+            case EVM -> AccountID.newBuilder().alias(EVM_ALIAS).build();
+            case ED25519 ->
+                AccountID.newBuilder().alias(Key.PROTOBUF.toBytes(RECEIVER_KEY)).build();
+            case ECDSA, ECDSA_DERIVED -> unknownAliasedId;
+        };
         final var nft = nftTransferWith(missing, tokenReceiverId, 1)
                 .copyBuilder()
                 .preTxSenderAllowanceHook(HookCall.newBuilder().hookId(1).build())
@@ -487,13 +525,12 @@ class CryptoTransferAccountResolutionTest extends CryptoTransferHandlerTestBase 
             value = Form.class,
             names = {"EVM", "ED25519", "ECDSA"})
     void repeatedNewAliasesAcrossDomainsCreateOneAccount(Form form) throws PreCheckException {
-        final var alias =
-                switch (form) {
-                    case EVM -> EVM_ALIAS;
-                    case ED25519 -> Key.PROTOBUF.toBytes(RECEIVER_KEY);
-                    case ECDSA -> ecKeyAlias.value();
-                    default -> throw new IllegalArgumentException();
-                };
+        final var alias = switch (form) {
+            case EVM -> EVM_ALIAS;
+            case ED25519 -> Key.PROTOBUF.toBytes(RECEIVER_KEY);
+            case ECDSA -> ecKeyAlias.value();
+            default -> throw new IllegalArgumentException();
+        };
         final var newId = AccountID.newBuilder().accountNum(9_876_543).build();
         final var input = AccountID.newBuilder().alias(alias).build();
         writableTokenStore.put(nonFungibleToken
@@ -546,9 +583,11 @@ class CryptoTransferAccountResolutionTest extends CryptoTransferHandlerTestBase 
     }
 
     static Stream<Arguments> hookForms() {
-        return Arrays.stream(Form.values()).flatMap(form -> Arrays.stream(Kind.values())
-                .flatMap(kind -> Stream.of(false, true).flatMap(sender -> Stream.of(false, true)
-                        .map(prePost -> Arguments.of(form, kind, sender, prePost)))));
+        return Arrays.stream(Form.values())
+                .flatMap(form -> Arrays.stream(Kind.values())
+                        .flatMap(kind -> Stream.of(false, true)
+                                .flatMap(sender -> Stream.of(false, true)
+                                        .map(prePost -> Arguments.of(form, kind, sender, prePost)))));
     }
 
     @ParameterizedTest
@@ -622,6 +661,49 @@ class CryptoTransferAccountResolutionTest extends CryptoTransferHandlerTestBase 
         verify(handleContext, times(prePost ? 2 : 1)).dispatch(any());
     }
 
+    static Stream<Arguments> hookInvocationMixes() {
+        return Stream.of(
+                Arguments.of(HookUse.PRE, HookUse.NONE, 1),
+                Arguments.of(HookUse.PRE_POST, HookUse.NONE, 2),
+                Arguments.of(HookUse.PRE, HookUse.PRE, 2),
+                Arguments.of(HookUse.PRE, HookUse.PRE_POST, 3),
+                Arguments.of(HookUse.PRE_POST, HookUse.PRE_POST, 4));
+    }
+
+    @ParameterizedTest
+    @MethodSource("hookInvocationMixes")
+    void everyHookExecutionTracesStorageWritesExplicitly(HookUse senderHook, HookUse receiverHook, int numExecutions)
+            throws PreCheckException {
+        subject = new CryptoTransferHandler(validator, new HookCallsFactory(), entityIdFactory);
+        final var op = operation(Kind.HBAR, ownerId, tokenReceiverId);
+        final var amounts = op.transfersOrThrow().accountAmounts();
+        givenTxn(
+                op.copyBuilder()
+                        .transfers(TransferList.newBuilder()
+                                .accountAmounts(
+                                        withHookUse(amounts.getFirst(), senderHook, 1),
+                                        withHookUse(amounts.getLast(), receiverHook, 2)))
+                        .build(),
+                payerId);
+        when(handleContext.configuration())
+                .thenReturn(HederaTestConfigBuilder.create()
+                        .withValue("hooks.hooksEnabled", true)
+                        .getOrCreateConfig());
+        subject.preHandle(preHandleContext());
+        final var hookResult = mock(HookDispatchStreamBuilder.class);
+        when(hookResult.status()).thenReturn(SUCCESS);
+        when(hookResult.getEvmCallResult()).thenReturn(Bytes.fromHex("00".repeat(31) + "01"));
+        final List<Boolean> explicitWritesByExecution = new ArrayList<>();
+        when(handleContext.dispatch(any())).thenAnswer(invocation -> {
+            final DispatchOptions<?> options = invocation.getArgument(0);
+            explicitWritesByExecution.add(Boolean.TRUE.equals(
+                    options.dispatchMetadata().getMetadataIfPresent(EXPLICIT_WRITE_TRACING, Boolean.class)));
+            return hookResult;
+        });
+        subject.handle(handleContext);
+        assertThat(explicitWritesByExecution).hasSize(numExecutions).containsOnly(true);
+    }
+
     @ParameterizedTest
     @CsvSource({"1", "2", "3"})
     void laterNftResolutionCannotOverwriteAnEarlierHbarResolution(int domain) throws PreCheckException {
@@ -651,8 +733,9 @@ class CryptoTransferAccountResolutionTest extends CryptoTransferHandlerTestBase 
     }
 
     static Stream<Arguments> tokenSeeds() {
-        return Stream.of(Kind.FUNGIBLE, Kind.NFT).flatMap(kind -> Stream.of(1, 2, 3)
-                .flatMap(domain -> Stream.of(0L, 1L).map(amount -> Arguments.of(kind, domain, amount))));
+        return Stream.of(Kind.FUNGIBLE, Kind.NFT)
+                .flatMap(kind -> Stream.of(1, 2, 3)
+                        .flatMap(domain -> Stream.of(0L, 1L).map(amount -> Arguments.of(kind, domain, amount))));
     }
 
     @ParameterizedTest
@@ -742,16 +825,27 @@ class CryptoTransferAccountResolutionTest extends CryptoTransferHandlerTestBase 
         };
     }
 
+    private static AccountAmount withHookUse(AccountAmount amount, HookUse use, long hookId) {
+        final var hook = HookCall.newBuilder()
+                .hookId(hookId)
+                .evmHookCall(EvmHookCall.newBuilder().gasLimit(2_000).data(Bytes.EMPTY))
+                .build();
+        return switch (use) {
+            case NONE -> amount;
+            case PRE -> amount.copyBuilder().preTxAllowanceHook(hook).build();
+            case PRE_POST -> amount.copyBuilder().prePostTxAllowanceHook(hook).build();
+        };
+    }
+
     private AccountID reference(Form form, AccountID canonical, int domain) {
         if (form == Form.NUMBER) return canonical;
         if (form == Form.LONG_ZERO) return longZero(canonical);
-        final var alias =
-                switch (form) {
-                    case EVM -> EVM_ALIAS;
-                    case ED25519 -> Key.PROTOBUF.toBytes(RECEIVER_KEY);
-                    case ECDSA, ECDSA_DERIVED -> ecKeyAlias.value();
-                    default -> throw new IllegalArgumentException();
-                };
+        final var alias = switch (form) {
+            case EVM -> EVM_ALIAS;
+            case ED25519 -> Key.PROTOBUF.toBytes(RECEIVER_KEY);
+            case ECDSA, ECDSA_DERIVED -> ecKeyAlias.value();
+            default -> throw new IllegalArgumentException();
+        };
         writableAccountStore.putAlias(form == Form.ECDSA_DERIVED ? extractEvmAddress(alias) : alias, canonical);
         return inDomain(AccountID.newBuilder().alias(alias).build(), domain);
     }

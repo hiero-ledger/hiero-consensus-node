@@ -127,7 +127,8 @@ public class FrameBuilder {
                 .sender(from)
                 .value(value)
                 .apparentValue(value)
-                .blockValues(context.blockValuesOf(transaction.gasLimit()))
+                .blockValues(context.blockValuesOf(
+                        config.getConfigData(ContractsConfig.class).blockGasLimit()))
                 .completer(unused -> {})
                 .isStatic(context.staticCall())
                 .miningBeneficiary(nominalCoinbase)

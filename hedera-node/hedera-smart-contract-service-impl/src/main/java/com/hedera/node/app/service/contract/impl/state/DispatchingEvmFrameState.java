@@ -37,6 +37,7 @@ import com.hedera.hapi.node.state.schedule.Schedule;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason;
+import com.hedera.node.app.service.contract.impl.exec.scope.AccountAuthorizingVerificationStrategy;
 import com.hedera.node.app.service.contract.impl.exec.scope.ActiveContractVerificationStrategy;
 import com.hedera.node.app.service.contract.impl.exec.scope.ActiveContractVerificationStrategy.UseTopLevelSigs;
 import com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaNativeOperations;
@@ -296,6 +297,11 @@ public class DispatchingEvmFrameState implements EvmFrameState {
 
     /**
      * {@inheritDoc}
+     *
+     * <p><b>Unit:</b> the returned {@link Wei} wraps the account's balance in <b>tinybars</b> (1 tinybar = 10<sup>-8</sup>
+     * hbar), <i>not</i> weibars (10<sup>-18</sup> hbar). {@code Wei} is only Besu's carrier type for the amount, so
+     * the {@code BALANCE} and {@code SELFBALANCE} opcodes (and {@code address(x).balance} in Solidity) observe tinybars.
+     * Weibars appear only on the JSON-RPC wire and in the Ethereum transaction {@code value} field, see HIP-410.
      */
     @Override
     public Wei getBalance(final AccountID accountID) {
@@ -414,11 +420,13 @@ public class DispatchingEvmFrameState implements EvmFrameState {
                 amount,
                 from.hederaId(),
                 to.hederaId(),
-                new ActiveContractVerificationStrategy(
-                        from.hederaContractId(),
-                        tuweniToPbjBytes(from.getAddress().getBytes()),
-                        delegateCall,
-                        UseTopLevelSigs.YES));
+                new AccountAuthorizingVerificationStrategy(
+                        from.hederaId(),
+                        new ActiveContractVerificationStrategy(
+                                from.hederaContractId(),
+                                tuweniToPbjBytes(from.getAddress().getBytes()),
+                                delegateCall,
+                                UseTopLevelSigs.YES)));
         if (status != OK) {
             if (status == INVALID_SIGNATURE) {
                 return Optional.of(CustomExceptionalHaltReason.INVALID_SIGNATURE);

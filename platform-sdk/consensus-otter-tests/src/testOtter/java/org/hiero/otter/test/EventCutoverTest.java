@@ -23,6 +23,7 @@ import org.hiero.consensus.event.creator.config.EventCreationConfig_;
 import org.hiero.consensus.event.stream.config.EventConfig_;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig_;
 import org.hiero.consensus.io.IOIterator;
+import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.EventHashFactory;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.pces.config.PcesConfig_;
@@ -109,10 +110,10 @@ public class EventCutoverTest {
 
                     // Each event's parents hashes (the only hashes written to PCES)
                     // should match the expected digest type.
-                    event.allParentsIterator().forEachRemaining(parent -> {
+                    for (final EventDescriptorWrapper parent : event.getAllParents()) {
                         assertThat(parent.hash()).isNotNull();
                         assertThat(parent.hash().getDigestType()).isEqualTo(expectedDigestType);
-                    });
+                    }
                 }
             }
         }
@@ -450,12 +451,12 @@ public class EventCutoverTest {
 
                     // Each event's parents hashes (the only hashes written to PCES)
                     // should match the expected digest type.
-                    event.allParentsIterator().forEachRemaining(parent -> {
+                    for (final EventDescriptorWrapper parent : event.getAllParents()) {
                         final DigestType expectedDigestType =
                                 parent.birthRound() > STARTING_STATE_ROUND ? DigestType.SHA_256 : DigestType.SHA_384;
                         assertThat(parent.hash()).isNotNull();
                         assertThat(parent.hash().getDigestType()).isEqualTo(expectedDigestType);
-                    });
+                    }
                 }
             }
         }

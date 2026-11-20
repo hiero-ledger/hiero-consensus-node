@@ -1,24 +1,38 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.state;
 
+import static com.hedera.node.app.history.schemas.V0790HistorySchema.HINTS_KEY_PROVENANCE_STATE_ID;
+import static com.hedera.node.app.history.schemas.V0800HistorySchema.HINTS_KEY_WITNESSES_STATE_ID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.block.stream.MerklePath;
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.state.history.HintsKeyProvenance;
+import com.hedera.hapi.node.state.history.HintsKeyWitness;
+import com.hedera.hapi.node.state.history.HintsKeyWitnessRecord;
+import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.platform.state.PlatformState;
+import com.hedera.node.app.history.HistoryService;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.spi.EmptyReadableStates;
+import com.swirlds.state.spi.ReadableKVState;
+import com.swirlds.state.spi.ReadableQueueState;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.virtualmap.VirtualMap;
+import java.util.List;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.platformstate.PlatformStateService;
@@ -59,6 +73,7 @@ class BlockProvenStateAccessorTest {
         given(stateLifecycleManager.getLatestImmutableState()).willReturn(state);
         given(state.getHash()).willReturn(STATE_HASH);
         given(state.getRoot()).willReturn(root);
+        given(state.getReadableStates(HistoryService.NAME)).willReturn(EmptyReadableStates.INSTANCE);
         given(root.tryReserve()).willReturn(true);
 
         subject.notify(new StateHashedNotification(ROUND_NO, STATE_HASH));
@@ -77,11 +92,57 @@ class BlockProvenStateAccessorTest {
         assertEquals(TSS_SIGNATURE, snapshot.tssSignature());
         assertEquals(BLOCK_TIMESTAMP, snapshot.blockTimestamp());
         assertEquals(MerklePath.DEFAULT, snapshot.path());
+        assertTrue(snapshot.keyProvenanceWithWitnesses().isEmpty());
 
         // Closing the snapshot releases exactly one reservation, even if closed twice
         snapshot.close();
         snapshot.close();
         verify(state, times(1)).release();
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void returnsOrderedWitnessRecordsFromTheReservedState() {
+        final var newerState = mock(VirtualMapState.class);
+        given(stateLifecycleManager.getLatestImmutableState()).willReturn(state, newerState);
+        given(state.getHash()).willReturn(STATE_HASH);
+        given(state.getRoot()).willReturn(root);
+        given(newerState.getHash()).willReturn(OTHER_STATE_HASH);
+        given(newerState.getRoot()).willReturn(root);
+        given(root.tryReserve()).willReturn(true);
+
+        final var history = mock(ReadableStates.class);
+        final ReadableQueueState<HintsKeyProvenance> queue = mock(ReadableQueueState.class);
+        final ReadableKVState<ProtoLong, HintsKeyWitnessRecord> witnesses = mock(ReadableKVState.class);
+        final var first =
+                HintsKeyProvenance.newBuilder().targetHintsConstructionId(1).build();
+        final var second =
+                HintsKeyProvenance.newBuilder().targetHintsConstructionId(2).build();
+        final var pending = HintsKeyWitnessRecord.newBuilder().provenance(first).build();
+        final var witnessed = HintsKeyWitnessRecord.newBuilder()
+                .provenance(second)
+                .witness(HintsKeyWitness.newBuilder()
+                        .targetHintsConstructionId(2)
+                        .build())
+                .build();
+        given(state.getReadableStates(HistoryService.NAME)).willReturn(history);
+        given(history.<HintsKeyProvenance>getQueue(HINTS_KEY_PROVENANCE_STATE_ID))
+                .willReturn(queue);
+        given(history.<ProtoLong, HintsKeyWitnessRecord>get(HINTS_KEY_WITNESSES_STATE_ID))
+                .willReturn(witnesses);
+        given(queue.iterator()).willAnswer(ignored -> List.of(first, second).iterator());
+        given(witnesses.get(any()))
+                .willAnswer(invocation -> invocation.<ProtoLong>getArgument(0).value() == 2 ? witnessed : null);
+
+        subject.notify(new StateHashedNotification(ROUND_NO, STATE_HASH));
+        subject.registerBlockMetadata(
+                STATE_HASH.getBytes(), BLOCK_HASH, TSS_SIGNATURE, BLOCK_TIMESTAMP, MerklePath.DEFAULT);
+        try (final var snapshot = subject.latestSnapshot().orElseThrow()) {
+            subject.notify(new StateHashedNotification(ROUND_NO + 1, OTHER_STATE_HASH));
+            final var records = snapshot.keyProvenanceWithWitnesses();
+            assertEquals(List.of(pending, witnessed), records);
+            assertThrows(UnsupportedOperationException.class, () -> records.add(witnessed));
+        }
     }
 
     @Test

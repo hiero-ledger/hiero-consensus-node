@@ -6,6 +6,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_CONNECTOR_ALREADY_
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INSUFFICIENT_STAKE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INVALID_CONNECTOR_CONTRACT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INVALID_SIGNATURE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
@@ -62,12 +63,11 @@ public final class ClprCompleteConnectorHandler extends AbstractClprHandler {
         validateTruePreCheck(op.hasConnectorContract(), INVALID_TRANSACTION_BODY);
         validateTruePreCheck(op.hasAdminKey(), INVALID_TRANSACTION_BODY);
 
-        final var expectedKeyLength =
-                switch (op.signatureScheme()) {
-                    case ECDSA_SECP256K1 -> ECDSA_UNCOMPRESSED_KEY_LENGTH;
-                    case ED25519 -> ED25519_KEY_LENGTH;
-                    default -> throw new PreCheckException(INVALID_TRANSACTION_BODY);
-                };
+        final var expectedKeyLength = switch (op.signatureScheme()) {
+            case ECDSA_SECP256K1 -> ECDSA_UNCOMPRESSED_KEY_LENGTH;
+            case ED25519 -> ED25519_KEY_LENGTH;
+            default -> throw new PreCheckException(INVALID_TRANSACTION_BODY);
+        };
         validateTruePreCheck(op.publicKey().length() == expectedKeyLength, INVALID_TRANSACTION_BODY);
     }
 
@@ -110,12 +110,11 @@ public final class ClprCompleteConnectorHandler extends AbstractClprHandler {
 
         // 5. Verify signature over keccak256(connectorId || clprServiceAddress)
         final var sigMsgHash = computeSignatureMessage(derivedConnectorId.toByteArray());
-        final var signatureType =
-                switch (op.signatureScheme()) {
-                    case ECDSA_SECP256K1 -> SignatureType.ECDSA_SECP256K1;
-                    case ED25519 -> SignatureType.ED25519;
-                    default -> throw new HandleException(INVALID_TRANSACTION_BODY);
-                };
+        final var signatureType = switch (op.signatureScheme()) {
+            case ECDSA_SECP256K1 -> SignatureType.ECDSA_SECP256K1;
+            case ED25519 -> SignatureType.ED25519;
+            default -> throw new HandleException(INVALID_TRANSACTION_BODY);
+        };
         final var isValid = CryptographyProvider.getInstance()
                 .verifySync(sigMsgHash, op.signature().toByteArray(), pubKeyBytes, signatureType);
         if (!isValid) {
@@ -130,10 +129,11 @@ public final class ClprCompleteConnectorHandler extends AbstractClprHandler {
         validateTrue(op.lockedStake() >= clprConfig.minLockedStake(), CLPR_INSUFFICIENT_STAKE);
 
         // 8. Transfer locked_stake from payer to CLPR staking account
+        final var payerId = context.payer();
+        final var payer = requireNonNull(accountStore.getAccountById(payerId));
+        validateTrue(payer.tinybarBalance() >= op.lockedStake(), INSUFFICIENT_ACCOUNT_BALANCE);
         final var stakingAccountId = entityIdFactory.newAccountId(clprConfig.stakingAccount());
-        storeFactory
-                .serviceApi(TokenServiceApi.class)
-                .transferFromTo(context.payer(), stakingAccountId, op.lockedStake());
+        storeFactory.serviceApi(TokenServiceApi.class).transferFromTo(payerId, stakingAccountId, op.lockedStake());
 
         // 9. Store connector. The commitment is not consumed: it stays registered permanently, even
         // after deregistration, so the same connector cannot be registered again.

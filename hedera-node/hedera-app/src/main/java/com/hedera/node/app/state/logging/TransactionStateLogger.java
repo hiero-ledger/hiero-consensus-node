@@ -40,7 +40,7 @@ public final class TransactionStateLogger {
             logger.debug(
                     "Starting round {} of {} events at {}",
                     round.getRoundNum(),
-                    round.getEventCount(),
+                    round.getConsensusEvents().size(),
                     round.getConsensusTimestamp());
         }
     }
@@ -106,9 +106,9 @@ public final class TransactionStateLogger {
     public static void logStartUserTransactionPreHandleResultP3(@NonNull PreHandleResult preHandleResult) {
         if (logger.isTraceEnabled()) {
             logger.trace(
-                    "      with preHandleResult: txInfo {} with requiredKeys {} with verificationResults {}",
+                    "      with preHandleResult: txInfo {} with requiredKeyRequirements {} with verificationResults {}",
                     preHandleResult.txInfo(),
-                    preHandleResult.requiredKeys(),
+                    preHandleResult.requiredKeyRequirements(),
                     preHandleResult.verificationResults());
         }
     }

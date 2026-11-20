@@ -242,6 +242,19 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
     }
 
     @Override
+    public void refundHandlerCharge(@NonNull final AccountID accountId, final long amount) {
+        requireNonNull(accountId);
+        if (amount < 0) {
+            throw new IllegalArgumentException("Cannot refund negative amount " + amount);
+        }
+        if (feeCharging.bypassForExtraHandlerCharges()) {
+            feeAccumulator.refundFee(accountId, amount);
+        } else {
+            feeCharging.refund(accountId, this, new Fees(0, 0, amount));
+        }
+    }
+
+    @Override
     public void refundServiceFee(@NonNull final AccountID accountId, final long amount) {
         requireNonNull(accountId);
         if (amount < 0) {

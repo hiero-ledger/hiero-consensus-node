@@ -12,6 +12,7 @@ import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.ass
 import static org.hiero.base.utility.test.fixtures.io.ResourceLoader.loadLog4jContext;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -53,7 +54,9 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -61,7 +64,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Hash;
@@ -1263,30 +1265,9 @@ class VirtualMapTests extends VirtualTestBase {
     }
 
     @Test
-    @DisplayName("Newer copies are merged while a detached copy is built")
-    void newerCopiesAreMergedWhileDetachedCopyIsBuilt() throws Exception {
-        final RecordAccessor detached = detachWhileProcessingNewerCopy(VirtualMap::detach, false);
-        try {
-            VirtualLeafBytes<TestValue> leaf;
-
-            leaf = detached.findLeafRecord(A_KEY);
-            assertNotNull(leaf);
-            assertEquals(APPLE, leaf.value(TestValueCodec.INSTANCE, Codec.DEFAULT_MAX_SIZE));
-
-            leaf = detached.findLeafRecord(B_KEY);
-            assertNotNull(leaf);
-            assertEquals(BANANA, leaf.value(TestValueCodec.INSTANCE, Codec.DEFAULT_MAX_SIZE));
-
-            assertNull(detached.findLeafRecord(E_KEY));
-        } finally {
-            detached.close();
-        }
-    }
-
-    @Test
-    @DisplayName("Newer copies are merged while a detached data source copy is built")
-    void newerCopiesAreMergedWhileDetachedDataSourceCopyIsBuilt() throws Exception {
-        final VirtualDataSource detached = detachWhileProcessingNewerCopy(VirtualMap::detachAsDataSourceCopy, false);
+    @DisplayName("Newer copies are merged while the cache is flushed to a detached data source copy")
+    void newerCopiesAreMergedWhileDetachedDataSourceCopyIsFlushed() throws Exception {
+        final VirtualDataSource detached = detachAsDataSourceCopyWhileProcessingNewerCopy(false);
         try {
             assertDetachedDataSource(detached);
         } finally {
@@ -1297,7 +1278,7 @@ class VirtualMapTests extends VirtualTestBase {
     @Test
     @DisplayName("Detached data source copy is not affected when the detached copy is merged and flushed")
     void detachedDataSourceCopyIsNotAffectedByMergeAndFlush() throws Exception {
-        final VirtualDataSource detached = detachWhileProcessingNewerCopy(VirtualMap::detachAsDataSourceCopy, true);
+        final VirtualDataSource detached = detachAsDataSourceCopyWhileProcessingNewerCopy(true);
         try {
             assertDetachedDataSource(detached);
         } finally {
@@ -1317,6 +1298,40 @@ class VirtualMapTests extends VirtualTestBase {
         assertDataSourceCopyIsClosedWhenFlushIsInterrupted(map -> map.createSnapshot(testDirectory));
     }
 
+    @Test
+    @DisplayName("An Error from an async snapshot fails the snapshot, but doesn't shut down the map")
+    void asyncSnapshotErrorDoesNotShutDownMap() throws Exception {
+        final VirtualDataSourceBuilder builder = new InMemoryBuilder() {
+            @NonNull
+            @Override
+            public Path snapshot(@Nullable final Path destinationDir, @NonNull final VirtualDataSource snapshotMe) {
+                throw new InternalError("Test: snapshot failed");
+            }
+        };
+        final VirtualMap map0 = new VirtualMap(builder, DEFAULT_CONFIGURATION);
+        map0.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
+        final VirtualMap map1 = map0.copy();
+        map0.getHash(); // forces copy to become hashed
+        final CompletableFuture<Void> snapshot = map0.createSnapshotAsync(testDirectory.resolve("asyncSnapshot"));
+        // The snapshot is written when map0 is flushed, after it's released
+        map0.release();
+        try {
+            final ExecutionException e = assertThrows(ExecutionException.class, () -> snapshot.get(30, SECONDS));
+            assertInstanceOf(InternalError.class, e.getCause());
+            // The pipeline isn't shut down: new copies can still be made, and the data is there
+            map1.put(B_KEY, BANANA, TestValueCodec.INSTANCE);
+            final VirtualMap map2 = map1.copy();
+            try {
+                assertEquals(APPLE, map2.get(A_KEY, TestValueCodec.INSTANCE));
+                assertEquals(BANANA, map2.get(B_KEY, TestValueCodec.INSTANCE));
+            } finally {
+                map2.release();
+            }
+        } finally {
+            map1.release();
+        }
+    }
+
     /**
      * Runs the given operation with a data source builder that creates data source copies, which
      * are interrupted on flush, like a file channel would be. The operation must fail, close the
@@ -1331,16 +1346,9 @@ class VirtualMapTests extends VirtualTestBase {
         final VirtualDataSourceBuilder builder = new InMemoryBuilder() {
             @NonNull
             @Override
-            public InMemoryDataSource build(
-                    final String label,
-                    @Nullable final Path sourceDir,
-                    final boolean compactionEnabled,
-                    final boolean offlineUse) {
-                final InMemoryDataSource dataSource = super.build(label, sourceDir, compactionEnabled, offlineUse);
-                if (sourceDir == null) {
-                    return dataSource;
-                }
-                final InMemoryDataSource copy = new InMemoryDataSource(dataSource) {
+            public InMemoryDataSource copy(
+                    @NonNull final VirtualDataSource dataSource, final boolean compactionEnabled) {
+                final InMemoryDataSource copy = new InMemoryDataSource((InMemoryDataSource) dataSource) {
                     @Override
                     public void saveRecords(
                             final long firstLeafPath,
@@ -1402,41 +1410,54 @@ class VirtualMapTests extends VirtualTestBase {
     }
 
     /**
-     * Detaches the oldest copy of a map family using a data source builder that blocks when a data
-     * source copy is built from a snapshot. While the build is blocked, newer copies are processed
-     * by the virtual pipeline, which is only possible if the pipeline isn't paused during the build.
+     * Detaches the oldest copy of a map family as a data source copy, using a data source builder that
+     * blocks when the cache snapshot is flushed to the data source copy. While the flush is blocked,
+     * newer copies are processed by the virtual pipeline, which is only possible if the pipeline isn't
+     * paused during the flush.
      *
-     * @param detach the detach operation to test
      * @param releaseDetachedCopy if false, the detached copy is kept alive, and a newer copy is released
      *                            and must be merged into the next copy. If true, the detached copy is
      *                            released too, it's merged into the newer copy, which must be flushed
-     * @return the detached copy, as returned by the detach operation
+     * @return the detached data source copy
      */
-    private static <T> T detachWhileProcessingNewerCopy(
-            final Function<VirtualMap, T> detach, final boolean releaseDetachedCopy) throws Exception {
-        final CountDownLatch buildStarted = new CountDownLatch(1);
-        final CountDownLatch buildUnblocked = new CountDownLatch(1);
+    private static VirtualDataSource detachAsDataSourceCopyWhileProcessingNewerCopy(final boolean releaseDetachedCopy)
+            throws Exception {
+        final CountDownLatch flushStarted = new CountDownLatch(1);
+        final CountDownLatch flushUnblocked = new CountDownLatch(1);
         final VirtualDataSourceBuilder builder = new InMemoryBuilder() {
             @NonNull
             @Override
-            public InMemoryDataSource build(
-                    final String label,
-                    @Nullable final Path sourceDir,
-                    final boolean compactionEnabled,
-                    final boolean offlineUse) {
-                // Only block data source copies built from snapshots, not the original data source
-                if (sourceDir != null) {
-                    buildStarted.countDown();
-                    try {
-                        if (!buildUnblocked.await(30, SECONDS)) {
-                            throw new IllegalStateException("Timed out waiting for the build to be unblocked");
+            public InMemoryDataSource copy(
+                    @NonNull final VirtualDataSource dataSource, final boolean compactionEnabled) {
+                return new InMemoryDataSource((InMemoryDataSource) dataSource) {
+                    @Override
+                    public void saveRecords(
+                            final long firstLeafPath,
+                            final long lastLeafPath,
+                            @NonNull final Stream<VirtualHashChunk> hashChunksToUpdate,
+                            @NonNull final Stream<VirtualLeafBytes> leafRecordsToAddOrUpdate,
+                            @NonNull final Stream<VirtualLeafBytes> leafRecordsToDelete,
+                            final boolean isReconnectContext)
+                            throws IOException {
+                        flushStarted.countDown();
+                        try {
+                            if (!flushUnblocked.await(30, SECONDS)) {
+                                throw new IllegalStateException("Timed out waiting for the flush to be unblocked");
+                            }
+                        } catch (final InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            throw new IllegalStateException(
+                                    "Interrupted while waiting for the flush to be unblocked", e);
                         }
-                    } catch (final InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        throw new IllegalStateException("Interrupted while waiting for the build to be unblocked", e);
+                        super.saveRecords(
+                                firstLeafPath,
+                                lastLeafPath,
+                                hashChunksToUpdate,
+                                leafRecordsToAddOrUpdate,
+                                leafRecordsToDelete,
+                                isReconnectContext);
                     }
-                }
-                return super.build(label, sourceDir, compactionEnabled, offlineUse);
+                };
             }
         };
 
@@ -1455,8 +1476,8 @@ class VirtualMapTests extends VirtualTestBase {
 
         final ExecutorService executor = Executors.newSingleThreadExecutor();
         try {
-            final Future<T> detached = executor.submit(() -> detach.apply(map0));
-            assertTrue(buildStarted.await(10, SECONDS), "Data source copy build should have started");
+            final Future<VirtualDataSource> detached = executor.submit(map0::detachAsDataSourceCopy);
+            assertTrue(flushStarted.await(10, SECONDS), "The flush to the data source copy should have started");
 
             if (releaseDetachedCopy) {
                 // Release the detached copy, it's merged into the newer copy, which then becomes
@@ -1467,7 +1488,7 @@ class VirtualMapTests extends VirtualTestBase {
                 assertEventuallyTrue(
                         map1::isFlushed,
                         Duration.ofSeconds(10),
-                        "Newer copy should be flushed while the detached copy is built");
+                        "Newer copy should be flushed while the cache is flushed to the detached copy");
             } else {
                 // Release a newer copy, it can be merged into the next copy, even if the detached
                 // copy is still alive
@@ -1475,14 +1496,14 @@ class VirtualMapTests extends VirtualTestBase {
                 assertEventuallyTrue(
                         map1::isMerged,
                         Duration.ofSeconds(10),
-                        "Newer copy should be merged while the detached copy is built");
+                        "Newer copy should be merged while the cache is flushed to the detached copy");
             }
-            assertFalse(detached.isDone(), "Detach should still be blocked on the data source copy build");
+            assertFalse(detached.isDone(), "Detach should still be blocked on the flush to the data source copy");
 
-            buildUnblocked.countDown();
+            flushUnblocked.countDown();
             return detached.get(10, SECONDS);
         } finally {
-            buildUnblocked.countDown();
+            flushUnblocked.countDown();
             executor.shutdown();
             if (!map0.isDestroyed()) {
                 map0.release();

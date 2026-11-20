@@ -7,6 +7,7 @@ import static java.util.stream.Collectors.toMap;
 import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.NodePartyId;
+import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.hints.handlers.HintsHandlers;
 import com.hedera.node.app.hints.impl.BlockHashSigning;
@@ -104,12 +105,24 @@ public interface HintsService extends Service {
     @Nullable
     KeyProvenanceSigner keyProvenanceFor(@NonNull ReadableHintsStore hintsStore);
 
+    /** Whether real hinTS signing and preprocessing require canonical history generation weights. */
+    boolean requiresHistoryWeights();
+
+    /** Activates a completed scheme without history only in history-disabled or mock-signature mode. */
+    default void setActiveConstruction(
+            @NonNull final HintsConstruction construction, @NonNull final CRSState crsState) {
+        setActiveConstruction(construction, crsState, null);
+    }
+
     /**
      * Sets a completed active construction into the signing context during startup.
      *
      * @param construction the active construction to use for signing
      */
-    void setActiveConstruction(@NonNull HintsConstruction construction, @NonNull CRSState crsState);
+    void setActiveConstruction(
+            @NonNull HintsConstruction construction,
+            @NonNull CRSState crsState,
+            @Nullable HistoryProofConstruction historyConstruction);
 
     /**
      * Whether the signer is ready.
@@ -141,6 +154,15 @@ public interface HintsService extends Service {
      */
     void onFinishedConstruction(@Nullable OnHintsFinished cb);
 
+    /** Hands off without history only in history-disabled or mock-signature mode. */
+    default boolean handoff(
+            @NonNull final WritableHintsStore hintsStore,
+            @NonNull final Roster previousRoster,
+            @NonNull final Roster adoptedRoster,
+            @NonNull final Bytes adoptedRosterHash) {
+        return handoff(hintsStore, previousRoster, adoptedRoster, adoptedRosterHash, null);
+    }
+
     /**
      * Initializes hinTS signing from a completed next construction bound to the adopted roster
      * in the given {@link WritableHintsStore}.
@@ -155,7 +177,8 @@ public interface HintsService extends Service {
             @NonNull WritableHintsStore hintsStore,
             @NonNull Roster previousRoster,
             @NonNull Roster adoptedRoster,
-            @NonNull Bytes adoptedRosterHash);
+            @NonNull Bytes adoptedRosterHash,
+            @Nullable HistoryProofConstruction historyConstruction);
 
     /**
      * Takes any actions needed to advance the state of the {@link HintsService} toward
@@ -198,6 +221,32 @@ public interface HintsService extends Service {
             @NonNull Instant crsWorkTime,
             @NonNull TssConfig tssConfig,
             boolean isActive);
+
+    /**
+     * Installs the active construction for signing once its scheme, and any history weights it requires,
+     * are complete. Does nothing while they are not, or if that generation is already installed.
+     */
+    void activateSigning(
+            @NonNull ReadableHintsStore hintsStore,
+            @NonNull TssConfig tssConfig,
+            @Nullable HistoryProofConstruction activeHistoryConstruction);
+
+    /** Advances construction work with the matching complete source-generation history snapshot. */
+    void reconcile(
+            @NonNull ActiveRosters activeRosters,
+            @NonNull WritableHintsStore hintsStore,
+            @NonNull Instant now,
+            @NonNull Instant crsWorkTime,
+            @NonNull TssConfig tssConfig,
+            boolean isActive,
+            @Nullable HistoryProofConstruction activeHistoryConstruction);
+
+    /**
+     * Cancels and discards all in-progress block hash signing attempts, including any opened early from other nodes'
+     * partial signatures for blocks this node has not yet produced. Used when this node falls behind, since it will
+     * never produce those blocks itself; any later partial signature for a block it does produce is still incorporated.
+     */
+    void cancelSignings();
 
     /**
      * Stops the hinTS service, causing it to abandon any in-progress work.

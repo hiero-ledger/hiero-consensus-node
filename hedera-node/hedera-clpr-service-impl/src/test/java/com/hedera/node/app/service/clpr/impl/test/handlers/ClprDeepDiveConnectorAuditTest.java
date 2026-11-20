@@ -497,6 +497,12 @@ class ClprDeepDiveConnectorAuditTest {
     private void setupHandleContext(final TransactionBody txn, final Configuration config) {
         lenient().when(handleContext.body()).thenReturn(txn);
         lenient().when(handleContext.payer()).thenReturn(PAYER_ID);
+        lenient()
+                .when(accountStore.getAccountById(PAYER_ID))
+                .thenReturn(Account.newBuilder()
+                        .accountId(PAYER_ID)
+                        .tinybarBalance(VALID_STAKE)
+                        .build());
         lenient().when(handleContext.configuration()).thenReturn(config);
         lenient().when(handleContext.storeFactory()).thenReturn(storeFactory);
         lenient()

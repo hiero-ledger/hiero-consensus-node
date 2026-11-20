@@ -466,6 +466,9 @@ enum StateIdentifier {
     /** A queue of explicit authorization links between adopted hinTS generations. */
     STATE_ID_HINTS_KEY_PROVENANCE = 69;
 
+    /** Durable pending or completed block-signing witnesses for adopted hinTS keys. */
+    STATE_ID_HINTS_KEY_WITNESSES = 70;
+
     /**
      * A state identifier for the CRS publications. Key/value state.
      */
@@ -1286,6 +1289,9 @@ message MapChangeValue {
          * A CLPR connector value.
          */
         com.hedera.hapi.node.state.clpr.ClprConnector clpr_connector_value = 36;
+
+        /** A pending or completed block-signing witness for an adopted hinTS key. */
+        com.hedera.hapi.node.state.history.HintsKeyWitnessRecord hints_key_witness_record_value = 37;
     }
 }
 

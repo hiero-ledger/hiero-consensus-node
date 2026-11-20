@@ -15,6 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.base.time.Time;
@@ -422,6 +423,68 @@ class StateFileManagerTests {
             validateSavingOfState(issState, issDirectory);
             validateSavingOfState(fatalState, fatalDirectory);
         }
+    }
+
+    /**
+     * A partially deleted state must not be left among the saved states, even if the deletion of the state does not
+     * complete. This test stops the deletion of a state part way through by making one of its directories read-only.
+     */
+    @Test
+    @DisplayName("Interrupted State Deletion Test")
+    void interruptedStateDeletionTest() throws IOException, ParseException {
+        final Random random = getRandomPrintSeed();
+        final Configuration configuration = new TestConfigBuilder()
+                .withValue(StateConfig_.SIGNED_STATE_DISK, 1)
+                .getOrCreateConfig();
+        final StateSnapshotManager manager = new DefaultStateSnapshotManager(
+                configuration,
+                metrics,
+                time,
+                fileSystemManager,
+                MAIN_CLASS_NAME,
+                SELF_ID,
+                SWIRLD_NAME,
+                stateLifecycleManager);
+
+        saveState(manager, random, 1);
+
+        // A file can not be deleted from a read-only directory, so the deletion of the state stops there
+        final String readOnlyDirectoryName = "readOnly";
+        final Path readOnlyDirectory =
+                signedStateFilePath.getSignedStateDirectory(1).resolve(readOnlyDirectoryName);
+        Files.createDirectory(readOnlyDirectory);
+        Files.createFile(readOnlyDirectory.resolve("file.txt"));
+        assertTrue(readOnlyDirectory.toFile().setWritable(false), "unable to make the directory read-only");
+        assumeFalse(Files.isWritable(readOnlyDirectory), "read-only directories are not enforced here");
+
+        try {
+            // Only one state is kept on disk, so saving the second state deletes the first one
+            saveState(manager, random, 2);
+
+            try (final Stream<Path> savedStateDirectories =
+                    Files.list(signedStateFilePath.getSignedStatesDirectoryForSwirld())) {
+                assertEquals(
+                        List.of(signedStateFilePath.getSignedStateDirectory(2)),
+                        savedStateDirectories.toList(),
+                        "the state that could not be fully deleted should not be among the saved states");
+            }
+        } finally {
+            // Allow the test directory to be cleaned up
+            try (final Stream<Path> paths = Files.walk(testDirectory)) {
+                paths.filter(path -> path.getFileName().toString().equals(readOnlyDirectoryName))
+                        .forEach(path -> path.toFile().setWritable(true));
+            }
+        }
+    }
+
+    private void saveState(final StateSnapshotManager manager, final Random random, final long round)
+            throws IOException, ParseException {
+        final SignedState signedState =
+                new RandomSignedStateGenerator(random).setRound(round).build();
+        initLifecycleManagerAndMakeStateImmutable(signedState);
+        manager.saveStateTask(signedState.reserve("test"));
+        stateLifecycleManager.getMutableState().release();
+        validateSavingOfState(signedState);
     }
 
     // Ensures the state is hashed by calling getHash, which hashes the state if it hasn't been hashed yet
