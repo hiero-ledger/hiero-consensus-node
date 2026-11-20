@@ -8,7 +8,7 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 
-import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter;
+import com.hedera.node.app.hapi.utils.blocks.BlockFileUtils;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import com.hedera.services.bdd.junit.hedera.BlockNodeReader;
 import com.hedera.services.bdd.junit.support.BlockSourceFactory;
@@ -27,8 +27,6 @@ import org.apache.logging.log4j.Logger;
 
 public class HapiSpecWaitUntilNextBlock extends UtilOp {
     private static final Logger log = LogManager.getLogger(HapiSpecWaitUntilNextBlock.class);
-    private static final String BLOCK_FILE_EXTENSION = ".blk";
-    private static final String COMPRESSED_BLOCK_FILE_EXTENSION = BLOCK_FILE_EXTENSION + ".gz";
     private static final String MARKER_FILE_EXTENSION = ".mf";
     private static final Duration POLL_INTERVAL = Duration.ofMillis(100);
     private static final Duration BACKGROUND_TRAFFIC_INTERVAL = Duration.ofMillis(1000);
@@ -189,15 +187,17 @@ public class HapiSpecWaitUntilNextBlock extends UtilOp {
         try (Stream<Path> files = Files.walk(blockDir)) {
             return files.anyMatch(path -> {
                 String fileName = path.getFileName().toString();
-                return fileName.startsWith(FileBlockItemWriter.longToFileName(blockNumber))
-                        && fileName.endsWith(MARKER_FILE_EXTENSION);
+                return Files.isRegularFile(path)
+                        && fileName.endsWith(MARKER_FILE_EXTENSION)
+                        && BlockStreamAccess.extractBlockNumber(
+                                        fileName.substring(0, fileName.length() - MARKER_FILE_EXTENSION.length())
+                                                + ".blk")
+                                == blockNumber;
             });
         }
     }
 
     private boolean isBlockFile(Path path) {
-        String fileName = path.getFileName().toString();
-        return Files.isRegularFile(path)
-                && (fileName.endsWith(BLOCK_FILE_EXTENSION) || fileName.endsWith(COMPRESSED_BLOCK_FILE_EXTENSION));
+        return Files.isRegularFile(path) && BlockFileUtils.isCompleteBlockFile(path);
     }
 }

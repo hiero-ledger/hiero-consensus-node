@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.failure;
 
+import com.hedera.node.app.hapi.utils.blocks.BlockFileUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -14,7 +15,6 @@ import java.time.InstantSource;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.stream.Stream;
-import java.util.zip.GZIPOutputStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -31,27 +31,19 @@ final class StagingFiles {
     /** Suffix for the temporary file an artifact is written to before its atomic rename. */
     static final String TMP_SUFFIX = ".tmp";
 
-    // On-disk block-artifact extensions written by the block-item writers, centralized here for the staging pipeline.
-    /** A completed, closed block's gzipped contents. */
-    static final String COMPLETE_EXT = ".blk.gz";
-    /** A pending block's gzipped contents. */
-    static final String PENDING_EXT = ".pnd.gz";
-    /** A pending block's proof sidecar, staged alongside its {@link #PENDING_EXT} contents. */
-    static final String PENDING_PROOF_EXT = ".pnd.json";
-    /** An open, unproven block flushed to disk for triage at catastrophic failure. */
-    static final String INCOMPLETE_EXT = ".open.gz";
     /** A reconstructed ISS-round block written from the in-memory buffer in {@code GRPC} mode. */
-    static final String ISS_BLOCK_EXT = ".iss.gz";
-    /** {@code FileBlockItemWriter}'s completion marker; a {@link #COMPLETE_EXT} is finished only once this exists. */
-    static final String COMPLETION_MARKER_EXT = ".mf";
+    static final String ISS_BLOCK_EXT = ".iss.zstd";
 
-    /** Every staged file ends with this; the uploader instance is set to this single extension. */
-    static final String GZ_EXT = ".gz";
+    /**
+     * Every staged file ends with this; the uploader instance is set to this single extension. The block files the
+     * writers produce ({@code .blk.zstd}, {@code .pnd.zstd}, {@code .open.zstd}) already do, so they are staged as is.
+     */
+    static final String ZSTD_EXT = ".zstd";
     /**
      * Upload marker. Outside our control: the uploader (mirror.py in marker mode, set up by DevOps) uploads
-     * {@code <name>.gz} once {@code <name>.mf} exists, verifies it, then deletes both. It must run with
-     * {@code SIG_EXTENSION=mf}, {@code STREAM_EXTENSION=gz} and {@code SIG_REQUIRE=true}; without the last one it deletes
-     * unmarked files without uploading them.
+     * {@code <name>.zstd} once {@code <name>.mf} exists, verifies it, then deletes both. It must run with
+     * {@code SIG_EXTENSION=mf}, {@code STREAM_EXTENSION=zstd} and {@code SIG_REQUIRE=true}; without the last one it
+     * deletes unmarked files without uploading them.
      */
     static final String UPLOAD_MARKER_EXT = ".mf";
 
@@ -89,13 +81,32 @@ final class StagingFiles {
     }
 
     /**
-     * Copies {@code src} to {@code dest} gzipped and atomically. Used for the {@code .pnd.json} proof sidecar so the
-     * single {@code STREAM_EXTENSION=gz} uploader instance ships it too.
+     * Stages a block contents file into {@code stageDir} atomically and returns the staged path. A file that already
+     * ends in {@code .zstd} is copied as is. Any other file (a legacy {@code .gz} block file left by an older version)
+     * is Zstandard-wrapped, with {@code .zstd} appended to its name, so the single {@code STREAM_EXTENSION=zstd}
+     * uploader instance ships it too.
      */
-    static void atomicGzipCopy(@NonNull final Path src, @NonNull final Path dest) throws IOException {
+    static Path stageContents(@NonNull final Path src, @NonNull final Path stageDir) throws IOException {
+        final String name = src.getFileName().toString();
+        if (name.endsWith(ZSTD_EXT)) {
+            final Path dest = stageDir.resolve(name);
+            atomicCopy(src, dest);
+            return dest;
+        }
+        final Path dest = stageDir.resolve(name + ZSTD_EXT);
+        atomicZstdCopy(src, dest);
+        return dest;
+    }
+
+    /**
+     * Copies {@code src} to {@code dest} Zstandard-compressed and atomically. Used for files that do not end in
+     * {@code .zstd} (the {@code .pnd.json} proof sidecar and legacy {@code .gz} block files) so the single
+     * {@code STREAM_EXTENSION=zstd} uploader instance ships them too.
+     */
+    static void atomicZstdCopy(@NonNull final Path src, @NonNull final Path dest) throws IOException {
         final Path tmp = tmpFor(dest);
         try {
-            try (final OutputStream out = new GZIPOutputStream(Files.newOutputStream(tmp))) {
+            try (final OutputStream out = BlockFileUtils.newZstdOutputStream(Files.newOutputStream(tmp))) {
                 Files.copy(src, out);
             }
             atomicMoveOnto(tmp, dest);
@@ -105,18 +116,18 @@ final class StagingFiles {
         }
     }
 
-    /** The staged (gzipped) name of a proof sidecar. */
+    /** The staged (Zstandard-compressed) name of a proof sidecar. */
     static String stagedSidecarName(@NonNull final Path sidecar) {
-        return sidecar.getFileName() + GZ_EXT;
+        return sidecar.getFileName() + ZSTD_EXT;
     }
 
     /**
-     * Writes an empty {@code <name>.mf} upload marker next to every staged {@code <name>.gz} in {@code dir}. Call only
-     * once the files are in place: the uploader drops a marker whose file is missing. Best-effort; never throws.
+     * Writes an empty {@code <name>.mf} upload marker next to every staged {@code <name>.zstd} in {@code dir}. Call
+     * only once the files are in place: the uploader drops a marker whose file is missing. Best-effort; never throws.
      */
     static void writeUploadMarkers(@NonNull final Path dir) {
         try (final Stream<Path> files = Files.list(dir)) {
-            files.filter(p -> p.getFileName().toString().endsWith(GZ_EXT)).forEach(StagingFiles::writeUploadMarker);
+            files.filter(p -> p.getFileName().toString().endsWith(ZSTD_EXT)).forEach(StagingFiles::writeUploadMarker);
         } catch (final IOException | UncheckedIOException e) {
             log.warn("Could not list {} to write upload markers", dir, e);
         }
@@ -125,7 +136,7 @@ final class StagingFiles {
     private static void writeUploadMarker(@NonNull final Path staged) {
         final String name = staged.getFileName().toString();
         final Path marker =
-                staged.resolveSibling(name.substring(0, name.length() - GZ_EXT.length()) + UPLOAD_MARKER_EXT);
+                staged.resolveSibling(name.substring(0, name.length() - ZSTD_EXT.length()) + UPLOAD_MARKER_EXT);
         try {
             Files.write(marker, new byte[0]);
         } catch (final IOException e) {

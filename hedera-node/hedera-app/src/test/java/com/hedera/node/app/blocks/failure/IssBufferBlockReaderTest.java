@@ -11,13 +11,11 @@ import com.hedera.hapi.block.stream.input.RoundHeader;
 import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
 import com.hedera.node.app.blocks.impl.streaming.BlockState;
-import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter;
+import com.hedera.node.app.hapi.utils.blocks.BlockFileUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.zip.GZIPInputStream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
@@ -64,7 +62,7 @@ class IssBufferBlockReaderTest {
 
         assertThat(written).hasSize(1);
         final Path file = written.getFirst();
-        assertThat(file.getFileName().toString()).isEqualTo(FileBlockItemWriter.longToFileName(2L) + ".iss.gz");
+        assertThat(file.getFileName().toString()).isEqualTo(BlockFileUtils.blockNumberToFileName(2L) + ".iss.zstd");
         // The reconstructed artifact re-parses as a Block whose first round header is round 5.
         final Block block = parse(file);
         assertThat(block.items().stream()
@@ -87,9 +85,9 @@ class IssBufferBlockReaderTest {
 
         assertThat(written.stream().map(p -> p.getFileName().toString()))
                 .containsExactly(
-                        FileBlockItemWriter.longToFileName(1L) + ".iss.gz",
-                        FileBlockItemWriter.longToFileName(2L) + ".iss.gz",
-                        FileBlockItemWriter.longToFileName(3L) + ".iss.gz");
+                        BlockFileUtils.blockNumberToFileName(1L) + ".iss.zstd",
+                        BlockFileUtils.blockNumberToFileName(2L) + ".iss.zstd",
+                        BlockFileUtils.blockNumberToFileName(3L) + ".iss.zstd");
     }
 
     @Test
@@ -103,8 +101,8 @@ class IssBufferBlockReaderTest {
 
         assertThat(written.stream().map(p -> p.getFileName().toString()))
                 .containsExactly(
-                        FileBlockItemWriter.longToFileName(5L) + ".iss.gz",
-                        FileBlockItemWriter.longToFileName(6L) + ".iss.gz");
+                        BlockFileUtils.blockNumberToFileName(5L) + ".iss.zstd",
+                        BlockFileUtils.blockNumberToFileName(6L) + ".iss.zstd");
     }
 
     @Test
@@ -142,7 +140,7 @@ class IssBufferBlockReaderTest {
     }
 
     private static Block parse(final Path file) throws IOException {
-        try (final GZIPInputStream in = new GZIPInputStream(Files.newInputStream(file))) {
+        try (final var in = BlockFileUtils.openInputStream(file)) {
             try {
                 return Block.PROTOBUF.parse(
                         Bytes.wrap(in.readAllBytes()).toReadableSequentialData(), false, false, 512, 500_000_000);

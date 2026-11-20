@@ -296,7 +296,7 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
     void awaitFatalShutdown(@NonNull Duration timeout);
 
     /**
-     * Returns the contents files ({@code .open.gz} for the open block, {@code .pnd.gz} for pending blocks) that the
+     * Returns the contents files ({@code .open.zstd} for the open block, {@code .pnd.zstd} for pending blocks) that the
      * triage flush wrote to local disk after a catastrophic failure, for staging by the ISS-block capture pipeline.
      * Empty until a triage flush has run (and on nodes that never flushed). Safe to read after
      * {@link #awaitFatalShutdown(Duration)} returns.
@@ -305,6 +305,12 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
      */
     @NonNull
     List<Path> flushedTriageBlockFiles();
+
+    /**
+     * Releases the writers of the in-progress block and of all pending blocks without completing them. Called when
+     * a reconnect replaces this manager, so no round may be in progress. Best-effort; never throws.
+     */
+    void abandonOpenBlocks();
 
     /**
      * Returns a future that completes when all currently pending blocks awaiting proofs have been fully signed.

@@ -11,8 +11,8 @@ import java.util.List;
  * A single block staged for ISS triage, with all of its on-disk artifacts.
  *
  * @param blockNumber the block number of this block
- * @param files the block's on-disk files: the contents file ({@code .blk.gz}/{@code .pnd.gz}/{@code .open.gz}) plus,
- * for a pending block, its {@code .pnd.json} proof sidecar
+ * @param files the block's on-disk files: the contents file ({@code .blk.zstd}/{@code .pnd.zstd}/{@code .open.zstd},
+ * or a legacy {@code .gz} one) plus, for a pending block, its {@code .pnd.json} proof sidecar
  */
 public record IssBlockRef(long blockNumber, @NonNull List<Path> files) {
     public IssBlockRef {
