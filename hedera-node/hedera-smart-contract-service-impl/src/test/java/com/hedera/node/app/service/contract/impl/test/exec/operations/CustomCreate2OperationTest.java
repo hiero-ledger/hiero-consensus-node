@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.contract.impl.test.exec.operations;
 
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertSameResult;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
@@ -21,6 +22,7 @@ import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.collections.undo.UndoSet;
 import org.hyperledger.besu.collections.undo.UndoTable;
 import org.hyperledger.besu.datatypes.Address;
+import org.hyperledger.besu.datatypes.Wei;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.frame.TxValues;
@@ -139,6 +141,8 @@ class CustomCreate2OperationTest extends CreateOperationTestBase {
 
         verify(messageFrameStack).addFirst(frameCaptor.capture());
         final var childFrame = frameCaptor.getValue();
+        // The CREATE2 value operand is a raw tinybar amount, passed on unscaled to the child frame
+        assertEquals(Wei.of(VALUE), childFrame.getValue());
         childFrame.setState(MessageFrame.State.COMPLETED_SUCCESS);
         childFrame.notifyCompletion();
         verify(frame).pushStackItem(Words.fromAddress(EIP_1014_ADDRESS));
