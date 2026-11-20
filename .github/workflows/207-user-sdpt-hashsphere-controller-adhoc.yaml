@@ -245,7 +245,7 @@ jobs:
       - verify-citr-vars
       - acquire-kubernetes-resources
     if: ${{ needs.verify-tag.outputs.commit != '' }}
-    uses: ./.github/workflows/864-call-report-suite-result.yaml
+    uses: ./.github/workflows/864-call-report-suite-status.yaml
     with:
       suite-type: adhoc_sdpt
       commit: ${{ needs.verify-tag.outputs.commit }}
@@ -293,7 +293,7 @@ jobs:
       - report-adhoc-sdpt-running # keeps the terminal report after the running one, so it is the latest
       - run-single-day-performance-test
     if: ${{ always() && needs.verify-tag.outputs.commit != '' }}
-    uses: ./.github/workflows/864-call-report-suite-result.yaml
+    uses: ./.github/workflows/864-call-report-suite-status.yaml
     with:
       suite-type: adhoc_sdpt
       commit: ${{ needs.verify-tag.outputs.commit }}

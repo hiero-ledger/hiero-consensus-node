@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "864: [CALL] Report Suite Result"
+name: "864: [CALL] Report Suite Status"
 
 # Reports one CITR suite execution to Chewie (POST /api/v1/suites/results). Callers map their own
 # job results to a disposition, since each suite defines success differently.
@@ -51,7 +51,7 @@ defaults:
     shell: bash
 
 jobs:
-  report-suite-result:
+  report-suite-status:
     name: Report ${{ inputs.suite-type }} ${{ inputs.disposition }} to Chewie
     runs-on: hl-cn-chewie-lin-sm
     steps:
@@ -60,7 +60,7 @@ jobs:
         with:
           egress-policy: audit
 
-      - name: Report Suite Result
+      - name: Report Suite Status
         env:
           HOST: ${{ secrets.chewie-host }}
           CHEWIE_KEY: ${{ secrets.chewie-key }}
