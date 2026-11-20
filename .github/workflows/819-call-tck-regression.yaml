@@ -173,14 +173,19 @@ jobs:
           SDK_VERSION=$(node -e "console.log(require('../package.json').version)")
           LONG_VERSION=$(node -e "console.log(require('../package.json').dependencies.long)")
           PROTO_VERSION=$(node -e "console.log(require('../packages/proto/package.json').version)")
+          TS_VERSION=$(node -e "console.log(require('../package.json').devDependencies.typescript)")
 
           echo "Using SDK version: ${SDK_VERSION}"
           echo "Using long version: ${LONG_VERSION}"
           echo "Using proto version: ${PROTO_VERSION}"
+          echo "Using typescript version: ${TS_VERSION}"
 
-          # Install with the extracted versions
-          pnpm add @hiero-ledger/sdk@${SDK_VERSION} long@${LONG_VERSION} @hiero-ledger/proto@${PROTO_VERSION}
-          pnpm install
+          # Isolate the TCK install from the SDK workspace: running pnpm add inside the
+          # workspace rewrites the parent pnpm-lock.yaml without its overrides, and the
+          # following pnpm install then fails frozen-lockfile validation. ts-node needs
+          # typescript, which the workspace would otherwise provide, so pin the SDK's version.
+          pnpm add --ignore-workspace @hiero-ledger/sdk@${SDK_VERSION} long@${LONG_VERSION} @hiero-ledger/proto@${PROTO_VERSION} typescript@${TS_VERSION}
+          pnpm install --ignore-workspace
           nohup pnpm start &
           server_pid=$!
           echo "pid=${server_pid}" >> "${GITHUB_OUTPUT}"
