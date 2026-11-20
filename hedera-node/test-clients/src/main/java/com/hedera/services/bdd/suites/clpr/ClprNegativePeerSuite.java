@@ -8,7 +8,6 @@ import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.CLPR;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteChannel;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprSubmitBundle;
@@ -199,7 +198,7 @@ public class ClprNegativePeerSuite {
 
     /**
      * Builds the common setup: ledger config + verifier/connector/system contracts + channel
-     * commit-reveal + connector commit-reveal + 2 app-originated sends. Captures A's
+     * commit-reveal + connector registration + 2 app-originated sends. Captures A's
      * {@code sentRunningHash} into {@code aSentRunningHash} so forged bundles can pass Step 4.
      */
     private SpecOperation[] setupChannelWithTwoSends(
@@ -226,14 +225,8 @@ public class ClprNegativePeerSuite {
                     .configProofBytes(toConfigProofBytes(config))
                     .payingWith(GENESIS),
             clprRegisterConnector()
-                    .channelId(crypto.channelId())
-                    .commitment(crypto.connectorCommitment())
-                    .payingWith(GENESIS),
-            clprCompleteConnector()
                     .connectorId(crypto.connectorId())
-                    .publicKey(crypto.publicKey())
-                    .signature(crypto.connectorSignature())
-                    .signatureScheme(ClprSignatureScheme.ED25519)
+                    .ed25519Identity(crypto.seed())
                     .salt(crypto.connectorSalt())
                     .channelId(crypto.channelId())
                     .connectorContract(CONNECTOR_CONTRACT)

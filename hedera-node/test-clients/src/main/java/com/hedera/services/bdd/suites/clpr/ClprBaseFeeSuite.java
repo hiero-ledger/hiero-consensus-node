@@ -43,10 +43,6 @@ import org.junit.jupiter.api.Tag;
  *   <li>{@code registerChannel} — success path; the permissionless commit only needs CLPR enabled.</li>
  *   <li>{@code registerConnector} — failure path against an unknown channel, exercising the full
  *       fee charged for a handler-stage failure without channel setup.</li>
- *   <li>Reveal-phase ops ({@code completeChannel}, {@code completeConnector}) are not
- *       covered here because they require a deployed verifier/connector smart contract and
- *       a full two-phase lifecycle setup. Fee coverage for those ops should be added to
- *       {@code ClprChannelCommitRevealSuite} and {@code ClprConnectorSuite}.</li>
  * </ul>
  *
  * <p>Tests pay with a freshly-created account rather than {@code GENESIS}: the treasury is
@@ -119,17 +115,24 @@ public class ClprBaseFeeSuite {
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
     final Stream<DynamicTest> registerConnectorChargesConfiguredBaseFee() {
         final var txn = "clprRegisterConnectorBaseFeeTxn";
+        final var crypto = new ClprChannelCrypto();
         return hapiTest(
                 overriding("fees.simpleFeesEnabled", "true"),
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 clprRegisterConnector()
                         .channelId(new byte[32])
-                        .commitment(commitment((byte) 0x02))
+                        .connectorId(crypto.connectorId())
+                        .ed25519Identity(crypto.seed())
+                        .salt(crypto.connectorSalt())
+                        .connectorContractId(com.hederahashgraph.api.proto.java.ContractID.newBuilder()
+                                .setContractNum(1234)
+                                .build())
+                        .adminKeyName(PAYER)
                         .payingWith(PAYER)
                         .via(txn)
                         .hasKnownStatus(CLPR_CHANNEL_NOT_FOUND),
                 validateChargedUsdFromRecordWithTxnSize(
-                        txn, txnSize -> expectedClprTotalUsd(PAYER_SIGNATURES, txnSize), ALLOWED_PERCENT_DIFF));
+                        txn, txnSize -> expectedClprTotalUsd(PAYER_SIGNATURES + 1, txnSize), ALLOWED_PERCENT_DIFF));
     }
 
     /**

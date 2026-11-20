@@ -45,7 +45,7 @@ The following new `oneof` variants are added to `TransactionBody`:
 | `registerChannel`           | `ClprRegisterChannel`           | `clprRegisterChannel`           | Any (permissionless; commit phase — stores ownership commitment) |
 | `completeChannel`           | `ClprCompleteChannel`           | `clprCompleteChannel`           | Any (permissionless; reveal phase — creates ACTIVE Channel)      |
 | `closeChannel`              | `ClprCloseChannel`              | `clprCloseChannel`              | CLPR admin (ACTIVE/PAUSED → CLOSING → DRAINED → CLOSED)          |
-| `registerConnector`         | `ClprRegisterConnector`         | `clprRegisterConnector`         | Any (requires initial funds)                                     |
+| `registerConnector`         | `ClprRegisterConnector`         | `clprRegisterConnector`         | Payer and connector identity key                                 |
 | `topUpConnector`            | `ClprTopUpConnector`            | `clprTopUpConnector`            | Connector admin                                                  |
 | `withdrawConnectorBalance`  | `ClprWithdrawConnectorBalance`  | `clprWithdrawConnectorBalance`  | Connector admin                                                  |
 | `deregisterConnector`       | `ClprDeregisterConnector`       | `clprDeregisterConnector`       | Connector admin                                                  |
@@ -164,18 +164,13 @@ message ClprCloseChannelTransactionBody {
 ```protobuf
 // Registers a Connector on a Channel.
 message ClprRegisterConnectorTransactionBody {
-  bytes channel_id = 1;
-  // Address of the counterpart Connector on the source (peer) ledger.
-  bytes source_connector_address = 2;
-  // Account ID of the Connector's authorization contract (system contract).
-  AccountID connector_contract = 3;
-  // Initial balance in tinybars for message execution on this ledger.
-  uint64 initial_balance = 4;
-  // Stake in tinybars locked against misbehavior.
-  uint64 stake = 5;
-  // Account authorized to manage this Connector (top-up, withdraw, deregister).
-  // Defaults to the transaction payer if not specified.
-  AccountID admin = 6;
+  bytes channel_id = 2;
+  bytes connector_id = 3;     // keccak256(publicKey || salt)
+  Key identity_key = 4;       // Ed25519 or ECDSA_secp256k1 transaction signer
+  bytes salt = 5;
+  ContractID connector_contract = 6;
+  Key admin_key = 7;
+  uint64 locked_stake = 8;
 }
 
 // Adds funds to a Connector's balance.
@@ -303,7 +298,7 @@ These remain as they are in the prototype, served by the `ClprEndpointService` g
 | `ClprRegisterChannel`           | Transaction payer only (permissionless; commit phase)                        |
 | `ClprCompleteChannel`           | Transaction payer only (permissionless; reveal phase)                        |
 | `ClprCloseChannel`              | CLPR admin key                                                               |
-| `ClprRegisterConnector`         | Transaction payer + Connector admin key                                      |
+| `ClprRegisterConnector`         | Transaction payer + connector identity key                                   |
 | `ClprTopUpConnector`            | Connector admin key                                                          |
 | `ClprWithdrawConnectorBalance`  | Connector admin key                                                          |
 | `ClprDeregisterConnector`       | Connector admin key                                                          |
@@ -526,7 +521,7 @@ Each HAPI transaction type maps to a `TransactionHandler` implementation. Handle
 | `ClprRegisterChannelHandler`           | `ClprRegisterChannel`           | Medium (commit phase: verifyConfig call, store verifier contract and code fingerprint, Channel creation in PENDING state). No ECDSA verification at this stage. The `chain_id` and `service_address` are derived from the verified peer configuration proof. The verifier is immutable after registration. |
 | `ClprCompleteChannelHandler`           | `ClprCompleteChannel`           | Medium (reveal phase: ECDSA verify, keccak256(channel_id ‖ public_key) == stored commitment check, create Channel in ACTIVE state).                                                                                                                                                                        |
 | `ClprCloseChannelHandler`              | `ClprCloseChannel`              | Low (PENDING → immediate deletion; ACTIVE/PAUSED → graceful drain through CLOSING/DRAINED; DRAINED → CLOSED admin recovery; peer status and acknowledgements complete automatic closure per §2.1.1)                                                                                                        |
-| `ClprRegisterConnectorHandler`         | `ClprRegisterConnector`         | Medium (fund transfer, mapping setup). Records the `admin` field on the Connector state (defaults to the transaction payer if not specified in the body). The signing requirement includes the admin key if an explicit admin is provided; otherwise the payer key suffices.                               |
+| `ClprRegisterConnectorHandler`         | `ClprRegisterConnector`         | Verifies the derived ID, locks the stake, and records the local contract and admin key for this channel.                                                                                                                                                                                                   |
 | `ClprTopUpConnectorHandler`            | `ClprTopUpConnector`            | Low (balance update)                                                                                                                                                                                                                                                                                       |
 | `ClprWithdrawConnectorBalanceHandler`  | `ClprWithdrawConnectorBalance`  | Low (balance check + transfer)                                                                                                                                                                                                                                                                             |
 | `ClprDeregisterConnectorHandler`       | `ClprDeregisterConnector`       | Medium (in-flight check, fund return)                                                                                                                                                                                                                                                                      |

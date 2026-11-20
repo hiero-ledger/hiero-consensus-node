@@ -20,7 +20,6 @@ public class ClprHandlers {
     private final ClprEvictPeerEndpointHandler clprEvictPeerEndpointHandler;
     private final ClprSubmitBundleHandler clprSubmitBundleHandler;
     private final ClprRegisterConnectorHandler clprRegisterConnectorHandler;
-    private final ClprCompleteConnectorHandler clprCompleteConnectorHandler;
     private final ClprDeregisterConnectorHandler clprDeregisterConnectorHandler;
     private final ClprEndpointPublicationHandler clprEndpointPublicationHandler;
     private final ClprGetEndpointManifestHandler clprGetEndpointManifestHandler;
@@ -34,8 +33,7 @@ public class ClprHandlers {
      * @param clprCompleteChannelHandler the handler for completing channels (reveal phase)
      * @param clprCloseChannelHandler the handler for closing channels
      * @param clprSubmitBundleHandler the handler for submitting bundles from peer syncs
-     * @param clprRegisterConnectorHandler the handler for registering connectors (commit phase)
-     * @param clprCompleteConnectorHandler the handler for completing connector registration (reveal phase)
+     * @param clprRegisterConnectorHandler the handler for registering connectors
      * @param clprDeregisterConnectorHandler the handler for deregistering connectors
      * @param clprEndpointPublicationHandler the handler for node CLPR endpoint self-publications
      * @param clprGetEndpointManifestHandler the handler for the getEndpointManifest query (spec §6.5)
@@ -50,7 +48,6 @@ public class ClprHandlers {
             @NonNull final ClprCloseChannelHandler clprCloseChannelHandler,
             @NonNull final ClprSubmitBundleHandler clprSubmitBundleHandler,
             @NonNull final ClprRegisterConnectorHandler clprRegisterConnectorHandler,
-            @NonNull final ClprCompleteConnectorHandler clprCompleteConnectorHandler,
             @NonNull final ClprDeregisterConnectorHandler clprDeregisterConnectorHandler,
             @NonNull final ClprEndpointPublicationHandler clprEndpointPublicationHandler,
             @NonNull final ClprGetEndpointManifestHandler clprGetEndpointManifestHandler,
@@ -69,8 +66,6 @@ public class ClprHandlers {
                 Objects.requireNonNull(clprSubmitBundleHandler, "clprSubmitBundleHandler must not be null");
         this.clprRegisterConnectorHandler =
                 Objects.requireNonNull(clprRegisterConnectorHandler, "clprRegisterConnectorHandler must not be null");
-        this.clprCompleteConnectorHandler =
-                Objects.requireNonNull(clprCompleteConnectorHandler, "clprCompleteConnectorHandler must not be null");
         this.clprDeregisterConnectorHandler = Objects.requireNonNull(
                 clprDeregisterConnectorHandler, "clprDeregisterConnectorHandler must not be null");
         this.clprEndpointPublicationHandler = Objects.requireNonNull(
@@ -142,15 +137,6 @@ public class ClprHandlers {
      */
     public ClprRegisterConnectorHandler clprRegisterConnectorHandler() {
         return clprRegisterConnectorHandler;
-    }
-
-    /**
-     * Gets the handler for completing connector registration (reveal phase).
-     *
-     * @return the complete connector handler
-     */
-    public ClprCompleteConnectorHandler clprCompleteConnectorHandler() {
-        return clprCompleteConnectorHandler;
     }
 
     /**

@@ -63,11 +63,11 @@ public class V0780ClprSchema extends Schema<SemanticVersion> {
     /** Connectors state key */
     public static final String CONNECTORS_KEY = "CONNECTORS";
 
-    /** Pending connector commitments state ID */
+    /** Connector registration history state ID */
     public static final int PENDING_CONNECTOR_COMMITMENTS_STATE_ID =
             StateKey.KeyOneOfType.CLPRSERVICE_I_PENDING_CONNECTOR_COMMITMENTS.protoOrdinal();
 
-    /** Pending connector commitments state key */
+    /** Historical state name for connector registrations */
     public static final String PENDING_CONNECTOR_COMMITMENTS_KEY = "PENDING_CONNECTOR_COMMITMENTS";
 
     /** Ledger configuration singleton state key */

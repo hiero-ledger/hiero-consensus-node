@@ -125,7 +125,6 @@ public class ServiceScopeLookup {
                     CLPR_EVICT_PEER_ENDPOINT,
                     CLPR_SUBMIT_BUNDLE,
                     CLPR_REGISTER_CONNECTOR,
-                    CLPR_COMPLETE_CONNECTOR,
                     CLPR_DEREGISTER_CONNECTOR,
                     CLPR_ENDPOINT_PUBLICATION -> ClprService.NAME;
 

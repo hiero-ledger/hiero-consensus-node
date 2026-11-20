@@ -49,9 +49,6 @@ public final class ClprServiceImpl implements ClprService {
                         HederaFunctionality.CLPR_REGISTER_CONNECTOR,
                         TransactionBody.DataOneOfType.CLPR_REGISTER_CONNECTOR),
                 new ClprFeeCalculator(
-                        HederaFunctionality.CLPR_COMPLETE_CONNECTOR,
-                        TransactionBody.DataOneOfType.CLPR_COMPLETE_CONNECTOR),
-                new ClprFeeCalculator(
                         HederaFunctionality.CLPR_DEREGISTER_CONNECTOR,
                         TransactionBody.DataOneOfType.CLPR_DEREGISTER_CONNECTOR),
                 new ClprFeeCalculator(

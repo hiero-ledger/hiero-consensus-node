@@ -26,8 +26,8 @@ import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.clpr.ReadableConnectorStore;
+import com.hedera.node.app.service.clpr.impl.WritableConnectorRegistrationStore;
 import com.hedera.node.app.service.clpr.impl.WritableConnectorStore;
-import com.hedera.node.app.service.clpr.impl.WritablePendingConnectorCommitmentStore;
 import com.hedera.node.app.service.clpr.impl.handlers.ClprDeregisterConnectorHandler;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.entityid.impl.AppEntityIdFactory;
@@ -90,12 +90,6 @@ class ClprDeregisterConnectorHandlerTest {
         0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
         0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20
     });
-    private static final Bytes COMMITMENT = Bytes.wrap(new byte[] {
-        0x77, 0x77, 0x77, 0x77, 0x77, 0x77, 0x77, 0x77,
-        0x77, 0x77, 0x77, 0x77, 0x77, 0x77, 0x77, 0x77,
-        0x77, 0x77, 0x77, 0x77, 0x77, 0x77, 0x77, 0x77,
-        0x77, 0x77, 0x77, 0x77, 0x77, 0x77, 0x77, 0x77
-    });
     private static final long VALID_STAKE = 200_000_000L;
 
     @Mock
@@ -118,7 +112,7 @@ class ClprDeregisterConnectorHandlerTest {
 
     private ClprDeregisterConnectorHandler subject;
     private WritableConnectorStore connectorStore;
-    private WritablePendingConnectorCommitmentStore commitmentStore;
+    private WritableConnectorRegistrationStore registrations;
 
     @BeforeEach
     void setUp() {
@@ -134,13 +128,13 @@ class ClprDeregisterConnectorHandlerTest {
                 .thenReturn(writableConnectors);
         connectorStore = new WritableConnectorStore(writableStates);
 
-        final var writableCommitments = MapWritableKVState.<ProtoBytes, ProtoBytes>builder(
+        final var writableRegistrations = MapWritableKVState.<ProtoBytes, ProtoBytes>builder(
                         PENDING_CONNECTOR_COMMITMENTS_STATE_ID, "ClprService:PENDING_CONNECTOR_COMMITMENTS")
                 .build();
         lenient()
                 .when(writableStates.<ProtoBytes, ProtoBytes>get(PENDING_CONNECTOR_COMMITMENTS_STATE_ID))
-                .thenReturn(writableCommitments);
-        commitmentStore = new WritablePendingConnectorCommitmentStore(writableStates);
+                .thenReturn(writableRegistrations);
+        registrations = new WritableConnectorRegistrationStore(writableStates);
     }
 
     // ── pureChecks ────────────────────────────────────────────────────────────
@@ -234,7 +228,7 @@ class ClprDeregisterConnectorHandlerTest {
     }
 
     @Test
-    @DisplayName("should deregister connector, keep its commitment registered, and transfer stake")
+    @DisplayName("should deregister connector, retain its registration, and transfer stake")
     void deregistersConnectorAndTransfersStake() {
         putConnector();
         setupHandleContext(validTxn(), true);
@@ -243,7 +237,7 @@ class ClprDeregisterConnectorHandlerTest {
 
         final var key = new ClprConnectorKey(CHANNEL_ID, CONNECTOR_ID);
         assertThat(connectorStore.getConnector(key)).isNull();
-        assertThat(commitmentStore.contains(COMMITMENT)).isTrue();
+        assertThat(registrations.contains(key)).isTrue();
         verify(tokenServiceApi).transferFromTo(STAKING_ACCOUNT_ID, STAKE_RECIPIENT_ID, VALID_STAKE);
     }
 
@@ -339,7 +333,7 @@ class ClprDeregisterConnectorHandlerTest {
                 .adminKey(ADMIN_KEY)
                 .lockedStake(VALID_STAKE)
                 .build());
-        commitmentStore.put(COMMITMENT);
+        registrations.put(new ClprConnectorKey(CHANNEL_ID, CONNECTOR_ID));
     }
 
     private void setupHandleContext(final TransactionBody txn, final boolean clprEnabled) {

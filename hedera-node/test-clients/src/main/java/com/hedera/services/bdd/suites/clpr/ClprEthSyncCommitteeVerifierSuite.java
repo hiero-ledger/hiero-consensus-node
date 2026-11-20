@@ -6,7 +6,6 @@ import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.CLPR;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteChannel;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprSubmitBundle;
@@ -65,7 +64,7 @@ public class ClprEthSyncCommitteeVerifierSuite {
     private static final ContractID ETH_VERIFIER =
             ContractID.newBuilder().setContractNum(0x171L).build();
 
-    /** Connector application contract — deployed only so the connector commit-reveal has a target. */
+    /** Connector application contract — deployed only so the connector registration has a target. */
     private static final String CONNECTOR_CONTRACT = "PassThroughAuth";
 
     private static final byte[] TARGET_APPLICATION = {40, 50};
@@ -416,14 +415,8 @@ public class ClprEthSyncCommitteeVerifierSuite {
                 assertEquals(0L, conn.receivedMessageId(), "no inbound messages yet");
             }),
             clprRegisterConnector()
-                    .channelId(crypto.channelId())
-                    .commitment(crypto.connectorCommitment())
-                    .payingWith(GENESIS),
-            clprCompleteConnector()
                     .connectorId(crypto.connectorId())
-                    .publicKey(crypto.publicKey())
-                    .signature(crypto.connectorSignature())
-                    .signatureScheme(ClprSignatureScheme.ED25519)
+                    .ed25519Identity(crypto.seed())
                     .salt(crypto.connectorSalt())
                     .channelId(crypto.channelId())
                     .connectorContract(CONNECTOR_CONTRACT)

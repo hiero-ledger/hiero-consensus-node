@@ -8,7 +8,6 @@ import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.CLPR;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteChannel;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprUpdateLedgerConfiguration;
@@ -115,14 +114,8 @@ public class ClprOrchestratorSubmitTest {
                         .configProofBytes(proofBytes.toByteArray())
                         .payingWith(GENESIS),
                 clprRegisterConnector()
-                        .channelId(crypto.channelId)
-                        .commitment(crypto.connectorCommitment)
-                        .payingWith(GENESIS),
-                clprCompleteConnector()
                         .connectorId(crypto.connectorId)
-                        .publicKey(crypto.publicKey)
-                        .signature(crypto.connectorSignature)
-                        .signatureScheme(ClprSignatureScheme.ED25519)
+                        .ed25519Identity(Crypto.TEST_PRIVATE_KEY_SEED)
                         .salt(crypto.connectorSalt)
                         .channelId(crypto.channelId)
                         .connectorContract(CONNECTOR_CONTRACT)
@@ -203,9 +196,6 @@ public class ClprOrchestratorSubmitTest {
             0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
             0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20
         };
-        private static final byte[] CLPR_SERVICE_ADDRESS = {
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, (byte) 0x6e
-        };
 
         final byte[] publicKey = new byte[Ed25519.PUBLIC_KEY_BYTES];
         final byte[] secretKey = new byte[Ed25519.SECRET_KEY_BYTES];
@@ -214,8 +204,6 @@ public class ClprOrchestratorSubmitTest {
         final byte[] channelSignature = new byte[Ed25519.SIGNATURE_BYTES];
         final byte[] connectorSalt = new byte[32];
         final byte[] connectorId;
-        final byte[] connectorCommitment;
-        final byte[] connectorSignature = new byte[Ed25519.SIGNATURE_BYTES];
 
         Crypto() {
             Ed25519.newKeypair(publicKey, secretKey, TEST_PRIVATE_KEY_SEED);
@@ -223,10 +211,7 @@ public class ClprOrchestratorSubmitTest {
             channelCommitment = MiscCryptoUtils.keccak256DigestOf(concat(channelId, publicKey));
             final var connSig = MiscCryptoUtils.keccak256DigestOf(channelId);
             Ed25519.sign(channelSignature, connSig, secretKey);
-            connectorId = MiscCryptoUtils.keccak256DigestOf(concat(channelId, concat(publicKey, connectorSalt)));
-            connectorCommitment = MiscCryptoUtils.keccak256DigestOf(concat(connectorId, publicKey));
-            final var connectorSig = MiscCryptoUtils.keccak256DigestOf(concat(connectorId, CLPR_SERVICE_ADDRESS));
-            Ed25519.sign(connectorSignature, connectorSig, secretKey);
+            connectorId = MiscCryptoUtils.keccak256DigestOf(concat(publicKey, connectorSalt));
         }
 
         private static byte[] concat(final byte[] a, final byte[] b) {

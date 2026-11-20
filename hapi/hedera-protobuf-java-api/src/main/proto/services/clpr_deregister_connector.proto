@@ -14,8 +14,7 @@ import "services/basic_types.proto";
  *
  * Deregisters a Connector and returns any locked stake to the specified
  * stake_recipient account. Requires the connector's admin_key to sign.
- * The Connector's ownership commitment stays registered, so the same
- * Connector cannot be registered again; a new salt yields a new Connector ID.
+ * The same connector ID cannot be registered again on this channel.
  *
  * Authority: Connector admin_key must sign.
  */
@@ -26,7 +25,7 @@ message ClprDeregisterConnectorTransactionBody {
     bytes channel_id = 1;
 
     /**
-     * The 32-byte Connector ID: keccak256(channelId || pubKey || salt).
+     * The 32-byte Connector ID: keccak256(pubKey || salt).
      */
     bytes connector_id = 2;
 

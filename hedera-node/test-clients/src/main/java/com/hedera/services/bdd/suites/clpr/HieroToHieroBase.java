@@ -13,7 +13,6 @@ import static com.hedera.services.bdd.spec.HapiSpec.networkHapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.clprGetEndpointManifest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.clprGetLedgerConfiguration;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteChannel;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprSubmitBundle;
@@ -1141,7 +1140,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
      *       stale or pre-install proof never reaches {@code deployAndConnect};</li>
      *   <li>{@link #deployAndConnect deploy} the {@link #VERIFIER} contract (pinned to the peer's
      *       WRAPS ledger id), the connector + system-contract caller, and run the channel +
-     *       connector commit-reveal using the peer's captured config StateProof.</li>
+     *       connector registration using the peer's captured config StateProof.</li>
      * </ol>
      */
     static Stream<DynamicTest> setupBothNetworks(
@@ -1629,16 +1628,10 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                             }
                             return op;
                         }),
-                        // Connector commit-reveal
+                        // Connector registration
                         clprRegisterConnector()
-                                .channelId(crypto.channelId)
-                                .commitment(crypto.connectorCommitment)
-                                .payingWith(GENESIS),
-                        clprCompleteConnector()
                                 .connectorId(crypto.connectorId)
-                                .publicKey(crypto.publicKey)
-                                .signature(crypto.connectorSignature)
-                                .signatureScheme(ClprSignatureScheme.ED25519)
+                                .ed25519Identity(ClprCrypto.TEST_PRIVATE_KEY_SEED)
                                 .salt(crypto.connectorSalt)
                                 .channelId(crypto.channelId)
                                 .connectorContract(CONNECTOR_CONTRACT)
@@ -1881,8 +1874,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
      * ({@code 0x000000000000000000000000000000000000016e}) — same value the reconciler
      * pre-populates into the endpoint manifest at genesis (see {@code V0780ClprSchema}).
      * Using it here keeps {@code config.service_address == manifest.service_address}, an
-     * invariant the manifest-aware verifier enforces (spec §4.8). {@link ClprCrypto} also
-     * incorporates it into the connector signature.
+     * invariant the manifest-aware verifier enforces (spec §4.8).
      */
     static final byte[] CLPR_SERVICE_ADDRESS = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, (byte) 0x6e};
 
@@ -1911,13 +1903,9 @@ public abstract class HieroToHieroBase implements LifecycleTest {
             0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
             0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20
         };
-        // 0x000000000000000000000000000000000000016e (CLPR system contract)
-        private static final byte[] CLPR_SERVICE_ADDRESS = {
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, (byte) 0x6e
-        };
         // Channel state from a prior test in the same shared-network
         // run lingers in ledger state, so each ClprCrypto must derive a distinct channelId
-        // (and connectorId) to avoid CLPR_CHANNEL_ALREADY_EXISTS on re-registration.
+        // to avoid CLPR_CHANNEL_ALREADY_EXISTS on re-registration.
         private static final AtomicLong INSTANCE_COUNTER = new AtomicLong();
 
         final byte[] publicKey = new byte[Ed25519.PUBLIC_KEY_BYTES];
@@ -1927,8 +1915,6 @@ public abstract class HieroToHieroBase implements LifecycleTest {
         final byte[] channelSignature = new byte[Ed25519.SIGNATURE_BYTES];
         final byte[] connectorSalt = new byte[32]; // all zeros
         final byte[] connectorId;
-        final byte[] connectorCommitment;
-        final byte[] connectorSignature = new byte[Ed25519.SIGNATURE_BYTES];
 
         ClprCrypto() {
             Ed25519.newKeypair(publicKey, secretKey, TEST_PRIVATE_KEY_SEED);
@@ -1943,15 +1929,8 @@ public abstract class HieroToHieroBase implements LifecycleTest {
             final var connSigMsg = MiscCryptoUtils.keccak256DigestOf(channelId);
             Ed25519.sign(channelSignature, connSigMsg, secretKey);
 
-            // connectorId = keccak256(channelId || pubKey || connectorSalt)
-            connectorId = MiscCryptoUtils.keccak256DigestOf(concat(channelId, concat(publicKey, connectorSalt)));
-
-            // Connector commitment: keccak256(connectorId || pubKey)
-            connectorCommitment = MiscCryptoUtils.keccak256DigestOf(concat(connectorId, publicKey));
-
-            // Connector signature: Ed25519 over keccak256(connectorId || CLPR_SERVICE_ADDRESS)
-            final var connectorSigMsg = MiscCryptoUtils.keccak256DigestOf(concat(connectorId, CLPR_SERVICE_ADDRESS));
-            Ed25519.sign(connectorSignature, connectorSigMsg, secretKey);
+            // connectorId = keccak256(pubKey || connectorSalt)
+            connectorId = MiscCryptoUtils.keccak256DigestOf(concat(publicKey, connectorSalt));
         }
 
         private static byte[] concat(final byte[] a, final byte[] b) {

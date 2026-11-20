@@ -8,7 +8,7 @@
 # output so re-runs don't need any hand-editing.
 #
 # PingPong plays three roles per network: connector contract (registered via
-# `complete-connector`), wrapper that invokes the CLPR precompile (via the
+# `register-connector`), wrapper that invokes the CLPR precompile (via the
 # `serve()` method), and CLPR application (via onClprMessage/onClprResponse).
 # Deploy PingPong on each network first via ./setup-clpr-ping-pong.sh, then
 # pass the resulting ids in as PINGPONG_A / PINGPONG_B.
@@ -207,8 +207,8 @@ echo "  MESSAGE_DATA      : ${MESSAGE_DATA}"
 echo "  per-step logs     : ${LOG_DIR}/"
 ok "All prerequisites present"
 
-# === [1/10] prime 0.0.3 with hbar on both networks =========================
-header "[1/10] accounts send — prime ${PRIME_RECIPIENT} with ${PRIME_AMOUNT} hbar on both networks"
+# === [1/9] prime 0.0.3 with hbar on both networks =========================
+header "[1/9] accounts send — prime ${PRIME_RECIPIENT} with ${PRIME_AMOUNT} hbar on both networks"
 yh "accounts send ${PRIME_AMOUNT} hbar -> ${PRIME_RECIPIENT} on ${NET_A}" \
     "${LOG_DIR}/00a-prime-send.log" \
     -n "${NET_A}" -p "${PAYER}" \
@@ -218,8 +218,8 @@ yh "accounts send ${PRIME_AMOUNT} hbar -> ${PRIME_RECIPIENT} on ${NET_B}" \
     -n "${NET_B}" -p "${PAYER}" \
     accounts send --to "${PRIME_RECIPIENT}" "${PRIME_AMOUNT}" -d hbar
 
-# === [2/10] channel identity ============================================
-header "[2/10] generate-channel-identity (one bundle, shared by both networks)"
+# === [2/9] channel identity ============================================
+header "[2/9] generate-channel-identity (one bundle, shared by both networks)"
 yh "generate-channel-identity" "${LOG_DIR}/01-gen-conn.log" \
     -n "${NET_A}" -p "${PAYER}" \
     clpr generate-channel-identity --out "${CHANNEL_FILE}"
@@ -227,8 +227,8 @@ CHANNEL_COMMIT=$(read_json_field "${CHANNEL_FILE}" "ownershipCommitment")
 [[ -n "${CHANNEL_COMMIT}" && "${CHANNEL_COMMIT}" != "null" ]] || die "no ownershipCommitment in ${CHANNEL_FILE}"
 echo "  ownershipCommitment: ${CHANNEL_COMMIT}"
 
-# === [3/10] push ledger configurations =====================================
-header "[3/10] update-ledger-configuration on both networks"
+# === [3/9] push ledger configurations =====================================
+header "[3/9] update-ledger-configuration on both networks"
 yh "update-ledger-configuration on ${NET_B}" "${LOG_DIR}/02b-update-cfg.log" \
     -n "${NET_B}" -p "${PAYER}" \
     clpr update-ledger-configuration --config-file "${CONFIG_B}"
@@ -236,10 +236,10 @@ yh "update-ledger-configuration on ${NET_A}" "${LOG_DIR}/02a-update-cfg.log" \
     -n "${NET_A}" -p "${PAYER}" \
     clpr update-ledger-configuration --config-file "${CONFIG_A}"
 
-# === [4/10] pull each network's state proofs ===============================
+# === [4/9] pull each network's state proofs ===============================
 # complete-channel needs two proofs from the peer: its ledger configuration and
 # its endpoint manifest (the endpoints the channel dials).
-header "[4/10] get-ledger-configuration + get-endpoint-manifest state proof bytes"
+header "[4/9] get-ledger-configuration + get-endpoint-manifest state proof bytes"
 yh "get-ledger-configuration on ${NET_B}" "${LOG_DIR}/03b-get-cfg.log" \
     -n "${NET_B}" -p "${PAYER}" \
     clpr get-ledger-configuration --out "${PEER_CONFIG_B}" --proof-path "${PROOF_B}"
@@ -261,8 +261,8 @@ manifest_finalized "${PEER_MANIFEST_A}" \
 manifest_finalized "${PEER_MANIFEST_B}" \
     || die "${NET_B} endpoint manifest is not finalized yet (see ${PEER_MANIFEST_B}) — wait for its nodes to publish their endpoints and retry"
 
-# === [5/10] register-channel (commit phase) =============================
-header "[5/10] register-channel on both networks"
+# === [5/9] register-channel (commit phase) =============================
+header "[5/9] register-channel on both networks"
 yh "register-channel on ${NET_A}" "${LOG_DIR}/05a-register-conn.log" \
     -n "${NET_A}" -p "${PAYER}" \
     clpr register-channel --commitment "${CHANNEL_COMMIT}"
@@ -270,8 +270,8 @@ yh "register-channel on ${NET_B}" "${LOG_DIR}/05b-register-conn.log" \
     -n "${NET_B}" -p "${PAYER}" \
     clpr register-channel --commitment "${CHANNEL_COMMIT}"
 
-# === [6/10] complete-channel (reveal phase) =============================
-header "[6/10] complete-channel — both sides use verifier ${VERIFIER_CONTRACT}"
+# === [6/9] complete-channel (reveal phase) =============================
+header "[6/9] complete-channel — both sides use verifier ${VERIFIER_CONTRACT}"
 yh "complete-channel on ${NET_A} via verifier ${VERIFIER_CONTRACT}" \
     "${LOG_DIR}/06a-complete-conn.log" \
     -n "${NET_A}" -p "${PAYER}" \
@@ -290,48 +290,35 @@ CHANNEL_ID=$(read_json_field "${CHANNEL_FILE}" "channelId")
 [[ -n "${CHANNEL_ID}" && "${CHANNEL_ID}" != "null" ]] || die "no channelId in ${CHANNEL_FILE}"
 echo "  CHANNEL_ID: ${CHANNEL_ID}"
 
-# === [7/10] generate connector identity ====================================
-header "[7/10] generate-connector-identity"
+# === [7/9] generate connector identity ====================================
+header "[7/9] generate-connector-identity"
 yh "generate-connector-identity" "${LOG_DIR}/07-gen-connector.log" \
     clpr generate-connector-identity \
-        --channel-id "${CHANNEL_ID}" --out "${CONNECTOR_FILE}"
-CONNECTOR_COMMIT=$(read_json_field "${CONNECTOR_FILE}" "commitment")
+        --out "${CONNECTOR_FILE}"
 CONNECTOR_ID=$(read_json_field "${CONNECTOR_FILE}" "connectorId")
-[[ -n "${CONNECTOR_COMMIT}" && "${CONNECTOR_COMMIT}" != "null" ]] \
-    || die "no commitment in ${CONNECTOR_FILE}"
 [[ -n "${CONNECTOR_ID}" && "${CONNECTOR_ID}" != "null" ]] \
     || die "no connectorId in ${CONNECTOR_FILE}"
-echo "  connector commitment: ${CONNECTOR_COMMIT}"
 echo "  CONNECTOR_ID:         ${CONNECTOR_ID}"
 
-# === [8/10] register-connector =============================================
-header "[8/10] register-connector on both networks"
-yh "register-connector on ${NET_A}" "${LOG_DIR}/08a-register-connector.log" \
+# === [8/9] register-connector (PingPong is the connector contract) ========
+header "[8/9] register-connector on both networks — connector contract is PingPong"
+yh "register-connector on ${NET_A} via PingPong ${PINGPONG_A}" \
+    "${LOG_DIR}/10a-register-connector.log" \
     -n "${NET_A}" -p "${PAYER}" \
-    clpr register-connector --channel-id "${CHANNEL_ID}" --commitment "${CONNECTOR_COMMIT}"
-yh "register-connector on ${NET_B}" "${LOG_DIR}/08b-register-connector.log" \
-    -n "${NET_B}" -p "${PAYER}" \
-    clpr register-connector --channel-id "${CHANNEL_ID}" --commitment "${CONNECTOR_COMMIT}"
-
-# === [9/10] complete-connector (PingPong is the connector contract) ========
-header "[9/10] complete-connector on both networks — connector contract is PingPong"
-yh "complete-connector on ${NET_A} via PingPong ${PINGPONG_A}" \
-    "${LOG_DIR}/10a-complete-connector.log" \
-    -n "${NET_A}" -p "${PAYER}" \
-    clpr complete-connector --identity "${CONNECTOR_FILE}" \
+    clpr register-connector --channel-id "${CHANNEL_ID}" --identity "${CONNECTOR_FILE}" \
         --connector-contract "${PINGPONG_A}" \
         --locked-stake "${LOCKED_STAKE}"
-yh "complete-connector on ${NET_B} via PingPong ${PINGPONG_B}" \
-    "${LOG_DIR}/10b-complete-connector.log" \
+yh "register-connector on ${NET_B} via PingPong ${PINGPONG_B}" \
+    "${LOG_DIR}/10b-register-connector.log" \
     -n "${NET_B}" -p "${PAYER}" \
-    clpr complete-connector --identity "${CONNECTOR_FILE}" \
+    clpr register-connector --channel-id "${CHANNEL_ID}" --identity "${CONNECTOR_FILE}" \
         --connector-contract "${PINGPONG_B}" \
         --locked-stake "${LOCKED_STAKE}"
 
-# === [10/10] kick off the volley — alice's PingPong.serve() ================
+# === [9/9] kick off the volley — alice's PingPong.serve() ================
 TARGET_APP_HEX="$(long_zero_addr "${PINGPONG_B}")"
 CALLDATA="$(encode_serve_call "${CHANNEL_ID}" "${CONNECTOR_ID}" "${TARGET_APP_HEX}" "${MESSAGE_DATA}")"
-header "[10/10] contracts call — PingPong.serve() on ${NET_A} targeting ${PINGPONG_B} (${TARGET_APP_HEX})"
+header "[9/9] contracts call — PingPong.serve() on ${NET_A} targeting ${PINGPONG_B} (${TARGET_APP_HEX})"
 yh "PingPong.serve() via ${PINGPONG_A} on ${NET_A}" "${LOG_DIR}/11-serve.log" \
     -n "${NET_A}" -p "${PAYER}" contracts call \
         --contract-id "${PINGPONG_A}" \

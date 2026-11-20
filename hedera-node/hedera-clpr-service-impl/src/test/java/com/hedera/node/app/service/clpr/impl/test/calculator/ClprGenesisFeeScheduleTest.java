@@ -3,7 +3,6 @@ package com.hedera.node.app.service.clpr.impl.test.calculator;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_CLOSE_CHANNEL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CHANNEL;
-import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CONNECTOR;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_DEREGISTER_CONNECTOR;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_EVICT_PEER_ENDPOINT;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_REGISTER_CHANNEL;
@@ -55,7 +54,6 @@ class ClprGenesisFeeScheduleTest {
             CLPR_CLOSE_CHANNEL,
             CLPR_EVICT_PEER_ENDPOINT,
             CLPR_REGISTER_CONNECTOR,
-            CLPR_COMPLETE_CONNECTOR,
             CLPR_DEREGISTER_CONNECTOR,
             CLPR_SUBMIT_BUNDLE);
 

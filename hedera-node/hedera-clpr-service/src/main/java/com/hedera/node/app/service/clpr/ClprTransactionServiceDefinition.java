@@ -31,7 +31,6 @@ public final class ClprTransactionServiceDefinition implements RpcServiceDefinit
             new RpcMethodDefinition<>("evictPeerEndpoint", Transaction.class, TransactionResponse.class),
             new RpcMethodDefinition<>("submitBundle", Transaction.class, TransactionResponse.class),
             new RpcMethodDefinition<>("registerConnector", Transaction.class, TransactionResponse.class),
-            new RpcMethodDefinition<>("completeConnector", Transaction.class, TransactionResponse.class),
             new RpcMethodDefinition<>("deregisterConnector", Transaction.class, TransactionResponse.class),
             new RpcMethodDefinition<>("updateLedgerConfiguration", Transaction.class, TransactionResponse.class),
             new RpcMethodDefinition<>("getLedgerConfiguration", Query.class, Response.class),

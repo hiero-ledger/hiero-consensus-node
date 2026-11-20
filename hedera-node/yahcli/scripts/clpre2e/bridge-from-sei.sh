@@ -197,7 +197,7 @@ write_default_local_config "${CONFIG_LOCAL}"
 [[ -f "${CONFIG_LOCAL}" ]] || die "missing local ledger-config: ${CONFIG_LOCAL}"
 [[ -f "${PASS_THROUGH_AUTH}" ]] || die "missing PassThroughAuth.bin at ${PASS_THROUGH_AUTH}"
 [[ -f "${TOOLS_DIR}/build-sei-config-payload.py" ]] || die "missing ${TOOLS_DIR}/build-sei-config-payload.py"
-[[ -f "${TOOLS_DIR}/sign-clpr-connector-identity.py" ]] || die "missing ${TOOLS_DIR}/sign-clpr-connector-identity.py"
+[[ -f "${TOOLS_DIR}/derive-clpr-connector-identity.py" ]] || die "missing ${TOOLS_DIR}/derive-clpr-connector-identity.py"
 [[ -x "${SCRIPT_DIR}/gen-channel-identity.sh" ]] || die "missing gen-channel-identity.sh"
 SMART_CONTRACTS_REPO="$(resolve_smart_contracts_repo)" || die "clpr-smart-contracts repo not found"
 
@@ -235,23 +235,23 @@ echo "  CONNECTOR_ID   : ${CONNECTOR_ID}"
 echo "  PEER_CHAIN_ID  : ${PEER_CHAIN_ID}"
 ok "Sei state resolved"
 
-header "[1/10] update-ledger-configuration on ${NET}"
+header "[1/9] update-ledger-configuration on ${NET}"
 yh "update-ledger-configuration on ${NET}" "${LOG_DIR}/01-update-cfg.log" \
     -n "${NET}" -p "${PAYER}" \
     clpr update-ledger-configuration --config-file "${CONFIG_LOCAL}"
 
 if [[ "${FUND_NODE_ACCOUNT:-true}" == "true" ]]; then
-    header "[2/10] fund Hiero node payer"
+    header "[2/9] fund Hiero node payer"
     yh "fund ${NODE_ACCOUNT:-0.0.3} with ${NODE_ACCOUNT_FUND_HBAR:-1000000000} hbar" \
         "${LOG_DIR}/02-fund-node.log" \
         -n "${NET}" -p "${PAYER}" \
         accounts send --to "${NODE_ACCOUNT:-0.0.3}" "${NODE_ACCOUNT_FUND_HBAR:-1000000000}" -d hbar
 else
-    header "[2/10] fund Hiero node payer"
+    header "[2/9] fund Hiero node payer"
     note "skipped because FUND_NODE_ACCOUNT=false"
 fi
 
-header "[3/10] build Sei config payload"
+header "[3/9] build Sei config payload"
 python3 - "${SEI_CONFIG_JSON}" <<'PYEOF'
 import json, sys
 out_path = sys.argv[1]
@@ -283,7 +283,7 @@ CONFIG_PROOF_HEX="$(echo "${PAYLOAD_OUT}" | awk '/^sei_ledger_configuration_payl
 note "config-proof payload: ${SEI_CONFIG_PAYLOAD}"
 note "config-proof hex (${#CONFIG_PROOF_HEX} chars): ${CONFIG_PROOF_HEX:0:60}..."
 
-header "[4/10] generate channel identity"
+header "[4/9] generate channel identity"
 kf_write_key_file "${CHANNEL_FILE}.key" "${PEER_PK_HEX}"
 "${SCRIPT_DIR}/gen-channel-identity.sh" \
     --channel-id "${CHANNEL_ID}" \
@@ -293,12 +293,12 @@ CHANNEL_COMMIT="$(jq -r '.ownershipCommitment' "${CHANNEL_FILE}")"
 [[ -n "${CHANNEL_COMMIT}" && "${CHANNEL_COMMIT}" != "null" ]] || die "no ownershipCommitment in ${CHANNEL_FILE}"
 note "ownershipCommitment: ${CHANNEL_COMMIT}"
 
-header "[5/10] register-channel on ${NET}"
+header "[5/9] register-channel on ${NET}"
 yh "register-channel" "${LOG_DIR}/04-register-conn.log" \
     -n "${NET}" -p "${PAYER}" \
     clpr register-channel --commitment "${CHANNEL_COMMIT}"
 
-header "[6/10] complete-channel on ${NET} via verifier ${VERIFIER_CONTRACT}"
+header "[6/9] complete-channel on ${NET} via verifier ${VERIFIER_CONTRACT}"
 yh_allow_status "CLPR_CHANNEL_ALREADY_EXISTS" "complete-channel" "${LOG_DIR}/05-complete-conn.log" \
     -n "${NET}" -p "${PAYER}" \
     clpr complete-channel \
@@ -306,34 +306,26 @@ yh_allow_status "CLPR_CHANNEL_ALREADY_EXISTS" "complete-channel" "${LOG_DIR}/05-
         --verifier-contract "${VERIFIER_CONTRACT}" \
         --config-proof-hex "${CONFIG_PROOF_HEX}"
 
-header "[7/10] generate connector identity"
+header "[7/9] generate connector identity"
 # Public-only stub (no key material); the private key goes to ${CONNECTOR_FILE}.key (0600).
 CONNECTOR_STUB="$(mktemp)"
 cat > "${CONNECTOR_STUB}" <<JSON
 {
-  "channelId":   "${CHANNEL_ID}",
   "signatureScheme":"ECDSA_SECP256K1",
   "salt":           "0x0000000000000000000000000000000000000000000000000000000000000000"
 }
 JSON
 kf_write_key_file "${CONNECTOR_FILE}.key" "${CONNECTOR_PK_HEX}"
-python3 "${TOOLS_DIR}/sign-clpr-connector-identity.py" "${CONNECTOR_STUB}" --key-file "${CONNECTOR_FILE}.key" --out "${CONNECTOR_FILE}" \
-    | tee "${LOG_DIR}/06-sign-connector.log" >/dev/null
+python3 "${TOOLS_DIR}/derive-clpr-connector-identity.py" "${CONNECTOR_STUB}" --key-file "${CONNECTOR_FILE}.key" --out "${CONNECTOR_FILE}" \
+    | tee "${LOG_DIR}/06-derive-connector.log" >/dev/null
 rm -f "${CONNECTOR_STUB}"
-CONNECTOR_COMMIT="$(jq -r '.commitment' "${CONNECTOR_FILE}")"
 CONNECTOR_ID_HIERO="$(jq -r '.connectorId' "${CONNECTOR_FILE}")"
-[[ -n "${CONNECTOR_COMMIT}" && "${CONNECTOR_COMMIT}" != "null" ]] || die "no commitment in ${CONNECTOR_FILE}"
 note "connectorId (hiero): ${CONNECTOR_ID_HIERO}"
 if [[ "${CONNECTOR_ID_HIERO}" != "${CONNECTOR_ID}" ]]; then
-    note "${YELLOW}warn:${RESET} connectorId derived here differs from smart-contracts/connector.json"
+    die "Peer connector ID differs from keccak256(publicKey || salt). Check the peer deployment, key and salt."
 fi
 
-header "[8/10] register-connector on ${NET}"
-yh "register-connector" "${LOG_DIR}/07-register-connector.log" \
-    -n "${NET}" -p "${PAYER}" \
-    clpr register-connector --channel-id "${CHANNEL_ID}" --commitment "${CONNECTOR_COMMIT}"
-
-header "[9/10] deploy PassThroughAuth on ${NET}"
+header "[8/9] deploy PassThroughAuth on ${NET}"
 yh "contracts create PassThroughAuth" "${LOG_DIR}/08-create-pta.log" \
     -n "${NET}" -p "${PAYER}" contracts create \
         --init-code-file "${PASS_THROUGH_AUTH}" \
@@ -341,10 +333,10 @@ yh "contracts create PassThroughAuth" "${LOG_DIR}/08-create-pta.log" \
 CONNECTOR_CONTRACT="$(capture_contract_id "${LOG_DIR}/08-create-pta.log")"
 [[ -n "${CONNECTOR_CONTRACT}" ]] || die "could not capture PassThroughAuth contract id"
 
-header "[10/10] complete-connector on ${NET}"
-yh "complete-connector" "${LOG_DIR}/09-complete-connector.log" \
+header "[9/9] register-connector on ${NET}"
+yh "register-connector" "${LOG_DIR}/09-register-connector.log" \
     -n "${NET}" -p "${PAYER}" \
-    clpr complete-connector \
+    clpr register-connector --channel-id "${CHANNEL_ID}" \
         --identity "${CONNECTOR_FILE}" \
         --connector-contract "${CONNECTOR_CONTRACT}" \
         --locked-stake "${LOCKED_STAKE}"

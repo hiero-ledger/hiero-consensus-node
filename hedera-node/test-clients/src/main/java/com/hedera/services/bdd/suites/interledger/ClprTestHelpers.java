@@ -67,7 +67,7 @@ public final class ClprTestHelpers {
     });
 
     /** Hardcoded 20-byte address of the CLPR system contract (0x16e). Mirrors the value embedded in
-     * {@code ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES} for connector signature messages. */
+     * {@code ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES} for the CLPR service address. */
     public static final byte[] CLPR_SERVICE_ADDRESS_20 = {
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01, (byte) 0x6e
     };
@@ -268,11 +268,9 @@ public final class ClprTestHelpers {
     }
 
     /**
-     * Computes the CLPR ownership commitment: {@code keccak256(channelId || publicKey)}. Used both
-     * for the channel ownership commit and (with {@code connectorId} substituted for
-     * {@code channelId}) for the connector commit phase.
+     * Computes the channel ownership commitment {@code keccak256(channelId || publicKey)}.
      *
-     * @param channelId 32-byte identifier (channel id or connector id depending on caller)
+     * @param channelId 32-byte channel ID
      * @param publicKey    64-byte uncompressed secp256k1 public key (without 0x04 prefix)
      */
     public static Bytes computeCommitment(final Bytes channelId, final Bytes publicKey) {
@@ -283,41 +281,10 @@ public final class ClprTestHelpers {
     }
 
     /**
-     * Derives the connector id: {@code keccak256(channelId || pubKey || salt)}.
+     * Derives the shared connector ID from the raw public key and salt.
      */
-    public static Bytes deriveConnectorId(final Bytes channelId, final Bytes pubKey, final Bytes salt) {
-        final var payload = new byte[(int) (channelId.length() + pubKey.length() + salt.length())];
-        channelId.getBytes(0, payload, 0, (int) channelId.length());
-        pubKey.getBytes(0, payload, (int) channelId.length(), (int) pubKey.length());
-        salt.getBytes(0, payload, (int) (channelId.length() + pubKey.length()), (int) salt.length());
-        return MiscCryptoUtils.keccak256DigestOf(Bytes.wrap(payload));
-    }
-
-    /**
-     * Signs the connector identity message {@code keccak256(connectorId || 0x16e_address_bytes)} with
-     * the given secp256k1 secret key. The CLPR service uses this signature in
-     * {@code ClprCompleteConnectorHandler} to verify ownership of the connector public key.
-     *
-     * @return 64-byte compact recoverable ECDSA signature
-     */
-    public static byte[] signConnectorMessage(final byte[] secKey, final Bytes connectorId) {
-        final var preimage = new byte[(int) connectorId.length() + CLPR_SERVICE_ADDRESS_20.length];
-        connectorId.getBytes(0, preimage, 0, (int) connectorId.length());
-        System.arraycopy(
-                CLPR_SERVICE_ADDRESS_20, 0, preimage, (int) connectorId.length(), CLPR_SERVICE_ADDRESS_20.length);
-        final var msgHash =
-                MiscCryptoUtils.keccak256DigestOf(Bytes.wrap(preimage)).toByteArray();
-        final var recoverableSig = new LibSecp256k1.secp256k1_ecdsa_recoverable_signature();
-        final var signResult = LibSecp256k1.secp256k1_ecdsa_sign_recoverable(
-                LibSecp256k1.CONTEXT, recoverableSig, msgHash, secKey, null, null);
-        if (signResult != 1) {
-            throw new IllegalStateException("secp256k1_ecdsa_sign_recoverable failed: " + signResult);
-        }
-        final var compactSigBuffer = ByteBuffer.allocate(64);
-        final var recId = new com.sun.jna.ptr.IntByReference(0);
-        LibSecp256k1.secp256k1_ecdsa_recoverable_signature_serialize_compact(
-                LibSecp256k1.CONTEXT, compactSigBuffer, recId, recoverableSig);
-        return compactSigBuffer.array();
+    public static Bytes deriveConnectorId(final Bytes pubKey, final Bytes salt) {
+        return MiscCryptoUtils.keccak256DigestOf(Bytes.merge(pubKey, salt));
     }
 
     /**

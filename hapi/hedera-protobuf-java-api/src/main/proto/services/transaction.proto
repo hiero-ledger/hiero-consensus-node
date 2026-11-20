@@ -94,7 +94,6 @@ import "services/clpr_register_channel.proto";
 import "services/clpr_close_channel.proto";
 import "services/clpr_register_connector.proto";
 import "services/clpr_deregister_connector.proto";
-import "services/clpr_complete_connector.proto";
 import "services/clpr_submit_bundle.proto";
 import "services/clpr_evict_peer_endpoint.proto";
 import "platform/event/state_signature_transaction.proto";
@@ -749,11 +748,6 @@ message TransactionBody {
          * Remove a Connector from the CLPR Service.
          */
         com.hedera.hapi.node.clpr.ClprDeregisterConnectorTransactionBody clprDeregisterConnector = 89;
-
-        /**
-         * Phase 2 (Reveal): Complete a pending Connector commitment.
-         */
-        com.hedera.hapi.node.clpr.ClprCompleteConnectorTransactionBody clprCompleteConnector = 90;
 
         /**
          * A node self-publishes its own CLPR endpoint into a manifest construction (see

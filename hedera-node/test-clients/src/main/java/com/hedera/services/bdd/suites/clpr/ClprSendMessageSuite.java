@@ -6,7 +6,6 @@ import static com.hedera.services.bdd.junit.TestTags.CLPR;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteChannel;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprUpdateLedgerConfiguration;
@@ -72,16 +71,10 @@ public class ClprSendMessageSuite {
                         .verifierContract(VERIFIER_CONTRACT)
                         .configProofBytes(toConfigProofBytes(defaultLedgerConfig()))
                         .payingWith(GENESIS),
-                // §6.3 commit-reveal connector setup — the actual proto API migration.
+                // Register the signed connector binding.
                 clprRegisterConnector()
-                        .channelId(crypto.channelId())
-                        .commitment(crypto.connectorCommitment())
-                        .payingWith(GENESIS),
-                clprCompleteConnector()
                         .connectorId(crypto.connectorId())
-                        .publicKey(crypto.publicKey())
-                        .signature(crypto.connectorSignature())
-                        .signatureScheme(ClprSignatureScheme.ED25519)
+                        .ed25519Identity(crypto.seed())
                         .salt(crypto.connectorSalt())
                         .channelId(crypto.channelId())
                         .connectorContract(CONNECTOR_CONTRACT)
