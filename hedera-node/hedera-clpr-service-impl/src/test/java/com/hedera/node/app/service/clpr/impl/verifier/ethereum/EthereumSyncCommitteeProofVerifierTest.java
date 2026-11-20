@@ -100,6 +100,11 @@ class EthereumSyncCommitteeProofVerifierTest {
         /** The key {@link #validatePubkeys} rejects; every other key is valid. */
         byte[] invalidPubkey;
 
+        /**
+         * The signature {@link #verifySyncAggregate} rejects; every other one verifies when {@link #result} holds.
+         */
+        byte[] invalidSignature;
+
         final List<byte[]> validatedPubkeys = new ArrayList<>();
 
         @Override
@@ -112,7 +117,7 @@ class EthereumSyncCommitteeProofVerifierTest {
             lastNonSignerPubkeys = nonSignerPubkeys;
             lastMessage = message;
             lastSignature = signature;
-            return result;
+            return result && !Arrays.equals(signature, invalidSignature);
         }
 
         @Override
@@ -138,6 +143,13 @@ class EthereumSyncCommitteeProofVerifierTest {
         assertThatThrownBy(() -> verify(bundlePayload))
                 .isInstanceOf(ProofException.class)
                 .hasMessageContaining(message);
+    }
+
+    /**
+     * Verifies {@code configPayload} with no endpoint-manifest proof.
+     */
+    private VerifiedConfig verifyConfig(final byte[] configPayload) {
+        return verifier.verifyConfigPayload(configPayload, new byte[0]);
     }
 
     @Test
@@ -414,6 +426,19 @@ class EthereumSyncCommitteeProofVerifierTest {
             final VerifiedBundle verified = verify(bundle(builder.build()));
 
             assertThat(verified.beaconBlockRoot32()).isEqualTo(builder.attestedRoot());
+        }
+
+        @Test
+        @DisplayName("given a header attested two periods before its signature, then verifyBundle rejects it")
+        void givenHeaderAttestedTwoPeriodsBeforeSignature_thenThrowsProofException() {
+            final DeliveryBuilder builder = new DeliveryBuilder(MAINNET, ANCHOR_PERIOD + 1, NEXT_COMMITTEE);
+            builder.signatureSlot = firstSlotOf(MAINNET, ANCHOR_PERIOD + 1);
+            builder.attestedSlot = firstSlotOf(MAINNET, ANCHOR_PERIOD) - 1;
+            builder.finalizedSlot = builder.attestedSlot - 10;
+            assertRejected(
+                    bundle(builder.build()),
+                    "signature slot " + builder.signatureSlot + " is in period 1001, more than one period after the"
+                            + " attested header slot " + builder.attestedSlot + " in period 999");
         }
 
         @Test
@@ -991,7 +1016,7 @@ class EthereumSyncCommitteeProofVerifierTest {
         }
 
         private void assertConfigRejected(final byte[] payload, final String message) {
-            assertThatThrownBy(() -> verifier.verifyConfigPayload(payload))
+            assertThatThrownBy(() -> verifyConfig(payload))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining(message);
         }
@@ -1177,7 +1202,7 @@ class EthereumSyncCommitteeProofVerifierTest {
             final ConfigBuilder builder = config();
             builder.signature = deterministicBytes(256, 0x5B);
 
-            verifier.verifyConfigPayload(builder.serialize());
+            verifyConfig(builder.serialize());
 
             assertThat(bls.lastAggregatePubkey).isEqualTo(COMMITTEE.uncompressedAggregate);
             assertThat(bls.lastNonSignerPubkeys)
@@ -1189,7 +1214,7 @@ class EthereumSyncCommitteeProofVerifierTest {
         @Test
         @DisplayName("given a valid config, then verifyConfigPayload validates both committees' aggregates")
         void givenValidConfig_thenValidatesBothAggregates() {
-            verifier.verifyConfigPayload(config().serialize());
+            verifyConfig(config().serialize());
 
             assertThat(bls.validatedPubkeys)
                     .containsExactly(COMMITTEE.uncompressedAggregate, NEXT_COMMITTEE.uncompressedAggregate);
@@ -1232,7 +1257,7 @@ class EthereumSyncCommitteeProofVerifierTest {
         void givenMainnetConfig_thenDerivesAnchorOfBothCommittees() {
             final ConfigBuilder builder = config();
 
-            final VerifiedConfig verified = verifier.verifyConfigPayload(builder.serialize());
+            final VerifiedConfig verified = verifyConfig(builder.serialize());
 
             final ClprLedgerConfiguration ledger = verified.ledgerConfiguration();
             assertThat(ledger.initialTrustAnchor().toByteArray())
@@ -1250,7 +1275,7 @@ class EthereumSyncCommitteeProofVerifierTest {
             final ConfigBuilder builder =
                     new ConfigBuilder(MINIMAL, ANCHOR_PERIOD, MINIMAL_COMMITTEE, MINIMAL_NEXT_COMMITTEE);
 
-            final VerifiedConfig verified = verifier.verifyConfigPayload(builder.serialize());
+            final VerifiedConfig verified = verifyConfig(builder.serialize());
 
             assertThat(verified.ledgerConfiguration().initialTrustAnchor().toByteArray())
                     .isEqualTo(MINIMAL_TRUST_ANCHOR);
@@ -1260,6 +1285,225 @@ class EthereumSyncCommitteeProofVerifierTest {
             return EthereumPosLedgerConfigurationPayload.PROTOBUF
                     .toBytes(payload)
                     .toByteArray();
+        }
+
+        @Nested
+        @DisplayName("endpoint-manifest proof")
+        class ConfigEndpointManifest {
+
+            /**
+             * A delivery of ANCHOR_PERIOD, signed by COMMITTEE, whose CLPR service storage commits {@code manifest}.
+             */
+            private static DeliveryBuilder manifestDelivery(final ClprEndpointManifest manifest) {
+                return withCommitted(delivery(), manifest);
+            }
+
+            private static DeliveryBuilder withCommitted(
+                    final DeliveryBuilder builder, final ClprEndpointManifest manifest) {
+                final byte[] preimage = EthereumSyncCommitteeProofVerifierTest.serialize(manifest);
+                return builder.withManifest(
+                        preimage, MiscCryptoUtils.keccak256DigestOf(preimage), manifestCommitmentSlot());
+            }
+
+            private VerifiedConfig verifyWithProof(final byte[] endpointManifestProof) {
+                return verifier.verifyConfigPayload(config().serialize(), endpointManifestProof);
+            }
+
+            private void assertProofRejected(final byte[] endpointManifestProof, final String message) {
+                assertThatThrownBy(() -> verifyWithProof(endpointManifestProof))
+                        .isInstanceOf(ProofException.class)
+                        .hasMessageContaining(message);
+            }
+
+            @Test
+            @DisplayName("given no proof, then returns the uninitialized manifest of the configured service address")
+            void givenNoProof_thenReturnsUninitializedManifest() {
+                assertThat(verifyWithProof(new byte[0]).endpointManifest())
+                        .isEqualTo(ClprEndpointManifest.newBuilder()
+                                .serviceAddress(Bytes.wrap(SERVICE_ADDRESS))
+                                .build());
+            }
+
+            @ParameterizedTest(name = "{0} endpoints")
+            @ValueSource(ints = {0, 1, 3})
+            @DisplayName("given a proof signed by the current committee, then returns the proven manifest")
+            void givenProofSignedByCurrentCommittee_thenReturnsProvenManifest(final int endpointCount) {
+                final ClprEndpointManifest manifest = manifest(1L, endpointCount, SERVICE_ADDRESS);
+
+                final VerifiedConfig verified =
+                        verifyWithProof(manifestDelivery(manifest).buildConfigManifestProof());
+
+                assertThat(verified.endpointManifest()).isEqualTo(manifest);
+            }
+
+            @Test
+            @DisplayName("given a valid proof, then BLS receives all the required data")
+            void givenValidProof_thenBlsReceivesCurrentCommitteeProofSignature() {
+                final DeliveryBuilder builder = manifestDelivery(manifest(1L, 1, SERVICE_ADDRESS));
+                builder.signature = deterministicBytes(256, 0x5C);
+
+                verifyWithProof(builder.buildConfigManifestProof());
+
+                assertThat(bls.lastAggregatePubkey).isEqualTo(COMMITTEE.uncompressedAggregate);
+                assertThat(bls.lastNonSignerPubkeys)
+                        .containsExactly(COMMITTEE.uncompressedKeys[1], COMMITTEE.uncompressedKeys[2]);
+                assertThat(bls.lastMessage).isEqualTo(signingRoot(builder.attestedRoot()));
+                assertThat(bls.lastSignature).isEqualTo(builder.signature);
+            }
+
+            @Test
+            @DisplayName("given a proof signed in the next period, then checks it under the next committee")
+            void givenProofSignedInNextPeriod_thenChecksNextCommittee() {
+                final ClprEndpointManifest manifest = manifest(1L, 1, SERVICE_ADDRESS);
+                final DeliveryBuilder builder =
+                        withCommitted(new DeliveryBuilder(MAINNET, ANCHOR_PERIOD + 1, NEXT_COMMITTEE), manifest);
+
+                final VerifiedConfig verified = verifyWithProof(builder.buildConfigManifestProof());
+
+                assertThat(verified.endpointManifest()).isEqualTo(manifest);
+                assertThat(bls.lastAggregatePubkey).isEqualTo(NEXT_COMMITTEE.uncompressedAggregate);
+            }
+
+            @Test
+            @DisplayName("given a header attested in the previous period and signed in the config's, then accepts it")
+            void givenHeaderAttestedInPreviousPeriod_thenReturnsProvenManifest() {
+                final ClprEndpointManifest manifest = manifest(1L, 1, SERVICE_ADDRESS);
+                final DeliveryBuilder builder = manifestDelivery(manifest);
+                builder.signatureSlot = firstSlotOf(MAINNET, ANCHOR_PERIOD);
+                builder.attestedSlot = builder.signatureSlot - 1;
+                builder.finalizedSlot = builder.attestedSlot - 10;
+
+                final VerifiedConfig verified = verifyWithProof(builder.buildConfigManifestProof());
+
+                assertThat(verified.endpointManifest()).isEqualTo(manifest);
+            }
+
+            @Test
+            @DisplayName("given a header attested two periods before its signature, then rejects the proof")
+            void givenHeaderAttestedTwoPeriodsBeforeSignature_thenThrowsProofException() {
+                final DeliveryBuilder builder = withCommitted(
+                        new DeliveryBuilder(MAINNET, ANCHOR_PERIOD + 1, NEXT_COMMITTEE),
+                        manifest(1L, 1, SERVICE_ADDRESS));
+                builder.signatureSlot = firstSlotOf(MAINNET, ANCHOR_PERIOD + 1);
+                builder.attestedSlot = firstSlotOf(MAINNET, ANCHOR_PERIOD) - 1;
+                builder.finalizedSlot = builder.attestedSlot - 10;
+                assertProofRejected(
+                        builder.buildConfigManifestProof(),
+                        "signature slot " + builder.signatureSlot + " is in period 1001, more than one period after"
+                                + " the attested header slot " + builder.attestedSlot + " in period 999");
+            }
+
+            @Test
+            @DisplayName("given a signature slot two periods after the config's, then rejects the proof")
+            void givenSignatureSlotTwoPeriodsAhead_thenThrowsProofException() {
+                final DeliveryBuilder builder = manifestDelivery(manifest(1L, 1, SERVICE_ADDRESS));
+                builder.signatureSlot = firstSlotOf(MAINNET, ANCHOR_PERIOD + 2);
+                assertProofRejected(
+                        builder.buildConfigManifestProof(),
+                        "the trust anchor trusts committees for periods 1000 and 1001, not for period 1002");
+            }
+
+            @Test
+            @DisplayName("given the BLS check of the proof fails, then rejects the proof's slots")
+            void givenProofBlsRejects_thenThrowsProofExceptionWithProofContext() {
+                final DeliveryBuilder builder = manifestDelivery(manifest(1L, 1, SERVICE_ADDRESS));
+                builder.signature = deterministicBytes(256, 0x5D);
+                bls.invalidSignature = builder.signature;
+                assertProofRejected(
+                        builder.buildConfigManifestProof(),
+                        "endpoint-manifest proof rejected (anchorPeriod=" + ANCHOR_PERIOD
+                                + ", signatureSlot=" + (builder.attestedSlot + 1)
+                                + ", attestedSlot=" + builder.attestedSlot
+                                + ", finalizedSlot=" + builder.finalizedSlot
+                                + "): sync aggregate BLS signature verification failed");
+            }
+
+            @Test
+            @DisplayName(
+                    "given a finality branch that does not fold to the attested state root, then rejects the proof")
+            void givenWrongFinalityBranch_thenThrowsProofException() {
+                final DeliveryBuilder builder = manifestDelivery(manifest(1L, 1, SERVICE_ADDRESS));
+                builder.finalityBranchOverride = zeroBranch(9);
+                builder.finalityBranchOverride[0] = deterministicBytes(32, 0x99);
+                assertProofRejected(
+                        builder.buildConfigManifestProof(),
+                        "finality branch does not verify against the attested header stateRoot");
+            }
+
+            @Test
+            @DisplayName("given a block header the finalized body does not commit to, then rejects the proof")
+            void givenUncommittedBlockHeader_thenThrowsProofException() {
+                final DeliveryBuilder builder = manifestDelivery(manifest(1L, 1, SERVICE_ADDRESS));
+                builder.finalizedBodyRootOverride = deterministicBytes(32, 0x77);
+                assertProofRejected(builder.buildConfigManifestProof(), "execution block hash branch does not verify");
+            }
+
+            @Test
+            @DisplayName("given a config of another service address, then does not find the proven account")
+            void givenConfigOfAnotherServiceAddress_thenThrowsProofException() {
+                final EthereumPosLedgerConfigurationPayload config = config().build();
+                final byte[] otherConfig = EthereumPosLedgerConfigurationPayload.PROTOBUF
+                        .toBytes(config.copyBuilder()
+                                .ledgerConfiguration(config.ledgerConfigurationOrThrow()
+                                        .copyBuilder()
+                                        .serviceAddress(Bytes.wrap(deterministicBytes(20, 0x11)))
+                                        .build())
+                                .build())
+                        .toByteArray();
+                final byte[] proof =
+                        manifestDelivery(manifest(1L, 1, SERVICE_ADDRESS)).buildConfigManifestProof();
+
+                assertThatThrownBy(() -> verifier.verifyConfigPayload(otherConfig, proof))
+                        .isInstanceOf(ProofException.class)
+                        .hasMessageContaining("contract account is absent from state trie");
+            }
+
+            @Test
+            @DisplayName("given an account whose code hash is not the config's, then rejects the proof")
+            void givenAccountWithAnotherCodeHash_thenThrowsProofException() {
+                final DeliveryBuilder builder = manifestDelivery(manifest(1L, 1, SERVICE_ADDRESS))
+                        .withAccountCodeHash(deterministicBytes(32, 0xC1));
+                assertProofRejected(
+                        builder.buildConfigManifestProof(),
+                        "contract account code hash does not match the code hash pinned in the trust anchor");
+            }
+
+            @Test
+            @DisplayName("given a preimage that does not hash to the proven commitment, then rejects the proof")
+            void givenCommitmentMismatch_thenThrowsProofException() {
+                final byte[] preimage =
+                        EthereumSyncCommitteeProofVerifierTest.serialize(manifest(1L, 1, SERVICE_ADDRESS));
+                final DeliveryBuilder builder =
+                        delivery().withManifest(preimage, deterministicBytes(32, 0x42), manifestCommitmentSlot());
+                assertProofRejected(
+                        builder.buildConfigManifestProof(),
+                        "endpoint-manifest preimage does not match the proven commitment");
+            }
+
+            @Test
+            @DisplayName("given a manifest of version 0, then verifyConfigPayload rejects the proof")
+            void givenVersionZero_thenThrowsProofException() {
+                assertProofRejected(
+                        manifestDelivery(manifest(0L, 1, SERVICE_ADDRESS)).buildConfigManifestProof(),
+                        "endpoint-manifest version is 0");
+            }
+
+            @Test
+            @DisplayName("given a manifest for another service address, then rejects the proof")
+            void givenManifestOfAnotherServiceAddress_thenThrowsProofException() {
+                assertProofRejected(
+                        manifestDelivery(manifest(1L, 1, deterministicBytes(20, 0x12)))
+                                .buildConfigManifestProof(),
+                        "endpoint-manifest service_address does not match the channel's service address");
+            }
+
+            @Test
+            @DisplayName("given raw manifest bytes instead of a proof, then verifyConfigPayload rejects them")
+            void givenRawManifestBytes_thenThrowsProofException() {
+                assertProofRejected(
+                        EthereumSyncCommitteeProofVerifierTest.serialize(manifest(1L, 1, SERVICE_ADDRESS)),
+                        "endpointManifestProof");
+            }
         }
     }
 
