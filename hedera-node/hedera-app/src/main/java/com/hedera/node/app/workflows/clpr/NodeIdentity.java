@@ -52,7 +52,7 @@ record NodeIdentity(
     }
 
     private static boolean isLoopback(@NonNull final String host) {
-        return "127.0.0.1".equals(host) || "::1".equals(host) || "localhost".equals(host);
+        return "127.0.0.1".equals(host) || "::1".equals(host) || "localhost".equalsIgnoreCase(stripTrailingDot(host));
     }
 
     private static boolean matchesIpAddressV4(@NonNull final ServiceEndpoint ep, @NonNull final String host) {
@@ -70,12 +70,15 @@ record NodeIdentity(
         if (domain == null || domain.isEmpty()) {
             return false;
         }
-        return dnsKey(domain).equals(dnsKey(host));
+        return stripTrailingDot(domain).equalsIgnoreCase(stripTrailingDot(host));
     }
 
-    /** DNS comparison key. Pass the original name to the resolver to preserve search-domain semantics. */
+    private static String stripTrailingDot(final String host) {
+        return host.endsWith(".") ? host.substring(0, host.length() - 1) : host;
+    }
+
+    /** Peer keys retain the trailing dot because it suppresses DNS search-list expansion. */
     static String dnsKey(@NonNull final String host) {
-        final var name = host.endsWith(".") ? host.substring(0, host.length() - 1) : host;
-        return name.toLowerCase(Locale.ROOT);
+        return host.toLowerCase(Locale.ROOT);
     }
 }

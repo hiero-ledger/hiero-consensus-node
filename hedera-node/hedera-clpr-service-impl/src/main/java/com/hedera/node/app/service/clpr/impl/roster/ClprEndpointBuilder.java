@@ -5,6 +5,7 @@ import static com.hedera.hapi.util.HapiUtils.asReadableIp;
 import static java.util.Objects.requireNonNull;
 
 import com.google.common.base.CharMatcher;
+import com.google.common.net.InetAddresses;
 import com.google.common.net.InternetDomainName;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ServiceEndpoint;
@@ -119,6 +120,12 @@ public final class ClprEndpointBuilder {
             }
         }
         return null;
+    }
+
+    /** Whether the publication carries a host that the numeric-only manifest policy excludes. */
+    public static boolean hasNonNumericHost(@NonNull final ClprEndpoint endpoint) {
+        final var svc = endpoint.serviceEndpoint();
+        return svc != null && !svc.ipAddress().isEmpty() && !InetAddresses.isInetAddress(svc.ipAddress());
     }
 
     /** Shared syntax check for address-book publication and outbound DNS lookup. */

@@ -41,6 +41,7 @@ class NodeIdentityTest {
         assertThat(identity.isSelf("127.0.0.1", GRPC_PORT)).isTrue();
         assertThat(identity.isSelf("::1", GRPC_PORT)).isTrue();
         assertThat(identity.isSelf("localhost", GRPC_PORT)).isTrue();
+        assertThat(identity.isSelf("LOCALHOST.", GRPC_PORT)).isTrue();
     }
 
     @Test

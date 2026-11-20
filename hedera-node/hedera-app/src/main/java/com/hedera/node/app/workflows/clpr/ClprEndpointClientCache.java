@@ -107,7 +107,7 @@ public class ClprEndpointClientCache implements AutoCloseable {
         requireNonNull(deadline);
         final Policy policy;
         final InetSocketAddress key;
-        final CachedClient previous;
+        CachedClient previous;
         final boolean dns = isDnsHostname(host);
         synchronized (this) {
             policy = applyPolicy();
@@ -122,40 +122,31 @@ public class ClprEndpointClientCache implements AutoCloseable {
             previous = clients.get(key);
         }
 
-        final List<InetSocketAddress> candidates;
-        if (dns) {
-            try {
-                candidates = permittedAnswers(port, policy, resolve(host, deadline));
-            } catch (final UnknownHostException e) {
-                evict(key, previous);
-                throw new ClientException("Cannot resolve CLPR peer endpoint " + host, e);
-            }
-            if (candidates.isEmpty()) {
-                evict(key, previous);
-                throw new ClientException("CLPR peer endpoint " + host + " has no permitted DNS answers", null);
-            }
-        } else {
-            candidates = List.of(key);
-        }
-
         final CachedClient replaced;
         final ClprEndpointClientImpl client;
-        synchronized (this) {
-            // A stop, clear or policy change during DNS invalidates the lookup, even if the resolver ignored
-            // interruption.
-            if (applyPolicy() != policy) {
-                throw new ClientException("CLPR endpoint policy changed during lookup of " + host, null);
+        while (true) {
+            final var candidates = dns ? lookupCandidates(host, key, policy, previous, deadline) : List.of(key);
+            synchronized (this) {
+                if (applyPolicy() != policy) {
+                    throw new ClientException("CLPR endpoint policy changed during lookup of " + host, null);
+                }
+                checkDeadline(deadline);
+                final var current = clients.get(key);
+                final boolean pinStillPermitted = current != null && candidates.contains(current.address());
+                if (dns && current != previous && !pinStillPermitted) {
+                    // Another lookup replaced or evicted the pin. Confirm the answer within the same sync deadline.
+                    previous = current;
+                    continue;
+                }
+                if (pinStillPermitted && current.useTls() == useTls) {
+                    return current.client();
+                }
+                final var address = pinStillPermitted ? current.address() : candidates.getFirst();
+                client = new ClprEndpointClientImpl(address, useTls);
+                clients.put(key, new CachedClient(client, address, useTls));
+                replaced = current;
+                break;
             }
-            checkDeadline(deadline);
-            replaced = clients.get(key);
-            final var address = replaced != null && candidates.contains(replaced.address())
-                    ? replaced.address()
-                    : candidates.getFirst();
-            if (replaced != null && replaced.address().equals(address) && replaced.useTls() == useTls) {
-                return replaced.client();
-            }
-            client = new ClprEndpointClientImpl(address, useTls);
-            clients.put(key, new CachedClient(client, address, useTls));
         }
         if (replaced != null) {
             logger.debug("[CLPR] rebuilding CLPR client for peer {} (useTls={})", key, useTls);
@@ -195,6 +186,25 @@ public class ClprEndpointClientCache implements AutoCloseable {
             appliedPolicy = new Policy(config.allowDnsPeerEndpoints(), ClprEndpointAddressPolicy.of(appliedCidrs));
         }
         return appliedPolicy;
+    }
+
+    private List<InetSocketAddress> lookupCandidates(
+            final String host,
+            final InetSocketAddress key,
+            final Policy policy,
+            @Nullable final CachedClient previous,
+            final Deadline deadline) {
+        try {
+            final var candidates = permittedAnswers(key.getPort(), policy, resolve(host, deadline));
+            if (!candidates.isEmpty()) {
+                return candidates;
+            }
+        } catch (final UnknownHostException e) {
+            evict(key, previous);
+            throw new ClientException("Cannot resolve CLPR peer endpoint " + host, e);
+        }
+        evict(key, previous);
+        throw new ClientException("CLPR peer endpoint " + host + " has no permitted DNS answers", null);
     }
 
     private InetAddress[] resolve(final String host, final Deadline deadline) throws UnknownHostException {

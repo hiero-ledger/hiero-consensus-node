@@ -27,6 +27,7 @@ import io.grpc.ManagedChannel;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -301,17 +302,62 @@ class ClprEndpointClientCacheTest {
     }
 
     @Test
-    void trailingDotSharesTheClientButPreservesTheResolverQuery() throws Exception {
+    void dnsClientsIgnoreCaseAndPreserveTheTrailingDotEvenForTheSameAddress() throws Exception {
         when(clprConfig.allowDnsPeerEndpoints()).thenReturn(true);
-        when(resolver.resolve(SOLO_HOST)).thenReturn(answers(ADDRESS));
-        when(resolver.resolve(SOLO_HOST + ".")).thenReturn(answers(ADDRESS));
+        when(resolver.resolve(any())).thenReturn(answers(ADDRESS));
         try (final var transport = mockStatic(ClprEndpointClientImpl.class)) {
             transport
                     .when(() -> ClprEndpointClientImpl.newChannel(ADDRESS, false))
-                    .thenReturn(mock(ManagedChannel.class));
-            final var first = clientFor(SOLO_HOST, PORT, false);
-            assertThat(clientFor(SOLO_HOST + ".", PORT, false)).isSameAs(first);
+                    .thenReturn(mock(ManagedChannel.class), mock(ManagedChannel.class));
+            final var relative = clientFor(SOLO_HOST, PORT, false);
+            final var absolute = clientFor(SOLO_HOST + ".", PORT, false);
+            assertThat(absolute).isNotSameAs(relative);
+            final var upper = SOLO_HOST.toUpperCase(Locale.ROOT);
+            assertThat(clientFor(upper, PORT, false)).isSameAs(relative);
+            assertThat(clientFor(upper + ".", PORT, false)).isSameAs(absolute);
+            verify(resolver).resolve(SOLO_HOST);
             verify(resolver).resolve(SOLO_HOST + ".");
+            verify(resolver).resolve(upper);
+            verify(resolver).resolve(upper + ".");
+            transport.verify(() -> ClprEndpointClientImpl.newChannel(ADDRESS, false), times(2));
+        }
+    }
+
+    @Test
+    void lateConflictingAnswerRechecksDnsBeforeReplacingANewerPin() throws Exception {
+        final var cidrs = allowDnsWith("10.0.0.0/24");
+        final var newerAddress = ClprEndpointAddressPolicy.addressFor("10.0.0.2", PORT, cidrs);
+        final var lookupStarted = new CountDownLatch(1);
+        final var newerPinInstalled = new CountDownLatch(1);
+        when(resolver.resolve(SOLO_HOST))
+                .thenAnswer(invocation -> {
+                    lookupStarted.countDown();
+                    assertThat(newerPinInstalled.await(5, TimeUnit.SECONDS)).isTrue();
+                    return answers(ADDRESS);
+                })
+                .thenReturn(answers(newerAddress));
+        final var deadline = mock(Deadline.class);
+        when(deadline.timeRemaining(TimeUnit.NANOSECONDS)).thenReturn(TimeUnit.SECONDS.toNanos(10));
+        final var channel = mock(ManagedChannel.class);
+        try (var worker = Executors.newVirtualThreadPerTaskExecutor();
+                var transport = mockStatic(ClprEndpointClientImpl.class)) {
+            final var newer = worker.submit(() -> {
+                try (var workerTransport = mockStatic(ClprEndpointClientImpl.class)) {
+                    workerTransport
+                            .when(() -> ClprEndpointClientImpl.newChannel(newerAddress, false))
+                            .thenReturn(channel);
+                    assertThat(lookupStarted.await(5, TimeUnit.SECONDS)).isTrue();
+                    return clientFor(SOLO_HOST, PORT, false);
+                } finally {
+                    newerPinInstalled.countDown();
+                }
+            });
+            final var client = cache.clientFor(SOLO_HOST, PORT, false, deadline);
+            assertThat(client).isSameAs(newer.get(5, TimeUnit.SECONDS));
+            verify(resolver, times(3)).resolve(SOLO_HOST);
+            verify(deadline, times(2)).timeRemaining(TimeUnit.NANOSECONDS);
+            transport.verifyNoInteractions();
+            verify(channel, never()).shutdown();
         }
     }
 

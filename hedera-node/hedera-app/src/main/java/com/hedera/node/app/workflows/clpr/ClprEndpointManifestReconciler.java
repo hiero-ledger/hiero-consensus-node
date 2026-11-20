@@ -3,7 +3,6 @@ package com.hedera.node.app.workflows.clpr;
 
 import static java.util.Objects.requireNonNull;
 
-import com.google.common.net.InetAddresses;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.clpr.ClprEndpoint;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
@@ -170,7 +169,7 @@ public class ClprEndpointManifestReconciler {
             if (manifest.equals(manifestWithoutDns)) {
                 return;
             }
-            if (manifest.endpoints().stream().anyMatch(ClprEndpointManifestReconciler::hasNonNumericHost)) {
+            if (manifest.endpoints().stream().anyMatch(ClprEndpointBuilder::hasNonNumericHost)) {
                 openConstruction(now, activeRoster, constructionStore, config, manifest.version() + 1);
             } else {
                 manifestWithoutDns = manifest;
@@ -496,11 +495,6 @@ public class ClprEndpointManifestReconciler {
                 candidate.size());
     }
 
-    private static boolean hasNonNumericHost(final ClprEndpoint endpoint) {
-        final var svc = endpoint.serviceEndpoint();
-        return svc != null && !svc.ipAddress().isEmpty() && !InetAddresses.isInetAddress(svc.ipAddress());
-    }
-
     /**
      * Build the candidate endpoint list at close time from <b>only</b> the publications gathered in
      * this construction — there is no carry-over. A target node that did not publish before the
@@ -521,7 +515,7 @@ public class ClprEndpointManifestReconciler {
         for (final var gathered : construction.gatheredPublications()) {
             final var publication = gathered.publicationOrThrow();
             if (publication.hasEndpoint()
-                    && (publishDnsEndpoints || !hasNonNumericHost(publication.endpointOrThrow()))) {
+                    && (publishDnsEndpoints || !ClprEndpointBuilder.hasNonNumericHost(publication.endpointOrThrow()))) {
                 candidate.add(publication.endpointOrThrow());
             }
         }
