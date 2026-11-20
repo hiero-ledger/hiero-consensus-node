@@ -110,6 +110,32 @@ public class ClprUpdateLedgerConfigurationSuite {
                 .hasPrecheck(INVALID_CLPR_CONFIGURATION));
     }
 
+    @LeakyHapiTest(
+            requirement = PROPERTY_OVERRIDES,
+            overrides = {"contracts.maxGasPerTransaction"})
+    final Stream<DynamicTest> rejectsMaxGasPerMessageAboveMaxGasPerTransaction() {
+        // Inbound messages are dispatched with max_gas_per_message gas, and a contract call above
+        // contracts.maxGasPerTransaction is refused, so such a value would fail every inbound message.
+        final var maxGasPerTransaction = 15_000_000L;
+        final var atCap = HapiClprUpdateLedgerConfiguration.defaultThrottles().toBuilder()
+                .setMaxGasPerMessage(maxGasPerTransaction)
+                .build();
+        final var aboveCap =
+                atCap.toBuilder().setMaxGasPerMessage(maxGasPerTransaction + 1).build();
+        return hapiTest(
+                overriding("contracts.maxGasPerTransaction", String.valueOf(maxGasPerTransaction)),
+                clprUpdateLedgerConfiguration()
+                        .serviceAddress(CLPR_SERVICE_ADDRESS_20)
+                        .throttles(atCap)
+                        .payingWith(GENESIS),
+                clprUpdateLedgerConfiguration()
+                        .serviceAddress(CLPR_SERVICE_ADDRESS_20)
+                        .throttles(aboveCap)
+                        .payingWith(GENESIS)
+                        .hasKnownStatus(INVALID_CLPR_CONFIGURATION),
+                clprGetLedgerConfiguration().exposingConfigTo(config -> assertEquals(atCap, config.getThrottles())));
+    }
+
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
     final Stream<DynamicTest> rejectsServiceAddressOtherThanClprSystemContract() {
         // Peers verify this config against the ledger's endpoint manifest, whose service address
