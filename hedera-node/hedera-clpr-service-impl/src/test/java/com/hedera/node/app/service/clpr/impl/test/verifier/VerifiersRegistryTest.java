@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
 
 class VerifiersRegistryTest {
     private static final Bytes CANTON_EVM_ADDRESS =
-            Bytes.wrap(new byte[] {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01, (byte) 0x72});
+            Bytes.wrap(new byte[] {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01, (byte) 0x73});
 
     @Test
     void resolvesCantonByContractNum() {
