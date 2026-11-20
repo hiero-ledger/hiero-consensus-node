@@ -822,23 +822,28 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
      * and updates the running {@link #prevWrappedRecordBlockHashes} hasher and
      * {@link #previousWrappedRecordBlockRootHash}.
      *
-     * <p>If WRB streaming is enabled, the block is forwarded to the block buffer only when migration root hash
-     * voting is complete. While voting is in progress the live hasher is seeded from this node's local migration
-     * result, which the network may not agree on; the vote handler replaces it with the agreed chain via
-     * {@link #syncFinalizedMigrationHashes}. Blocks closed before then are not streamed, so every WRB in the
+     * <p>If WRB streaming is enabled, the block is forwarded to the block buffer only once the chain it is built on
+     * is settled. While migration root hash voting is in progress, the live hasher is seeded from this node's local
+     * migration result, which the network may not agree on; the vote handler replaces it with the agreed chain via
+     * {@link #syncFinalizedMigrationHashes}. Blocks closed in that window are not streamed, so every WRB in the
      * buffer chains from the agreed values.
+     *
+     * <p>Streaming is also allowed once the voting completion deadline has passed without the vote finalizing
+     * (see {@link #migrationRootHashVotingQueueingEnabled}), so a network that never reaches agreement does not stop
+     * streaming forever. Such blocks chain from this node's local values. Votes are ignored once the deadline has
+     * passed (see {@code MigrationRootHashVoteHandler}), so the chain is never replaced by one missing those blocks.
      *
      * @param justFinishedBlockNumber the number of the block that just closed
      * @param justFinishedBlockCreationTime the consensus time of the first transaction in that block
      * @param endRunningHash the record stream running hash at the end of that block
-     * @param votingComplete whether migration root hash voting has completed
+     * @param streamingAllowed whether the chain is settled: voting completed, or its deadline passed
      * @return the wrapped record file block hashes of the block, or null if it had no records
      */
     private @Nullable WrappedRecordFileBlockHashes updateWrappedBlockHashes(
             final long justFinishedBlockNumber,
             @NonNull final Timestamp justFinishedBlockCreationTime,
             @NonNull final Bytes endRunningHash,
-            final boolean votingComplete) {
+            final boolean streamingAllowed) {
         if (currentBlockRecordStreamItems.isEmpty()) {
             logger.info(
                     "Skipping live wrapped record block hash computation for block {} because recordStreamItems is empty",
@@ -865,9 +870,10 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
 
         // If enabled, forward the WRB items to a GrpcBlockItemWriter so they reach the BlockBufferService
         // and onward to block nodes. The block is left open until the RSA signature-list future can complete
-        // it with a BlockFooter and BlockProof. Skipped while migration root hash voting is in progress, since
-        // the footer would carry this node's local chain values rather than the ones the network agrees on.
-        if (streamWrbEnabled && !votingComplete) {
+        // it with a BlockFooter and BlockProof. Skipped while migration root hash voting is in progress and its
+        // deadline has not passed, since the footer would carry this node's local chain values rather than the
+        // ones the network agrees on.
+        if (streamWrbEnabled && !streamingAllowed) {
             logger.info(
                     "Not streaming WRB for block {} because migration root hash voting is in progress",
                     justFinishedBlockNumber);
@@ -1045,7 +1051,10 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         if (currentBlockStartRunningHash != null) {
             if ((votingBlockNumInitialized() || votingComplete) && liveWritePrevWrappedRecordHashes()) {
                 final var wrappedRecordFileBlockHashes = updateWrappedBlockHashes(
-                        closedBlockNo, justFinishedBlockCreationTime, hashOfJustFinishedBlock, votingComplete);
+                        closedBlockNo,
+                        justFinishedBlockCreationTime,
+                        hashOfJustFinishedBlock,
+                        votingComplete || !queueingEnabled);
                 if (wrappedRecordFileBlockHashes != null && queueingEnabled) {
                     appendMigrationWrappedHashes(state, closedBlockNo, wrappedRecordFileBlockHashes);
                 }

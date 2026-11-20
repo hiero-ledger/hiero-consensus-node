@@ -2274,6 +2274,47 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         }
     }
 
+    @Test
+    void streamsWrappedRecordBlocksOnceVotingDeadlinePassesWithoutFinalization() {
+        final var app = appBuilder()
+                .withService(new BlockRecordService())
+                .withService(new PlatformStateService())
+                .withConfigValue("hedera.recordStream.liveWritePrevWrappedRecordHashes", true)
+                .withConfigValue("blockStream.streamWrappedRecordBlocks", true)
+                .withConfigValue("blockStream.jumpstart.blockNum", 1L)
+                .build();
+        seedRequiredStateMidVoting(app, List.of());
+        final var state = requireNonNullState(app.workingStateAccessor().getState());
+        final var migrationResult = new WrappedRecordBlockHashMigration.Result(
+                Bytes.fromHex("ab".repeat(48)), List.of(Bytes.fromHex("cd".repeat(48))), 1L);
+        final List<BlockItemWriter> handedOutWriters = new ArrayList<>();
+        final Supplier<BlockItemWriter> capturingSupplier = () -> {
+            final var w = mock(BlockItemWriter.class);
+            handedOutWriters.add(w);
+            return w;
+        };
+
+        try (final var mgr = newSeededManager(app, state, migrationResult, capturingSupplier)) {
+            // Blocks 0 and 1 close before the deadline (block 2), so they are queued and not streamed
+            setVotingDeadline(app, state, 2);
+            closeVotingBlock(mgr, state, 10);
+            closeVotingBlock(mgr, state, 13);
+            assertTrue(handedOutWriters.isEmpty(), "no WRB should be streamed before the deadline");
+            assertEquals(List.of(0L, 1L), queuedBlockNumbers(state));
+
+            // Block 2 closes at the deadline with voting still incomplete, so it is streamed and not queued
+            closeVotingBlock(mgr, state, 16);
+            assertEquals(1, handedOutWriters.size(), "the first post-deadline block should be streamed");
+            verify(handedOutWriters.getFirst()).openBlock(2L);
+            assertEquals(List.of(0L, 1L), queuedBlockNumbers(state));
+
+            // Streaming continues for later blocks while voting is still incomplete
+            closeVotingBlock(mgr, state, 19);
+            assertEquals(2, handedOutWriters.size());
+            verify(handedOutWriters.get(1)).openBlock(3L);
+        }
+    }
+
     private void seedRequiredState(final AppTestBase.App app) {
         app.stateMutator(BlockRecordService.NAME)
                 .withSingletonState(
@@ -2566,6 +2607,20 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 .stream()
                 .map(MigrationWrappedHashes::blockNumber)
                 .toList();
+    }
+
+    private static void setVotingDeadline(final AppTestBase.App app, final State state, final long deadline) {
+        final var blockInfo = requireNonNull(state.getReadableStates(BlockRecordService.NAME)
+                .<BlockInfo>getSingleton(BLOCKS_STATE_ID)
+                .get());
+        app.stateMutator(BlockRecordService.NAME)
+                .withSingletonState(
+                        BLOCKS_STATE_ID,
+                        blockInfo
+                                .copyBuilder()
+                                .votingCompletionDeadlineBlockNumber(deadline)
+                                .build())
+                .commit();
     }
 
     private static void markVotingComplete(final AppTestBase.App app, final State state) {
