@@ -168,9 +168,12 @@ dependencies.constraints {
         excludes.add("org.hiero.block-node:protobuf-sources")
     }
 }
+
+// protobuf-java and protobuf-java-util export the same package in 4.36.0+,
+// and JVM fails to run with LayerInstantiationException. So we force the version:
 configurations.all {
-  resolutionStrategy {
-      force("com.google.protobuf:protobuf-java:$protobuf")
-      force("com.google.protobuf:protobuf-java-util:$protobuf")
-  }
+    resolutionStrategy {
+        force("com.google.protobuf:protobuf-java:$protobuf")
+        force("com.google.protobuf:protobuf-java-util:$protobuf")
+    }
 }
