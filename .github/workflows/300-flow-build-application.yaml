@@ -29,14 +29,15 @@ jobs:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
   # Required: a failed report fails the run. Starts together with MATS: same needs, so it reports running
-  # when MATS kicks off. Neither waits on the other. Public repository only: a copy that isn't public runs
-  # MATS without reporting it.
+  # when MATS kicks off. Neither waits on the other. Runs only where the repository variable
+  # CHEWIE_MATS_REPORTING_ENABLED is true, with that repository's own CHEWIE_REPO_IDENTITY_KEY and CHEWIE_HOST.
+  # Any other copy, a fork or a mirror, public or not, runs MATS without reporting it.
   report-mats-running:
     name: Report MATS Running to Chewie
     needs:
       - extract-jdk-version
-    if: ${{ github.event.repository.visibility == 'public' }}
-    uses: ./.github/workflows/864-call-report-suite-result.yaml
+    if: ${{ vars.CHEWIE_MATS_REPORTING_ENABLED == 'true' }}
+    uses: ./.github/workflows/864-call-report-suite-status.yaml
     with:
       suite-type: mats
       commit: ${{ github.sha }}
@@ -72,14 +73,15 @@ jobs:
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
 
-  # Reported as soon as MATS finishes; nothing later in this workflow changes the MATS verdict.
+  # Reported as soon as MATS finishes; nothing later in this workflow changes the MATS verdict. Runs where
+  # report-mats-running does.
   report-mats-result:
     name: Report MATS Result to Chewie
     needs:
       - report-mats-running # keeps the terminal report after the running one, so it is the latest
       - mats-tests
-    if: ${{ always() && github.event.repository.visibility == 'public' }}
-    uses: ./.github/workflows/864-call-report-suite-result.yaml
+    if: ${{ always() && vars.CHEWIE_MATS_REPORTING_ENABLED == 'true' }}
+    uses: ./.github/workflows/864-call-report-suite-status.yaml
     with:
       suite-type: mats
       commit: ${{ github.sha }}

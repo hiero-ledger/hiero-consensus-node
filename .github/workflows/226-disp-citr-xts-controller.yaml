@@ -358,7 +358,7 @@ jobs:
       - extract-citr-vars
       - verify-citr-vars
     if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-proceed == 'true' }}
-    uses: ./.github/workflows/864-call-report-suite-result.yaml
+    uses: ./.github/workflows/864-call-report-suite-status.yaml
     with:
       suite-type: xts
       commit: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
@@ -769,7 +769,7 @@ jobs:
       - report-xts-running # keeps the terminal report after the running one, so it is the latest
       - xts-execution
     if: ${{ always() && needs.fetch-xts-candidate.outputs.xts-tag-commit != '' }}
-    uses: ./.github/workflows/864-call-report-suite-result.yaml
+    uses: ./.github/workflows/864-call-report-suite-status.yaml
     with:
       suite-type: xts
       commit: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}

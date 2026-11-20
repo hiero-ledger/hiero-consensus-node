@@ -108,8 +108,8 @@ env:
   NUM_OF_BLOCK_NODES: 3
 
   #Chaos mapping
-  FROM_BN_NETEM: "delay 25ms 2ms 25%"
-  FROM_CN_NETEM: "delay 12ms 5ms distribution normal"
+  FROM_BN_NETEM: "delay 42ms reorder 0.1% 25% limit 100000"
+  FROM_CN_NETEM: "delay 21ms 5ms distribution normal reorder 0.1% 25% limit 100000"
 
 jobs:
   get-chewie-jwt:
@@ -753,9 +753,9 @@ jobs:
             -- bash -c " \
               tc qdisc del dev eth0 root; \
               tc qdisc add dev eth0 root handle 1: htb default 12 r2q 1000; \
-              tc class add dev eth0 parent 1: classid 1:1 htb rate 1gbit; \
-              tc class add dev eth0 parent 1:1 classid 1:11 htb rate 1gbit; \
-              tc class add dev eth0 parent 1:1 classid 1:12 htb rate 1gbit; \
+              tc class add dev eth0 parent 1: classid 1:1 htb rate 10gbit; \
+              tc class add dev eth0 parent 1:1 classid 1:11 htb rate 10gbit; \
+              tc class add dev eth0 parent 1:1 classid 1:12 htb rate 10gbit; \
               tc filter add dev eth0 protocol ip parent 1:0 prio 1 u32 match ip src ${NLG_IP}/32 flowid 1:12; \
               tc filter add dev eth0 protocol ip parent 1:0 prio 1 u32 match ip dst ${NLG_IP}/32 flowid 1:12; \
               if [[ \"${target}\" = \"block-node-server\" ]]; then netem=\"${{ env.FROM_BN_NETEM }}\"; else netem=\"${{ env.FROM_CN_NETEM }}\"; fi

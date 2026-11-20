@@ -63,10 +63,10 @@ class EventStreamReportingToolTest {
         final long roundToReportFrom = rounds.size() / 2;
         final int numConsensusEvents = rounds.stream()
                 .filter(r -> r.getRoundNum() >= roundToReportFrom)
-                .mapToInt(ConsensusRound::getNumEvents)
+                .mapToInt(round -> round.getConsensusEvents().size())
                 .sum();
         final List<PlatformEvent> lastRound = rounds.getLast().getConsensusEvents();
-        final Instant lastEventTime = lastRound.get(lastRound.size() - 1).getConsensusTimestamp();
+        final Instant lastEventTime = lastRound.getLast().getConsensusTimestamp();
 
         // write event stream
         writeRoundsToStream(tmpDir, new RandomSigner(random), eventStreamWindowSize, rounds);
@@ -112,10 +112,10 @@ class EventStreamReportingToolTest {
                     }
                     return false;
                 })
-                .mapToInt(ConsensusRound::getNumEvents)
+                .mapToInt(round -> round.getConsensusEvents().size())
                 .sum();
         final List<PlatformEvent> lastRound = rounds.getLast().getConsensusEvents();
-        final Instant lastEventTime = lastRound.get(lastRound.size() - 1).getConsensusTimestamp();
+        final Instant lastEventTime = lastRound.getLast().getConsensusTimestamp();
 
         // write event stream
         writeRoundsToStream(tmpDir, new RandomSigner(random), eventStreamWindowSize, rounds);

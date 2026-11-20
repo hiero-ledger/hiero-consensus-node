@@ -19,7 +19,7 @@ import org.hiero.base.crypto.Hash;
  * A task running on the teacher side, which is responsible for processing requests from the
  * learner. For every request, a response is sent to the provided async output stream. Async
  * streams serialize objects to the underlying output streams in a separate thread. This is
- * where the provided hash from the learner is compared with the corresponding hash on the
+ * where the hash prefix provided by the learner is compared with the corresponding hash on the
  * teacher.
  *
  * <p>This task terminates either on exception or when no messages are returned by {@link AsyncInputStream}.
@@ -73,15 +73,13 @@ public class TeacherPullVirtualTreeReceiveTask implements Runnable {
                 }
 
                 final long path = request.path();
-                final Hash learnerHash = request.hash();
-                assert learnerHash != null;
                 final Hash teacherHash = teacherView.findHash(path);
                 // The only valid scenario, when teacherHash may be null, is the empty tree
                 if ((teacherHash == null) && (path != 0)) {
                     throw new MerkleSynchronizationException(
                             "Cannot load node hash (bad request from learner?), path=" + path);
                 }
-                final boolean isClean = (teacherHash == null) || teacherHash.equals(learnerHash);
+                final boolean isClean = (teacherHash == null) || request.matches(teacherHash);
                 final VirtualLeafBytes<?> leafData =
                         (!isClean && teacherView.isLeaf(path)) ? teacherView.findLeafRecord(path) : null;
                 final long firstLeafPath = teacherView.getMetadata().getFirstLeafPath();

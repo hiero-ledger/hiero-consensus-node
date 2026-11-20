@@ -281,20 +281,21 @@ class WritableHintsStoreImplTest {
         setConstructions(HintsConstruction.newBuilder().constructionId(123L).build(), nextConstruction);
         assertSame(nextConstruction, subject.getNextConstruction());
 
-        assertThrows(IllegalArgumentException.class, () -> subject.setPreprocessingStartTime(0L, CONSENSUS_NOW));
-        subject.setPreprocessingStartTime(123L, CONSENSUS_NOW);
+        assertThrows(IllegalArgumentException.class, () -> subject.setPreprocessingStartTime(0L, CONSENSUS_NOW, 10L));
+        subject.setPreprocessingStartTime(123L, CONSENSUS_NOW, 10L);
         assertEquals(
                 asTimestamp(CONSENSUS_NOW),
                 constructionNow(ACTIVE_HINTS_CONSTRUCTION_STATE_ID).preprocessingStartTimeOrThrow());
+        assertEquals(10L, constructionNow(ACTIVE_HINTS_CONSTRUCTION_STATE_ID).preprocessingRosterWeightOrThrow());
         assertFalse(constructionNow(NEXT_HINTS_CONSTRUCTION_STATE_ID).hasPreprocessingStartTime());
 
-        subject.setPreprocessingStartTime(123L, CONSENSUS_NOW);
+        subject.setPreprocessingStartTime(123L, CONSENSUS_NOW, 10L);
         assertEquals(
                 asTimestamp(CONSENSUS_NOW),
                 constructionNow(ACTIVE_HINTS_CONSTRUCTION_STATE_ID).preprocessingStartTimeOrThrow());
 
         final var then = CONSENSUS_NOW.plusSeconds(1L);
-        subject.setPreprocessingStartTime(456L, then);
+        subject.setPreprocessingStartTime(456L, then, 10L);
         assertEquals(
                 asTimestamp(then),
                 constructionNow(NEXT_HINTS_CONSTRUCTION_STATE_ID).preprocessingStartTimeOrThrow());
@@ -311,9 +312,11 @@ class WritableHintsStoreImplTest {
         final var nodeWeights = Map.of(1L, 100L, 3L, 300L);
         assertNull(subject.getActiveVerificationKey());
 
+        subject.setPreprocessingStartTime(456L, CONSENSUS_NOW, 500L);
         subject.setHintsScheme(456L, keys, nodePartyIds, nodeWeights);
 
         final var construction = constructionNow(NEXT_HINTS_CONSTRUCTION_STATE_ID);
+        assertEquals(500L, construction.preprocessingRosterWeightOrThrow());
         assertEquals(keys, construction.hintsSchemeOrThrow().preprocessedKeysOrThrow());
         assertEquals(
                 List.of(new NodePartyId(1L, 2, 100L), new NodePartyId(3L, 6, 300L)),
