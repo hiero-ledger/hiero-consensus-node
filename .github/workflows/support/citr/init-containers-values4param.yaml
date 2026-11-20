@@ -70,9 +70,9 @@ defaults:
       - name: JAVA_OPTS
         value: "-XX:+UnlockExperimentalVMOptions -XX:+UseZGC -XX:ZAllocationSpikeTolerance=2 -XX:ConcGCThreads=%HALFOFCORES% -XX:MaxDirectMemorySize=4g -XX:MetaspaceSize=100M -XX:+ZGenerational -Xlog:gc*:gc.log --add-opens java.base/jdk.internal.misc=ALL-UNNAMED --add-opens java.base/java.nio=ALL-UNNAMED -Dio.netty.tryReflectionSetAccessible=true"
       - name: JAVA_HEAP_MIN
-        value: "%RAMMINUS6%g"
+        value: "%RAMMINUS16%g"
       - name: JAVA_HEAP_MAX
-        value: "%RAMMINUS4%g"
+        value: "%RAMMINUS6%g"
       - name: MALLOC_ARENA_MAX
         value: "4"
 
