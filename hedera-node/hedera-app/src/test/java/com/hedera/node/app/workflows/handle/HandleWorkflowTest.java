@@ -335,6 +335,9 @@ class HandleWorkflowTest {
     private BlockBufferService blockBufferService;
 
     @Mock
+    private DiskSpaceGate diskSpaceGate;
+
+    @Mock
     private ReadableSingletonState<Object> platformStateReadableSingletonState;
 
     @Mock
@@ -888,6 +891,7 @@ class HandleWorkflowTest {
                 new java.util.concurrent.atomic.AtomicBoolean(),
                 nodeRewardManager,
                 blockBufferService,
+                diskSpaceGate,
                 Map.of(),
                 quiescenceController,
                 nodeFeeManager,
@@ -935,6 +939,28 @@ class HandleWorkflowTest {
         subject.handleRound(state, round, _ -> {});
 
         verify(blockBufferService).ensureNewBlocksPermitted();
+    }
+
+    @Test
+    void startRoundWaitsForFreeDiskSpaceBeforeAnyRoundWork() {
+        final NodeId creatorId = NodeId.of(0);
+        given(event.getHash()).willReturn(CryptoRandomUtils.randomHash());
+        given(event.getCreatorId()).willReturn(creatorId);
+        given(event.getEventCore()).willReturn(EventCore.DEFAULT);
+        given(event.getAllParents()).willReturn(List.<EventDescriptorWrapper>of());
+        given(blockStreamManager.lastIntervalProcessTime()).willReturn(NOW);
+        given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
+        given(event.getTransactions()).willReturn(emptyList());
+        given(round.iterator()).willAnswer(invocationOnMock -> List.of(event).iterator());
+        givenSubjectWith(BOTH, BlockStreamWriterMode.FILE_AND_GRPC, emptyList());
+
+        subject.handleRound(state, round, txn -> {});
+
+        final var order = inOrder(blockBufferService, diskSpaceGate, cacheWarmer, blockStreamManager);
+        order.verify(blockBufferService).ensureNewBlocksPermitted();
+        order.verify(diskSpaceGate).awaitFreeSpace();
+        order.verify(cacheWarmer).warm(state, round);
+        order.verify(blockStreamManager).startRound(round, state);
     }
 
     @Test

@@ -194,6 +194,7 @@ public class HandleWorkflow {
     private final CurrentPlatformStatus currentPlatformStatus;
     private final BlockHashSigner blockHashSigner;
     private final BlockBufferService blockBufferService;
+    private final DiskSpaceGate diskSpaceGate;
     private final Map<Class<?>, ServiceApiProvider<?>> apiProviders;
     private final QuiescenceController quiescenceController;
 
@@ -260,6 +261,7 @@ public class HandleWorkflow {
             @Nullable final AtomicBoolean systemEntitiesCreatedFlag,
             @NonNull final NodeRewardManager nodeRewardManager,
             @NonNull final BlockBufferService blockBufferService,
+            @NonNull final DiskSpaceGate diskSpaceGate,
             @NonNull final Map<Class<?>, ServiceApiProvider<?>> apiProviders,
             @NonNull final QuiescenceController quiescenceController,
             @NonNull final NodeFeeManager nodeFeeManager,
@@ -300,6 +302,7 @@ public class HandleWorkflow {
         this.nodeRewardManager = requireNonNull(nodeRewardManager);
         this.systemEntitiesCreatedFlag = systemEntitiesCreatedFlag;
         this.blockBufferService = requireNonNull(blockBufferService);
+        this.diskSpaceGate = requireNonNull(diskSpaceGate);
         this.apiProviders = requireNonNull(apiProviders);
         this.nodeFeeManager = requireNonNull(nodeFeeManager);
     }
@@ -317,6 +320,7 @@ public class HandleWorkflow {
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTxnCallback) {
         logStartRound(round);
         blockBufferService.ensureNewBlocksPermitted();
+        diskSpaceGate.awaitFreeSpace();
         cacheWarmer.warm(state, round);
         final var firstEvent = round.getConsensusEvents().getFirst();
         if (streamMode != RECORDS) {
