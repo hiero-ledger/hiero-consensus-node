@@ -18,6 +18,7 @@ import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThre
 import static org.hiero.base.file.FileUtils.getAbsolutePath;
 import static org.hiero.base.file.FileUtils.rethrowIO;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSemanticVersionOf;
+import static org.hiero.consensus.system.SystemExitCode.NODE_ALREADY_RUNNING;
 import static org.hiero.consensus.system.SystemExitCode.NODE_ID_NOT_PROVIDED;
 import static org.hiero.consensus.system.SystemExitUtils.exitSystem;
 
@@ -69,6 +70,15 @@ import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
+import java.nio.channels.OverlappingFileLockException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.time.InstantSource;
 import java.util.List;
 import java.util.concurrent.ForkJoinPool;
@@ -103,6 +113,17 @@ public class ServicesMain {
      * The {@link Metrics} to use.
      */
     private static Metrics metrics;
+
+    /**
+     * The name of the file, directly under the saved state directory, that a node process locks for its lifetime.
+     */
+    @VisibleForTesting
+    static final String NODE_LOCK_FILE_NAME = "node.lock";
+
+    /**
+     * The exclusive lock on {@link #NODE_LOCK_FILE_NAME}; kept reachable so it is held until the process exits.
+     */
+    private static FileLock nodeLock;
 
     /**
      * Launches Services: the approximate startup sequence is:
@@ -156,9 +177,6 @@ public class ServicesMain {
             throw new ConfigurationException();
         }
         final var platformConfig = buildPlatformConfig();
-        final var pathsConfig = platformConfig.getConfigData(PathsConfig.class);
-        final var fileSystemManager = new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
-
         final var selfId = commandLineArgs.localNodesToStart().stream()
                 .findFirst()
                 .orElseThrow(() -> {
@@ -166,6 +184,12 @@ public class ServicesMain {
                     exitSystem(NODE_ID_NOT_PROVIDED, msg);
                     return new ConfigurationException(msg);
                 });
+
+        final var pathsConfig = platformConfig.getConfigData(PathsConfig.class);
+        // Must happen before the FileSystemManager is created, since that wipes the temp directory holding
+        // the live MerkleDb files of any other node process already running from the same saved state directory
+        nodeLock = acquireNodeLockOrExit(pathsConfig.savedStateDir());
+        final var fileSystemManager = new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
 
         // --- Initialize the platform metrics and the Hedera instance ---
         setupGlobalMetrics(platformConfig);
@@ -281,6 +305,62 @@ public class ServicesMain {
 
         platform.start();
         hedera.run();
+    }
+
+    /**
+     * Acquires the exclusive node lock on the given saved state directory, exiting the process if another node
+     * process already holds it.
+     *
+     * @param savedStateDir the saved state directory
+     * @return the acquired lock
+     * @throws IllegalStateException if the lock is held elsewhere; only reachable in tests that mock the system exit
+     */
+    @VisibleForTesting
+    static @NonNull FileLock acquireNodeLockOrExit(@NonNull final Path savedStateDir) {
+        final FileLock lock;
+        try {
+            lock = tryLockSavedStateDir(savedStateDir);
+        } catch (final IOException e) {
+            throw new UncheckedIOException("Failed to lock saved state directory " + savedStateDir, e);
+        }
+        if (lock == null) {
+            final String msg = "Another node process is already running from saved state directory "
+                    + savedStateDir.toAbsolutePath() + ", shutting down before touching its files";
+            logger.error(EXCEPTION.getMarker(), msg);
+            exitSystem(NODE_ALREADY_RUNNING, msg);
+            // the following throw is not reachable in production,
+            // but reachable in testing with static mocked system exit calls.
+            throw new IllegalStateException(msg);
+        }
+        return lock;
+    }
+
+    /**
+     * Tries to take an exclusive lock on the {@link #NODE_LOCK_FILE_NAME} file in the given saved state directory,
+     * creating both if needed. The OS releases the lock when the process exits, so a crash never leaves it stale.
+     *
+     * @param savedStateDir the saved state directory
+     * @return the acquired lock, or {@code null} if it is already held by this or another process
+     * @throws IOException if the lock file cannot be created or locked
+     */
+    @VisibleForTesting
+    static @Nullable FileLock tryLockSavedStateDir(@NonNull final Path savedStateDir) throws IOException {
+        Files.createDirectories(savedStateDir);
+        final var channel = FileChannel.open(
+                savedStateDir.resolve(NODE_LOCK_FILE_NAME), StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+        try {
+            final var lock = channel.tryLock();
+            if (lock == null) {
+                channel.close();
+            }
+            return lock;
+        } catch (final OverlappingFileLockException e) {
+            channel.close();
+            return null;
+        } catch (final IOException e) {
+            channel.close();
+            throw e;
+        }
     }
 
     /**
