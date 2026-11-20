@@ -19,6 +19,7 @@ import java.util.concurrent.Executors;
 import org.hiero.consensus.event.creator.impl.EventCreator;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.main.model.TimestampedTransaction;
 import org.hiero.consensus.metrics.config.ConsensusLayerMetricsConfig_;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
@@ -26,7 +27,6 @@ import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
 import org.hiero.consensus.metrics.platform.PlatformMetricsFactoryImpl;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory;
-import org.hiero.consensus.main.model.TimestampedTransaction;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.junit.jupiter.api.Test;
 

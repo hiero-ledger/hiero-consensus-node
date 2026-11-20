@@ -19,8 +19,8 @@ import java.util.Random;
 import java.util.Set;
 import java.util.function.Predicate;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
-import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.main.model.EventDescriptorWrapper;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.event.PlatformEvent;
 
 public final class EventUtils {

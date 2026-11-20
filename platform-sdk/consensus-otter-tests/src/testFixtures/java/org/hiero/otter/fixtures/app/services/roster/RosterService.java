@@ -14,7 +14,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.main.model.NodeId;
-import org.hiero.consensus.model.hashgraph.Round;
+import org.hiero.consensus.main.model.Round;
 import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.roster.WritableRosterStore;
 import org.hiero.otter.fixtures.app.OtterService;
