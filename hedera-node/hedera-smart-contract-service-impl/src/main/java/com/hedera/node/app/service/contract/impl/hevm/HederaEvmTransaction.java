@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.hevm;
 
+import static com.hedera.node.app.hapi.utils.CommonUtils.clampedAdd;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniBytes;
 import static java.util.Objects.requireNonNull;
 
@@ -144,8 +145,7 @@ public record HederaEvmTransaction(
     }
 
     public long upfrontCostGiven(final long gasPrice) {
-        final var gasCost = gasCostGiven(gasPrice);
-        return gasCost == Long.MAX_VALUE ? Long.MAX_VALUE : gasCost + value;
+        return clampedAdd(gasCostGiven(gasPrice), value);
     }
 
     public long unusedGas(final long gasUsed) {
