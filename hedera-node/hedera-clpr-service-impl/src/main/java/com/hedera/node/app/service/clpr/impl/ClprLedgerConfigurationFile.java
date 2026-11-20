@@ -7,8 +7,11 @@ import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.clpr.ClprThrottles;
 import com.hedera.node.config.data.ClprConfig;
 import com.hedera.node.config.data.ContractsConfig;
+import com.hedera.pbj.runtime.Codec;
+import com.hedera.pbj.runtime.JsonTools;
 import com.hedera.pbj.runtime.ParseException;
-import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.jsonparser.JSONParser;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -43,6 +46,9 @@ public final class ClprLedgerConfigurationFile {
      */
     public static final String BUNDLED_RESOURCE = "clpr/clprLedgerConfiguration.json";
 
+    /** The JSON name of {@code ClprLedgerConfiguration.throttles}. */
+    private static final String THROTTLES_FIELD = "throttles";
+
     private ClprLedgerConfigurationFile() {}
 
     /**
@@ -56,10 +62,17 @@ public final class ClprLedgerConfigurationFile {
      */
     public static ClprThrottles parse(@NonNull final InputStream in) {
         requireNonNull(in);
+        final Bytes json;
+        try {
+            json = Bytes.wrap(in.readAllBytes());
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
         final ClprLedgerConfiguration parsed;
         try {
-            parsed = ClprLedgerConfiguration.JSON.parseStrict(new ReadableStreamingData(in));
-        } catch (ParseException e) {
+            parsed = ClprLedgerConfiguration.JSON.parseStrict(json.toReadableSequentialData());
+            parseThrottlesStrictly(json);
+        } catch (IOException | ParseException e) {
             throw new IllegalArgumentException("Malformed CLPR ledger configuration", e);
         }
         if (!parsed.hasThrottles()) {
@@ -74,6 +87,26 @@ public final class ClprLedgerConfigurationFile {
             throw new IllegalArgumentException("Invalid CLPR throttles " + throttles);
         }
         return throttles;
+    }
+
+    /**
+     * Parses the {@code throttles} object strictly. PBJ's strict parsing rejects unknown fields only at the top
+     * level and drops them in nested messages, so a misspelt throttle would otherwise take its default value.
+     *
+     * @param json a ledger configuration that already parsed strictly at the top level
+     * @throws ParseException if the {@code throttles} object has an unknown field
+     */
+    private static void parseThrottlesStrictly(@NonNull final Bytes json) throws IOException, ParseException {
+        for (final var pair :
+                JsonTools.parseJson(json.toReadableSequentialData()).pair()) {
+            if (THROTTLES_FIELD.equals(JsonTools.toJsonFieldName(pair.STRING().getText()))) {
+                ClprThrottles.JSON.parse(
+                        pair.value().getChild(JSONParser.ObjContext.class, 0),
+                        true,
+                        Codec.DEFAULT_MAX_DEPTH,
+                        Codec.DEFAULT_MAX_SIZE);
+            }
+        }
     }
 
     /**
