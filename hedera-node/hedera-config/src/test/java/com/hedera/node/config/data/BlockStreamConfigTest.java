@@ -13,6 +13,32 @@ import org.junit.jupiter.api.Test;
 class BlockStreamConfigTest {
 
     @Test
+    void partialsAreOnByDefaultOnlyForCompleteBlockStreams() {
+        for (final var mode : StreamMode.values()) {
+            final var defaults = com.hedera.node.config.testfixtures.HederaTestConfigBuilder.create()
+                    .withValue("blockStream.streamMode", mode.name())
+                    .getOrCreateConfig()
+                    .getConfigData(BlockStreamConfig.class);
+            assertThat(defaults.stateChangePartialsEnabled()).isEqualTo(mode == StreamMode.BLOCKS);
+            assertThat(defaults.stateChangePartialMinSaving()).isEqualTo(16);
+            final var enabled = com.hedera.node.config.testfixtures.HederaTestConfigBuilder.create()
+                    .withValue("blockStream.streamMode", mode.name())
+                    .withValue("blockStream.enableStateChangePartials", true)
+                    .withValue("blockStream.stateChangePartialMinSaving", 32)
+                    .getOrCreateConfig()
+                    .getConfigData(BlockStreamConfig.class);
+            assertThat(enabled.stateChangePartialMinSaving()).isEqualTo(32);
+            assertThat(enabled.stateChangePartialsEnabled()).isEqualTo(mode == StreamMode.BLOCKS);
+            final var disabled = com.hedera.node.config.testfixtures.HederaTestConfigBuilder.create()
+                    .withValue("blockStream.streamMode", mode.name())
+                    .withValue("blockStream.enableStateChangePartials", false)
+                    .getOrCreateConfig()
+                    .getConfigData(BlockStreamConfig.class);
+            assertThat(disabled.stateChangePartialsEnabled()).isFalse();
+        }
+    }
+
+    @Test
     void blockSizeLimitsHaveIndependentDefaults() {
         final var config = HederaTestConfigBuilder.create()
                 .withConfigDataType(BlockStreamConfig.class)
@@ -101,6 +127,8 @@ class BlockStreamConfigTest {
                 false,
                 digestType,
                 streamWrappedRecordBlocks,
-                false);
+                false,
+                false,
+                64);
     }
 }

@@ -12,3 +12,5 @@ tasks.fatModuleJar {
     enableNativeAccess =
         listOf("com.hedera.common.nativesupport", "com.hedera.cryptography.libsodium")
 }
+
+testModuleInfo { requires("org.junit.jupiter.api") }

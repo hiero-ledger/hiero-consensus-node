@@ -38,6 +38,12 @@ public class WrappedWritableKVState<K, V> extends WritableKVStateBase<K, V> {
         delegate.put(key, value);
     }
 
+    /** The delegate buffers rather than stores, so keep provenance for the base state's diff. */
+    @Override
+    protected boolean untrackOnCommit() {
+        return false;
+    }
+
     /** {@inheritDoc} */
     @Override
     protected void removeFromDataSource(@NonNull K key) {

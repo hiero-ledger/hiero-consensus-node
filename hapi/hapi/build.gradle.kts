@@ -8,6 +8,12 @@ plugins {
 
 description = "Hedera API"
 
+pbj {
+    // Derive roots from the state catalog, so adding a state does not require a second model list.
+    diffMessageContainers = setOf("com.hedera.hapi.platform.state.StateValue")
+    generateCopyBuilderTracking = true
+}
+
 // Remove the following line to enable all 'javac' lint checks that we have turned on by default
 // and then fix the reported issues.
 tasks.withType<JavaCompile>().configureEach {
@@ -44,14 +50,14 @@ sourceSets {
     }
 }
 
+// Tests depend on the protoc-compiled HAPI (com.google.protobuf.util) because they check the
+// PBJ-generated code against it for compatibility.
 testModuleInfo {
     requires("com.hedera.node.hapi")
-    // we depend on the protoc compiled hapi during test as we test our pbj generated code
-    // against it to make sure it is compatible
     requires("com.google.protobuf.util")
+    requires("org.assertj.core")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
-    requires("org.assertj.core")
 }
 
 tasks.test {

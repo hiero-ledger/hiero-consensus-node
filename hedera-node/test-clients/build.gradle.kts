@@ -101,6 +101,8 @@ val unitTest =
 // The default test task runs HAPI suites from src/main; keep unit tests in its verification path.
 tasks.test { dependsOn(unitTest) }
 
+tasks.check { dependsOn(unitTest) }
+
 // Tests start the block node CITR deploys, block-node-version in .citr-env (a BLOCK_NODE_VERSION
 // environment variable overrides it), minus the v that ghcr tags and Maven versions lack
 val blockNodeVersion: Provider<String> =
