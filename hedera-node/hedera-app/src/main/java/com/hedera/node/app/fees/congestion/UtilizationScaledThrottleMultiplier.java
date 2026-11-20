@@ -239,4 +239,14 @@ public class UtilizationScaledThrottleMultiplier {
     public Instant[] congestionLevelStarts() {
         return delegate.congestionLevelStarts();
     }
+
+    /**
+     * Returns a number that changes every time the delegate's internal state is rebuilt, which discards the
+     * congestion level starts.
+     *
+     * @return the generation of the delegate's internal state
+     */
+    public long stateGeneration() {
+        return delegate.stateGeneration();
+    }
 }

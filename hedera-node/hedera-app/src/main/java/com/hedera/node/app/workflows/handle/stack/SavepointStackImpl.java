@@ -60,6 +60,7 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -77,6 +78,27 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
     private final State state;
     private final Deque<Savepoint> stack = new ArrayDeque<>();
     private final Map<String, WritableStatesStack> writableStatesMap = new HashMap<>();
+
+    /**
+     * Receives the anchors held by savepoints that were rolled back, so work applied outside the state on behalf of
+     * the changes in those savepoints can be undone.
+     */
+    @FunctionalInterface
+    public interface RollbackObserver {
+        /**
+         * Called once per rollback, after the savepoints are discarded.
+         *
+         * @param stack the stack the rollback was performed on, which now shows the state without the discarded changes
+         * @param anchors the anchors the discarded savepoints held, in the order they were anchored
+         */
+        void onRollback(@NonNull SavepointStackImpl stack, @NonNull List<Object> anchors);
+    }
+
+    private record Anchor(@NonNull Object value, @NonNull RollbackObserver observer) {}
+
+    // The anchors held by each savepoint of this stack; created on first use, as few transactions anchor anything
+    @Nullable
+    private Map<Savepoint, List<Anchor>> anchorsBySavepoint;
     /**
      * The stream builder for the transaction whose dispatch created this stack.
      */
@@ -278,7 +300,10 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
         if (stack.size() <= 1) {
             throw new IllegalStateException("The savepoint stack is empty");
         }
-        stack.pop().commit();
+        final var committed = stack.pop();
+        committed.commit();
+        // The committed changes now belong to the savepoint beneath, and so do the anchors that follow them
+        adoptAnchors(takeAnchorsOf(committed));
     }
 
     @Override
@@ -286,7 +311,73 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
         if (stack.size() <= 1) {
             throw new IllegalStateException("The savepoint stack is empty");
         }
-        stack.pop().rollback();
+        final var discarded = stack.pop();
+        discarded.rollback();
+        notifyRolledBack(takeAnchorsOf(discarded));
+    }
+
+    /**
+     * Anchors the given value to the changes in the current savepoint of this stack. The anchor follows those changes:
+     * committing the savepoint moves it to the savepoint beneath, and committing the full stack moves it to the
+     * current savepoint of the parent stack, or drops it if this is a root stack. If a savepoint holding the anchor is
+     * rolled back, the observer is called with every anchor that rollback discarded and the anchor is dropped.
+     *
+     * @param value the value to anchor
+     * @param observer the observer to call if the changes are rolled back
+     */
+    public void anchorToCurrentSavepoint(@NonNull final Object value, @NonNull final RollbackObserver observer) {
+        requireNonNull(value);
+        requireNonNull(observer);
+        adoptAnchors(List.of(new Anchor(value, observer)));
+    }
+
+    private void adoptAnchors(@NonNull final List<Anchor> anchors) {
+        if (anchors.isEmpty()) {
+            return;
+        }
+        if (anchorsBySavepoint == null) {
+            anchorsBySavepoint = new IdentityHashMap<>();
+        }
+        anchorsBySavepoint.computeIfAbsent(peek(), k -> new ArrayList<>()).addAll(anchors);
+    }
+
+    private List<Anchor> takeAnchorsOf(@NonNull final Savepoint savepoint) {
+        if (anchorsBySavepoint == null) {
+            return List.of();
+        }
+        final var anchors = anchorsBySavepoint.remove(savepoint);
+        return anchors == null ? List.of() : anchors;
+    }
+
+    /**
+     * Calls each observer of the given discarded anchors once, with its anchors in the order they were anchored. Every
+     * observer is called even if an earlier one fails; the first failure is rethrown with later ones suppressed.
+     */
+    private void notifyRolledBack(@NonNull final List<Anchor> discarded) {
+        if (discarded.isEmpty()) {
+            return;
+        }
+        final Map<RollbackObserver, List<Object>> valuesByObserver = new LinkedHashMap<>();
+        for (final var anchor : discarded) {
+            valuesByObserver
+                    .computeIfAbsent(anchor.observer(), k -> new ArrayList<>())
+                    .add(anchor.value());
+        }
+        RuntimeException firstFailure = null;
+        for (final var entry : valuesByObserver.entrySet()) {
+            try {
+                entry.getKey().onRollback(this, entry.getValue());
+            } catch (final RuntimeException e) {
+                if (firstFailure == null) {
+                    firstFailure = e;
+                } else {
+                    firstFailure.addSuppressed(e);
+                }
+            }
+        }
+        if (firstFailure != null) {
+            throw firstFailure;
+        }
     }
 
     @Override
@@ -315,6 +406,11 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
         if (streamMode != RECORDS && immediateStateChangeListener != null) {
             immediateStateChangeListener.reset(logicallyIdenticalValueTestFor(builder));
         }
+        // Savepoints are committed from the newest to the oldest, so collect the anchors from the oldest to the newest
+        final List<Anchor> anchors = new ArrayList<>();
+        for (final var it = stack.descendingIterator(); it.hasNext(); ) {
+            anchors.addAll(takeAnchorsOf(it.next()));
+        }
         while (!stack.isEmpty()) {
             final var savepoint = stack.pop();
             // If this is a root stack, track the collected node fees for the block
@@ -327,6 +423,11 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
             builder.stateChanges(immediateStateChangeListener.getStateChanges());
         }
         setupFirstSavepoint(baseBuilder.category());
+        // The committed changes now belong to the current savepoint of the parent stack, and so do the anchors that
+        // follow them; the changes of a root stack are final, so nothing can discard them any more
+        if (state instanceof SavepointStackImpl parentStack) {
+            parentStack.adoptAnchors(anchors);
+        }
     }
 
     /**
@@ -365,6 +466,10 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
      * Rolls back all state changes captured in this stack.
      */
     public void rollbackFullStack() {
+        final List<Anchor> discarded = new ArrayList<>();
+        for (final var it = stack.descendingIterator(); it.hasNext(); ) {
+            discarded.addAll(takeAnchorsOf(it.next()));
+        }
         while (!stack.isEmpty()) {
             stack.pop().rollback();
         }
@@ -375,6 +480,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
             baseBuilder.status(REVERTED_SUCCESS);
         }
         setupFirstSavepoint(baseBuilder.category());
+        notifyRolledBack(discarded);
     }
 
     /**
@@ -838,6 +944,25 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
             trackBatchInnerId(builder, batchInnerId);
         }
         return builder;
+    }
+
+    /**
+     * Returns whether this is the root stack of a transaction, rather than the stack of a dispatch made within it.
+     *
+     * @return true if this is a root stack
+     */
+    public boolean isRoot() {
+        return !(state instanceof SavepointStackImpl);
+    }
+
+    /**
+     * Returns the stack of the enclosing dispatch this stack was created within, or null if this is a root stack.
+     *
+     * @return the parent stack, or null for a root stack
+     */
+    @Nullable
+    public SavepointStackImpl parent() {
+        return state instanceof SavepointStackImpl parentStack ? parentStack : null;
     }
 
     /**

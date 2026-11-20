@@ -118,8 +118,11 @@ then their containing AtomicBatch transaction must be signed by both `batchKey` 
   - ```whitelist``` This property is a HederaFunctionalitySet that contains the list of transaction types
     that are allowed in an atomic batch. If an inner transaction type is not in the whitelist, the batch will be
     rejected. By default the whitelist does not contain `Freeze`, `AtomicBatch`, `ScheduleCreate`, `ScheduleSign`,
-    `SystemDelete`, `SystemUndelete`, the CLPR transactions (all `Clpr*` transactions), or any node-submitted, internal
-    or unsupported transaction type. A new transaction type is not allowed in a batch until it is added to the whitelist.
+    `SystemDelete`, `SystemUndelete`, `NodeUpdate`, the CLPR transactions (all `Clpr*` transactions), or any
+    node-submitted, internal or unsupported transaction type. A new transaction type is not allowed in a batch until it
+    is added to the whitelist. Independently of the whitelist, a batch never allows `NodeUpdate`, node-submitted
+    transactions, or a `FileUpdate`/`FileAppend` of a system file, whether as an inner transaction or as a transaction
+    an inner transaction dispatches.
 
 ## Network Response Messages
 

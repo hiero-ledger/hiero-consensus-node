@@ -51,22 +51,67 @@ class ExchangeRateManagerTest {
             .build();
 
     Bytes validRateBytes = ExchangeRateSet.PROTOBUF.toBytes(validRatesObj);
+
+    // A rate set clearly different from the midnight baseline, used to observe a baseline move.
+    ExchangeRateSet movedRatesObj = ExchangeRateSet.newBuilder()
+            .currentRate(anotherRate)
+            .nextRate(someRate)
+            .build();
+    Bytes movedRateBytes = ExchangeRateSet.PROTOBUF.toBytes(movedRatesObj);
+
+    private static final AccountID SYSTEM_ADMIN =
+            AccountID.newBuilder().accountNum(50L).build();
+
     ExchangeRateManager subject;
+    FakeState state;
+    AtomicReference<ExchangeRateSet> midnightSingleton;
 
     @BeforeEach
     void setup() {
         final ConfigProvider configProvider = () -> new VersionedConfigImpl(HederaTestConfigBuilder.createConfig(), 1);
         subject = new ExchangeRateManager(configProvider);
-        final var state = new FakeState();
-        final var midnightRates = new AtomicReference<>(validRatesObj);
-        state.addService(FeeService.NAME, Map.of(V0490FeeSchema.MIDNIGHT_RATES_STATE_ID, midnightRates));
+        state = new FakeState();
+        midnightSingleton = new AtomicReference<>(validRatesObj);
+        state.addService(FeeService.NAME, Map.of(V0490FeeSchema.MIDNIGHT_RATES_STATE_ID, midnightSingleton));
         subject.init(state, validRateBytes, validRatesObj);
+    }
+
+    @Test
+    void systemAdminUpdatePersistsMovedMidnightBaselineToSingleton() {
+        // A system-admin (0.0.50) update bypasses the intraday limit and moves the midnight baseline; the move must be
+        // written to the MIDNIGHT_RATES singleton so a reconnecting node re-seeds from it and a rollback reverts it.
+        subject.update(movedRateBytes, SYSTEM_ADMIN, state);
+        state.commit();
+
+        assertEquals(movedRatesObj, subject.midnightRates());
+        assertEquals(movedRatesObj, midnightSingleton.get());
+    }
+
+    @Test
+    void nonAdminUpdateLeavesMidnightSingletonUnchanged() {
+        // A non-admin update does not move the midnight baseline, so it must not touch the singleton.
+        subject.update(validRateBytes, AccountID.DEFAULT, state);
+        state.commit();
+
+        assertEquals(validRatesObj, subject.midnightRates());
+        assertEquals(validRatesObj, midnightSingleton.get());
+    }
+
+    @Test
+    void systemUpdateDoesNotPersistMidnightSingleton() {
+        // systemUpdate() (used by node (re)initialization) moves the in-memory baseline but must never persist it; the
+        // committed singleton is the source of truth a reconnecting node re-seeds from.
+        subject.systemUpdate(movedRateBytes);
+        state.commit();
+
+        assertEquals(movedRatesObj, subject.midnightRates());
+        assertEquals(validRatesObj, midnightSingleton.get());
     }
 
     @Test
     void hasExpectedFields() throws ParseException {
         // when
-        subject.update(validRateBytes, AccountID.DEFAULT);
+        subject.update(validRateBytes, AccountID.DEFAULT, state);
 
         // expect
         final var curr = subject.exchangeRates().currentRateOrThrow();
@@ -86,7 +131,7 @@ class ExchangeRateManagerTest {
         final var bytes = Bytes.wrap(new byte[] {0x06});
 
         // then
-        assertThatThrownBy(() -> subject.update(bytes, AccountID.DEFAULT))
+        assertThatThrownBy(() -> subject.update(bytes, AccountID.DEFAULT, state))
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(ResponseCodeEnum.INVALID_EXCHANGE_RATE_FILE));
     }
@@ -104,7 +149,7 @@ class ExchangeRateManagerTest {
         final var zeroRateBytes = ExchangeRateSet.PROTOBUF.toBytes(zeroRates);
         final var superUser = AccountID.newBuilder().accountNum(50L).build();
 
-        assertThatThrownBy(() -> subject.update(zeroRateBytes, superUser))
+        assertThatThrownBy(() -> subject.update(zeroRateBytes, superUser, state))
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(ResponseCodeEnum.INVALID_EXCHANGE_RATE_FILE));
     }
@@ -129,7 +174,7 @@ class ExchangeRateManagerTest {
     @MethodSource("provideConsensusTimesForActiveRate")
     void activeRateWorksAsExpected(Instant consensusTime, ExchangeRate expectedExchangeRate) {
         // given
-        subject.update(validRateBytes, AccountID.DEFAULT);
+        subject.update(validRateBytes, AccountID.DEFAULT, state);
 
         // when
         final var activeRate = subject.activeRate(consensusTime);

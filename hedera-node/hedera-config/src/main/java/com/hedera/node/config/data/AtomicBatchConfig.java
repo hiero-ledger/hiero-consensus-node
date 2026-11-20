@@ -21,7 +21,7 @@ public record AtomicBatchConfig(
                 + "TokenRevokeKycFromAccount,TokenDelete,TokenUpdate,TokenMint,TokenBurn,TokenAccountWipe,"
                 + "TokenAssociateToAccount,TokenDissociateFromAccount,ScheduleDelete,TokenFeeScheduleUpdate,"
                 + "TokenPause,TokenUnpause,CryptoApproveAllowance,CryptoDeleteAllowance,EthereumTransaction,"
-                + "UtilPrng,TokenUpdateNfts,NodeCreate,NodeUpdate,NodeDelete,TokenReject,TokenAirdrop,"
+                + "UtilPrng,TokenUpdateNfts,NodeCreate,NodeDelete,TokenReject,TokenAirdrop,"
                 + "TokenCancelAirdrop,TokenClaimAirdrop,HookStore,RegisteredNodeCreate,RegisteredNodeUpdate,"
                 + "RegisteredNodeDelete")
                 @NetworkProperty HederaFunctionalitySet whitelist) {}
