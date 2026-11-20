@@ -128,7 +128,7 @@ public final class ClprLedgerConfigurationFile {
                 log.info("CLPR ledger configuration loaded from {}", path.toAbsolutePath());
             } catch (IOException | RuntimeException e) {
                 log.error(
-                        "Invalid CLPR ledger configuration at {}, using classpath resource {}",
+                        "Invalid CLPR ledger configuration at {}, using the default throttles from classpath resource {}",
                         path.toAbsolutePath(),
                         BUNDLED_RESOURCE,
                         e);
