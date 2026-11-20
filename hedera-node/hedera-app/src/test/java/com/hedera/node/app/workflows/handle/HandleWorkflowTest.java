@@ -211,7 +211,7 @@ import org.apache.logging.log4j.LogManager;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
 import org.hiero.consensus.main.model.NodeId;
-import org.hiero.consensus.model.event.ConsensusEvent;
+import org.hiero.consensus.main.model.ConsensusEvent;
 import org.hiero.consensus.main.model.EventDescriptorWrapper;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.status.PlatformStatus;

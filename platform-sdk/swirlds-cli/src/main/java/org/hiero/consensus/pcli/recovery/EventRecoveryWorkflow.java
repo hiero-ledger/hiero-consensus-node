@@ -52,7 +52,7 @@ import org.hiero.consensus.hashgraph.impl.consensus.ConsensusUtils;
 import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.event.CesEvent;
-import org.hiero.consensus.model.event.ConsensusEvent;
+import org.hiero.consensus.main.model.ConsensusEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.pces.config.PcesConfig;

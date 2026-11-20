@@ -16,7 +16,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.event.ConsensusEvent;
+import org.hiero.consensus.main.model.ConsensusEvent;
 import org.hiero.consensus.model.hashgraph.Round;
 
 /**

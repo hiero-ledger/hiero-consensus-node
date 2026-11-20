@@ -1,14 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.model.event;
+package org.hiero.consensus.main.model;
 
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
-import org.hiero.consensus.main.model.EventDescriptorWrapper;
-import org.hiero.consensus.main.model.NodeId;
-import org.hiero.consensus.main.model.Transaction;
 
 /**
  * An event created by a node with zero or more transactions.

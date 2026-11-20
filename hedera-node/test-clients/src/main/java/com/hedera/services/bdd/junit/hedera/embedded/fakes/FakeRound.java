@@ -10,7 +10,7 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
 import org.hiero.base.crypto.RunningHash;
-import org.hiero.consensus.model.event.ConsensusEvent;
+import org.hiero.consensus.main.model.ConsensusEvent;
 import org.hiero.consensus.model.hashgraph.Round;
 
 public class FakeRound implements Round {

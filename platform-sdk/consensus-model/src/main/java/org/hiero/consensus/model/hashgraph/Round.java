@@ -8,7 +8,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.List;
 import org.hiero.base.crypto.RunningHash;
-import org.hiero.consensus.model.event.ConsensusEvent;
+import org.hiero.consensus.main.model.ConsensusEvent;
 
 /**
  * A collection of unique events that reached consensus at the same time. The consensus data for every event in the

@@ -25,7 +25,7 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
-import org.hiero.consensus.model.event.Event;
+import org.hiero.consensus.main.model.Event;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.main.model.ConsensusTransaction;
 import org.hiero.consensus.main.model.Transaction;

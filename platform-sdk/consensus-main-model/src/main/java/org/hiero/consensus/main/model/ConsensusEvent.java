@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.model.event;
+package org.hiero.consensus.main.model;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.main.model.ConsensusTransaction;
 
 /**
  * An event that has reached consensus.
