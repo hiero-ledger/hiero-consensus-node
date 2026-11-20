@@ -162,7 +162,7 @@ public class MultipleNodeConsensusResultsAssert
      * ancient has either reached consensus or become stale, but not both. See
      * {@link SingleNodeConsensusResultAssert#hasNoLostEvents()} for details.
      *
-     * <p>A node that restarts or reconnects while the results are collected can be left out with
+     * <p>A node that reconnects while the results are collected can be left out with
      * {@link MultipleNodeConsensusResults#suppressingNode(NodeId)}.
      *
      * @return this assertion object for method chaining
