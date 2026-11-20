@@ -4,7 +4,9 @@ package com.swirlds.merkledb.test.fixtures;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
+import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
 import java.util.Random;
 
 public final class ExampleVariableValue extends ExampleByteArrayVirtualValue {
@@ -84,6 +86,13 @@ public final class ExampleVariableValue extends ExampleByteArrayVirtualValue {
         @Override
         protected void writeImpl(@NonNull ExampleVariableValue value, @NonNull WritableSequentialData out) {
             value.writeTo(out);
+        }
+
+        @Override
+        protected long writeImpl(
+                @NonNull final ExampleVariableValue item, @NonNull final RandomAccessData output, final long offset)
+                throws IOException {
+            return output.putBytes(offset, toBytes(item));
         }
 
         @Override

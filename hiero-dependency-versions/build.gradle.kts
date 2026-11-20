@@ -14,13 +14,13 @@ val dagger = "2.59.2"
 val eclipseCollections = "13.0.0"
 val grpc = "1.81.0"
 val hederaCryptography = "3.29.1"
-val helidon = "4.5.4"
+val helidon = "4.5.6"
 val jackson = "2.22.2"
 val junit5 = "6.1.3"
 val log4j = "2.26.0"
 val mockito = "5.23.0"
 val pbj = pluginVersions.version("com.hedera.pbj.pbj-compiler")
-val protobuf = "4.34.1"
+val protobuf = "4.35.1"
 val prometheusSimpleclient = "0.16.0"
 // The one Block Node pin is block-node-version in .citr-env; Maven versions lack its v
 val blockNodeProtobufSources =
@@ -59,7 +59,7 @@ dependencies.constraints {
     }
     api("com.github.ben-manes.caffeine:caffeine:3.2.4") { because("com.github.benmanes.caffeine") }
     api("com.github.docker-java:docker-java-api:3.7.1") { because("com.github.dockerjava.api") }
-    api("com.github.luben:zstd-jni:1.5.7-22") { because("com.github.luben.zstd_jni") }
+    api("com.github.luben:zstd-jni:1.5.7-28") { because("com.github.luben.zstd_jni") }
     api("com.github.spotbugs:spotbugs-annotations:4.9.8") {
         because("com.github.spotbugs.annotations")
     }
@@ -166,5 +166,14 @@ dependencies.constraints {
         excludes.add("com.google.protobuf:protoc")
         excludes.add("io.grpc:protoc-gen-grpc-java")
         excludes.add("org.hiero.block-node:protobuf-sources")
+    }
+}
+
+// protobuf-java and protobuf-java-util export the same package in 4.36.0+,
+// and JVM fails to run with LayerInstantiationException. So we force the version:
+configurations.all {
+    resolutionStrategy {
+        force("com.google.protobuf:protobuf-java:$protobuf")
+        force("com.google.protobuf:protobuf-java-util:$protobuf")
     }
 }

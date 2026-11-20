@@ -18,6 +18,7 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -199,6 +200,13 @@ public final class BlockRecordFormatV7 implements BlockRecordFormat {
         @Override
         protected void writeImpl(@NonNull RecordStreamItemV7 item, @NonNull WritableSequentialData output) {
             // TBD
+        }
+
+        @Override
+        protected long writeImpl(
+                @NonNull final RecordStreamItemV7 item, @NonNull final RandomAccessData output, final long offset)
+                throws IOException {
+            return output.putBytes(offset, toBytes(item));
         }
 
         public int measureRecord(RecordStreamItemV7 item) {

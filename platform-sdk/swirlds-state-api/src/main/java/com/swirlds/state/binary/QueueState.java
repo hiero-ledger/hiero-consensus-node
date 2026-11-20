@@ -1,15 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.binary;
 
+import static com.hedera.pbj.runtime.ProtoParserTools.TAG_FIELD_OFFSET;
+
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.FieldDefinition;
 import com.hedera.pbj.runtime.FieldType;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.ProtoConstants;
-import com.hedera.pbj.runtime.ProtoParserTools;
 import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
+import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
 import com.swirlds.state.spi.ReadableQueueState;
 import com.swirlds.state.spi.WritableQueueState;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -110,6 +112,27 @@ public record QueueState(long head, long tail) {
             assert out.position() == pos + measureRecord(value);
         }
 
+        @Override
+        protected long writeImpl(
+                @NonNull final QueueState value, @NonNull final RandomAccessData out, final long offset)
+                throws IOException {
+            long bytesWritten = 0;
+            if (value.head() != 0) {
+                int tag = (FIELD_QUEUESTATE_HEAD.number() << TAG_FIELD_OFFSET)
+                        | ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG.ordinal();
+                bytesWritten += out.putVarInt(offset + bytesWritten, tag, false);
+                bytesWritten += out.putVarLong(offset + bytesWritten, value.head());
+            }
+            if (value.tail() != 0) {
+                int tag = (FIELD_QUEUESTATE_TAIL.number() << TAG_FIELD_OFFSET)
+                        | ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG.ordinal();
+                bytesWritten += out.putVarInt(offset + bytesWritten, tag, false);
+                bytesWritten += out.putVarLong(offset + bytesWritten, value.tail());
+            }
+            assert bytesWritten == measureRecord(value);
+            return bytesWritten;
+        }
+
         @NonNull
         @Override
         protected QueueState parseImpl(
@@ -124,7 +147,7 @@ public record QueueState(long head, long tail) {
 
             while (in.hasRemaining()) {
                 final int tag = in.readVarInt(false);
-                final int fieldNum = tag >> ProtoParserTools.TAG_FIELD_OFFSET;
+                final int fieldNum = tag >> TAG_FIELD_OFFSET;
                 final int wireType = tag & ProtoConstants.TAG_WIRE_TYPE_MASK;
                 if (fieldNum == FIELD_QUEUESTATE_HEAD.number()) {
                     if (wireType != ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG.ordinal()) {

@@ -5,8 +5,10 @@ import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
+import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.io.IOException;
 import java.util.Objects;
 
 /**
@@ -50,6 +52,12 @@ public class TestLongCodec extends Codec<Long> {
         Objects.requireNonNull(value);
         Objects.requireNonNull(output);
         output.writeLong(value);
+    }
+
+    @Override
+    protected long writeImpl(@NonNull final Long item, @NonNull final RandomAccessData output, final long offset)
+            throws IOException {
+        return output.putBytes(offset, toBytes(item));
     }
 
     @Override
