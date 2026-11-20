@@ -31,7 +31,7 @@ import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.gossip.impl.gossip.sync.protocol.SyncStatusChecker;
 import org.hiero.consensus.main.model.NodeId;
-import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.main.model.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;

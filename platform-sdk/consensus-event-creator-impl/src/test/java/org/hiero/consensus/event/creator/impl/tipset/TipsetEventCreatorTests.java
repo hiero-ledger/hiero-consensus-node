@@ -30,7 +30,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.event.creator.impl.EventCreator;
 import org.hiero.consensus.main.model.NodeId;
-import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.main.model.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;

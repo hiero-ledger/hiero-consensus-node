@@ -21,7 +21,7 @@ import org.hiero.base.crypto.SigningSchema;
 import org.hiero.consensus.event.validation.DefaultEventFieldValidator;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.main.model.NodeId;
-import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.main.model.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.EventHashFactory;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;

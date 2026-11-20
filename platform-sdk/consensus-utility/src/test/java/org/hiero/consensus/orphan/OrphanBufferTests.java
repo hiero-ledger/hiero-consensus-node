@@ -29,7 +29,7 @@ import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.event.EventConstants;
-import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.main.model.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;

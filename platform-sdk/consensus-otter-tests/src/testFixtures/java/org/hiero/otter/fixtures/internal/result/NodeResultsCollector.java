@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.Set;
 import org.apache.logging.log4j.Marker;
 import org.hiero.consensus.main.model.NodeId;
-import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.main.model.EventDescriptorWrapper;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.logging.StructuredLog;

@@ -13,7 +13,7 @@ import org.hiero.consensus.hashgraph.impl.consensus.DeGen;
 import org.hiero.consensus.hashgraph.impl.consensus.LocalConsensusGeneration;
 import org.hiero.consensus.hashgraph.impl.metrics.Sequencer;
 import org.hiero.consensus.main.model.NodeId;
-import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.main.model.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.LinkedEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;

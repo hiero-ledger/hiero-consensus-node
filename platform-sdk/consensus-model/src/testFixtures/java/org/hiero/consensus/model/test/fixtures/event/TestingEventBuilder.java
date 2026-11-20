@@ -26,7 +26,7 @@ import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.event.EventConstants;
-import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.main.model.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.EventHashFactory;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.NonDeterministicGeneration;

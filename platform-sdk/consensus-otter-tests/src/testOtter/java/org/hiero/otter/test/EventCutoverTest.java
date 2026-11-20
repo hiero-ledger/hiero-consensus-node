@@ -23,7 +23,7 @@ import org.hiero.consensus.event.creator.config.EventCreationConfig_;
 import org.hiero.consensus.event.stream.config.EventConfig_;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig_;
 import org.hiero.consensus.io.IOIterator;
-import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.main.model.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.EventHashFactory;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.pces.config.PcesConfig_;
