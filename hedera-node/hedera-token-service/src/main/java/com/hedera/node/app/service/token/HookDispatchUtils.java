@@ -6,7 +6,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.REJECTED_BY_ACCOUNT_ALL
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.hookDispatch;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.hookDispatchForExecution;
-import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.EMPTY_METADATA;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.EXPLICIT_WRITE_TRACING;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
@@ -39,7 +38,11 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class HookDispatchUtils {
-    private static final DispatchMetadata GROUP_METADATA = new DispatchMetadata(Map.of(EXPLICIT_WRITE_TRACING, true));
+    // Every hook execution traces its storage writes explicitly, because the implicit list of written keys (the
+    // hook storage changes of the transaction) does not distinguish hooks or executions; and includes slots that
+    // were not written, but only relinked to a neighbor in their hook's storage list
+    private static final DispatchMetadata EXPLICIT_WRITES_METADATA =
+            new DispatchMetadata(Map.of(EXPLICIT_WRITE_TRACING, true));
     public static final long HTS_HOOKS_CONTRACT_NUM = 365L;
     public static final String HTS_HOOKS_EVM_ADDRESS = "0x" + Long.toHexString(HTS_HOOKS_CONTRACT_NUM);
 
@@ -161,14 +164,12 @@ public class HookDispatchUtils {
      * @param execution the hook execution to dispatch
      * @param function the function to decode the result
      * @param entityIdFactory the entity id factory
-     * @param isolated whether this is an isolated hook execution
      */
     public static void dispatchExecution(
             @NonNull final HandleContext context,
             @NonNull final HookExecution execution,
             @NonNull final Function function,
-            @NonNull final EntityIdFactory entityIdFactory,
-            final boolean isolated) {
+            @NonNull final EntityIdFactory entityIdFactory) {
         requireNonNull(context);
         requireNonNull(execution);
         requireNonNull(function);
@@ -200,7 +201,7 @@ public class HookDispatchUtils {
                 TransactionBody.newBuilder().hookDispatch(hookDispatch).build(),
                 HookDispatchStreamBuilder.class,
                 executionCustomizer,
-                isolated ? EMPTY_METADATA : GROUP_METADATA));
+                EXPLICIT_WRITES_METADATA));
         validateTrue(streamBuilder.status() == SUCCESS, REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK);
         final var result = streamBuilder.getEvmCallResult();
         try {

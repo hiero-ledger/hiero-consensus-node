@@ -8,6 +8,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
+import static org.mockito.Mockito.lenient;
 
 import com.hedera.hapi.block.stream.MerklePath;
 import com.hedera.hapi.block.stream.SiblingNode;
@@ -58,6 +59,11 @@ class ClprGetEndpointManifestHandlerTest {
 
     @BeforeEach
     void setUp() {
+        lenient()
+                .when(queryContext.query())
+                .thenReturn(Query.newBuilder()
+                        .clprGetEndpointManifest(ClprGetEndpointManifestQuery.DEFAULT)
+                        .build());
         subject = new ClprGetEndpointManifestHandler(
                 stateProofManager, new NativeTssVerifier(), HederaTestConfigBuilder.createConfigProvider());
     }
@@ -113,7 +119,7 @@ class ClprGetEndpointManifestHandlerTest {
     void returnsProvenManifestWhenOk() {
         // Value comes from buildManifestStateProofWithValue (proven snapshot), not a live store read.
         final var manifest = ClprEndpointManifest.newBuilder().version(7L).build();
-        given(stateProofManager.buildManifestStateProofWithValue())
+        given(stateProofManager.buildManifestStateProofWithValue(false))
                 .willReturn(new ClprStateProofManager.ManifestWithProof(Bytes.EMPTY, manifest));
         given(stateProofManager.latestLedgerId()).willReturn(Bytes.EMPTY);
 
@@ -131,7 +137,7 @@ class ClprGetEndpointManifestHandlerTest {
     @DisplayName("falls back to the live manifest with an empty proof before any signed snapshot")
     void fallsBackToLiveManifestWhenNoSnapshot() {
         final var manifest = ClprEndpointManifest.newBuilder().version(3L).build();
-        given(stateProofManager.buildManifestStateProofWithValue()).willReturn(null);
+        given(stateProofManager.buildManifestStateProofWithValue(false)).willReturn(null);
         given(queryContext.createStore(ReadableEndpointManifestStore.class)).willReturn(manifestStore);
         given(manifestStore.get()).willReturn(manifest);
 
@@ -204,7 +210,7 @@ class ClprGetEndpointManifestHandlerTest {
         final ConfigProvider provider = () -> new VersionedConfigImpl(config, 0);
         final var handler = new ClprGetEndpointManifestHandler(stateProofManager, digestSensitiveTss, provider);
 
-        given(stateProofManager.buildManifestStateProofWithValue())
+        given(stateProofManager.buildManifestStateProofWithValue(false))
                 .willReturn(new ManifestWithProof(proofBytes, ClprEndpointManifest.DEFAULT));
         given(stateProofManager.latestLedgerId()).willReturn(ledgerId);
 

@@ -35,8 +35,7 @@ public final class SelfSignedCert {
 
     private SelfSignedCert() {
         try {
-            final KeyPairGenerator keyGen =
-                    KeyPairGenerator.getInstance(CryptoConstants.SIG_TYPE1, CryptoConstants.SIG_PROVIDER);
+            final KeyPairGenerator keyGen = KeyPairGenerator.getInstance(CryptoConstants.SIG_TYPE1);
             keyGen.initialize(CryptoConstants.SIG_KEY_SIZE_BITS);
             keyPair = keyGen.generateKeyPair();
 

@@ -45,6 +45,7 @@ import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.CLPR_SERVICE_ADDRESS_20;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_TRANSACTION_IN_BLACKLIST;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_PEER_ENDPOINT_NOT_FOUND;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_EXECUTION_EXCEPTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
@@ -132,7 +133,9 @@ public class ClprEnabledSuite {
     private static final EnumSet<HederaFunctionality> NODE_INTERNAL_CLPR_FUNCTIONS =
             EnumSet.of(HederaFunctionality.ClprEndpointPublication, HederaFunctionality.ClprMaintenance);
     private static final List<String> CLPR_SYSTEM_CONTRACT_NUMS =
-            List.of(String.valueOf(0x16eL), String.valueOf(0x16fL), String.valueOf(0x170L), String.valueOf(0x171L));
+            List.of(String.valueOf(0x16eL), String.valueOf(0x16fL), String.valueOf(0x171L));
+    // The Sei verifier system contract is not supported: every call to it halts while CLPR is enabled
+    private static final String SEI_VERIFIER_NUM = String.valueOf(0x170L);
 
     @BeforeAll
     static void beforeAll(final TestLifecycle lifecycle) {
@@ -192,6 +195,13 @@ public class ClprEnabledSuite {
                         .gas(GAS_TO_OFFER)
                         .refusingEthConversion()
                         .hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
+        // The unsupported Sei verifier halts instead
+        operations.add(contractCallWithFunctionAbi(
+                        SEI_VERIFIER_NUM, VERIFY_CONFIG.toJson(false), new byte[] {1}, new byte[32], new byte[0])
+                .payingWith(CALLER)
+                .gas(GAS_TO_OFFER)
+                .refusingEthConversion()
+                .hasKnownStatus(CONTRACT_EXECUTION_EXCEPTION));
         return hapiTest(operations.toArray(SpecOperation[]::new));
     }
 

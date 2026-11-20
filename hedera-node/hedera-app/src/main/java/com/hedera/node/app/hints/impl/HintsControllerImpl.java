@@ -71,6 +71,12 @@ public class HintsControllerImpl implements HintsController {
     private final Map<Integer, Long> partyNodeIds = new HashMap<>();
     private final RosterTransitionWeights weights;
     /**
+     * The target nodes that are in the current roster but not in the source scheme, e.g. nodes added at the last
+     * upgrade. Preprocessing waits for their hinTS keys too, as a node only becomes a party by publishing while a
+     * construction still accepts keys.
+     */
+    private final Set<Long> currentRosterNodesOutsideSource;
+    /**
      * The effective tally of resolved preprocessing votes. Every entry's value is the actual
      * {@link PreprocessedKeys} that the corresponding node contributed. Congruent votes are
      * resolved to the referent's keys at insertion time so that downstream code can call
@@ -129,6 +135,7 @@ public class HintsControllerImpl implements HintsController {
             @NonNull final Bytes blsPrivateKey,
             @NonNull final HintsConstruction construction,
             @NonNull final RosterTransitionWeights weights,
+            @NonNull final Set<Long> currentRosterNodesOutsideSource,
             @NonNull final Executor executor,
             @NonNull final HintsLibrary library,
             @NonNull final Map<Long, PreprocessingVote> votes,
@@ -141,6 +148,7 @@ public class HintsControllerImpl implements HintsController {
         this.selfId = selfId;
         this.blsPrivateKey = requireNonNull(blsPrivateKey);
         this.weights = requireNonNull(weights);
+        this.currentRosterNodesOutsideSource = Set.copyOf(currentRosterNodesOutsideSource);
         this.numParties = construction.numParties();
         if (!isSupportedPartySize(numParties) || weights.targetNodeIds().size() > numParties - 2) {
             throw new IllegalArgumentException("Construction exceeds supported hinTS party capacity");
@@ -214,7 +222,11 @@ public class HintsControllerImpl implements HintsController {
         } else {
             final var crs = hintsStore.getCrsStateFor(construction).crs();
             if (shouldStartPreprocessing(now)) {
-                construction = hintsStore.setPreprocessingStartTime(construction.constructionId(), now);
+                final var config = configurationSupplier.get().getConfigData(TssConfig.class);
+                final Long rosterWeight = config.historyEnabled()
+                        ? weights.targetNodeWeights().values().stream().reduce(0L, Math::addExact)
+                        : null;
+                construction = hintsStore.setPreprocessingStartTime(construction.constructionId(), now, rosterWeight);
                 if (isActive) {
                     preprocessingVoteFuture = startPreprocessingVoteFuture(now, crs);
                 }
@@ -430,8 +442,11 @@ public class HintsControllerImpl implements HintsController {
                 .map(Map.Entry::getKey)
                 .findFirst();
         maybeWinningOutputs.ifPresent(keys -> {
+            final var participants =
+                    validHintsAt(asInstant(construction.preprocessingStartTimeOrThrow())).keySet().stream()
+                            .collect(toMap(partyNodeIds::get, partyId -> partyId));
             construction = hintsStore.setHintsScheme(
-                    construction.constructionId(), keys, nodePartyIds, weights.targetNodeWeights());
+                    construction.constructionId(), keys, participants, weights.targetNodeWeights());
             log.info(
                     "Completed hinTS scheme for construction #{} with {}",
                     construction.constructionId(),
@@ -532,9 +547,10 @@ public class HintsControllerImpl implements HintsController {
      * @return the choice of preprocessing behavior
      */
     private boolean shouldStartPreprocessing(@NonNull final Instant now) {
-        // If every active node in the target roster has published a hinTS key,
-        // start preprocessing now; there is nothing else to wait for
-        if (validationFutures.size() == weights.numTargetNodesInSource()) {
+        // If every target node in the source scheme has published a hinTS key, and so has every target node in the
+        // current roster outside it, start preprocessing now; there is nothing else to wait for. A target node not
+        // yet in the current roster (e.g. one added by the upgrade this construction is for) cannot publish yet
+        if (validationFutures.size() == weights.numTargetNodesInSource() + currentRosterNodesOutsideSource.size()) {
             log.info("All nodes have published hinTS keys. Starting preprocessing.");
             return true;
         }
@@ -689,6 +705,13 @@ public class HintsControllerImpl implements HintsController {
         }
     }
 
+    private TreeMap<Integer, Bytes> validHintsAt(final Instant cutoff) {
+        return validationFutures.headMap(cutoff, true).values().stream()
+                .map(CompletableFuture::join)
+                .filter(Validation::isValid)
+                .collect(toMap(Validation::partyId, Validation::hintsKey, (a, b) -> a, TreeMap::new));
+    }
+
     /**
      * Returns a future that completes to the aggregated hinTS keys for this construction for
      * all valid published hinTS keys.
@@ -701,25 +724,25 @@ public class HintsControllerImpl implements HintsController {
                     try {
                         // IMPORTANT: since we only start this future when we have a preprocessing start
                         // time, there is no risk of CME with handle thread running addKeyPublication()
-                        final var hintKeys = validationFutures.headMap(cutoff, true).values().stream()
-                                .map(CompletableFuture::join)
-                                .filter(Validation::isValid)
-                                .collect(toMap(Validation::partyId, Validation::hintsKey, (a, b) -> a, TreeMap::new));
-                        final var aggregatedWeights = nodePartyIds.entrySet().stream()
-                                .filter(entry -> hintKeys.containsKey(entry.getValue()))
-                                .collect(toMap(
-                                        Map.Entry::getValue,
-                                        entry -> weights.targetWeightOf(entry.getKey()),
-                                        (a, b) -> a,
-                                        TreeMap::new));
+                        final var hintKeys = validHintsAt(cutoff);
+                        final var partyWeights = new TreeMap<Integer, Long>();
+                        if (construction.hasPreprocessingRosterWeight()) {
+                            weights.targetNodeWeights()
+                                    .forEach((nodeId, weight) ->
+                                            partyWeights.put(partyIdOf(nodeId).orElseThrow(), weight));
+                        } else {
+                            hintKeys.keySet()
+                                    .forEach(partyId -> partyWeights.put(
+                                            partyId, weights.targetWeightOf(partyNodeIds.get(partyId))));
+                        }
                         log.info(
-                                "Calling preprocess for construction #{} with crsHash={}, hintKeyHashes={}, aggregatedWeights={}, numParties={}",
+                                "Calling preprocess for construction #{} with crsHash={}, hintKeyHashes={}, partyWeights={}, numParties={}",
                                 construction.constructionId(),
                                 sha384Hex(crs),
                                 summarizeHintKeys(hintKeys),
-                                aggregatedWeights,
+                                partyWeights,
                                 numParties);
-                        final var output = library.preprocess(crs, hintKeys, aggregatedWeights, numParties);
+                        final var output = library.preprocess(crs, hintKeys, partyWeights, numParties);
                         if (output == null) {
                             log.warn(
                                     "Library returned null preprocessing output for construction #{}; skipping vote",

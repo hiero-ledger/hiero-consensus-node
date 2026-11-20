@@ -11,6 +11,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
@@ -26,10 +27,14 @@ import com.swirlds.virtualmap.test.fixtures.TestValue;
 import com.swirlds.virtualmap.test.fixtures.TestValueCodec;
 import com.swirlds.virtualmap.test.fixtures.datasource.InMemoryBuilder;
 import com.swirlds.virtualmap.test.fixtures.sync.ReconnectTestUtils;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Stream;
+import org.hiero.base.crypto.Cryptography;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
 import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
@@ -41,6 +46,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 @DisplayName("Virtual Map Reconnect Test")
 class VirtualMapReconnectTest extends VirtualMapReconnectTestBase {
@@ -297,6 +303,64 @@ class VirtualMapReconnectTest extends VirtualMapReconnectTestBase {
 
         assertEquals(DOG, afterMap.get(D_KEY, TestValueCodec.INSTANCE), "After sync, should have D_KEY available");
         assertNull(afterMap.get(C_KEY, TestValueCodec.INSTANCE), "After sync, should not have C_KEY anymore");
+
+        afterMap.release();
+        teacherMap.release();
+        learnerMap.release();
+        copy.release();
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {8, 16, 32, 64})
+    @Tags({@Tag("VirtualMerkle"), @Tag("Reconnect")})
+    @DisplayName("Reconnect with hash prefixes of different lengths, up to full hashes")
+    void reconnectWithHashPrefixLength(final int hashPrefixLength) throws Exception {
+        final Configuration prefixConfig = ConfigurationBuilder.create()
+                .autoDiscoverExtensions()
+                .withValue(VirtualMapLearnerSyncConfig_.HASH_PREFIX_LENGTH, Integer.toString(hashPrefixLength))
+                .build();
+        for (int i = 0; i < 200; i++) {
+            final Bytes key = TestKey.longToKey(i);
+            teacherMap.put(key, new TestValue("value" + i), TestValueCodec.INSTANCE);
+            learnerMap.put(key, new TestValue("value" + i), TestValueCodec.INSTANCE);
+        }
+        // Most of the tree stays clean. Change, remove and add a few leaves on the teacher
+        for (int i = 0; i < 200; i += 20) {
+            teacherMap.put(TestKey.longToKey(i), new TestValue("changed" + i), TestValueCodec.INSTANCE);
+        }
+        teacherMap.remove(TestKey.longToKey(7));
+        teacherMap.put(TestKey.longToKey(1000), new TestValue("value1000"), TestValueCodec.INSTANCE);
+
+        final VirtualMap copy = teacherMap.copy();
+        teacherMap.reserve();
+        learnerMap.reserve();
+
+        final ByteArrayOutputStream teacherInput = new ByteArrayOutputStream();
+        final VirtualMap afterMap =
+                ReconnectTestUtils.testSynchronization(learnerMap, teacherMap, prefixConfig, teacherInput);
+
+        // Every request the teacher received carries the configured prefix length, or the full hash if it's longer
+        final int expectedLength = Math.min(hashPrefixLength, Cryptography.DEFAULT_DIGEST_TYPE.digestLength());
+        final DataInputStream in = new DataInputStream(new ByteArrayInputStream(teacherInput.toByteArray()));
+        int requests = 0;
+        for (int len = in.readInt(); len >= 0; len = in.readInt()) {
+            final byte[] message = in.readNBytes(len);
+            final PullVirtualTreeRequest request = PullVirtualTreeRequest.parseFrom(BufferedData.wrap(message));
+            assertEquals(expectedLength, request.hashPrefixLength(), "path=" + request.path());
+            requests++;
+        }
+        assertTrue(requests > 1, "the teacher should receive the root request and more");
+
+        assertEquals(
+                "changed20",
+                afterMap.get(TestKey.longToKey(20), TestValueCodec.INSTANCE).getValue());
+        assertEquals(
+                "value21",
+                afterMap.get(TestKey.longToKey(21), TestValueCodec.INSTANCE).getValue());
+        assertNull(afterMap.get(TestKey.longToKey(7), TestValueCodec.INSTANCE));
+        assertEquals(
+                "value1000",
+                afterMap.get(TestKey.longToKey(1000), TestValueCodec.INSTANCE).getValue());
 
         afterMap.release();
         teacherMap.release();

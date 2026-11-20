@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.verifier.canton;
 
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.concat;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.sha256;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.u32;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.word;
+
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.service.clpr.impl.verifier.Ed25519Verify;
 import com.hedera.node.app.service.clpr.impl.verifier.Secp256k1Recovery;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.Objects;
 
@@ -24,14 +27,14 @@ import java.util.Objects;
  * {@code point} is {@code x ‖ y} for ECDSA keys and the 32-byte key zero-padded for Ed25519; {@code k}
  * counts current keys and {@code p} previous ones. Delegations authorize key rotations and are skipped.
  */
-public final class CantonMediators {
+final class CantonMediators {
 
     /** Ed25519 key spec. */
-    public static final int KEY_SPEC_ED25519 = 1;
+    static final int KEY_SPEC_ED25519 = 1;
     /** NIST P-256 key spec. */
-    public static final int KEY_SPEC_P256 = 2;
+    static final int KEY_SPEC_P256 = 2;
     /** secp256k1 key spec. */
-    public static final int KEY_SPEC_SECP256K1 = 3;
+    static final int KEY_SPEC_SECP256K1 = 3;
 
     private static final int HEADER_LENGTH = 12;
     /** {@code memberId(32) ‖ otkSerial(4)}, before the delegation count. */
@@ -47,10 +50,10 @@ public final class CantonMediators {
     private CantonMediators() {}
 
     /** The threshold and member count of a validated mediator set. */
-    public record SetSummary(int threshold, int members) {}
+    record SetSummary(int threshold, int members) {}
 
     /** The key of the signer {@code fingerprint}, and the index of the member it belongs to. */
-    public record SignerKey(boolean found, int member, int keySpec, byte[] x, byte[] y) {
+    record SignerKey(boolean found, int member, int keySpec, byte[] x, byte[] y) {
         /** A not-found result. */
         public static SignerKey notFound() {
             return new SignerKey(false, 0, 0, new byte[0], new byte[0]);
@@ -58,7 +61,7 @@ public final class CantonMediators {
     }
 
     /** The outcome of parsing an ECDSA signature into its {@code (r, s)} components. */
-    public record EcdsaSignature(boolean ok, byte[] r, byte[] s) {
+    record EcdsaSignature(boolean ok, byte[] r, byte[] s) {
         static EcdsaSignature invalid() {
             return new EcdsaSignature(false, new byte[0], new byte[0]);
         }
@@ -72,7 +75,7 @@ public final class CantonMediators {
      * @throws CantonProofException if the set does not match its declared layout
      */
     @NonNull
-    public static SetSummary validate(@NonNull final byte[] set) {
+    static SetSummary validate(@NonNull final byte[] set) {
         Objects.requireNonNull(set, "set");
         if (set.length < HEADER_LENGTH) {
             throw CantonProofException.invalidMediatorSet("set shorter than header (" + set.length + " bytes)");
@@ -111,7 +114,7 @@ public final class CantonMediators {
      * every member. {@code set} must have passed {@link #validate}. Mirrors the reference {@code lookup}.
      */
     @NonNull
-    public static SignerKey lookup(@NonNull final byte[] set, @NonNull final byte[] fingerprint32) {
+    static SignerKey lookup(@NonNull final byte[] set, @NonNull final byte[] fingerprint32) {
         Objects.requireNonNull(set, "set");
         Objects.requireNonNull(fingerprint32, "fingerprint32");
         final long members = u32(set, 8);
@@ -141,7 +144,7 @@ public final class CantonMediators {
      * Ed25519 signs {@code message} directly; ECDSA ({@code SHA256withECDSA}) signs {@code SHA256(message)}
      * and its signature is DER or the 64-byte {@code r ‖ s}. Mirrors the reference {@code verify}.
      */
-    public static boolean verify(
+    static boolean verify(
             @NonNull final SignerKey key, @NonNull final byte[] message, @NonNull final byte[] signature) {
         Objects.requireNonNull(key, "key");
         Objects.requireNonNull(message, "message");
@@ -244,37 +247,6 @@ public final class CantonMediators {
             return Secp256k1Recovery.recoverAddress(digest32, r, s, recId);
         } catch (final RuntimeException e) {
             return null;
-        }
-    }
-
-    /** The unsigned 32-bit big-endian value at {@code off} (the reference's {@code _u32}). */
-    private static long u32(@NonNull final byte[] b, final int off) {
-        return ((long) (Byte.toUnsignedInt(b[off])) << 24)
-                | ((long) Byte.toUnsignedInt(b[off + 1]) << 16)
-                | ((long) Byte.toUnsignedInt(b[off + 2]) << 8)
-                | Byte.toUnsignedInt(b[off + 3]);
-    }
-
-    /** The 32 bytes at {@code off} (the reference's {@code _word}). */
-    @NonNull
-    private static byte[] word(@NonNull final byte[] b, final int off) {
-        return Arrays.copyOfRange(b, off, off + 32);
-    }
-
-    @NonNull
-    private static byte[] concat(@NonNull final byte[] a, @NonNull final byte[] b) {
-        final byte[] out = new byte[a.length + b.length];
-        System.arraycopy(a, 0, out, 0, a.length);
-        System.arraycopy(b, 0, out, a.length, b.length);
-        return out;
-    }
-
-    @NonNull
-    private static byte[] sha256(@NonNull final byte[] message) {
-        try {
-            return MessageDigest.getInstance("SHA-256").digest(message);
-        } catch (final NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 unavailable", e);
         }
     }
 }

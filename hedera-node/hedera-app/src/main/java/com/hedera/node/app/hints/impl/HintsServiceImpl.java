@@ -99,11 +99,56 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
             @NonNull final RsaContext rsaContext,
             @NonNull final ConcurrentMap<Bytes, BlockHashSigning> rsaSignings,
             @NonNull final Supplier<Network> genesisNetworkSupplier) {
+        this(
+                metrics,
+                executor,
+                appContext,
+                library,
+                blockPeriod,
+                rsaContext,
+                rsaSignings,
+                genesisNetworkSupplier,
+                null);
+    }
+
+    /**
+     * Creates the hinTS service; given the platform configuration, it also registers percentile gauges for hinTS
+     * signing latencies, which need the platform's metrics settings that the services configuration lacks.
+     *
+     * @param metrics the metrics to register with
+     * @param executor the executor for asynchronous work
+     * @param appContext the application context
+     * @param library the hinTS library
+     * @param blockPeriod the block period
+     * @param rsaContext the RSA signing context
+     * @param rsaSignings the in-progress RSA signings
+     * @param genesisNetworkSupplier the supplier of the genesis network, if any
+     * @param platformConfig if not null, the platform configuration to register latency percentile gauges with
+     */
+    public HintsServiceImpl(
+            @NonNull final Metrics metrics,
+            @NonNull final Executor executor,
+            @NonNull final AppContext appContext,
+            @NonNull final HintsLibrary library,
+            @NonNull final Duration blockPeriod,
+            @NonNull final RsaContext rsaContext,
+            @NonNull final ConcurrentMap<Bytes, BlockHashSigning> rsaSignings,
+            @NonNull final Supplier<Network> genesisNetworkSupplier,
+            @Nullable final Configuration platformConfig) {
         this.library = requireNonNull(library);
         this.genesisNetworkSupplier = requireNonNull(genesisNetworkSupplier);
         // Fully qualified for benefit of javadoc
         this.component = com.hedera.node.app.hints.impl.DaggerHintsServiceComponent.factory()
-                .create(library, appContext, executor, metrics, blockPeriod, this, rsaContext, rsaSignings);
+                .create(
+                        library,
+                        appContext,
+                        executor,
+                        metrics,
+                        platformConfig,
+                        blockPeriod,
+                        this,
+                        rsaContext,
+                        rsaSignings);
     }
 
     @VisibleForTesting
@@ -154,21 +199,20 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
         if (!isReady()) {
             throw new IllegalStateException("hinTS service not ready to sign block hash " + blockHash);
         }
-        final var blockHashSigning = component
+        final var context = component.signingContext();
+        // Keyed by the active construction, so an attempt a peer opened under another one is never reused
+        final var attemptId = new SigningAttemptId(blockHash, context.constructionIdOrThrow());
+        final var signing = component
                 .signings()
                 .computeIfAbsent(
-                        blockHash,
-                        b -> component
-                                .signingContext()
-                                .newSigningForActiveConstruction(
-                                        b, () -> component.signings().remove(blockHash)));
-        if (!(blockHashSigning instanceof HintsContext.Signing signing)) {
-            throw new IllegalStateException("hinTS signing required for block hash " + blockHash);
-        }
+                        attemptId,
+                        id -> context.newSigningForActiveConstruction(
+                                blockHash, () -> component.signings().remove(id)));
         // Submit under the construction captured by the signing attempt, not whatever construction is active after a
         // possible handoff.
-        final var submissionFuture =
-                component.submissions().submitPartialSignature(signing.constructionId(), blockHash);
+        final var submissionFuture = component
+                .submissions()
+                .submitPartialSignature(signing.constructionId(), blockHash, signing::markLocalSubmission);
         submissionFuture.exceptionally(t -> {
             logger.warn("Failed to submit partial signature for block hash {}", blockHash, t);
             return null;
@@ -541,8 +585,14 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
     }
 
     @Override
+    public void cancelSignings() {
+        BlockHashSigning.cancelAndRemoveAll(component.signings());
+    }
+
+    @Override
     public void stop() {
         component.controllers().stop();
+        cancelSignings();
         component.signingContext().clear();
         installedConstruction = null;
         installedCrs = null;

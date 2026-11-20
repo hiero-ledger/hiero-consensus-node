@@ -366,7 +366,8 @@ public class ServicesMain {
                         bootstrapConfig.getConfigData(BlockStreamConfig.class).blockPeriod(),
                         rsaContext,
                         rsaSignings,
-                        genesisNetworkSupplier),
+                        genesisNetworkSupplier,
+                        configuration),
                 (appContext, bootstrapConfig, genesisNetworkSupplier) -> new HistoryServiceImpl(
                         metrics,
                         ForkJoinPool.commonPool(),
