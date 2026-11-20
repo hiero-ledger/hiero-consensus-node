@@ -8,6 +8,7 @@ import com.esaulpaugh.headlong.rlp.RLPDecoder;
 import com.esaulpaugh.headlong.rlp.RLPItem;
 import com.esaulpaugh.headlong.rlp.RLPList;
 import com.google.protobuf.ByteString;
+import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.service.clpr.impl.verifier.ProofException;
 import com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumSyncCommitteeProofVerifier;
@@ -43,7 +44,7 @@ class SyncCommitteeProofsTest {
             HexFormat.of().parseHex("3c5b7a99b8d7f61534537291b0cfee0d2c4b6a89a8c7e60524436281a0bfdefd");
 
     /** {@code keccak256(CHANNEL_ID ‖ uint256(11)) + 1}, computed with foundry's {@code cast}. */
-    private static final String FIRST_CHANNEL_SLOT = "44637163277d9a932c1ffaff31b12f7a1ef43c674d0f3387a8f8e6864b1628f4";
+    private static final String FIRST_CHANNEL_SLOT = "84a3a2a33f3a9d2d4bdfb74276b46bd8cfd61cb5498b54f182ee03cfbcbdedcf";
 
     @Test
     @DisplayName("given each preset, then configPayload carries a bootstrap and an update of that preset's size")
@@ -166,7 +167,7 @@ class SyncCommitteeProofsTest {
         channelId[0] = 0x42;
         final byte[] context = channelContext(channelId);
         final var verifier = new EthereumSyncCommitteeProofVerifier(NativeBlsSignatureVerifier.INSTANCE);
-        final byte[] anchor = verifier.verifyConfigPayload(SyncCommitteeProofs.configPayload())
+        final byte[] anchor = verifier.verifyConfigPayload(SyncCommitteeProofs.configPayload(), new byte[0])
                 .ledgerConfiguration()
                 .initialTrustAnchor()
                 .toByteArray();
@@ -190,7 +191,7 @@ class SyncCommitteeProofsTest {
     void tamperedAccountProofStillFailsWithCanonicalChannelKeys() {
         final byte[] channelId = new byte[32];
         final var verifier = new EthereumSyncCommitteeProofVerifier(NativeBlsSignatureVerifier.INSTANCE);
-        final byte[] anchor = verifier.verifyConfigPayload(SyncCommitteeProofs.configPayload())
+        final byte[] anchor = verifier.verifyConfigPayload(SyncCommitteeProofs.configPayload(), new byte[0])
                 .ledgerConfiguration()
                 .initialTrustAnchor()
                 .toByteArray();
@@ -198,6 +199,34 @@ class SyncCommitteeProofsTest {
 
         assertThatThrownBy(() -> verifier.verifyBundle(bundle, anchor, channelContext(channelId)))
                 .isInstanceOf(ProofException.class);
+    }
+
+    /** The config manifest proof must pass the production verifier, real BLS included, which returns its manifest. */
+    @Test
+    @DisplayName("given a config manifest proof, then the production verifier returns its manifest")
+    void givenConfigManifestProof_thenProductionVerifierReturnsManifest() {
+        final var verifier = new EthereumSyncCommitteeProofVerifier(NativeBlsSignatureVerifier.INSTANCE);
+        final byte[] proof = SyncCommitteeProofs.configManifestProof(SyncCommitteeProofs.manifestBytes(1L, 2));
+
+        final ClprEndpointManifest manifest = verifier.verifyConfigPayload(SyncCommitteeProofs.configPayload(), proof)
+                .endpointManifest();
+
+        assertThat(manifest.version()).isEqualTo(1L);
+        assertThat(manifest.serviceAddress().toByteArray()).isEqualTo(SyncCommitteeProofs.SERVICE_ADDRESS);
+        assertThat(manifest.endpoints()).hasSize(2);
+    }
+
+    /** A proven manifest of another service address must still fail the production verifier's §4.8 check. */
+    @Test
+    @DisplayName("given a config manifest proof of another service address, then the production verifier rejects it")
+    void givenConfigManifestProofOfAnotherServiceAddress_thenProductionVerifierRejectsIt() {
+        final var verifier = new EthereumSyncCommitteeProofVerifier(NativeBlsSignatureVerifier.INSTANCE);
+        final byte[] proof =
+                SyncCommitteeProofs.configManifestProof(SyncCommitteeProofs.manifestBytesBadServiceAddress());
+
+        assertThatThrownBy(() -> verifier.verifyConfigPayload(SyncCommitteeProofs.configPayload(), proof))
+                .isInstanceOf(ProofException.class)
+                .hasMessageContaining("endpoint-manifest service_address does not match");
     }
 
     /**
@@ -220,7 +249,7 @@ class SyncCommitteeProofsTest {
                 topList(bundle).elements().get(1).asRLPList().elements();
         assertThat(delivery.get(7).asRLPList().elements()).hasSize(5);
         final var verifier = new EthereumSyncCommitteeProofVerifier(NativeBlsSignatureVerifier.INSTANCE);
-        final byte[] anchor = verifier.verifyConfigPayload(SyncCommitteeProofs.configPayload())
+        final byte[] anchor = verifier.verifyConfigPayload(SyncCommitteeProofs.configPayload(), new byte[0])
                 .ledgerConfiguration()
                 .initialTrustAnchor()
                 .toByteArray();

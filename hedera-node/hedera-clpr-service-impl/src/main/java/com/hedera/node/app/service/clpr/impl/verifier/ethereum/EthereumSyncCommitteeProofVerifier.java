@@ -14,6 +14,7 @@ import com.hedera.node.app.service.clpr.impl.verifier.ethereum.BundlePayload.Com
 import com.hedera.node.app.service.clpr.impl.verifier.ethereum.BundlePayload.FinalizedExecution;
 import com.hedera.node.app.service.clpr.impl.verifier.ethereum.BundlePayload.MessageDelivery;
 import com.hedera.node.app.service.clpr.impl.verifier.ethereum.BundlePayload.NonSignerProof;
+import com.hedera.node.app.service.clpr.impl.verifier.ethereum.BundlePayload.ServiceAccountProof;
 import com.hedera.node.app.service.clpr.impl.verifier.ethereum.BundlePayload.SignedHeader;
 import com.hedera.node.app.service.clpr.impl.verifier.ethereum.Ssz.SszMerkleBranch;
 import com.hedera.node.app.service.clpr.impl.verifier.evm.ClprContractStorage;
@@ -44,7 +45,8 @@ import org.apache.logging.log4j.Logger;
  *   <li>{@link #verifyConfigPayload} bootstraps the initial trust anchor from a light-client bootstrap and a signed
  *       update: it opens both committees against their beacon state roots, requires their aggregate keys to be valid
  *       BLS public keys, and checks that the current committee signed the update. The bootstrap header itself is not
- *       authenticated; the approving party is the trust gate — see its javadoc for the trust model.</li>
+ *       authenticated; the approving party is the trust gate — see its javadoc for the trust model. It then proves the
+ *       peer's endpoint manifest under that anchor, through the same chain of proofs as a bundle.</li>
  * </ul>
  *
  * <p>This class is the orchestration layer. The wire formats are decoded by {@link PayloadDecoder} into typed object
@@ -83,6 +85,15 @@ public final class EthereumSyncCommitteeProofVerifier {
     private static final int BLOCK_HEADER_INDEX_STATE_ROOT = 3;
 
     private final BlsSignatureVerifier blsVerifier;
+
+    /**
+     * The CLPR service account a {@link ServiceAccountProof} authenticated.
+     *
+     * @param beaconBlockRoot32 the attested header's {@code hash_tree_root}
+     * @param account           the proven account, whose storage root the slot proofs are checked against
+     */
+    private record AuthenticatedAccount(
+            @NonNull byte[] beaconBlockRoot32, @NonNull EvmAccount account) {}
 
     public EthereumSyncCommitteeProofVerifier(@NonNull final BlsSignatureVerifier blsVerifier) {
         this.blsVerifier = Objects.requireNonNull(blsVerifier, "blsVerifier");
@@ -136,13 +147,13 @@ public final class EthereumSyncCommitteeProofVerifier {
         try {
             return verifyDecodedBundle(bundle, currentAnchor, channelId32, serviceAddress20);
         } catch (final ProofException e) {
-            throw EthProofs.withContext(describe(bundle, currentAnchor), e);
+            throw EthProofs.withContext(describeBundleRejection(bundle, currentAnchor), e);
         }
     }
 
     /**
-     * Decodes and verifies a sync-committee config payload, returning the advertised ledger configuration with the
-     * initial trust anchor.
+     * Decodes and verifies a sync-committee config payload and the peer's endpoint-manifest proof, returning the
+     * advertised ledger configuration with the initial trust anchor, and the proven endpoint manifest.
      *
      * <p>The payload carries a light-client bootstrap and a signed update. The verifier opens the current committee
      * under the anchor header's state root, opens the next committee under the update header's state root, requires
@@ -150,18 +161,40 @@ public final class EthereumSyncCommitteeProofVerifier {
      * which lies in the anchor header's period. The anchor then trusts both committees from the anchor header's period
      * on, pins the service contract's code hash, and takes the preset from the committee size.
      *
+     * <p>The endpoint-manifest proof is verified under that anchor as a bundle delivery is, without the Channel slots:
+     * the committee of its signature slot's period signed its attested header, whose state names a finalized header;
+     * the execution state of that finalized block holds the CLPR service account at the configured service address,
+     * with the pinned code hash; and the account's manifest commitment slot holds {@code keccak256(manifestPreimage)}.
+     * The manifest must be of version 1 or later and bound to the configured service address. An empty proof yields the
+     * uninitialized manifest (version 0, no endpoints), as the Solidity verifier does; the first bundle that carries a
+     * manifest then installs it.
+     *
+     * <p>Time window: the anchor trusts only the committees of the anchor header's period P and of P+1, so the
+     * endpoint-manifest proof must be signed by the end of P+1. It is built from the peer's latest finality update (a
+     * non-archive execution node proves accounts only at recent blocks), so it must be built by then too: on mainnet,
+     * where a period is 8192 slots of 12 seconds (about 27.3 hours), within about 27 to 55 hours of the anchor header,
+     * depending on where in P that header lies. A later proof is rejected because the trust anchor does not trust its
+     * signing period.
+     *
      * <p>Trust model: the anchor header is not authenticated against Ethereum, so the committees vouch only for each
      * other. The party approving the configuration update must check that the anchor header, the preset,
      * {@code genesisValidatorsRoot}, {@code forkVersion} and the code hash match the intended Ethereum network and
      * contract. Steady-state authentication begins with the first bundle, whose sync-aggregate signature is verified
-     * against these now-trusted committees.
+     * against these now-trusted committees. The endpoint manifest is only as trustworthy as these committees.
      *
+     * @param configPayload         the protobuf {@code EthereumPosLedgerConfigurationPayload}
+     * @param endpointManifestProof the RLP-encoded {@link ConfigManifestProof}, or empty
      * @throws ProofException if decoding fails or any check is violated
      */
     @NonNull
-    public VerifiedConfig verifyConfigPayload(@NonNull final byte[] configPayload) {
+    public VerifiedConfig verifyConfigPayload(
+            @NonNull final byte[] configPayload, @NonNull final byte[] endpointManifestProof) {
         Objects.requireNonNull(configPayload, "configPayload");
-        log.info("EthSyncCommitteeProofVerifier.verifyConfigPayload ENTER: {} bytes", configPayload.length);
+        Objects.requireNonNull(endpointManifestProof, "endpointManifestProof");
+        log.info(
+                "EthSyncCommitteeProofVerifier.verifyConfigPayload ENTER: {} bytes, endpointManifestProof={} bytes",
+                configPayload.length,
+                endpointManifestProof.length);
 
         final PeerLedgerConfigPayload payload = PayloadDecoder.decodeConfig(configPayload);
         final SyncCommitteePreset preset = payload.preset();
@@ -197,6 +230,10 @@ public final class EthereumSyncCommitteeProofVerifier {
                 nextCommittee,
                 payload.codeHash32());
         verifyUpdateSignature(payload, initialAnchor);
+        final ClprEndpointManifest endpointManifest = verifyConfigEndpointManifest(
+                endpointManifestProof,
+                initialAnchor,
+                payload.ledgerConfiguration().serviceAddress().toByteArray());
 
         final var ledgerCfg = payload.ledgerConfiguration()
                 .copyBuilder()
@@ -207,7 +244,7 @@ public final class EthereumSyncCommitteeProofVerifier {
         log.info(
                 "EthSyncCommitteeProofVerifier.verifyConfigPayload EXIT: SUCCESS chainId={} preset={} period={}"
                         + " anchorSlot={} anchorHeaderRoot=0x{} genesisValidatorsRoot=0x{} forkVersion=0x{}"
-                        + " codeHash=0x{}",
+                        + " codeHash=0x{} endpointManifestVersion={}",
                 ledgerCfg::chainId,
                 () -> preset,
                 initialAnchor::period,
@@ -215,8 +252,9 @@ public final class EthereumSyncCommitteeProofVerifier {
                 () -> HexFormat.of().formatHex(anchorHeader.hashTreeRoot()),
                 () -> HexFormat.of().formatHex(initialAnchor.genesisValidatorsRoot32()),
                 () -> HexFormat.of().formatHex(initialAnchor.forkVersion4()),
-                () -> HexFormat.of().formatHex(initialAnchor.codeHash32()));
-        return new VerifiedConfig(ledgerCfg, payload.slot());
+                () -> HexFormat.of().formatHex(initialAnchor.codeHash32()),
+                endpointManifest::version);
+        return new VerifiedConfig(ledgerCfg, payload.slot(), endpointManifest);
     }
 
     private static void validateChannelContext(final byte[] channelContext) {
@@ -237,13 +275,10 @@ public final class EthereumSyncCommitteeProofVerifier {
 
         // --- Authenticate the chain down to the CLPR contract account -----
         final MessageDelivery delivery = bundle.delivery();
-        final BeaconHeader attestedHeader = delivery.signedHeader().attestedHeader();
-        final SyncCommittee signer = verifySignatureSlot(delivery.signatureSlot(), attestedHeader, anchor);
-        final byte[] beaconBlockRoot32 = verifySignedHeader(delivery.signedHeader(), signer, anchor);
-        verifyFinality(delivery.finalizedExecution().finalizedHeader(), delivery.finalityBranch(), attestedHeader);
-        final byte[] executionStateRoot32 = verifyExecutionStateRoot(delivery.finalizedExecution());
-        final EvmAccount provenAccount = verifyAccountProof(
-                executionStateRoot32, serviceAddress20, delivery.accountProof(), anchor.codeHash32());
+        final ServiceAccountProof serviceAccount = delivery.serviceAccount();
+        final AuthenticatedAccount authenticated = authenticateServiceAccount(serviceAccount, anchor, serviceAddress20);
+        final byte[] beaconBlockRoot32 = authenticated.beaconBlockRoot32();
+        final EvmAccount provenAccount = authenticated.account();
 
         // --- Prove the queue metadata -----
         // A bundle with no queue storage proof simply has no queue metadata — the all-zero absent sentinel
@@ -277,10 +312,11 @@ public final class EthereumSyncCommitteeProofVerifier {
                 () -> HexFormat.of().formatHex(beaconBlockRoot32),
                 () -> bundle.rotations().size(),
                 anchor::period,
-                () -> Long.toUnsignedString(delivery.signatureSlot()),
-                () -> Long.toUnsignedString(attestedHeader.slot()),
+                () -> Long.toUnsignedString(serviceAccount.signatureSlot()),
                 () -> Long.toUnsignedString(
-                        delivery.finalizedExecution().finalizedHeader().slot()));
+                        serviceAccount.signedHeader().attestedHeader().slot()),
+                () -> Long.toUnsignedString(
+                        serviceAccount.finalizedExecution().finalizedHeader().slot()));
         return VerifiedBundle.builder()
                 .beaconBlockRoot32(beaconBlockRoot32)
                 .bundleContentBytes(delivery.bundleContent())
@@ -296,17 +332,19 @@ public final class EthereumSyncCommitteeProofVerifier {
      * slots.
      */
     @NonNull
-    private static String describe(@NonNull final BundlePayload bundle, @NonNull final TrustAnchor anchor) {
-        final MessageDelivery delivery = bundle.delivery();
+    private static String describeBundleRejection(
+            @NonNull final BundlePayload bundle, @NonNull final TrustAnchor anchor) {
+        final ServiceAccountProof serviceAccount = bundle.delivery().serviceAccount();
         return "bundle rejected (anchorPeriod=" + anchor.period()
                 + ", preset=" + anchor.preset()
                 + ", rotations=" + bundle.rotations().size()
-                + ", signatureSlot=" + Long.toUnsignedString(delivery.signatureSlot())
+                + ", signatureSlot=" + Long.toUnsignedString(serviceAccount.signatureSlot())
                 + ", attestedSlot="
-                + Long.toUnsignedString(delivery.signedHeader().attestedHeader().slot())
+                + Long.toUnsignedString(
+                        serviceAccount.signedHeader().attestedHeader().slot())
                 + ", finalizedSlot="
                 + Long.toUnsignedString(
-                        delivery.finalizedExecution().finalizedHeader().slot())
+                        serviceAccount.finalizedExecution().finalizedHeader().slot())
                 + ")";
     }
 
@@ -391,11 +429,12 @@ public final class EthereumSyncCommitteeProofVerifier {
     }
 
     /**
-     * Verifies the delivery's signature slot and returns the committee that signed: the slot follows the attested
-     * slot, and its period is one of the two the anchor trusts. The attested header may lie in an earlier period: a
-     * header attested in the last slot of a period is signed in the first slot of the next.
+     * Verifies a signature slot and returns the committee that signed: the slot follows the attested slot, its period
+     * is one of the two the anchor trusts, and it is at most one period after the attested header's. The attested
+     * header may lie in the previous period: a header attested in the last slot of a period is signed in the first
+     * slot of the next.
      *
-     * @throws ProofException if either check fails
+     * @throws ProofException if any check fails
      */
     @NonNull
     private static SyncCommittee verifySignatureSlot(
@@ -406,6 +445,14 @@ public final class EthereumSyncCommitteeProofVerifier {
         }
         final long signingPeriod = anchor.preset().periodOf(signatureSlot);
         final SyncCommittee signer = anchor.committeeFor(signingPeriod);
+        // The relay picks the signature slot, which is not signed. Honest committees sign the current head, so a
+        // header is signed at most one period after its own.
+        final long attestedPeriod = anchor.preset().periodOf(attestedHeader.slot());
+        if (signingPeriod > attestedPeriod + 1) {
+            throw EthProofs.fail("signature slot " + Long.toUnsignedString(signatureSlot) + " is in period "
+                    + signingPeriod + ", more than one period after the attested header slot "
+                    + Long.toUnsignedString(attestedHeader.slot()) + " in period " + attestedPeriod);
+        }
         log.debug(
                 "EthSyncCommitteeProofVerifier: signature slot {} is in period {}; signer is the anchor's {} committee"
                         + " (anchor periods {}-{})",
@@ -624,37 +671,7 @@ public final class EthereumSyncCommitteeProofVerifier {
         if (manifestPreimage == null || entry == null) {
             return null;
         }
-        // Pin the proof to the designated commitment slot so a peer cannot substitute an unrelated slot.
-        final byte[] slot32 = leftPad32(entry.key(), "manifestStorageProof.key");
-        if (!Arrays.equals(slot32, endpointManifestCommitmentSlot())) {
-            throw EthProofs.fail("manifest storage proof is not for the endpoint-manifest commitment slot");
-        }
-        // Prove the committed value at that slot against the account's storage root.
-        final byte[] provenCommitment = RlpDecoder.decodeMerklePatriciaTrie(
-                        provenAccount.storageRoot32(), entry.proofNodes())
-                .provenValue(MiscCryptoUtils.keccak256DigestOf(slot32))
-                .map(Rlp::decodeTrieStorageValueAsBytes32)
-                .orElseThrow(() -> EthProofs.fail("endpoint-manifest commitment slot absent from the storage trie"));
-        // The on-chain commitment is keccak256 of the manifest protobuf preimage.
-        if (!Arrays.equals(provenCommitment, MiscCryptoUtils.keccak256DigestOf(manifestPreimage))) {
-            throw EthProofs.fail("endpoint-manifest preimage does not match the proven commitment");
-        }
-        // Reconstruct the manifest and enforce spec §4.8 invariants.
-        final ClprEndpointManifest manifest;
-        try {
-            // Spec §1: reject a manifest carrying unrecognized fields.
-            manifest = ClprEndpointManifest.PROTOBUF.parseStrict(
-                    Bytes.wrap(manifestPreimage).toReadableSequentialData());
-        } catch (final ParseException | RuntimeException e) {
-            throw EthProofs.fail("manifest preimage is not a valid ClprEndpointManifest", e);
-        }
-        if (manifest.version() == 0L) {
-            throw EthProofs.fail("endpoint-manifest version is 0 (must be >= 1)");
-        }
-        if (!Arrays.equals(manifest.serviceAddress().toByteArray(), serviceAddress20)) {
-            throw EthProofs.fail("endpoint-manifest service_address does not match the channel's service address");
-        }
-        return manifest;
+        return proveEndpointManifest(manifestPreimage, entry, provenAccount, serviceAddress20);
     }
 
     /**
@@ -758,5 +775,147 @@ public final class EthereumSyncCommitteeProofVerifier {
                 syncAggregate::participantCount,
                 () -> anchor.preset().committeeSize());
         return headerRoot32;
+    }
+
+    /**
+     * Verifies a config's endpoint-manifest proof under the config's {@code anchor} and returns the proven manifest, or
+     * the uninitialized manifest bound to {@code serviceAddress20} when the proof is empty. The proof is followed down
+     * to the CLPR service account as a bundle delivery is, then the manifest is proven against the account's storage.
+     *
+     * @throws ProofException if the proof is malformed or any check fails; the message names the anchor period and the
+     *                        proof's slots
+     */
+    @NonNull
+    private ClprEndpointManifest verifyConfigEndpointManifest(
+            @NonNull final byte[] endpointManifestProof,
+            @NonNull final TrustAnchor anchor,
+            @NonNull final byte[] serviceAddress20) {
+        if (endpointManifestProof.length == 0) {
+            return ClprEndpointManifest.newBuilder()
+                    .serviceAddress(Bytes.wrap(serviceAddress20))
+                    .build();
+        }
+        final ConfigManifestProof proof =
+                PayloadDecoder.decodeConfigManifestProof(endpointManifestProof, anchor.preset());
+        final ServiceAccountProof serviceAccount = proof.serviceAccount();
+        try {
+            final EvmAccount provenAccount = authenticateServiceAccount(serviceAccount, anchor, serviceAddress20)
+                    .account();
+            final ClprEndpointManifest manifest = proveEndpointManifest(
+                    proof.manifestPreimage(), proof.manifestStorageProof(), provenAccount, serviceAddress20);
+            // Installing the peer's endpoints is a trust decision: record which proof vouched for them, with the
+            // commitment and block an operator can compare with the peer's endpoint-manifest commitment slot.
+            log.info(
+                    "EthSyncCommitteeProofVerifier: endpoint manifest proven: version={} endpoints={} commitment=0x{}"
+                            + " executionBlockHash=0x{} signatureSlot={} signerPeriod={} attestedSlot={}"
+                            + " finalizedSlot={}",
+                    manifest::version,
+                    () -> manifest.endpoints().size(),
+                    () -> HexFormat.of().formatHex(MiscCryptoUtils.keccak256DigestOf(proof.manifestPreimage())),
+                    () -> HexFormat.of()
+                            .formatHex(MiscCryptoUtils.keccak256DigestOf(
+                                    serviceAccount.finalizedExecution().blockHeaderRlp())),
+                    () -> Long.toUnsignedString(serviceAccount.signatureSlot()),
+                    () -> anchor.preset().periodOf(serviceAccount.signatureSlot()),
+                    () -> Long.toUnsignedString(
+                            serviceAccount.signedHeader().attestedHeader().slot()),
+                    () -> Long.toUnsignedString(serviceAccount
+                            .finalizedExecution()
+                            .finalizedHeader()
+                            .slot()));
+            return manifest;
+        } catch (final ProofException e) {
+            throw EthProofs.withContext(describeManifestRejection(proof, anchor), e);
+        }
+    }
+
+    /**
+     * Authenticates the CLPR service account under {@code anchor}, as both a bundle delivery and a config's
+     * endpoint-manifest proof need: the committee of the signature slot's period signed the attested header, whose
+     * state names the finalized header; that header's body commits to the execution block; and the block's state holds
+     * the account at {@code serviceAddress20} with the code hash the anchor pins.
+     *
+     * @return the attested header's root and the proven account
+     * @throws ProofException if any check fails
+     */
+    @NonNull
+    private AuthenticatedAccount authenticateServiceAccount(
+            @NonNull final ServiceAccountProof proof,
+            @NonNull final TrustAnchor anchor,
+            @NonNull final byte[] serviceAddress20) {
+        final BeaconHeader attestedHeader = proof.signedHeader().attestedHeader();
+        final SyncCommittee signer = verifySignatureSlot(proof.signatureSlot(), attestedHeader, anchor);
+        final byte[] beaconBlockRoot32 = verifySignedHeader(proof.signedHeader(), signer, anchor);
+        verifyFinality(proof.finalizedExecution().finalizedHeader(), proof.finalityBranch(), attestedHeader);
+        final byte[] executionStateRoot32 = verifyExecutionStateRoot(proof.finalizedExecution());
+        final EvmAccount account =
+                verifyAccountProof(executionStateRoot32, serviceAddress20, proof.accountProof(), anchor.codeHash32());
+        return new AuthenticatedAccount(beaconBlockRoot32, account);
+    }
+
+    /**
+     * Describes a config's endpoint-manifest proof for a rejection message: the anchor it was verified against and the
+     * proof's slots.
+     */
+    @NonNull
+    private static String describeManifestRejection(
+            @NonNull final ConfigManifestProof proof, @NonNull final TrustAnchor anchor) {
+        final ServiceAccountProof serviceAccount = proof.serviceAccount();
+        return "endpoint-manifest proof rejected (anchorPeriod=" + anchor.period()
+                + ", signatureSlot=" + Long.toUnsignedString(serviceAccount.signatureSlot())
+                + ", attestedSlot="
+                + Long.toUnsignedString(
+                        serviceAccount.signedHeader().attestedHeader().slot())
+                + ", finalizedSlot="
+                + Long.toUnsignedString(
+                        serviceAccount.finalizedExecution().finalizedHeader().slot())
+                + ")";
+    }
+
+    /**
+     * Proves {@code manifestPreimage} against the endpoint-manifest commitment at slot 14
+     * ({@code ProofBytes.endpointManifestCommitmentSlot()}) of the account's {@code storageRoot32}, and checks the
+     * reconstructed manifest for the spec §4.8 invariants.
+     *
+     * @throws ProofException if the storage proof fails, the commitment does not match, or a §4.8 invariant is
+     *                        violated
+     */
+    @NonNull
+    private static ClprEndpointManifest proveEndpointManifest(
+            @NonNull final byte[] manifestPreimage,
+            @NonNull final StorageProofEntry entry,
+            @NonNull final EvmAccount provenAccount,
+            @NonNull final byte[] serviceAddress20) {
+        // Pin the proof to the designated commitment slot so a peer cannot substitute an unrelated slot.
+        final byte[] slot32 = leftPad32(entry.key(), "manifestStorageProof.key");
+        if (!Arrays.equals(slot32, endpointManifestCommitmentSlot())) {
+            throw EthProofs.fail("manifest storage proof is not for the endpoint-manifest commitment slot");
+        }
+        // Prove the committed value at that slot against the account's storage root.
+        final byte[] provenCommitment = RlpDecoder.decodeMerklePatriciaTrie(
+                        provenAccount.storageRoot32(), entry.proofNodes())
+                .provenValue(MiscCryptoUtils.keccak256DigestOf(slot32))
+                .map(Rlp::decodeTrieStorageValueAsBytes32)
+                .orElseThrow(() -> EthProofs.fail("endpoint-manifest commitment slot absent from the storage trie"));
+        // The on-chain commitment is keccak256 of the manifest protobuf preimage.
+        if (!Arrays.equals(provenCommitment, MiscCryptoUtils.keccak256DigestOf(manifestPreimage))) {
+            throw EthProofs.fail("endpoint-manifest preimage does not match the proven commitment");
+        }
+        // Reconstruct the manifest and enforce spec §4.8 invariants.
+        final ClprEndpointManifest manifest;
+        try {
+            // Spec §1: reject a manifest carrying unrecognized fields.
+            manifest = ClprEndpointManifest.PROTOBUF.parseStrict(
+                    Bytes.wrap(manifestPreimage).toReadableSequentialData());
+        } catch (final ParseException | RuntimeException e) {
+            throw EthProofs.fail("manifest preimage is not a valid ClprEndpointManifest", e);
+        }
+        if (manifest.version() == 0L) {
+            throw EthProofs.fail("endpoint-manifest version is 0 (must be >= 1)");
+        }
+        if (!Arrays.equals(manifest.serviceAddress().toByteArray(), serviceAddress20)) {
+            throw EthProofs.fail("endpoint-manifest service_address does not match the channel's service address");
+        }
+        return manifest;
     }
 }

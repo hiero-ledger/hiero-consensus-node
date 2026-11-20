@@ -7,7 +7,9 @@ import static com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBu
 import static com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBundleFixtures.GENESIS_VALIDATORS_ROOT;
 import static com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBundleFixtures.SERVICE_ADDRESS;
 import static com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBundleFixtures.bundle;
+import static com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBundleFixtures.manifestCommitmentSlot;
 import static com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBundleFixtures.zeroBranch;
+import static com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumTestUtils.deterministicBytes;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -15,6 +17,7 @@ import com.hedera.hapi.node.state.clpr.EthereumPosLedgerConfigurationPayload;
 import com.hedera.node.app.service.clpr.impl.verifier.ProofException;
 import com.hedera.node.app.service.clpr.impl.verifier.Rlp;
 import com.hedera.node.app.service.clpr.impl.verifier.ethereum.BundlePayload.MessageDelivery;
+import com.hedera.node.app.service.clpr.impl.verifier.ethereum.BundlePayload.ServiceAccountProof;
 import com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBundleFixtures.Committee;
 import com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBundleFixtures.ConfigBuilder;
 import com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBundleFixtures.DeliveryBuilder;
@@ -53,6 +56,7 @@ class PayloadDecoderTest {
     private static final int DELIVERY_INDEX_FINALITY_BRANCH = 5;
     private static final int DELIVERY_INDEX_STORAGE_PROOF = 7;
     private static final int DELIVERY_INDEX_BUNDLE_CONTENT = 8;
+    private static final int CONFIG_MANIFEST_PROOF_INDEX_MANIFEST_PROOF = 7;
     private static final int HEADER_INDEX_STATE_ROOT = 3;
     private static final int FINALIZED_EXECUTION_INDEX_BRANCH = 1;
     private static final int NEXT_COMMITTEE_INDEX_PUBKEYS_ROOT = 0;
@@ -72,9 +76,10 @@ class PayloadDecoderTest {
             assertThat(bundle.rotations()).hasSize(1);
             assertThat(bundle.rotations().getFirst().finalizedHeader().slot()).isEqualTo(rotation.finalizedSlot);
             final MessageDelivery decoded = bundle.delivery();
-            assertThat(decoded.signedHeader().attestedHeader().slot()).isEqualTo(delivery.attestedSlot);
-            assertThat(decoded.signatureSlot()).isEqualTo(delivery.attestedSlot + 1);
-            assertThat(decoded.signedHeader().nonSignerProofs()).hasSize(2);
+            final ServiceAccountProof serviceAccount = decoded.serviceAccount();
+            assertThat(serviceAccount.signedHeader().attestedHeader().slot()).isEqualTo(delivery.attestedSlot);
+            assertThat(serviceAccount.signatureSlot()).isEqualTo(delivery.attestedSlot + 1);
+            assertThat(serviceAccount.signedHeader().nonSignerProofs()).hasSize(2);
             assertThat(decoded.storageProof()).hasSize(5);
             assertThat(decoded.bundleContent()).isEqualTo(delivery.bundleContent);
             assertThat(decoded.manifestStorageProof()).isNull();
@@ -336,6 +341,97 @@ class PayloadDecoderTest {
             return EthereumPosLedgerConfigurationPayload.PROTOBUF
                     .toBytes(payload)
                     .toByteArray();
+        }
+    }
+
+    @Nested
+    class DecodeConfigManifestProof {
+
+        private static final byte[] PREIMAGE = {0x08, 0x01};
+
+        /**
+         * A delivery carrying the commitment of {@link #PREIMAGE}, whose config manifest proof the tests decode.
+         */
+        private static DeliveryBuilder manifestDelivery() {
+            return delivery().withManifest(PREIMAGE, deterministicBytes(32, 0x42), manifestCommitmentSlot());
+        }
+
+        private static void assertProofRejected(final byte[] proof, final String message) {
+            assertThatThrownBy(() -> PayloadDecoder.decodeConfigManifestProof(proof, MAINNET))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining(message);
+        }
+
+        @Test
+        @DisplayName("given a valid proof, then reads the delivery prefix and the manifest pair")
+        void givenValidProof_thenDecodesDeliveryPrefixAndManifestPair() {
+            final DeliveryBuilder delivery = manifestDelivery();
+
+            final ConfigManifestProof proof =
+                    PayloadDecoder.decodeConfigManifestProof(delivery.buildConfigManifestProof(), MAINNET);
+
+            final ServiceAccountProof serviceAccount = proof.serviceAccount();
+            assertThat(serviceAccount.signedHeader().attestedHeader().slot()).isEqualTo(delivery.attestedSlot);
+            assertThat(serviceAccount.signatureSlot()).isEqualTo(delivery.attestedSlot + 1);
+            assertThat(serviceAccount.signedHeader().nonSignerProofs()).hasSize(2);
+            assertThat(serviceAccount.finalizedExecution().finalizedHeader().slot())
+                    .isEqualTo(delivery.finalizedSlot);
+            assertThat(serviceAccount.finalizedExecution().blockHeaderRlp()).isEqualTo(delivery.blockHeaderRlp());
+            assertThat(serviceAccount.finalityBranch()).hasDimensions(9, 32);
+            assertThat(serviceAccount.accountProof()).isDeepEqualTo(delivery.accountProofNodes);
+            assertThat(proof.manifestStorageProof().key()).isEqualTo(manifestCommitmentSlot());
+            assertThat(proof.manifestPreimage()).isEqualTo(PREIMAGE);
+        }
+
+        @Test
+        @DisplayName("given raw manifest bytes, then decodeConfigManifestProof rejects them")
+        void givenRawManifestBytes_thenThrowsProofException() {
+            assertProofRejected(PREIMAGE, "endpointManifestProof");
+        }
+
+        @Test
+        @DisplayName("given a whole delivery of 11 items, then decodeConfigManifestProof rejects it")
+        void givenDelivery_thenThrowsProofException() {
+            assertProofRejected(
+                    manifestDelivery().build(),
+                    "expected endpointManifestProof to be an RLP list of 9 items, got 11 items");
+        }
+
+        @Test
+        @DisplayName("given a manifest proof of no entry, then decodeConfigManifestProof rejects it")
+        void givenManifestProofOfNoEntry_thenThrowsProofException() {
+            final byte[] proof = withItem(
+                    manifestDelivery().buildConfigManifestProof(),
+                    CONFIG_MANIFEST_PROOF_INDEX_MANIFEST_PROOF,
+                    Rlp.encodeList(List.of()));
+
+            assertProofRejected(proof, "endpointManifestProof.manifestProof must hold exactly one entry, got 0");
+        }
+
+        @Test
+        @DisplayName("given a manifest proof of two entries, then decodeConfigManifestProof rejects it")
+        void givenManifestProofOfTwoEntries_thenThrowsProofException() {
+            final byte[] proof = manifestDelivery().buildConfigManifestProof();
+            final byte[] entry = Rlp.decodeOne(item(proof, CONFIG_MANIFEST_PROOF_INDEX_MANIFEST_PROOF))
+                    .children()
+                    .getFirst()
+                    .raw();
+
+            assertProofRejected(
+                    withItem(proof, CONFIG_MANIFEST_PROOF_INDEX_MANIFEST_PROOF, Rlp.encodeList(List.of(entry, entry))),
+                    "endpointManifestProof.manifestProof must hold exactly one entry, got 2");
+        }
+
+        @Test
+        @DisplayName("given a finalized execution of 2 items, then decodeConfigManifestProof names it in the proof")
+        void givenFinalizedExecutionOfTwoItems_thenThrowsProofException() {
+            final byte[] proof = manifestDelivery().buildConfigManifestProof();
+            final byte[] finalizedExecution = withoutLastItem(item(proof, DELIVERY_INDEX_FINALIZED_EXECUTION));
+
+            assertProofRejected(
+                    withItem(proof, DELIVERY_INDEX_FINALIZED_EXECUTION, finalizedExecution),
+                    "endpointManifestProof.finalizedExecution [finalizedHeader, executionBranch, blockHeaderRlp] to be"
+                            + " an RLP list of 3 items, got 2 items");
         }
     }
 

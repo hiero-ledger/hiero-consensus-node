@@ -63,6 +63,11 @@ final class EthereumBundleFixtures {
     /** keccak256(RLP("")): the root of an empty Merkle-Patricia trie. */
     static final byte[] EMPTY_TRIE_ROOT = MiscCryptoUtils.keccak256DigestOf(new byte[] {(byte) 0x80});
 
+    /** Positions of the Channel slot proofs and of the manifest proof in a delivery. */
+    private static final int DELIVERY_INDEX_STORAGE_PROOF = 7;
+
+    private static final int DELIVERY_INDEX_MANIFEST_PROOF = 9;
+
     private static final int CHANNELS_BASE_SLOT = 11;
     private static final int[] CHANNEL_SLOT_OFFSETS = {1, 2, 4, 5, 15};
     private static final byte MANIFEST_COMMITMENT_SLOT = 14;
@@ -484,6 +489,22 @@ final class EthereumBundleFixtures {
         }
 
         byte[] build() {
+            return Rlp.encodeList(items());
+        }
+
+        /**
+         * The config's endpoint-manifest proof made of this delivery: its first seven items, then the manifest pair.
+         * The Channel slots and the bundle content are left out.
+         */
+        byte[] buildConfigManifestProof() {
+            final List<byte[]> items = items();
+            final List<byte[]> proof = new ArrayList<>(items.subList(0, DELIVERY_INDEX_STORAGE_PROOF));
+            proof.addAll(items.subList(DELIVERY_INDEX_MANIFEST_PROOF, items.size()));
+            return Rlp.encodeList(proof);
+        }
+
+        /** The encoded delivery items, in wire order. */
+        private List<byte[]> items() {
             final byte[][] finalityBranch = finalityBranchOverride != null
                     ? finalityBranchOverride
                     : sparseBranch(Map.of(FINALIZED_ROOT_GINDEX, finalizedRoot()), FINALIZED_ROOT_GINDEX);
@@ -500,7 +521,7 @@ final class EthereumBundleFixtures {
             for (final byte[] node : accountProofNodes) {
                 accountProof.add(Rlp.encodeBytes(node));
             }
-            return Rlp.encodeList(List.of(
+            return List.of(
                     headerRlp(attestedSlot, proposerIndex, parentRoot, attestedStateRoot(), attestedBodyRoot),
                     Rlp.encodeUint(signatureSlot != null ? signatureSlot : attestedSlot + 1),
                     syncAggregateRlp(bits, signature),
@@ -511,7 +532,7 @@ final class EthereumBundleFixtures {
                     Rlp.encodeList(storageEntries),
                     Rlp.encodeBytes(bundleContent),
                     manifestProof,
-                    Rlp.encodeBytes(manifestPreimage)));
+                    Rlp.encodeBytes(manifestPreimage));
         }
     }
 

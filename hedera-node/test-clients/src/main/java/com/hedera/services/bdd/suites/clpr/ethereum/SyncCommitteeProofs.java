@@ -84,6 +84,11 @@ public final class SyncCommitteeProofs {
     /** EVM storage slot of the {@code ClprEndpointManifest} commitment on the CLPR service contract (slot 14). */
     private static final int MANIFEST_COMMITMENT_SLOT_INDEX = 14;
 
+    /** Positions of the Channel slot proofs and of the manifest proof in a delivery. */
+    private static final int DELIVERY_INDEX_STORAGE_PROOF = 7;
+
+    private static final int DELIVERY_INDEX_MANIFEST_PROOF = 9;
+
     private static final byte[] ZERO_32 = new byte[32];
 
     /** A beacon block root that no bundle serves, signed in place of the attested header's root. */
@@ -211,23 +216,43 @@ public final class SyncCommitteeProofs {
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
-    //  Endpoint manifest (raw ClprEndpointManifest protobuf preimage)
+    //  Endpoint manifest (ClprEndpointManifest protobuf preimage and its config-time proof)
     // ─────────────────────────────────────────────────────────────────────────────
 
     /**
-     * Raw {@code ClprEndpointManifest} protobuf bytes bound to {@link #SERVICE_ADDRESS} — the value carried as the
-     * config path's {@code endpoint_manifest_proof_bytes} (arg2) and as the bundle's manifest preimage.
-     * {@code endpointCount} manifest endpoints are generated deterministically via
-     * {@link #manifestEndpointIp}/{@link #manifestEndpointPort}.
+     * Raw {@code ClprEndpointManifest} protobuf bytes bound to {@link #SERVICE_ADDRESS} — the manifest preimage that a
+     * bundle and a {@link #configManifestProof} carry. {@code endpointCount} manifest endpoints are generated
+     * deterministically via {@link #manifestEndpointIp}/{@link #manifestEndpointPort}.
      */
     public static byte[] manifestBytes(final long version, final int endpointCount) {
         return manifest(version, SERVICE_ADDRESS, endpointCount).toByteArray();
     }
 
     /**
+     * The config path's {@code endpoint_manifest_proof_bytes} (arg2) for {@code manifestBytes}: the RLP
+     * {@code [attestedHeader, signatureSlot, syncAggregate, nonSignerProofs, finalizedExecution, finalityBranch,
+     * accountProof, manifestStorageProof, manifestPreimage]}. It is a delivery signed by the initial committee in the
+     * configured period, without the Channel slots and the bundle content: its CLPR service storage commits
+     * {@code keccak256(manifestBytes)} at slot {@value #MANIFEST_COMMITMENT_SLOT_INDEX}.
+     */
+    public static byte[] configManifestProof(final byte[] manifestBytes) {
+        final Delivery delivery = new Delivery(
+                Preset.MAINNET,
+                CONFIG_PERIOD,
+                Committee.initial(Preset.MAINNET),
+                new byte[32],
+                ClprBundleContent.getDefaultInstance());
+        delivery.manifestBytes = manifestBytes;
+        final List<Object> items = delivery.toRlpItems();
+        final List<Object> proof = new ArrayList<>(items.subList(0, DELIVERY_INDEX_STORAGE_PROOF));
+        proof.addAll(items.subList(DELIVERY_INDEX_MANIFEST_PROOF, items.size()));
+        return RLPEncoder.list(proof);
+    }
+
+    /**
      * A manifest whose {@code service_address} is a valid 20-byte address that nonetheless differs from the config's
      * {@link #SERVICE_ADDRESS}. The verifier enforces spec §4.8 (manifest service_address == config service_address),
-     * so openChannel reverts with {@code CLPR_VERIFIER_CONFIG_FAILED}.
+     * so a config whose manifest proof carries it makes openChannel revert with {@code CLPR_VERIFIER_CONFIG_FAILED}.
      */
     public static byte[] manifestBytesBadServiceAddress() {
         return manifest(1L, generateBytes(20, 0x66), 1).toByteArray();
@@ -462,7 +487,7 @@ public final class SyncCommitteeProofs {
         }
 
         /** The RLP items of the delivery. */
-        private Object toRlpItems() {
+        private List<Object> toRlpItems() {
             // 1) Storage trie over the Channel slots (and the manifest commitment), keyed by keccak(slot).
             final byte[][] channelSlots =
                     channelSlots(channelId, content.getMetadata().getNextMessageId());

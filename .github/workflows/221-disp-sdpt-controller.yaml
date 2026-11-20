@@ -158,7 +158,7 @@ jobs:
       - verify-citr-vars
       - acquire-kubernetes-resources
     if: ${{ needs.verify-tag.outputs.build-number != '' }}
-    uses: ./.github/workflows/864-call-report-suite-result.yaml
+    uses: ./.github/workflows/864-call-report-suite-status.yaml
     with:
       suite-type: sdpt
       build-number: ${{ needs.verify-tag.outputs.build-number }}
@@ -233,7 +233,7 @@ jobs:
       - run-single-day-performance-test
       - release-chewie-allocation # the result is reported after cleanup
     if: ${{ always() && needs.verify-tag.outputs.build-number != '' }}
-    uses: ./.github/workflows/864-call-report-suite-result.yaml
+    uses: ./.github/workflows/864-call-report-suite-status.yaml
     with:
       suite-type: sdpt
       build-number: ${{ needs.verify-tag.outputs.build-number }}
