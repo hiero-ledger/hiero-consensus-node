@@ -32,9 +32,9 @@ public class ClprServiceApiProvider implements ServiceApiProvider<ClprServiceApi
             @NonNull final NodeFeeAccumulator nodeFeeAccumulator) {
         requireNonNull(configuration);
         requireNonNull(writableStates);
-        final var channelReadStore = new ReadableChannelStoreImpl(writableStates);
-        final var channelWriteStore = new WritableChannelStore(writableStates);
-        final var connectorStore = new WritableConnectorStore(writableStates);
+        final var channelReadStore = new ReadableChannelStoreImpl(writableStates, entityCounters);
+        final var channelWriteStore = new WritableChannelStore(writableStates, entityCounters);
+        final var connectorStore = new WritableConnectorStore(writableStates, entityCounters);
         final var configStore = new ReadableLedgerConfigurationStoreImpl(writableStates);
         final var messageQueueStore = new WritableMessageQueueStore(writableStates);
         return new ClprServiceApiImpl(

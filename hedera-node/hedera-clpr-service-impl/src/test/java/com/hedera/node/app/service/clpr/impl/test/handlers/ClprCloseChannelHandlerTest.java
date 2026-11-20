@@ -14,6 +14,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.lenient;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -27,6 +28,7 @@ import com.hedera.node.app.service.clpr.ClprChannelLifecycle;
 import com.hedera.node.app.service.clpr.impl.WritableChannelStore;
 import com.hedera.node.app.service.clpr.impl.WritablePendingCommitmentStore;
 import com.hedera.node.app.service.clpr.impl.handlers.ClprCloseChannelHandler;
+import com.hedera.node.app.service.entityid.WritableEntityCounters;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -85,7 +87,7 @@ class ClprCloseChannelHandlerTest {
         lenient()
                 .when(writableStates.<ProtoBytes, ClprChannel>get(CHANNELS_STATE_ID))
                 .thenReturn(writableChannels);
-        channelStore = new WritableChannelStore(writableStates);
+        channelStore = new WritableChannelStore(writableStates, mock(WritableEntityCounters.class));
 
         final var writableCommitments = MapWritableKVState.<ProtoBytes, ProtoBytes>builder(
                         PENDING_COMMITMENTS_STATE_ID, "ClprService:PENDING_COMMITMENTS")

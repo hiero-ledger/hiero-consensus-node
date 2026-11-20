@@ -13,6 +13,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.lenient;
+import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -37,6 +38,7 @@ import com.hedera.node.app.service.clpr.impl.handlers.ClprRegisterChannelHandler
 import com.hedera.node.app.service.clpr.impl.test.verifier.PassThroughClprVerifier;
 import com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierFactory;
 import com.hedera.node.app.service.contract.api.SmartContractServiceApi;
+import com.hedera.node.app.service.entityid.WritableEntityCounters;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -147,7 +149,7 @@ class ClprCommitRevealUnitScenariosTest {
         lenient()
                 .when(writableStates.<ProtoBytes, ClprChannel>get(CHANNELS_STATE_ID))
                 .thenReturn(writableChannels);
-        channelStore = new WritableChannelStore(writableStates);
+        channelStore = new WritableChannelStore(writableStates, mock(WritableEntityCounters.class));
     }
 
     @Test

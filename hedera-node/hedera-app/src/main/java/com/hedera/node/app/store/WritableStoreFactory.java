@@ -146,9 +146,7 @@ public class WritableStoreFactory {
                 new StoreEntry(
                         ClprService.NAME,
                         (states, entityCounters) -> new WritableEndpointManifestConstructionStore(states)));
-        newMap.put(
-                WritableChannelStore.class,
-                new StoreEntry(ClprService.NAME, (states, entityCounters) -> new WritableChannelStore(states)));
+        newMap.put(WritableChannelStore.class, new StoreEntry(ClprService.NAME, WritableChannelStore::new));
         newMap.put(
                 WritablePendingCommitmentStore.class,
                 new StoreEntry(
@@ -161,9 +159,7 @@ public class WritableStoreFactory {
         newMap.put(
                 WritableMessageQueueStore.class,
                 new StoreEntry(ClprService.NAME, (states, entityCounters) -> new WritableMessageQueueStore(states)));
-        newMap.put(
-                WritableConnectorStore.class,
-                new StoreEntry(ClprService.NAME, (states, entityCounters) -> new WritableConnectorStore(states)));
+        newMap.put(WritableConnectorStore.class, new StoreEntry(ClprService.NAME, WritableConnectorStore::new));
         return Collections.unmodifiableMap(newMap);
     }
 

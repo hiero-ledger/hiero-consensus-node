@@ -5,6 +5,7 @@ import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CONN
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
@@ -15,6 +16,7 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.service.clpr.impl.ClprSlashingUtils;
 import com.hedera.node.app.service.clpr.impl.WritableConnectorStore;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.node.app.service.entityid.WritableEntityCounters;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.config.data.ClprConfig;
@@ -67,7 +69,7 @@ class ClprSlashingUtilsTest {
         lenient()
                 .when(writableStates.<ClprConnectorKey, ClprConnector>get(CONNECTORS_STATE_ID))
                 .thenReturn(writableConnectors);
-        connectorStore = new WritableConnectorStore(writableStates);
+        connectorStore = new WritableConnectorStore(writableStates, mock(WritableEntityCounters.class));
 
         config = HederaTestConfigBuilder.create()
                 .withValue("clpr.slashBasePenalty", "10000000")

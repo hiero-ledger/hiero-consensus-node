@@ -17,6 +17,7 @@ import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.res
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -39,6 +40,7 @@ import com.hedera.node.app.service.clpr.impl.WritableConnectorStore;
 import com.hedera.node.app.service.clpr.impl.WritablePendingConnectorCommitmentStore;
 import com.hedera.node.app.service.clpr.impl.handlers.ClprCompleteConnectorHandler;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.node.app.service.entityid.WritableEntityCounters;
 import com.hedera.node.app.service.entityid.impl.AppEntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
@@ -137,7 +139,7 @@ class ClprCompleteConnectorHandlerTest {
         lenient()
                 .when(writableStates.<ClprConnectorKey, ClprConnector>get(CONNECTORS_STATE_ID))
                 .thenReturn(writableConnectors);
-        connectorStore = new WritableConnectorStore(writableStates);
+        connectorStore = new WritableConnectorStore(writableStates, mock(WritableEntityCounters.class));
 
         // Pending connector commitments state
         final var writableCommitments = MapWritableKVState.<ProtoBytes, ProtoBytes>builder(
@@ -160,7 +162,7 @@ class ClprCompleteConnectorHandlerTest {
         lenient()
                 .when(writableStates.<ProtoBytes, ClprChannel>get(CHANNELS_STATE_ID))
                 .thenReturn(writableChannels);
-        channelStore = new ReadableChannelStoreImpl(writableStates);
+        channelStore = new ReadableChannelStoreImpl(writableStates, mock(WritableEntityCounters.class));
     }
 
     // ── pureChecks ────────────────────────────────────────────────────────────

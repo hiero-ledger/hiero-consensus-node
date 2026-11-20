@@ -87,6 +87,10 @@ class WritableEntityIdStoreImplTest {
         assertEquals(1, entityCountsState.get().numAirdrops());
         subject.incrementEntityTypeCount(EntityType.STAKING_INFO);
         assertEquals(1, entityCountsState.get().numStakingInfos());
+        subject.incrementEntityTypeCount(EntityType.CLPR_CHANNEL);
+        assertEquals(1, entityCountsState.get().numClprChannels());
+        subject.incrementEntityTypeCount(EntityType.CLPR_CONNECTOR);
+        assertEquals(1, entityCountsState.get().numClprConnectors());
     }
 
     @Test
@@ -117,5 +121,12 @@ class WritableEntityIdStoreImplTest {
         assertEquals(1, entityCountsState.get().numContractStorageSlots());
         subject.decrementEntityTypeCounter(EntityType.CONTRACT_STORAGE);
         assertEquals(0, entityCountsState.get().numContractStorageSlots());
+
+        subject.incrementEntityTypeCount(EntityType.CLPR_CHANNEL);
+        subject.decrementEntityTypeCounter(EntityType.CLPR_CHANNEL);
+        assertEquals(0, entityCountsState.get().numClprChannels());
+        subject.incrementEntityTypeCount(EntityType.CLPR_CONNECTOR);
+        subject.decrementEntityTypeCounter(EntityType.CLPR_CONNECTOR);
+        assertEquals(0, entityCountsState.get().numClprConnectors());
     }
 }
