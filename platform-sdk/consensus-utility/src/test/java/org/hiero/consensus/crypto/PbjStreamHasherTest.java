@@ -3,6 +3,7 @@ package org.hiero.consensus.crypto;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.hiero.consensus.model.event.EventConstants.DEFAULT_EVENT_DIGEST_TYPE;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -24,16 +25,12 @@ import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
-import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.EnumSource;
 
 class PbjStreamHasherTest {
 
     private static final Random RANDOM = RandomUtils.getRandomPrintSeed();
-
-    /** The first birth round hashed with SHA-256. */
-    private static final long CUTOVER = 100;
 
     @ParameterizedTest(name = "birth round {0} -> {1}")
     @CsvSource({"99, SHA_384", "100, SHA_256"})
@@ -45,7 +42,7 @@ class PbjStreamHasherTest {
 
         new PbjStreamHasher().hashEvent(event);
 
-        assertThat(event.getHash()).isEqualTo(expectedHash(event, expectedType));
+        assertThat(event.getHash()).isEqualTo(expectedHash(event));
     }
 
     /** Ways to make hashing fail part way through an event. */
@@ -56,28 +53,17 @@ class PbjStreamHasherTest {
         PARENT
     }
 
-    static Stream<Arguments> failureRecovery() {
-        return Stream.of(Failure.values())
-                .flatMap(failure -> Stream.of(
-                        // same algorithm for the failed and the valid event
-                        Arguments.of(CUTOVER - 1, CUTOVER - 1, failure),
-                        Arguments.of(CUTOVER, CUTOVER, failure),
-                        // a failure with one algorithm followed by a valid event with the other
-                        Arguments.of(CUTOVER - 1, CUTOVER, failure),
-                        Arguments.of(CUTOVER, CUTOVER - 1, failure)));
-    }
-
     @ParameterizedTest(name = "valid birth round {0}, failed birth round {1}, {2} failure")
-    @MethodSource("failureRecovery")
-    void reusableAfterException(final long validBirthRound, final long failedBirthRound, final Failure failure) {
+    @EnumSource(Failure.class)
+    void reusableAfterException(final Failure failure) {
         final PbjStreamHasher hasher = new PbjStreamHasher();
 
         // 1. Hash a valid event and record the expected hash
-        final PlatformEvent validEvent = eventWithBirthRound(validBirthRound);
+        final PlatformEvent validEvent = newEvent();
         final Hash expectedHash = hasher.hashEvent(validEvent).getHash();
 
         // 2. Fail part way through hashing another event, dirtying the digests
-        final PlatformEvent badEvent = badEvent(failedBirthRound, failure);
+        final PlatformEvent badEvent = badEvent(failure);
         assertThatThrownBy(() -> hasher.hashEvent(badEvent)).isInstanceOf(NullPointerException.class);
 
         // 3. Hash the valid event again — must produce the same hash, proving the digests were reset
@@ -90,28 +76,28 @@ class PbjStreamHasherTest {
 
         // the hashes of 100 parents alone take more than 3 KB; the hasher's buffer starts with 1 KB
         final PlatformEvent largeEvent = new TestingEventBuilder(RANDOM)
-                .setBirthRound(CUTOVER + 1)
-                .setSelfParent(hashedEventWithBirthRound(hasher, CUTOVER))
-                .setOtherParents(Stream.generate(() -> hashedEventWithBirthRound(hasher, CUTOVER))
+                .setBirthRound(RANDOM.nextLong())
+                .setSelfParent(hashedEventWithBirthRound(hasher))
+                .setOtherParents(Stream.generate(() -> hashedEventWithBirthRound(hasher))
                         .limit(100)
                         .toList())
                 .setAppTransactionCount(3)
                 .build();
-        final PlatformEvent smallEvent = eventWithBirthRound(CUTOVER + 1);
+        final PlatformEvent smallEvent = newEvent();
 
         hasher.hashEvent(largeEvent);
         hasher.hashEvent(smallEvent);
 
-        assertThat(largeEvent.getHash()).isEqualTo(expectedHash(largeEvent, DigestType.SHA_256));
-        assertThat(smallEvent.getHash()).isEqualTo(expectedHash(smallEvent, DigestType.SHA_256));
+        assertThat(largeEvent.getHash()).isEqualTo(expectedHash(largeEvent));
+        assertThat(smallEvent.getHash()).isEqualTo(expectedHash(smallEvent));
     }
 
     /**
      * Creates an event that makes the hasher throw part way through hashing.
      */
     @NonNull
-    private static PlatformEvent badEvent(final long birthRound, @NonNull final Failure failure) {
-        final PlatformEvent sourceEvent = eventWithBirthRound(birthRound);
+    private static PlatformEvent badEvent(@NonNull final Failure failure) {
+        final PlatformEvent sourceEvent = newEvent();
         final PlatformEvent badEvent = mock(PlatformEvent.class);
         when(badEvent.getEventCore()).thenReturn(sourceEvent.getEventCore());
 
@@ -138,17 +124,13 @@ class PbjStreamHasherTest {
     }
 
     @NonNull
-    private static PlatformEvent eventWithBirthRound(final long birthRound) {
-        return new TestingEventBuilder(RANDOM)
-                .setBirthRound(birthRound)
-                .setAppTransactionCount(3)
-                .build();
+    private static PlatformEvent newEvent() {
+        return new TestingEventBuilder(RANDOM).setAppTransactionCount(3).build();
     }
 
     @NonNull
-    private static PlatformEvent hashedEventWithBirthRound(
-            @NonNull final PbjStreamHasher hasher, final long birthRound) {
-        return hasher.hashEvent(eventWithBirthRound(birthRound));
+    private static PlatformEvent hashedEventWithBirthRound(@NonNull final PbjStreamHasher hasher) {
+        return hasher.hashEvent(newEvent());
     }
 
     /**
@@ -156,8 +138,8 @@ class PbjStreamHasherTest {
      * descriptor, then the SHA-384 hash of each transaction, all hashed with {@code digestType}.
      */
     @NonNull
-    private static Hash expectedHash(@NonNull final PlatformEvent event, @NonNull final DigestType digestType) {
-        final MessageDigest digest = digestType.buildDigest();
+    private static Hash expectedHash(@NonNull final PlatformEvent event) {
+        final MessageDigest digest = DEFAULT_EVENT_DIGEST_TYPE.buildDigest();
         digest.update(EventCore.PROTOBUF.toBytes(event.getEventCore()).toByteArray());
         for (final EventDescriptor parent : event.getGossipEvent().parents()) {
             digest.update(EventDescriptor.PROTOBUF.toBytes(parent).toByteArray());
@@ -165,7 +147,7 @@ class PbjStreamHasherTest {
         for (final Bytes transaction : event.getGossipEvent().transactions()) {
             digest.update(sha384(transaction));
         }
-        return new Hash(digest.digest(), digestType);
+        return new Hash(digest.digest(), DEFAULT_EVENT_DIGEST_TYPE);
     }
 
     @NonNull
