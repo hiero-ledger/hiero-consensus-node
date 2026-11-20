@@ -8,6 +8,7 @@ import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.utilops.BlockNodeVerbs.blockNode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertBlockNodeCommsLogContainsTimeframe;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertBlockNodeCommsLogDoesNotContainText;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.awaitBlockNodeCommsLogContainsText;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
@@ -53,35 +54,33 @@ public class BlockNodeBackPressureSuite {
                             "15",
                             "blockStream.streamMode",
                             "BLOCKS",
-                            "blockStream.writerMode",
-                            "FILE_AND_GRPC",
                             "blockStream.streamWrappedRecordBlocks",
-                            "false",
-                            "blockStream.enableCutover",
-                            "false",
-                            "blockStream.buffer.isBufferPersistenceEnabled",
-                            "false",
-                            "tss.forceMockSignatures",
-                            "true"
+                            "false"
                         })
             })
     @Order(1)
-    final Stream<DynamicTest> backPressureAppliedWhenBlocksAndFileAndGrpc() {
+    final Stream<DynamicTest> noBackPressureWhenBlocksAndFileAndGrpc() {
         final AtomicReference<Instant> time = new AtomicReference<>();
         return hapiTest(
                 waitUntilNextBlocks(5),
-                // Capture the time before shutting down: the buffer can saturate and log backpressure
-                // during the container's shutdown/drain phase, before shutDownImmediately() returns.
                 doingContextual(spec -> time.set(Instant.now())),
                 blockNode(0).shutDownImmediately(),
+                // Back pressure would stall at 15 unacked blocks; 20 more show the full buffer prunes them instead.
+                // Not waiting for Saturated: pruning holds the count at 14 of 15 unless a check lands between blocks
+                waitUntilNextBlocks(20).withBackgroundTraffic(true),
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
                         byNodeId(0),
                         time::get,
+                        Duration.ofMinutes(2),
                         Duration.ofMinutes(1),
-                        Duration.ofMinutes(1),
-                        "Block buffer is saturated; backpressure is being enabled",
-                        "!!! Block buffer is saturated; blocking thread until buffer is no longer saturated")),
-                waitForAny(byNodeId(0), Duration.ofSeconds(30), PlatformStatus.CHECKING));
+                        "Block buffer has become unhealthy")),
+                assertBlockNodeCommsLogDoesNotContainText(
+                        byNodeId(0), "Block buffer is saturated; backpressure is being enabled", Duration.ofSeconds(0)),
+                assertBlockNodeCommsLogDoesNotContainText(
+                        byNodeId(0),
+                        "!!! Block buffer is saturated; blocking thread until buffer is no longer saturated",
+                        Duration.ofSeconds(0)),
+                waitForActive(byNodeId(0), Duration.ofSeconds(30)));
     }
 
     @HapiTest
@@ -99,12 +98,8 @@ public class BlockNodeBackPressureSuite {
                             "blockStream.streamMode",
                             "BLOCKS",
                             "blockStream.writerMode",
-                            "FILE_AND_GRPC",
+                            "GRPC",
                             "blockStream.streamWrappedRecordBlocks",
-                            "false",
-                            "blockStream.enableCutover",
-                            "false",
-                            "blockStream.buffer.isBufferPersistenceEnabled",
                             "false",
                             "tss.forceMockSignatures",
                             "false"
@@ -162,10 +157,6 @@ public class BlockNodeBackPressureSuite {
                             "GRPC",
                             "blockStream.streamWrappedRecordBlocks",
                             "false",
-                            "blockStream.enableCutover",
-                            "false",
-                            "blockStream.buffer.isBufferPersistenceEnabled",
-                            "false",
                             "tss.forceMockSignatures",
                             "false"
                         }),
@@ -181,10 +172,6 @@ public class BlockNodeBackPressureSuite {
                             "blockStream.writerMode",
                             "GRPC",
                             "blockStream.streamWrappedRecordBlocks",
-                            "false",
-                            "blockStream.enableCutover",
-                            "false",
-                            "blockStream.buffer.isBufferPersistenceEnabled",
                             "false",
                             "tss.forceMockSignatures",
                             "false"
@@ -202,10 +189,6 @@ public class BlockNodeBackPressureSuite {
                             "GRPC",
                             "blockStream.streamWrappedRecordBlocks",
                             "false",
-                            "blockStream.enableCutover",
-                            "false",
-                            "blockStream.buffer.isBufferPersistenceEnabled",
-                            "false",
                             "tss.forceMockSignatures",
                             "false"
                         }),
@@ -222,10 +205,6 @@ public class BlockNodeBackPressureSuite {
                             "GRPC",
                             "blockStream.streamWrappedRecordBlocks",
                             "false",
-                            "blockStream.enableCutover",
-                            "false",
-                            "blockStream.buffer.isBufferPersistenceEnabled",
-                            "false",
                             "tss.forceMockSignatures",
                             "false"
                         })
@@ -234,11 +213,14 @@ public class BlockNodeBackPressureSuite {
     final Stream<DynamicTest> backPressureAllNodesCheckingScenario() {
         final AtomicReference<Instant> time = new AtomicReference<>();
         return hapiTest(
-                // Let the 4-node network stabilize before shutting down the block node
-                doingContextual(
-                        spec -> LockSupport.parkNanos(Duration.ofSeconds(30).toNanos())),
-                // Capture the time before shutting down: the buffer can saturate and log backpressure
-                // during the container's shutdown/drain phase, before shutDownImmediately() returns.
+                // Anchor on a condition, not a clock. A fixed park cannot guarantee the buffer is
+                // healthy at t0: with maxBlocks=5 and four real block-node containers, node0 can
+                // saturate while the network is still settling. The timeframe op below only matches
+                // lines in [t0, t0+timeframe], so a saturation logged before t0 is invisible no
+                // matter how long it polls. An acknowledgement proves the connection is up and the
+                // buffer is draining, so the saturation asserted below is caused by the shutdown.
+                awaitBlockNodeCommsLogContainsText(
+                        byNodeId(0), "Acknowledgement received for block", Duration.ofMinutes(2)),
                 doingContextual(spec -> time.set(Instant.now())),
                 blockNode(0).shutDownImmediately(),
                 // With REAL block nodes (Docker containers), shutdown takes ~15s before the
@@ -267,7 +249,10 @@ public class BlockNodeBackPressureSuite {
                         spec -> LockSupport.parkNanos(Duration.ofSeconds(30).toNanos())),
                 blockNode(0).shutDownImmediately(),
                 blockNode(1).shutDownImmediately(),
-                waitForAny(allNodes(), Duration.ofSeconds(120), PlatformStatus.CHECKING),
+                // With both block nodes down, backpressure blocks the handler thread, so a node
+                // can fall BEHIND consensus rather than pass through CHECKING; either status shows
+                // it has stopped being ACTIVE, which is what this step is waiting for.
+                waitForAny(allNodes(), Duration.ofSeconds(120), PlatformStatus.CHECKING, PlatformStatus.BEHIND),
                 doingContextual(
                         spec -> LockSupport.parkNanos(Duration.ofSeconds(30).toNanos())),
                 blockNode(0).startImmediately(),
@@ -299,12 +284,8 @@ public class BlockNodeBackPressureSuite {
                             "blockStream.streamMode",
                             "BLOCKS",
                             "blockStream.writerMode",
-                            "FILE_AND_GRPC",
+                            "GRPC",
                             "blockStream.streamWrappedRecordBlocks",
-                            "false",
-                            "blockStream.enableCutover",
-                            "false",
-                            "blockStream.buffer.isBufferPersistenceEnabled",
                             "false",
                             "tss.forceMockSignatures",
                             "false"

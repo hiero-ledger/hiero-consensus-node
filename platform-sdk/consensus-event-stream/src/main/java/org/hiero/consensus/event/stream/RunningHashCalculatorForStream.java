@@ -7,6 +7,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.CryptographyProvider;
+import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.RunningHashable;
 import org.hiero.base.crypto.SerializableHashable;
@@ -40,12 +41,12 @@ public class RunningHashCalculatorForStream<T extends RunningHashable & Serializ
     public void addObject(T t) {
         // if Hash of this object is not set yet, calculates and sets its Hash
         if (t.getHash() == null) {
-            cryptography.digestSync(t);
+            cryptography.digestSync(t, DigestType.SHA_384);
         }
 
         final Hash newHashToAdd = t.getHash();
         // calculates and updates runningHash
-        runningHash = cryptography.calcRunningHash(runningHash, newHashToAdd);
+        runningHash = cryptography.calcRunningHash(runningHash, newHashToAdd, DigestType.SHA_384);
         t.getRunningHash().setHash(runningHash);
         super.addObject(t);
     }

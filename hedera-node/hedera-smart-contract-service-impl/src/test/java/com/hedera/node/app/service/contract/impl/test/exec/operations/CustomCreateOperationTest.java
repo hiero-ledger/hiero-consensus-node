@@ -6,6 +6,7 @@ import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.CODE_TOO_LARG
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.ILLEGAL_STATE_CHANGE;
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.INSUFFICIENT_GAS;
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
@@ -21,7 +22,6 @@ import java.util.Deque;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
 import org.apache.tuweni.units.bigints.UInt256;
-import org.hyperledger.besu.collections.undo.UndoScalar;
 import org.hyperledger.besu.collections.undo.UndoSet;
 import org.hyperledger.besu.collections.undo.UndoTable;
 import org.hyperledger.besu.datatypes.Address;
@@ -156,7 +156,6 @@ class CustomCreateOperationTest extends CreateOperationTestBase {
         given(txValues.messageFrameStack()).willReturn(messageFrameStack);
         given(txValues.warmedUpAddresses()).willReturn(warmedUpAddresses);
         given(txValues.maxStackSize()).willReturn(1024);
-        given(txValues.gasRefunds()).willReturn(new UndoScalar<>(1L));
         given(undoTable.mark()).willReturn(1L);
 
         final Field worldUdaterField = MessageFrame.class.getDeclaredField("worldUpdater");
@@ -175,10 +174,14 @@ class CustomCreateOperationTest extends CreateOperationTestBase {
 
         verify(messageFrameStack).addFirst(frameCaptor.capture());
         final var childFrame = frameCaptor.getValue();
+        // The CREATE value operand is a raw tinybar amount, passed on unscaled to the child frame
+        assertEquals(Wei.of(VALUE), childFrame.getValue());
         childFrame.setState(MessageFrame.State.COMPLETED_SUCCESS);
         childFrame.notifyCompletion();
         verify(worldUpdater).setupInternalAliasedCreate(RECIEVER_ADDRESS, EXPECTED_CREATE1_ADDRESS);
         verify(frame).pushStackItem(Words.fromAddress(EXPECTED_CREATE1_ADDRESS));
+        // The child's refunds accrue to the counter shared via TxValues, so completion does not merge them
+        verify(frame, never()).incrementGasRefund(anyLong());
     }
 
     @Test
@@ -192,7 +195,6 @@ class CustomCreateOperationTest extends CreateOperationTestBase {
         given(txValues.messageFrameStack()).willReturn(messageFrameStack);
         given(txValues.warmedUpAddresses()).willReturn(warmedUpAddresses);
         given(txValues.maxStackSize()).willReturn(1024);
-        given(txValues.gasRefunds()).willReturn(new UndoScalar<>(1L));
         given(undoTable.mark()).willReturn(1L);
 
         final Field worldUdaterField = MessageFrame.class.getDeclaredField("worldUpdater");
@@ -215,6 +217,8 @@ class CustomCreateOperationTest extends CreateOperationTestBase {
         childFrame.setState(MessageFrame.State.COMPLETED_FAILED);
         childFrame.notifyCompletion();
         verify(frame).pushStackItem(UInt256.ZERO);
+        // Completion does not merge the child's refunds when the child fails either
+        verify(frame, never()).incrementGasRefund(anyLong());
     }
 
     @Test

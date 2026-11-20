@@ -69,6 +69,9 @@ public class VirtualLeafBytes<V> {
     private Codec<V> valueCodec;
     private Bytes valueBytes;
 
+    // Cached size in bytes, calculated lazily on the first call to getSizeInBytes()
+    private int sizeInBytes = -1;
+
     public VirtualLeafBytes(
             final long path, @NonNull final Bytes keyBytes, @Nullable final V value, @Nullable Codec<V> valueCodec) {
         this(path, true, keyBytes, value, valueCodec, null);
@@ -232,6 +235,12 @@ public class VirtualLeafBytes<V> {
     }
 
     public int getSizeInBytes() {
+        // No synchronization here. In the worst case, sizeInBytes will be initialized
+        // multiple times, but always to the same value, since VirtualLeafBytes objects
+        // are immutable
+        if (sizeInBytes >= 0) {
+            return sizeInBytes;
+        }
         int size = 0;
         if (path != 0) {
             // Path is FIXED64
@@ -252,7 +261,8 @@ public class VirtualLeafBytes<V> {
         if (valueBytesLen >= 0) {
             size += ProtoWriterTools.sizeOfDelimited(FIELD_LEAFRECORD_VALUE, valueBytesLen);
         }
-        return size;
+        sizeInBytes = size;
+        return sizeInBytes;
     }
 
     /**

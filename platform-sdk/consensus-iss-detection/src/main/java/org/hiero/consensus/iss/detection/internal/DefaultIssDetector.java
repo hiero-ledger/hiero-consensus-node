@@ -23,6 +23,7 @@ import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.throttle.RateLimiter;
+import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Mnemonics;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
@@ -53,7 +54,7 @@ public class DefaultIssDetector implements IssDetector {
     private long previousRound = -1;
 
     /**
-     * The current roster.
+     * The active roster.
      */
     private final Roster roster;
 
@@ -99,7 +100,7 @@ public class DefaultIssDetector implements IssDetector {
      * @param time                         the time provider
      * @param configuration                the configuration
      * @param metrics                      the metrics
-     * @param roster                       the current roster
+     * @param roster                       the active roster
      * @param ignorePreconsensusSignatures If true, ignore signatures from the preconsensus event stream, otherwise
      *                                     validate them like normal.
      */
@@ -352,8 +353,8 @@ public class DefaultIssDetector implements IssDetector {
             return null;
         }
 
-        final boolean decided =
-                roundValidator.reportHashFromNetwork(signerId, node.weight(), new Hash(signaturePayload.hash()));
+        final boolean decided = roundValidator.reportHashFromNetwork(
+                signerId, node.weight(), new Hash(signaturePayload.hash(), Cryptography.DEFAULT_DIGEST_TYPE));
         if (decided) {
             return checkValidity(roundValidator);
         }

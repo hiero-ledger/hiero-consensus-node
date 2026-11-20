@@ -26,6 +26,15 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class ActiveRostersTest {
+    @Test
+    void strongMinorityThresholdRoundsUpWithoutOverflow() {
+        assertEquals(0, RosterTransitionWeights.atLeastOneThirdOfTotal(0));
+        assertEquals(1, RosterTransitionWeights.atLeastOneThirdOfTotal(1));
+        assertEquals(1, RosterTransitionWeights.atLeastOneThirdOfTotal(3));
+        assertEquals(2, RosterTransitionWeights.atLeastOneThirdOfTotal(4));
+        assertEquals(3_074_457_345_618_258_603L, RosterTransitionWeights.atLeastOneThirdOfTotal(Long.MAX_VALUE));
+    }
+
     private static final long MISSING_NODE_ID = 666L;
     private static final List<RosterTransitionWeights.NodeWeight> A_ROSTER_NODE_WEIGHTS = List.of(
             new RosterTransitionWeights.NodeWeight(1L, 1L),
@@ -63,7 +72,7 @@ class ActiveRostersTest {
 
     @Test
     void detectsBootstrap() {
-        BDDMockito.given(rosterStore.getCurrentRosterHash()).willReturn(A_ROSTER_HASH);
+        BDDMockito.given(rosterStore.getActiveRosterHash()).willReturn(A_ROSTER_HASH);
         BDDMockito.given(rosterStore.get(A_ROSTER_HASH)).willReturn(A_ROSTER);
 
         final var activeRosters = ActiveRosters.from(rosterStore, false, () -> false, null);
@@ -106,7 +115,7 @@ class ActiveRostersTest {
 
     @Test
     void detectsHandoff() {
-        BDDMockito.given(rosterStore.getCurrentRosterHash()).willReturn(A_ROSTER_HASH);
+        BDDMockito.given(rosterStore.getActiveRosterHash()).willReturn(A_ROSTER_HASH);
         BDDMockito.given(rosterStore.getPreviousRosterHash()).willReturn(B_ROSTER_HASH);
         BDDMockito.given(rosterStore.get(A_ROSTER_HASH)).willReturn(A_ROSTER);
 
@@ -127,8 +136,21 @@ class ActiveRostersTest {
     }
 
     @Test
+    void candidateIdenticalToCurrentRosterIsNotATransition() {
+        BDDMockito.given(rosterStore.getActiveRosterHash()).willReturn(A_ROSTER_HASH);
+        BDDMockito.given(rosterStore.getCandidateRosterHash()).willReturn(A_ROSTER_HASH);
+        BDDMockito.given(rosterStore.getPreviousRosterHash()).willReturn(B_ROSTER_HASH);
+
+        final var activeRosters = ActiveRosters.from(rosterStore, true, () -> false, () -> false);
+
+        // Nothing to transition to, so the phase is decided as if there were no candidate at all
+        assertEquals(ActiveRosters.Phase.HANDOFF, activeRosters.phase());
+        assertEquals(A_ROSTER_HASH, activeRosters.currentRosterHash());
+    }
+
+    @Test
     void detectsTransition() {
-        BDDMockito.given(rosterStore.getCurrentRosterHash()).willReturn(A_ROSTER_HASH);
+        BDDMockito.given(rosterStore.getActiveRosterHash()).willReturn(A_ROSTER_HASH);
         BDDMockito.given(rosterStore.getCandidateRosterHash()).willReturn(B_ROSTER_HASH);
         BDDMockito.given(rosterStore.get(A_ROSTER_HASH)).willReturn(A_ROSTER);
         BDDMockito.given(rosterStore.get(B_ROSTER_HASH)).willReturn(B_ROSTER);
@@ -163,7 +185,7 @@ class ActiveRostersTest {
 
     @Test
     void ignoresCandidateWhenHintsAreInProgress() {
-        BDDMockito.given(rosterStore.getCurrentRosterHash()).willReturn(A_ROSTER_HASH);
+        BDDMockito.given(rosterStore.getActiveRosterHash()).willReturn(A_ROSTER_HASH);
         BDDMockito.given(rosterStore.getCandidateRosterHash()).willReturn(B_ROSTER_HASH);
         BDDMockito.given(rosterStore.get(A_ROSTER_HASH)).willReturn(A_ROSTER);
 
@@ -177,7 +199,7 @@ class ActiveRostersTest {
 
     @Test
     void detectsCutoverBootstrap() {
-        BDDMockito.given(rosterStore.getCurrentRosterHash()).willReturn(A_ROSTER_HASH);
+        BDDMockito.given(rosterStore.getActiveRosterHash()).willReturn(A_ROSTER_HASH);
         BDDMockito.given(rosterStore.getPreviousRosterHash()).willReturn(B_ROSTER_HASH);
         BDDMockito.given(rosterStore.get(A_ROSTER_HASH)).willReturn(A_ROSTER);
 
@@ -191,7 +213,7 @@ class ActiveRostersTest {
 
     @Test
     void ignoresCandidateWhenHistoryProofIsInProgress() {
-        BDDMockito.given(rosterStore.getCurrentRosterHash()).willReturn(A_ROSTER_HASH);
+        BDDMockito.given(rosterStore.getActiveRosterHash()).willReturn(A_ROSTER_HASH);
         BDDMockito.given(rosterStore.getCandidateRosterHash()).willReturn(B_ROSTER_HASH);
         BDDMockito.given(rosterStore.getPreviousRosterHash()).willReturn(B_ROSTER_HASH);
         BDDMockito.given(rosterStore.get(A_ROSTER_HASH)).willReturn(A_ROSTER);
@@ -205,7 +227,7 @@ class ActiveRostersTest {
 
     @Test
     void requiresProofSupplierWhenHistoryEnabledWithCandidateRoster() {
-        BDDMockito.given(rosterStore.getCurrentRosterHash()).willReturn(A_ROSTER_HASH);
+        BDDMockito.given(rosterStore.getActiveRosterHash()).willReturn(A_ROSTER_HASH);
         BDDMockito.given(rosterStore.getCandidateRosterHash()).willReturn(B_ROSTER_HASH);
 
         assertThrows(NullPointerException.class, () -> ActiveRosters.from(rosterStore, true, () -> false, null));
@@ -213,7 +235,7 @@ class ActiveRostersTest {
 
     @Test
     void usesExplicitSourceWeightsInTransition() {
-        BDDMockito.given(rosterStore.getCurrentRosterHash()).willReturn(A_ROSTER_HASH);
+        BDDMockito.given(rosterStore.getActiveRosterHash()).willReturn(A_ROSTER_HASH);
         BDDMockito.given(rosterStore.getCandidateRosterHash()).willReturn(B_ROSTER_HASH);
         BDDMockito.given(rosterStore.get(B_ROSTER_HASH)).willReturn(B_ROSTER);
         final var explicitSourceWeights = new TreeMap<Long, Long>(Map.of(1L, 11L, 2L, 22L));

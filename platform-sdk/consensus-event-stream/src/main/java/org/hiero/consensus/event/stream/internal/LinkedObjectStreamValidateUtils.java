@@ -12,7 +12,6 @@ import java.io.File;
 import java.io.IOException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
-import java.security.NoSuchProviderException;
 import java.security.PublicKey;
 import java.security.SignatureException;
 import java.util.Iterator;
@@ -21,6 +20,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.CryptographyProvider;
+import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signature;
 import org.hiero.base.crypto.SignatureType;
@@ -197,8 +197,8 @@ public final class LinkedObjectStreamValidateUtils {
                 break;
             }
             objectsCount++;
-            Hash objectHash = CRYPTOGRAPHY.digestSync(selfSerializable);
-            runningHash = CRYPTOGRAPHY.calcRunningHash(runningHash, objectHash);
+            Hash objectHash = CRYPTOGRAPHY.digestSync(selfSerializable, DigestType.SHA_384);
+            runningHash = CRYPTOGRAPHY.calcRunningHash(runningHash, objectHash, DigestType.SHA_384);
             logger.info(
                     OBJECT_STREAM.getMarker(),
                     "validateIterator :: after consuming object {}," + "hash: {}, updated runningHash: {}",
@@ -224,15 +224,12 @@ public final class LinkedObjectStreamValidateUtils {
     // Code duplicated in order to avoid wasting time on the event stream which will be removed soon
     public static boolean verifySignature(final Hash hash, final Signature signature, final PublicKey publicKey) {
         try {
-            final java.security.Signature sig = java.security.Signature.getInstance(
-                    SignatureType.RSA.signingAlgorithm(), SignatureType.RSA.provider());
+            final java.security.Signature sig =
+                    java.security.Signature.getInstance(SignatureType.RSA.signingAlgorithm());
             sig.initVerify(publicKey);
             hash.getBytes().updateSignature(sig);
             return signature.getBytes().verifySignature(sig);
-        } catch (final NoSuchAlgorithmException
-                | NoSuchProviderException
-                | InvalidKeyException
-                | SignatureException e) {
+        } catch (final NoSuchAlgorithmException | InvalidKeyException | SignatureException e) {
             logger.error(
                     EXCEPTION.getMarker(),
                     () -> "Failed to verify Signature: %s, PublicKey: %s"

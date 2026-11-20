@@ -24,6 +24,8 @@ import com.hedera.node.app.workflows.handle.stack.Savepoint;
 import com.hedera.node.config.types.StreamMode;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 
@@ -47,6 +49,10 @@ public abstract class AbstractSavepoint extends BuilderSinkImpl implements Savep
     private Status status = Status.PENDING;
 
     private long nodeFeesCollected = 0;
+
+    // Actions to run if this savepoint is rolled back; when it commits, they move to a parent savepoint
+    @Nullable
+    private List<Runnable> rollbackActions;
 
     /**
      * Constructs a savepoint with limits that discriminate between the number of preceding and following builders.
@@ -92,7 +98,11 @@ public abstract class AbstractSavepoint extends BuilderSinkImpl implements Savep
         status = Status.FINISHED;
         if (parent instanceof Savepoint savepoint) {
             savepoint.trackCollectedNodeFee(nodeFeesCollected);
+            if (rollbackActions != null) {
+                rollbackActions.forEach(savepoint::onRollback);
+            }
         }
+        rollbackActions = null;
     }
 
     @Override
@@ -104,30 +114,41 @@ public abstract class AbstractSavepoint extends BuilderSinkImpl implements Savep
         commitBuilders();
         status = Status.FINISHED;
         nodeFeesCollected = 0L;
+        if (rollbackActions != null) {
+            // Run in the reverse of the order the actions were registered in
+            for (int i = rollbackActions.size() - 1; i >= 0; i--) {
+                rollbackActions.get(i).run();
+            }
+            rollbackActions = null;
+        }
     }
 
     @Override
-    public StreamBuilder createBuilder(
+    public void onRollback(@NonNull final Runnable action) {
+        requireNonNull(action);
+        assertNotFinished();
+        if (rollbackActions == null) {
+            rollbackActions = new ArrayList<>();
+        }
+        rollbackActions.add(action);
+    }
+
+    @Override
+    public StreamBuilder createNonBaseBuilder(
             @NonNull final StreamBuilder.ReversingBehavior reversingBehavior,
             @NonNull final HandleContext.TransactionCategory txnCategory,
             @NonNull final StreamBuilder.SignedTxCustomizer customizer,
-            @NonNull final StreamMode streamMode,
-            final boolean isBaseBuilder) {
+            @NonNull final StreamMode streamMode) {
         requireNonNull(reversingBehavior);
         requireNonNull(txnCategory);
         requireNonNull(customizer);
-        final var builder =
-                switch (streamMode) {
-                    case RECORDS -> new RecordStreamBuilder(reversingBehavior, customizer, txnCategory);
-                    case BLOCKS -> new BlockStreamBuilder(reversingBehavior, customizer, txnCategory);
-                    case BOTH -> new PairedStreamBuilder(reversingBehavior, customizer, txnCategory);
-                };
+        final var builder = switch (streamMode) {
+            case RECORDS -> new RecordStreamBuilder(reversingBehavior, customizer, txnCategory);
+            case BLOCKS -> new BlockStreamBuilder(reversingBehavior, customizer, txnCategory);
+            case BOTH -> new PairedStreamBuilder(reversingBehavior, customizer, txnCategory);
+        };
         if (!customizer.isSuppressed()) {
-            // Other code is a bit simpler when we always put the base builder for a stack in its
-            // "following" list, even if the stack is child stack for a preceding child dispatch;
-            // the base builder will still end up in the correct relative position in the parent
-            // sink because of how FirstChildSavepoint implements #commitBuilders()
-            if (txnCategory == PRECEDING && !isBaseBuilder) {
+            if (txnCategory == PRECEDING) {
                 addPrecedingOrThrow(builder);
             } else {
                 addFollowingOrThrow(builder);

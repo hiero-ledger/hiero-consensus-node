@@ -29,6 +29,8 @@ import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionGetFastRecordQuery;
 import com.hedera.hapi.node.transaction.TransactionGetReceiptQuery;
 import com.hedera.hapi.node.transaction.TransactionGetRecordQuery;
+import com.hedera.node.app.service.clpr.impl.handlers.ClprGetEndpointManifestHandler;
+import com.hedera.node.app.service.clpr.impl.handlers.ClprGetLedgerConfigurationHandler;
 import com.hedera.node.app.service.consensus.impl.handlers.ConsensusGetTopicInfoHandler;
 import com.hedera.node.app.service.contract.impl.handlers.ContractCallLocalHandler;
 import com.hedera.node.app.service.contract.impl.handlers.ContractGetBySolidityIDHandler;
@@ -144,6 +146,12 @@ class QueryDispatcherTest {
     @Mock
     private TokenGetNftInfosHandler tokenGetNftInfosHandler;
 
+    @Mock
+    private ClprGetLedgerConfigurationHandler clprGetLedgerConfigurationHandler;
+
+    @Mock
+    private ClprGetEndpointManifestHandler clprGetEndpointManifestHandler;
+
     private QueryHandlers handlers;
 
     private QueryDispatcher dispatcher;
@@ -175,7 +183,9 @@ class QueryDispatcherTest {
                 tokenGetInfoHandler,
                 tokenGetAccountNftInfosHandler,
                 tokenGetNftInfoHandler,
-                tokenGetNftInfosHandler);
+                tokenGetNftInfosHandler,
+                clprGetLedgerConfigurationHandler,
+                clprGetEndpointManifestHandler);
 
         dispatcher = new QueryDispatcher(handlers);
     }

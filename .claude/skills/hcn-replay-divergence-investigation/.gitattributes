@@ -1,0 +1,6 @@
+# Scripts must keep LF endings so they run under bash on macOS, Linux and WSL,
+# even when a Windows checkout uses core.autocrlf=true.
+*.sh   text eol=lf
+*.py   text eol=lf
+*.java text eol=lf
+*.md   text eol=lf

@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.validator.pipeline;
 
+import static com.hedera.pbj.runtime.ProtoConstants.WIRE_TYPE_DELIMITED;
 import static com.hedera.pbj.runtime.ProtoParserTools.TAG_FIELD_OFFSET;
 import static com.swirlds.merkledb.files.DataFileCommon.FIELD_DATAFILE_ITEMS;
 import static com.swirlds.merkledb.files.DataFileCommon.FIELD_DATAFILE_METADATA;
 
-import com.hedera.pbj.runtime.ProtoConstants;
+import com.hedera.pbj.runtime.ProtoParserTools;
+import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
@@ -21,6 +23,7 @@ import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedInputStream;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
@@ -51,6 +54,14 @@ import java.util.concurrent.atomic.AtomicLong;
  * @see com.swirlds.merkledb.files.DataFileReader
  */
 public class ChunkedFileIterator implements AutoCloseable {
+    /** Data item tag. It's less than 128, so its varint encoding is a single byte */
+    private static final int DATA_ITEM_TAG =
+            (FIELD_DATAFILE_ITEMS.number() << TAG_FIELD_OFFSET) | WIRE_TYPE_DELIMITED.ordinal();
+    /** Max data item header size: the data item tag and a varint data item size */
+    private static final int MAX_DATA_ITEM_HEADER_SIZE =
+            ProtoWriterTools.sizeOfTag(FIELD_DATAFILE_ITEMS, WIRE_TYPE_DELIMITED)
+                    + ProtoWriterTools.sizeOfUnsignedVarInt32(Integer.MAX_VALUE);
+
     /** File channel used for reading the data file and positioning within the byte range */
     private final FileChannel channel;
     /** The file metadata providing file index for data location calculation */
@@ -84,7 +95,8 @@ public class ChunkedFileIterator implements AutoCloseable {
      * Create a new ChunkedFileIterator for a specific byte range of an existing data file.
      *
      * <p>If {@code startByte} is greater than zero, the constructor will scan forward from that
-     * position to find a valid data item boundary before beginning iteration.
+     * position to find a valid data item boundary before beginning iteration. If no data item
+     * starts before {@code endByte}, the iterator is empty.
      *
      * @param path the path to the data file to read
      * @param metadata the file metadata providing the file index
@@ -94,7 +106,7 @@ public class ChunkedFileIterator implements AutoCloseable {
      * @param endByte the ending byte offset in the file (exclusive)
      * @param bufferSizeBytes the buffer size for both boundary scanning and stream reading
      * @param totalBoundarySearchTime atomic counter to accumulate boundary search time in milliseconds
-     * @throws IOException if there was a problem opening the file or finding a valid boundary
+     * @throws IOException if there was a problem opening or reading the file
      */
     public ChunkedFileIterator(
             @NonNull final Path path,
@@ -159,22 +171,42 @@ public class ChunkedFileIterator implements AutoCloseable {
                 return false;
             }
 
-            final int tag = in.readVarInt(false);
-            final int fieldNum = tag >> TAG_FIELD_OFFSET;
+            final int fieldNum = ProtoParserTools.readNextFieldNumber(in);
 
             if (fieldNum == FIELD_DATAFILE_ITEMS.number()) {
                 final int dataItemSize = in.readVarInt(false);
                 dataItemBuffer = fillBuffer(dataItemSize);
                 return true;
             } else if (fieldNum == FIELD_DATAFILE_METADATA.number()) {
-                final int metadataSize = in.readVarInt(false);
-                in.skip(metadataSize);
+                ProtoParserTools.skipField(in, WIRE_TYPE_DELIMITED);
             } else {
-                throw new IllegalArgumentException("Unknown data file field: " + tag);
+                throw new IllegalArgumentException("Unknown data file field: " + fieldNum);
             }
         }
 
+        currentDataItemFilePosition = startByte + in.position();
         return false;
+    }
+
+    /**
+     * Get the file position of the first data item in this chunk, as found by the boundary search.
+     * If no data item starts within this chunk, it's equal to the chunk end.
+     *
+     * @return the file position of the first data item in this chunk
+     */
+    public long getStartPosition() {
+        return startByte;
+    }
+
+    /**
+     * Get the file position right after the last data item read by this iterator. This is where the
+     * next data item in the file starts, or the file size. Only valid after {@link #next()} has
+     * returned false.
+     *
+     * @return the file position right after the last data item read by this iterator
+     */
+    public long getStopPosition() {
+        return currentDataItemFilePosition;
     }
 
     /**
@@ -230,119 +262,186 @@ public class ChunkedFileIterator implements AutoCloseable {
      * Scans forward from the current {@code startByte} position to find the offset to the nearest
      * valid data item boundary. Uses buffered reads to minimize disk I/O.
      *
-     * <p>The method reads a chunk of data and scans byte-by-byte looking for a valid protobuf tag
-     * followed by data that can be successfully parsed according to the {@code dataType}.
+     * <p>The method reads the file in windows of {@code bufferSizeBytes} and scans byte-by-byte looking
+     * for a valid data item header followed by data that can be successfully parsed according to the
+     * {@code dataType}. The scan continues window by window until a boundary is found or {@code endByte}
+     * is reached, so data items larger than the buffer are skipped over correctly.
      *
-     * @return the offset from {@code startByte} to the nearest valid data item boundary
-     * @throws IOException if no valid boundary is found within the buffer or if reading fails
+     * <p>If no data item starts within {@code [startByte, endByte)}, the whole range belongs to a data
+     * item that starts in a preceding segment and is read by that segment's iterator. In this case the
+     * returned offset points to {@code endByte}, which makes this iterator empty.
+     *
+     * @return the offset from {@code startByte} to the nearest valid data item boundary, or to
+     *     {@code endByte} if no data item starts within this chunk
+     * @throws IOException if reading fails
      */
     private long findBoundaryOffset() throws IOException {
+        final long fileSize = channel.size();
         // Use buffer to minimize disk I/O and channel repositioning
-        // It should account for boundary + full data item to validate its proto schema
         final ByteBuffer scanBuffer = ByteBuffer.allocate(bufferSizeBytes);
-
-        // Read large chunk at current position
-        int bytesRead = MerkleDbFileUtils.completelyRead(channel, scanBuffer, startByte);
-        if (bytesRead <= 0) {
-            throw new IOException("No valid data item boundary found in chunk");
-        }
-
-        scanBuffer.flip();
         final BufferedData bufferData = BufferedData.wrap(scanBuffer);
 
-        // Scan through buffer looking for valid boundary
-        while (bufferData.hasRemaining()) {
-            final long positionInBuffer = bufferData.position();
-
-            try {
-                final int tag = bufferData.readVarInt(false);
-                final int fieldNum = tag >> TAG_FIELD_OFFSET;
-
-                if ((fieldNum == FIELD_DATAFILE_ITEMS.number())
-                        && ((tag & ProtoConstants.TAG_WIRE_TYPE_MASK)
-                                == ProtoConstants.WIRE_TYPE_DELIMITED.ordinal())) {
-                    final int dataItemSize = bufferData.readVarInt(false);
-                    final long dataStartPosition = bufferData.position();
-
-                    if (dataItemSize > 0 && (dataStartPosition + dataItemSize <= bufferData.limit())) {
-                        bufferData.limit(dataStartPosition + dataItemSize);
-
-                        if (isValidDataItem(bufferData)) {
-                            return positionInBuffer;
-                        }
-
-                        bufferData.limit(bytesRead);
-                    }
-                }
-
-                // Not found, advance by 1 byte
-                bufferData.position(positionInBuffer + 1);
-            } catch (final Exception e) {
-                // Parsing failed, advance by 1 byte
-                bufferData.position(positionInBuffer + 1);
+        long windowStart = startByte;
+        while (windowStart < endByte) {
+            scanBuffer.clear();
+            final int bytesRead = MerkleDbFileUtils.completelyRead(channel, scanBuffer, windowStart);
+            if (bytesRead <= 0) {
+                break;
             }
+
+            // Don't check candidates that may have their header cut by the end of the window, unless
+            // the window reaches the end of the file. Such candidates are checked in the next window
+            final boolean lastWindow = windowStart + bytesRead >= fileSize;
+            final long scanLength =
+                    Math.min(endByte - windowStart, lastWindow ? bytesRead : bytesRead - MAX_DATA_ITEM_HEADER_SIZE);
+
+            for (long positionInBuffer = 0; positionInBuffer < scanLength; positionInBuffer++) {
+                bufferData.limit(bytesRead);
+                bufferData.position(positionInBuffer);
+                if (isDataItemBoundary(bufferData, windowStart, fileSize)) {
+                    return windowStart + positionInBuffer - startByte;
+                }
+            }
+
+            windowStart += scanLength;
         }
 
-        throw new IOException("No valid data item boundary found in chunk");
+        // No data item starts in this chunk, it's fully covered by a data item from a preceding chunk
+        return endByte - startByte;
     }
 
     /**
-     * Validates whether the buffer contains a valid data item of the expected type.
+     * Checks whether a valid data item of the expected type starts at the current position of the
+     * scan buffer. On return, the buffer position and limit are undefined.
      *
-     * @param buffer the buffer containing potential data item bytes
-     * @return true if the buffer contains valid data that can be parsed, false otherwise
+     * <p>A candidate is accepted if it has the data item tag, its size fits into the file, it's
+     * followed by another data item tag or the end of the file, and its data can be parsed. Data items
+     * that don't fit into the scan buffer are parsed directly from the file.
+     *
+     * @param buffer the scan buffer, positioned at the candidate data item start
+     * @param windowStart the file position of the start of the scan buffer
+     * @param fileSize the file size
+     * @return true if a valid data item starts at the current buffer position
+     * @throws IOException if reading from the file fails
      */
-    private boolean isValidDataItem(@NonNull final BufferedData buffer) {
+    private boolean isDataItemBoundary(@NonNull final BufferedData buffer, final long windowStart, final long fileSize)
+            throws IOException {
         try {
-            if (!buffer.hasRemaining()) {
+            // The data item tag is a single byte, so most positions are rejected by a single byte check
+            if ((buffer.readByte() & 0xFF) != DATA_ITEM_TAG) {
+                return false;
+            }
+            final int dataItemSize = buffer.readVarInt(false);
+            if (dataItemSize <= 0) {
+                return false;
+            }
+            final long dataStartInBuffer = buffer.position();
+            final long dataFilePosition = windowStart + dataStartInBuffer;
+            final long dataEndFilePosition = dataFilePosition + dataItemSize;
+            if (dataEndFilePosition > fileSize) {
+                return false;
+            }
+            // Cheap check before parsing: the next data item must start right after this one
+            if (dataEndFilePosition < fileSize
+                    && readByteAt(buffer, windowStart, dataEndFilePosition) != DATA_ITEM_TAG) {
                 return false;
             }
 
-            return switch (dataType) {
-                // Parsing without exception means valid data
-                case ID2C -> validateVirtualHashChunk(buffer);
-                case P2KV -> validateVirtualLeafBytes(buffer);
-                case K2P -> validateBucket(buffer);
-                default -> false;
-            };
-
-        } catch (final Exception e) {
-            // Any parsing exception means invalid data
+            if (dataStartInBuffer + dataItemSize <= buffer.limit()) {
+                buffer.limit(dataStartInBuffer + dataItemSize);
+                return isValidDataItem(buffer);
+            }
+            // The data item doesn't fit into the scan buffer, parse it directly from the file. Large reads
+            // bypass the stream buffer, so the default buffer size is enough. The stream is not closed, as
+            // it would close the channel
+            channel.position(dataFilePosition);
+            final ReadableStreamingData dataItemIn =
+                    new ReadableStreamingData(new BufferedInputStream(Channels.newInputStream(channel)));
+            dataItemIn.limit(dataItemSize);
+            return isValidDataItem(dataItemIn);
+        } catch (final UncheckedIOException e) {
+            // Reading from the file failed, this is not a parsing failure
+            throw e.getCause();
+        } catch (final RuntimeException e) {
+            // Parsing failed, not a boundary
             return false;
         }
     }
 
     /**
-     * Attempts to parse the buffer as a {@link VirtualHashChunk}.
+     * Reads a single byte at the given file position, using the scan buffer if it contains the position.
      *
-     * @param buffer the buffer containing potential hash chunk bytes
+     * @param buffer the scan buffer
+     * @param windowStart the file position of the start of the scan buffer
+     * @param filePosition the file position to read the byte at
+     * @return the byte value
+     * @throws IOException if the byte can't be read
+     */
+    private int readByteAt(@NonNull final BufferedData buffer, final long windowStart, final long filePosition)
+            throws IOException {
+        final long positionInBuffer = filePosition - windowStart;
+        if (positionInBuffer < buffer.limit()) {
+            return buffer.getByte(positionInBuffer) & 0xFF;
+        }
+        final ByteBuffer byteBuffer = ByteBuffer.allocate(1);
+        if (MerkleDbFileUtils.completelyRead(channel, byteBuffer, filePosition) != 1) {
+            throw new IOException("Failed to read a byte at position " + filePosition);
+        }
+        return byteBuffer.get(0) & 0xFF;
+    }
+
+    /**
+     * Validates whether the input contains a valid data item of the expected type. Parsing failures
+     * are thrown as runtime exceptions, read failures as {@link UncheckedIOException}.
+     *
+     * @param in the input containing potential data item bytes, limited to the data item size
+     * @return true if the input contains valid data that can be parsed, false otherwise
+     */
+    private boolean isValidDataItem(@NonNull final ReadableSequentialData in) throws IOException {
+        if (!in.hasRemaining()) {
+            return false;
+        }
+
+        return switch (dataType) {
+            // Parsing without exception means valid data
+            case ID2C -> validateVirtualHashChunk(in);
+            case P2KV -> validateVirtualLeafBytes(in);
+            case K2P -> validateBucket(in);
+            default -> false;
+        };
+    }
+
+    /**
+     * Attempts to parse the input as a {@link VirtualHashChunk}.
+     *
+     * @param in the input containing potential hash chunk bytes
      * @return true if parsing succeeds
      */
-    private boolean validateVirtualHashChunk(@NonNull final BufferedData buffer) {
-        VirtualHashChunk.parseFrom(buffer, hashChunkHeight);
+    private boolean validateVirtualHashChunk(@NonNull final ReadableSequentialData in) {
+        VirtualHashChunk.parseFrom(in, hashChunkHeight);
         return true;
     }
 
     /**
-     * Attempts to parse the buffer as a {@link VirtualLeafBytes}.
+     * Attempts to parse the input as a {@link VirtualLeafBytes}.
      *
-     * @param buffer the buffer containing potential leaf bytes
+     * @param in the input containing potential leaf bytes
      * @return true if parsing succeeds
      */
-    private boolean validateVirtualLeafBytes(@NonNull final BufferedData buffer) {
-        VirtualLeafBytes.parseFrom(buffer);
+    private boolean validateVirtualLeafBytes(@NonNull final ReadableSequentialData in) {
+        VirtualLeafBytes.parseFrom(in);
         return true;
     }
 
     /**
-     * Attempts to parse the buffer as a {@link Bucket}.
+     * Attempts to parse the input as a {@link Bucket}.
      *
-     * @param buffer the buffer containing potential bucket bytes
+     * @param in the input containing potential bucket bytes
      * @return true if parsing succeeds
      */
-    private boolean validateBucket(@NonNull final BufferedData buffer) throws IOException {
+    private boolean validateBucket(@NonNull final ReadableSequentialData in) throws IOException {
         try (final Bucket bucket = new ParsedBucket()) {
-            bucket.readFrom(buffer);
+            bucket.readFrom(in);
             return true;
         }
     }

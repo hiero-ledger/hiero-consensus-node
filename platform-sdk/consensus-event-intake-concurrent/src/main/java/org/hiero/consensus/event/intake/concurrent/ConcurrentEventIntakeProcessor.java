@@ -4,9 +4,8 @@ package org.hiero.consensus.event.intake.concurrent;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_10_2;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
+import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.metrics.api.LongAccumulator;
@@ -17,7 +16,6 @@ import java.security.PublicKey;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.util.HashMap;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
@@ -36,17 +34,16 @@ import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.roster.RosterEntryNotFoundException;
-import org.hiero.consensus.roster.RosterHistory;
-import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.model.roster.RosterEntryWrapper;
+import org.hiero.consensus.model.roster.RosterWrapper;
+import org.hiero.consensus.model.roster.RosterWrapperHistory;
 
 /**
- * Implementation of {@link EventIntakeProcessor}. Combines hashing, field validation,
- * deduplication, and signature verification into a single concurrent component.
+ * Implementation of {@link EventIntakeProcessor}. Combines hashing, field validation, deduplication, and signature
+ * verification into a single concurrent component.
  *
  * <p>All shared state is accessed through thread-safe structures ({@link ConcurrentHashMap},
- * {@code volatile} fields), making this component safe for use with a {@code CONCURRENT}
- * task scheduler.
+ * {@code volatile} fields), making this component safe for use with a {@code CONCURRENT} task scheduler.
  */
 public class ConcurrentEventIntakeProcessor implements EventIntakeProcessor {
     private static final Logger logger = LogManager.getLogger(ConcurrentEventIntakeProcessor.class);
@@ -64,19 +61,18 @@ public class ConcurrentEventIntakeProcessor implements EventIntakeProcessor {
             new ConcurrentHashMap<>();
 
     private final Function<PublicKey, BytesSignatureVerifier> verifierFactory;
-    private volatile RosterHistory rosterHistory;
+    private volatile RosterWrapperHistory rosterHistory;
 
     /**
-     * Shared public key cache keyed by {@code (nodeId, birthRound)}.
-     * Ancient entries are evicted in {@link #setEventWindow}.
+     * Shared public key cache keyed by {@code (nodeId, birthRound)}. Ancient entries are evicted in
+     * {@link #setEventWindow}.
      */
     private final ConcurrentHashMap<VerifierKey, PublicKey> publicKeyCache = new ConcurrentHashMap<>();
 
     /**
-     * Per-thread verifier cache keyed by {@link PublicKey}.
-     * This resolves the situation where we don't know if BytesSignatureVerifier implementation is concurrent or not
-     * with minimal overhead.
-     * This cache is never cleaned up but memory is bounded by nodes × roster_changes × threads and acceptable (before DAB)
+     * Per-thread verifier cache keyed by {@link PublicKey}. This resolves the situation where we don't know if
+     * BytesSignatureVerifier implementation is concurrent or not with minimal overhead. This cache is never cleaned up
+     * but memory is bounded by nodes × roster_changes × threads and acceptable (before DAB)
      */
     private final ThreadLocal<HashMap<PublicKey, BytesSignatureVerifier>> threadLocalVerifiers =
             ThreadLocal.withInitial(HashMap::new);
@@ -125,14 +121,14 @@ public class ConcurrentEventIntakeProcessor implements EventIntakeProcessor {
     /**
      * Constructor.
      *
-     * @param metrics            the metrics system
-     * @param time               the time source
-     * @param eventHasher        hashes events
+     * @param metrics             the metrics system
+     * @param time                the time source
+     * @param eventHasher         hashes events
      * @param eventFieldValidator validates event fields
-     * @param verifierFactory    creates a {@link BytesSignatureVerifier} for a given public key
-     * @param rosterHistory      the complete roster history
-     * @param intakeEventCounter tracks event counts in the intake pipeline
-     * @param pipelineTracker    optional tracker for per-stage event delay metrics
+     * @param verifierFactory     creates a {@link BytesSignatureVerifier} for a given public key
+     * @param rosterHistory       the complete roster history
+     * @param intakeEventCounter  tracks event counts in the intake pipeline
+     * @param pipelineTracker     optional tracker for per-stage event delay metrics
      */
     public ConcurrentEventIntakeProcessor(
             @NonNull final Metrics metrics,
@@ -140,15 +136,15 @@ public class ConcurrentEventIntakeProcessor implements EventIntakeProcessor {
             @NonNull final EventHasher eventHasher,
             @NonNull final EventFieldValidator eventFieldValidator,
             @NonNull final Function<PublicKey, BytesSignatureVerifier> verifierFactory,
-            @NonNull final RosterHistory rosterHistory,
+            @NonNull final RosterWrapperHistory rosterHistory,
             @NonNull final IntakeEventCounter intakeEventCounter,
             @Nullable final EventPipelineTracker pipelineTracker) {
 
-        this.eventHasher = Objects.requireNonNull(eventHasher);
-        this.eventFieldValidator = Objects.requireNonNull(eventFieldValidator);
-        this.verifierFactory = Objects.requireNonNull(verifierFactory);
-        this.rosterHistory = Objects.requireNonNull(rosterHistory);
-        this.intakeEventCounter = Objects.requireNonNull(intakeEventCounter);
+        this.eventHasher = requireNonNull(eventHasher);
+        this.eventFieldValidator = requireNonNull(eventFieldValidator);
+        this.verifierFactory = requireNonNull(verifierFactory);
+        this.rosterHistory = requireNonNull(rosterHistory);
+        this.intakeEventCounter = requireNonNull(intakeEventCounter);
         this.pipelineTracker = pipelineTracker;
 
         this.rateLimitedLogger = new RateLimitedLogger(logger, time, MINIMUM_LOG_PERIOD);
@@ -232,8 +228,7 @@ public class ConcurrentEventIntakeProcessor implements EventIntakeProcessor {
     }
 
     /**
-     * Record the pipeline delay for the given event at the named stage.
-     * No-op when pipeline tracking is disabled.
+     * Record the pipeline delay for the given event at the named stage. No-op when pipeline tracking is disabled.
      */
     private void recordStage(@NonNull final String stage, @NonNull final PlatformEvent event) {
         if (pipelineTracker != null) {
@@ -244,16 +239,15 @@ public class ConcurrentEventIntakeProcessor implements EventIntakeProcessor {
     /**
      * Checks for duplicates events.
      * <p>
-     * A duplicate event is defined as an event with an identical descriptor and identical signature to an event that has
-     * already been observed.
+     * A duplicate event is defined as an event with an identical descriptor and identical signature to an event that
+     * has already been observed.
      * <p>
-     * It is necessary to consider the signature bytes when determining if an event is a duplicate, not just the descriptor
-     * or hash. This guards against a malicious node gossiping the same event with different signatures, or a node gossiping
-     * another node's event with a modified signature. If we went only off the descriptor or hash, we might discard the
-     * correct version of an event as a duplicate, because a malicious version has already been received. Instead, the
-     * deduplication lets all versions of the event through that have a unique descriptor/signature pair, and the signature
-     * validator later will handle discarding bad versions.
-     *
+     * It is necessary to consider the signature bytes when determining if an event is a duplicate, not just the
+     * descriptor or hash. This guards against a malicious node gossiping the same event with different signatures, or a
+     * node gossiping another node's event with a modified signature. If we went only off the descriptor or hash, we
+     * might discard the correct version of an event as a duplicate, because a malicious version has already been
+     * received. Instead, the deduplication lets all versions of the event through that have a unique
+     * descriptor/signature pair, and the signature validator later will handle discarding bad versions.
      *
      * @param event the event to check
      * @return true if the event is a duplicate from a previous observed event
@@ -325,23 +319,17 @@ public class ConcurrentEventIntakeProcessor implements EventIntakeProcessor {
      */
     @Nullable
     private PublicKey resolvePublicKey(@NonNull final VerifierKey key) {
-        final Roster roster = rosterHistory.getRosterForRound(key.birthRound());
-        if (roster == null) {
-            rateLimitedLogger.error(
-                    EXCEPTION.getMarker(),
-                    "Cannot validate events for birth round {} without a roster",
-                    key.birthRound());
-            return null;
-        }
-        final RosterEntry rosterEntry;
+        final RosterEntryWrapper rosterEntry;
         try {
-            rosterEntry = RosterUtils.getRosterEntry(roster, key.nodeId().id());
-        } catch (RosterEntryNotFoundException e) {
-            rateLimitedLogger.error(EXCEPTION.getMarker(), "Node {} doesn't exist in applicable roster", key.nodeId());
+            final RosterWrapper roster = rosterHistory.rosterForRound(key.birthRound());
+            rosterEntry = roster.rosterEntry(key.nodeId());
+        } catch (final IllegalArgumentException e) {
+            rateLimitedLogger.error(
+                    EXCEPTION.getMarker(), "Cannot find roster entry for event with verifier key {}", key);
             return null;
         }
 
-        final X509Certificate cert = RosterUtils.fetchGossipCaCertificate(rosterEntry);
+        final X509Certificate cert = rosterEntry.gossipCaCertificate();
         if (cert == null || cert.getPublicKey() == null) {
             rateLimitedLogger.error(
                     EXCEPTION.getMarker(), "Cannot find publicKey for creator with ID: {}", key.nodeId());
@@ -356,7 +344,7 @@ public class ConcurrentEventIntakeProcessor implements EventIntakeProcessor {
      */
     @Override
     public void setEventWindow(@NonNull final EventWindow eventWindow) {
-        this.eventWindow = Objects.requireNonNull(eventWindow);
+        this.eventWindow = requireNonNull(eventWindow);
         // Purge all birth-round buckets below the ancient threshold.
         // Iterates only round keys (~20), not every event entry.
         observedEvents.keySet().removeIf(round -> round < eventWindow.ancientThreshold());
@@ -368,8 +356,8 @@ public class ConcurrentEventIntakeProcessor implements EventIntakeProcessor {
      * {@inheritDoc}
      */
     @Override
-    public void updateRosterHistory(@NonNull final RosterHistory rosterHistory) {
-        this.rosterHistory = Objects.requireNonNull(rosterHistory);
+    public void updateRosterHistory(@NonNull final RosterWrapperHistory rosterHistory) {
+        this.rosterHistory = requireNonNull(rosterHistory);
     }
 
     /**

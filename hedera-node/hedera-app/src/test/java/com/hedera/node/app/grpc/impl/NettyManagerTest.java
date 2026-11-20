@@ -7,12 +7,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.hedera.node.app.grpc.impl.netty.NettyGrpcServerManager;
 import com.hedera.node.app.services.ServicesRegistryImpl;
 import com.hedera.node.app.spi.fixtures.util.LogCaptor;
+import com.hedera.node.app.workflows.clpr.ClprStreamingSyncSession;
+import com.hedera.node.app.workflows.clpr.ClprSyncWorkflow;
+import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.hiero.base.constructable.ConstructableRegistry;
@@ -21,16 +22,23 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 
 final class NettyManagerTest extends GrpcTestBase {
-    private static final ScheduledExecutorService METRIC_EXECUTOR = Executors.newSingleThreadScheduledExecutor();
 
     private NettyGrpcServerManager createServerManager(@NonNull final TestSource testConfig) {
         final var config = createConfig(testConfig);
+        final ConfigProvider configProvider = () -> new VersionedConfigImpl(config, 1);
         return new NettyGrpcServerManager(
-                () -> new VersionedConfigImpl(config, 1),
+                configProvider,
                 new ServicesRegistryImpl(ConstructableRegistry.getInstance(), config),
                 (req, res) -> {},
                 (req, res) -> {},
                 (req, res) -> {},
+                new ClprSyncWorkflow() {
+
+                    @Override
+                    public ClprStreamingSyncSession openStreamingSync() {
+                        throw new UnsupportedOperationException();
+                    }
+                },
                 metrics);
     }
 

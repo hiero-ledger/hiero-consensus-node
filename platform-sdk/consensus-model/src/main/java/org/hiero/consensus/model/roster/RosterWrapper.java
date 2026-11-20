@@ -6,6 +6,7 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
+import java.util.stream.LongStream;
 import org.hiero.base.utility.Threshold;
 import org.hiero.consensus.model.node.NodeId;
 
@@ -22,6 +23,9 @@ public class RosterWrapper {
     @NonNull
     private final List<RosterEntryWrapper> rosterEntries;
 
+    /** The list of {@link NodeId} instances for all entries in this roster. */
+    private final List<NodeId> nodeIds;
+
     /**
      * This array is used to find the index of an entry based on its NodeId (stored as a long).
      * We use a lookup table, because searching in a small array of primitives
@@ -29,6 +33,14 @@ public class RosterWrapper {
      */
     @NonNull
     private final long[] idLookupTable;
+
+    /**
+     * This array holds the weight of each entry, indexed the same way as {@link #idLookupTable}.
+     * Looking a weight up here avoids the indirection through {@link RosterEntryWrapper} and
+     * {@link RosterEntry} on the hot consensus paths.
+     */
+    @NonNull
+    private final long[] weightLookupTable;
 
     /** the total weight of all entries in this roster. */
     private final long totalWeight;
@@ -45,12 +57,14 @@ public class RosterWrapper {
         this.roster = roster;
         rosterEntries =
                 roster.rosterEntries().stream().map(RosterEntryWrapper::new).toList();
+        nodeIds = rosterEntries.stream().map(RosterEntryWrapper::nodeId).toList();
         idLookupTable =
                 roster.rosterEntries().stream().mapToLong(RosterEntry::nodeId).toArray();
-        totalWeight =
-                rosterEntries.stream().mapToLong(RosterEntryWrapper::weight).sum();
-        nodeHasSupermajorityWeight = rosterEntries.stream()
-                .anyMatch(entry -> Threshold.SUPER_MAJORITY.isSatisfiedBy(entry.weight(), totalWeight));
+        weightLookupTable =
+                roster.rosterEntries().stream().mapToLong(RosterEntry::weight).toArray();
+        totalWeight = LongStream.of(weightLookupTable).sum();
+        nodeHasSupermajorityWeight = LongStream.of(weightLookupTable)
+                .anyMatch(weight -> Threshold.SUPER_MAJORITY.isSatisfiedBy(weight, totalWeight));
     }
 
     /**
@@ -75,6 +89,34 @@ public class RosterWrapper {
     }
 
     /**
+     * Returns the {@link RosterEntryWrapper} for the given {@link NodeId}.
+     *
+     * @param nodeId the {@link NodeId} to look up
+     * @return the corresponding {@link RosterEntryWrapper}
+     * @throws IllegalArgumentException if the {@link NodeId} is not present in this roster
+     */
+    @NonNull
+    public RosterEntryWrapper rosterEntry(@NonNull final NodeId nodeId) {
+        final int index = index(nodeId);
+        if (index == -1) {
+            throw new IllegalArgumentException("NodeId " + nodeId + " is not in the roster");
+        }
+        return rosterEntries.get(index);
+    }
+
+    /**
+     * Returns the {@link RosterEntryWrapper} at the given index.
+     *
+     * @param index the index of the entry
+     * @return the {@link RosterEntryWrapper} at the given index
+     * @throws ArrayIndexOutOfBoundsException if the index is out of bounds
+     */
+    @NonNull
+    public RosterEntryWrapper rosterEntryAtIndex(final int index) {
+        return rosterEntries.get(index);
+    }
+
+    /**
      * Returns the number of entries in this roster.
      *
      * @return the number of entries
@@ -84,12 +126,32 @@ public class RosterWrapper {
     }
 
     /**
+     * Returns a list of {@link NodeId} instances for all entries in this roster.
+     *
+     * @return a list of {@link NodeId} instances
+     */
+    public List<NodeId> nodeIds() {
+        return nodeIds;
+    }
+
+    /**
+     * Returns the {@link NodeId} at the given index.
+     *
+     * @param index the index of the entry
+     * @return the {@link NodeId} at the given index
+     * @throws ArrayIndexOutOfBoundsException if the index is out of bounds
+     */
+    public NodeId nodeIdAtIndex(final int index) {
+        return nodeIds.get(index);
+    }
+
+    /**
      * Returns the index of the given {@link NodeId} in this roster, or -1 if the node is not present.
      *
      * @param nodeId the {@link NodeId} to look up
      * @return the index of the given {@link NodeId}, or {@code -1} if not present
      */
-    public int getIndex(@NonNull final NodeId nodeId) {
+    public int index(@NonNull final NodeId nodeId) {
         final long id = nodeId.id();
         for (int i = 0, n = idLookupTable.length; i < n; i++) {
             if (idLookupTable[i] == id) {
@@ -97,6 +159,42 @@ public class RosterWrapper {
             }
         }
         return -1;
+    }
+
+    /**
+     * Checks whether the entry at the given index was created by the given {@link NodeId}. Unlike
+     * {@link #index(NodeId)}, this is a constant-time probe, so it is preferable whenever the
+     * index is already known.
+     *
+     * @param nodeId the {@link NodeId} to check
+     * @param index  the index to check against
+     * @return {@code true} if the entry at {@code index} belongs to {@code nodeId}, {@code false}
+     *         otherwise (including when {@code index} is out of bounds)
+     */
+    public boolean isIdAtIndex(@NonNull final NodeId nodeId, final int index) {
+        return index >= 0 && index < idLookupTable.length && idLookupTable[index] == nodeId.id();
+    }
+
+    /**
+     * Returns the weight of the entry corresponding to the given {@link NodeId}.
+     *
+     * @param nodeId the {@link NodeId} to look up
+     * @return the weight of the entry corresponding to the given {@link NodeId}
+     * @throws IllegalArgumentException if the {@link NodeId} is not present in this roster
+     */
+    public long weight(@NonNull final NodeId nodeId) {
+        return rosterEntry(nodeId).weight();
+    }
+
+    /**
+     * Returns the weight of the entry at the given index.
+     *
+     * @param index the index of the entry
+     * @return the weight of the entry at the given index
+     * @throws ArrayIndexOutOfBoundsException if the index is out of bounds
+     */
+    public long weightAtIndex(final int index) {
+        return weightLookupTable[index];
     }
 
     /**
@@ -118,29 +216,13 @@ public class RosterWrapper {
     }
 
     /**
-     * Returns the {@link RosterEntryWrapper} for the given {@link NodeId}.
-     *
-     * @param nodeId the {@link NodeId} to look up
-     * @return the corresponding {@link RosterEntryWrapper}
-     * @throws IllegalArgumentException if the {@link NodeId} is not present in this roster
-     */
-    @NonNull
-    public RosterEntryWrapper getRosterEntry(@NonNull final NodeId nodeId) {
-        final int index = getIndex(nodeId);
-        if (index == -1) {
-            throw new IllegalArgumentException("NodeId " + nodeId + " is not in the roster");
-        }
-        return rosterEntries.get(index);
-    }
-
-    /**
      * Checks if the given {@link NodeId} is present in this roster.
      *
      * @param nodeId the {@link NodeId} to check
      * @return {@code true} if the {@link NodeId} is present, {@code false} otherwise
      */
     public boolean contains(@NonNull final NodeId nodeId) {
-        return getIndex(nodeId) != -1;
+        return index(nodeId) != -1;
     }
 
     /**

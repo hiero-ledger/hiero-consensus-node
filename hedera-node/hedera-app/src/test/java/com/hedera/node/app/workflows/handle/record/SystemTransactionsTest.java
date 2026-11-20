@@ -1,17 +1,36 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.record;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.GENESIS_WORK;
+import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.NONE;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
+import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
+import static com.hedera.node.app.service.addressbook.impl.schemas.V073AddressBookSchema.REGISTERED_NODES_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.LEDGER_CONFIGURATION_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSchema.HIGHEST_NODE_ID_STATE_ID;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILES_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.INTERNAL_SYSTEM_TRANSACTION;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.SYSTEM_TXN_CREATION_ENTITY_NUM;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
+import static org.hiero.consensus.roster.RosterStateId.ROSTER_STATE_STATE_ID;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
@@ -20,13 +39,27 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
+import com.hedera.hapi.node.addressbook.RegisteredServiceEndpoint;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.FileID;
+import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
+import com.hedera.hapi.node.state.addressbook.Node;
+import com.hedera.hapi.node.state.addressbook.RegisteredNode;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.NodeMigrationRootHashVote;
+import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
+import com.hedera.hapi.node.state.clpr.ClprThrottles;
+import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.file.File;
+import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.hedera.hapi.node.state.roster.RosterState;
+import com.hedera.hapi.node.state.token.Account;
+import com.hedera.hapi.node.transaction.ExchangeRateSet;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.services.auxiliary.blockrecords.MigrationRootHashVoteTransactionBody;
 import com.hedera.node.app.blocks.BlockStreamManager;
@@ -34,41 +67,71 @@ import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.records.impl.WrappedRecordBlockHashMigration;
+import com.hedera.node.app.service.addressbook.AddressBookService;
+import com.hedera.node.app.service.clpr.ClprService;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.file.impl.schemas.V0490FileSchema;
+import com.hedera.node.app.service.roster.RosterService;
 import com.hedera.node.app.service.token.NodeRewardActivity;
 import com.hedera.node.app.service.token.NodeRewardAmounts;
 import com.hedera.node.app.service.token.NodeRewardGroups;
+import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.services.ServicesRegistry;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
+import com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata;
 import com.hedera.node.app.spi.workflows.SystemContext;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.state.HederaRecordCache;
+import com.hedera.node.app.state.recordcache.BlockRecordSource;
+import com.hedera.node.app.workflows.TransactionInfo;
+import com.hedera.node.app.workflows.handle.Dispatch;
 import com.hedera.node.app.workflows.handle.DispatchProcessor;
+import com.hedera.node.app.workflows.handle.HandleOutput;
+import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
+import com.hedera.node.app.workflows.handle.steps.ParentTxn;
 import com.hedera.node.app.workflows.handle.steps.ParentTxnFactory;
 import com.hedera.node.app.workflows.handle.steps.StakePeriodChanges;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
+import com.hedera.node.config.data.BootstrapConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.hedera.node.internal.network.Network;
+import com.hedera.node.internal.network.NodeMetadata;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.platform.system.InitTrigger;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableKVState;
+import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -79,9 +142,31 @@ class SystemTransactionsTest {
             AccountID.newBuilder().accountNum(3L).build();
     private static final AccountID PAYER_ID =
             AccountID.newBuilder().accountNum(800L).build();
-
-    @Mock(strictness = Mock.Strictness.LENIENT)
-    private InitTrigger initTrigger;
+    private static final long CLPR_ADMIN_ACCOUNT_NUM = 601L;
+    private static final long CUSTOM_CLPR_ADMIN_ACCOUNT_NUM = 850L;
+    private static final long DISABLED_CLPR_ADMIN_ACCOUNT_NUM = -1L;
+    private static final Key GENESIS_KEY = Key.newBuilder()
+            .ed25519(HederaTestConfigBuilder.createConfig()
+                    .getConfigData(BootstrapConfig.class)
+                    .genesisPublicKey())
+            .build();
+    private static final Key TREASURY_KEY = Key.newBuilder()
+            .ed25519(Bytes.fromHex("d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a"))
+            .build();
+    private static final long CLPR_STAKING_ACCOUNT_NUM = 803L;
+    private static final ClprThrottles CLPR_THROTTLES = ClprThrottles.newBuilder()
+            .maxMessagesPerBundle(1_000)
+            .maxMessagePayloadBytes(65_536)
+            .maxGasPerMessage(15_000_000L)
+            .maxQueueDepth(10_000)
+            .maxSyncBytes(4_194_304L)
+            .build();
+    private static final ClprLedgerConfiguration CLPR_LEDGER_CONFIGURATION = ClprLedgerConfiguration.newBuilder()
+            .chainId("eip155:298")
+            .throttles(CLPR_THROTTLES)
+            .build();
+    private static final AccountID CLPR_STAKING_ACCOUNT_ID =
+            AccountID.newBuilder().accountNum(CLPR_STAKING_ACCOUNT_NUM).build();
 
     @Mock
     private ParentTxnFactory parentTxnFactory;
@@ -147,6 +232,12 @@ class SystemTransactionsTest {
 
     @BeforeEach
     void setUp() {
+        org.mockito.Mockito.lenient()
+                .when(blockStreamManager.lastUsedConsensusTime())
+                .thenReturn(Instant.EPOCH);
+        org.mockito.Mockito.lenient()
+                .when(blockRecordManager.lastUsedConsensusTime())
+                .thenReturn(Instant.EPOCH);
         final var config = HederaTestConfigBuilder.create()
                 .withValue("blockStream.streamMode", "BLOCKS")
                 .withValue("consensus.handleMaxPrecedingRecords", 3)
@@ -157,7 +248,6 @@ class SystemTransactionsTest {
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
         given(appContext.idFactory()).willReturn(entityIdFactory);
-        given(initTrigger.name()).willReturn("EVENT_STREAM_RECOVERY");
 
         // Set up creator node info for address book
         given(creatorNodeInfo.nodeId()).willReturn(0L);
@@ -165,7 +255,6 @@ class SystemTransactionsTest {
         given(creatorNodeInfo.sigCertBytes()).willReturn(Bytes.EMPTY);
         given(networkInfo.addressBook()).willReturn(List.of(creatorNodeInfo));
         subject = new SystemTransactions(
-                initTrigger,
                 parentTxnFactory,
                 fileService,
                 networkInfo,
@@ -194,6 +283,118 @@ class SystemTransactionsTest {
     }
 
     @Test
+    void reservedTimeStartsAtFloorWhenNoEarlierWorkUsedIt() {
+        assertEquals(subject.firstReservedSystemTimeFor(NOW), subject.nextReservedSystemTimeFor(NOW));
+    }
+
+    @Test
+    void reservedTimeFollowsMaintenanceAndEarlierDispatches() {
+        final var used = subject.firstReservedSystemTimeFor(NOW).plusNanos(10);
+        given(blockStreamManager.lastUsedConsensusTime()).willReturn(used);
+        assertEquals(used.plusNanos(2), subject.nextReservedSystemTimeFor(NOW));
+        final var context = subject.newSystemContext(
+                NOW,
+                state,
+                ignored -> {},
+                SystemTransactions.UseReservedConsensusTimes.YES,
+                SystemTransactions.TriggerStakePeriodSideEffects.YES);
+        assertEquals(used.plusNanos(2), context.now());
+        assertTrue(context.hasDispatchesRemaining());
+    }
+
+    @Test
+    void systemTransactionIdsUseSuccessiveNonzeroNoncesUntilReset() {
+        final var adminId = AccountID.newBuilder().accountNum(50).build();
+        given(entityIdFactory.newAccountId(50)).willReturn(adminId);
+        final var at = NOW.minusNanos(10);
+        final var expected = TransactionID.newBuilder()
+                .accountID(adminId)
+                .transactionValidStart(Timestamp.newBuilder()
+                        .seconds(at.getEpochSecond())
+                        .nanos(at.getNano())
+                        .build())
+                .nonce(1)
+                .build();
+
+        assertEquals(expected, subject.nextSystemTransactionIdAt(at));
+        assertEquals(2, subject.nextSystemTransactionIdAt(at).nonce());
+        subject.resetNextDispatchNonce();
+        assertEquals(expected, subject.nextSystemTransactionIdAt(at));
+    }
+
+    @Test
+    void reservedTimeCannotOverlapUserPrecedingRecords() {
+        given(blockStreamManager.lastUsedConsensusTime()).willReturn(NOW.minusNanos(5));
+        assertThrows(IllegalStateException.class, () -> subject.nextReservedSystemTimeFor(NOW));
+    }
+
+    @Test
+    void lastReservedSlotIsUsable() {
+        given(blockStreamManager.lastUsedConsensusTime()).willReturn(NOW.minusNanos(6));
+        final var context = subject.newSystemContext(
+                NOW,
+                state,
+                ignored -> {},
+                SystemTransactions.UseReservedConsensusTimes.YES,
+                SystemTransactions.TriggerStakePeriodSideEffects.YES);
+        assertEquals(NOW.minusNanos(4), context.now());
+        assertTrue(context.hasDispatchesRemaining());
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {0, 1005})
+    void marksInternalAdminAndCreationDispatchesAsTrusted(final long entityNum) {
+        final var adminId = AccountID.newBuilder().accountNum(50).build();
+        given(entityIdFactory.newAccountId(50)).willReturn(adminId);
+        final var parentTxn = mock(ParentTxn.class);
+        final var stack = mock(SavepointStackImpl.class);
+        final var builder = mock(StreamBuilder.class);
+        final var dispatch = mock(Dispatch.class);
+        final var txnInfo = mock(TransactionInfo.class);
+        final var writableStates = mock(WritableStates.class);
+        final WritableSingletonState<EntityNumber> entityNumber = mock(WritableSingletonState.class);
+        final var records = new BlockRecordSource(List.of());
+        final var output = new HandleOutput(records, null, NOW);
+        given(parentTxnFactory.createSystemTxn(any(), any(), any(), any(), any(), any()))
+                .willReturn(parentTxn);
+        given(parentTxn.baseBuilder()).willReturn(builder);
+        given(parentTxn.stack()).willReturn(stack);
+        given(parentTxn.consensusNow()).willReturn(NOW);
+        given(parentTxn.txnInfo()).willReturn(txnInfo);
+        given(txnInfo.transactionID()).willReturn(TransactionID.DEFAULT);
+        given(exchangeRateManager.exchangeRates()).willReturn(ExchangeRateSet.DEFAULT);
+        given(parentTxnFactory.createDispatch(eq(parentTxn), eq(builder), any(), eq(NODE), any()))
+                .willReturn(dispatch);
+        given(dispatch.stack()).willReturn(stack);
+        given(dispatch.streamBuilder()).willReturn(builder);
+        given(builder.status()).willReturn(SUCCESS);
+        given(stack.getWritableStates(EntityIdService.NAME)).willReturn(writableStates);
+        given(writableStates.<EntityNumber>getSingleton(ENTITY_ID_STATE_ID)).willReturn(entityNumber);
+        given(entityNumber.get()).willReturn(new EntityNumber(1000));
+        given(stack.buildHandleOutput(NOW, ExchangeRateSet.DEFAULT, 0L)).willReturn(output);
+        final var context = subject.newSystemContext(
+                NOW,
+                state,
+                _ -> {},
+                SystemTransactions.UseReservedConsensusTimes.NO,
+                SystemTransactions.TriggerStakePeriodSideEffects.NO);
+
+        if (entityNum == 0) {
+            context.dispatchAdmin(body -> body.memo("internal admin transaction"));
+        } else {
+            context.dispatchCreation(body -> body.memo("internal creation transaction"), entityNum);
+        }
+
+        final var metadata = ArgumentCaptor.forClass(DispatchMetadata.class);
+        verify(parentTxnFactory).createDispatch(eq(parentTxn), eq(builder), any(), eq(NODE), metadata.capture());
+        assertEquals(
+                Boolean.TRUE, metadata.getValue().getMetadataIfPresent(INTERNAL_SYSTEM_TRANSACTION, Boolean.class));
+        assertEquals(entityNum, metadata.getValue().getMetadataIfPresent(SYSTEM_TXN_CREATION_ENTITY_NUM, Long.class));
+        verify(dispatchProcessor).processDispatch(dispatch);
+        verify(stack).commitFullStack();
+    }
+
+    @Test
     void testFirstReservedSystemTimeForNonGenesis() {
         // For non-genesis, the calculation should be:
         // firstEventTime - 1ns - maxPrecedingRecords - reservedSystemTxnNanos
@@ -208,8 +409,8 @@ class SystemTransactionsTest {
 
     @Test
     void testFirstReservedSystemTimeForGenesis() {
-        // For genesis, we need to also subtract firstUserEntity
-        given(initTrigger.name()).willReturn("GENESIS");
+        // While genesis work is pending, we need to also subtract firstUserEntity
+        given(blockStreamManager.pendingWork()).willReturn(GENESIS_WORK);
 
         final var config = HederaTestConfigBuilder.create()
                 .withValue("blockStream.streamMode", "BLOCKS")
@@ -221,9 +422,7 @@ class SystemTransactionsTest {
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
 
-        // Recreate subject with GENESIS trigger
         subject = new SystemTransactions(
-                InitTrigger.GENESIS,
                 parentTxnFactory,
                 fileService,
                 networkInfo,
@@ -247,6 +446,47 @@ class SystemTransactionsTest {
         assertTrue(result.isBefore(NOW));
         // Should be NOW minus (1 + 3 + 1000 + 1001) = 2005 nanos
         assertEquals(NOW.minusNanos(2005), result);
+    }
+
+    @Test
+    void genesisReservationEndsWithGenesisWork() {
+        // Every node must reserve the same times after genesis, however its process started
+        given(blockStreamManager.pendingWork()).willReturn(GENESIS_WORK, NONE);
+
+        assertEquals(NOW.minusNanos(2005), subject.firstReservedSystemTimeFor(NOW));
+        assertEquals(NOW.minusNanos(1004), subject.firstReservedSystemTimeFor(NOW));
+    }
+
+    @Test
+    void recordStreamGenesisReservationLastsUntilFirstHandledTransaction() {
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("blockStream.streamMode", "RECORDS")
+                .withValue("consensus.handleMaxPrecedingRecords", 3)
+                .withValue("scheduling.reservedSystemTxnNanos", 1000)
+                .withValue("hedera.firstUserEntity", 1001)
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
+        subject = new SystemTransactions(
+                parentTxnFactory,
+                fileService,
+                networkInfo,
+                configProvider,
+                dispatchProcessor,
+                appContext,
+                servicesRegistry,
+                blockRecordManager,
+                blockStreamManager,
+                exchangeRateManager,
+                recordCache,
+                startupNetworks,
+                stakePeriodChanges,
+                selfNodeAccountIdManager,
+                wrappedRecordBlockHashMigration,
+                migrationRootHashSubmissions);
+        given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(Instant.EPOCH, NOW.minusSeconds(1));
+
+        assertEquals(NOW.minusNanos(2005), subject.firstReservedSystemTimeFor(NOW));
+        assertEquals(NOW.minusNanos(1004), subject.firstReservedSystemTimeFor(NOW));
     }
 
     @Test
@@ -335,6 +575,507 @@ class SystemTransactionsTest {
     }
 
     @Test
+    void genesisSetupCreatesRegisteredNodesWithExplicitIdsBeforeConsensusNodesThatAssociateThem() {
+        final var network = Network.newBuilder()
+                .nodeMetadata(List.of(NodeMetadata.newBuilder()
+                        .node(Node.newBuilder()
+                                .nodeId(0L)
+                                .associatedRegisteredNode(List.of(100L, 999L))
+                                .build())
+                        .build()))
+                // The second registered node collides with consensus node 0, and the third duplicates the first
+                .registeredNodes(List.of(registeredNode(100L), registeredNode(0L), registeredNode(100L)))
+                .build();
+
+        final var dispatches = doGenesisSetupWith(network, true);
+
+        final var registeredCreations = dispatches.stream()
+                .filter(d -> d.body().hasRegisteredNodeCreate())
+                .toList();
+        assertEquals(1, registeredCreations.size());
+        final var registeredCreation = registeredCreations.getFirst();
+        assertEquals(100L, registeredCreation.entityNum());
+        assertEquals(
+                "Synthetic registered node creation", registeredCreation.body().memo());
+        final var expected = registeredNode(100L);
+        final var op = registeredCreation.body().registeredNodeCreateOrThrow();
+        assertEquals(expected.adminKey(), op.adminKey());
+        assertEquals(expected.description(), op.description());
+        assertEquals(expected.serviceEndpoint(), op.serviceEndpoint());
+
+        final var nodeCreations =
+                dispatches.stream().filter(d -> d.body().hasNodeCreate()).toList();
+        assertEquals(1, nodeCreations.size());
+        final var nodeCreation = nodeCreations.getFirst();
+        assertEquals(0L, nodeCreation.entityNum());
+        // The association with the missing registered node 999 is dropped
+        assertEquals(List.of(100L), nodeCreation.body().nodeCreateOrThrow().associatedRegisteredNode());
+        assertTrue(dispatches.indexOf(registeredCreation) < dispatches.indexOf(nodeCreation));
+    }
+
+    @Test
+    void genesisSetupSkipsRegisteredNodesWhileDisabled() {
+        final var network = Network.newBuilder()
+                .nodeMetadata(List.of(NodeMetadata.newBuilder()
+                        .node(Node.newBuilder()
+                                .nodeId(0L)
+                                .associatedRegisteredNode(List.of(100L))
+                                .build())
+                        .build()))
+                .registeredNodes(List.of(registeredNode(100L)))
+                .build();
+
+        final var dispatches = doGenesisSetupWith(network, false);
+
+        assertTrue(dispatches.stream().noneMatch(d -> d.body().hasRegisteredNodeCreate()));
+        final var nodeCreate = dispatches.stream()
+                .filter(d -> d.body().hasNodeCreate())
+                .findFirst()
+                .orElseThrow()
+                .body()
+                .nodeCreateOrThrow();
+        assertTrue(nodeCreate.associatedRegisteredNode().isEmpty());
+    }
+
+    @Test
+    void genesisSetupDropsDuplicateAssociationsAndThosePastTheMaximum() {
+        final var network = Network.newBuilder()
+                .nodeMetadata(List.of(NodeMetadata.newBuilder()
+                        .node(Node.newBuilder()
+                                .nodeId(0L)
+                                .associatedRegisteredNode(List.of(101L, 100L, 101L, 102L))
+                                .build())
+                        .build()))
+                .registeredNodes(List.of(registeredNode(100L), registeredNode(101L), registeredNode(102L)))
+                .build();
+
+        final var dispatches = doGenesisSetupWith(
+                network, HederaTestConfigBuilder.create().withValue("nodes.maxAssociatedRegisteredNodes", 2));
+
+        assertEquals(
+                3,
+                dispatches.stream()
+                        .filter(d -> d.body().hasRegisteredNodeCreate())
+                        .count());
+        final var nodeCreate = dispatches.stream()
+                .filter(d -> d.body().hasNodeCreate())
+                .findFirst()
+                .orElseThrow()
+                .body()
+                .nodeCreateOrThrow();
+        // The duplicate of 101 is dropped, and then 102 is past the maximum of two associations
+        assertEquals(List.of(101L, 100L), nodeCreate.associatedRegisteredNode());
+    }
+
+    @Test
+    void transplantDropsDuplicateAssociationsAndThosePastTheMaximum() {
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("blockStream.streamMode", "BLOCKS")
+                .withValue("nodes.maxAssociatedRegisteredNodes", 2)
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
+        final var network = Network.newBuilder()
+                .nodeMetadata(List.of(
+                        NodeMetadata.newBuilder()
+                                .rosterEntry(RosterEntry.newBuilder().nodeId(0L).build())
+                                .node(Node.newBuilder()
+                                        .nodeId(0L)
+                                        .associatedRegisteredNode(List.of(101L, 100L, 101L, 102L))
+                                        .build())
+                                .build(),
+                        NodeMetadata.newBuilder()
+                                .rosterEntry(RosterEntry.newBuilder().nodeId(1L).build())
+                                .node(Node.newBuilder()
+                                        .nodeId(1L)
+                                        .associatedRegisteredNode(List.of(102L, 102L))
+                                        .build())
+                                .build()))
+                .registeredNodes(List.of(registeredNode(100L), registeredNode(101L), registeredNode(102L)))
+                .build();
+        final Map<Long, RegisteredNode> registeredNodesInState = new HashMap<>();
+        registeredNodesInState.put(100L, registeredNode(100L));
+        registeredNodesInState.put(101L, registeredNode(101L));
+        registeredNodesInState.put(102L, registeredNode(102L));
+
+        final var dispatches = doTransplantWith(
+                network, Map.of(0L, Node.newBuilder().nodeId(0L).build()), registeredNodesInState, 102L);
+
+        // Existing node 0 is updated with its duplicate of 101 dropped, and then with 102 past the maximum dropped
+        final var nodeUpdate = dispatches.stream()
+                .filter(d -> d.body().hasNodeUpdate())
+                .findFirst()
+                .orElseThrow()
+                .body()
+                .nodeUpdateOrThrow();
+        assertEquals(0L, nodeUpdate.nodeId());
+        assertEquals(
+                List.of(101L, 100L),
+                nodeUpdate.associatedRegisteredNodeListOrThrow().associatedRegisteredNode());
+        // New node 1 is created with its duplicate of 102 dropped
+        final var nodeCreation = dispatches.stream()
+                .filter(d -> d.body().hasNodeCreate())
+                .findFirst()
+                .orElseThrow();
+        assertEquals(1L, nodeCreation.entityNum());
+        assertEquals(List.of(102L), nodeCreation.body().nodeCreateOrThrow().associatedRegisteredNode());
+    }
+
+    @Test
+    void transplantReconcilesRegisteredNodesAroundConsensusNodeChanges() {
+        final var updatedRegisteredNode100 =
+                registeredNode(100L).copyBuilder().description("updated").build();
+        final var network = Network.newBuilder()
+                .nodeMetadata(List.of(
+                        NodeMetadata.newBuilder()
+                                .rosterEntry(RosterEntry.newBuilder().nodeId(0L).build())
+                                .node(Node.newBuilder()
+                                        .nodeId(0L)
+                                        .associatedRegisteredNode(List.of(100L, 101L, 102L))
+                                        .build())
+                                .build(),
+                        NodeMetadata.newBuilder()
+                                .rosterEntry(RosterEntry.newBuilder().nodeId(2L).build())
+                                .node(Node.newBuilder()
+                                        .nodeId(2L)
+                                        .associatedRegisteredNode(List.of(102L, 7L))
+                                        .build())
+                                .build()))
+                // The last registered node collides with consensus node 1, which is still in state
+                .registeredNodes(List.of(updatedRegisteredNode100, registeredNode(102L), registeredNode(1L)))
+                .build();
+        final Map<Long, RegisteredNode> registeredNodesInState = new HashMap<>();
+        registeredNodesInState.put(100L, registeredNode(100L));
+        registeredNodesInState.put(101L, registeredNode(101L));
+
+        final var dispatches = doTransplantWith(
+                network,
+                Map.of(
+                        0L,
+                        Node.newBuilder().nodeId(0L).build(),
+                        1L,
+                        Node.newBuilder().nodeId(1L).build()),
+                registeredNodesInState,
+                101L);
+
+        assertEquals(6, dispatches.size());
+        // Registered nodes are updated and created first, in override network order...
+        final var registeredUpdate = dispatches.get(0).body().registeredNodeUpdateOrThrow();
+        assertEquals(100L, registeredUpdate.registeredNodeId());
+        assertEquals("updated", registeredUpdate.description());
+        assertEquals(102L, dispatches.get(1).entityNum());
+        assertEquals(
+                registeredNode(102L).serviceEndpoint(),
+                dispatches.get(1).body().registeredNodeCreateOrThrow().serviceEndpoint());
+        // ...then consensus nodes, keeping only associations with registered nodes in the override network...
+        final var nodeUpdate = dispatches.get(2).body().nodeUpdateOrThrow();
+        assertEquals(0L, nodeUpdate.nodeId());
+        assertEquals(
+                List.of(100L, 102L),
+                nodeUpdate.associatedRegisteredNodeListOrThrow().associatedRegisteredNode());
+        assertEquals(2L, dispatches.get(3).entityNum());
+        assertEquals(List.of(102L), dispatches.get(3).body().nodeCreateOrThrow().associatedRegisteredNode());
+        assertEquals(1L, dispatches.get(4).body().nodeDeleteOrThrow().nodeId());
+        // ...and only then are registered nodes absent from the override network deleted
+        assertEquals(
+                101L, dispatches.get(5).body().registeredNodeDeleteOrThrow().registeredNodeId());
+    }
+
+    @Test
+    void transplantDeletesAllRegisteredNodesIfOverrideListsNoRegisteredNodes() {
+        final var network = Network.newBuilder()
+                .nodeMetadata(List.of(NodeMetadata.newBuilder()
+                        .rosterEntry(RosterEntry.newBuilder().nodeId(0L).build())
+                        .node(Node.newBuilder()
+                                .nodeId(0L)
+                                .associatedRegisteredNode(List.of(100L))
+                                .build())
+                        .build()))
+                .build();
+        final Map<Long, RegisteredNode> registeredNodesInState = new HashMap<>();
+        registeredNodesInState.put(100L, registeredNode(100L));
+        registeredNodesInState.put(101L, registeredNode(101L));
+
+        final var dispatches = doTransplantWith(
+                network, Map.of(0L, Node.newBuilder().nodeId(0L).build()), registeredNodesInState, 101L);
+
+        assertEquals(3, dispatches.size());
+        // The consensus node's associations are cleared first, since none of its registered nodes will remain...
+        final var nodeUpdate = dispatches.getFirst().body().nodeUpdateOrThrow();
+        assertEquals(0L, nodeUpdate.nodeId());
+        assertEquals(List.of(), nodeUpdate.associatedRegisteredNodeListOrThrow().associatedRegisteredNode());
+        // ...and then every registered node in state is deleted
+        assertEquals(
+                100L, dispatches.get(1).body().registeredNodeDeleteOrThrow().registeredNodeId());
+        assertEquals(
+                101L, dispatches.get(2).body().registeredNodeDeleteOrThrow().registeredNodeId());
+    }
+
+    @Test
+    void transplantLeavesRegisteredNodesAndAssociationsAloneWhileDisabled() {
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("blockStream.streamMode", "BLOCKS")
+                .withValue("nodes.registeredNodesEnabled", false)
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
+        final var network = Network.newBuilder()
+                .nodeMetadata(List.of(NodeMetadata.newBuilder()
+                        .rosterEntry(RosterEntry.newBuilder().nodeId(0L).build())
+                        .node(Node.newBuilder()
+                                .nodeId(0L)
+                                .associatedRegisteredNode(List.of(100L))
+                                .build())
+                        .build()))
+                .registeredNodes(List.of(registeredNode(101L)))
+                .build();
+        final Map<Long, RegisteredNode> registeredNodesInState = new HashMap<>();
+        registeredNodesInState.put(100L, registeredNode(100L));
+
+        final var dispatches = doTransplantWith(
+                network, Map.of(0L, Node.newBuilder().nodeId(0L).build()), registeredNodesInState, 100L);
+
+        assertEquals(1, dispatches.size());
+        final var nodeUpdate = dispatches.getFirst().body().nodeUpdateOrThrow();
+        assertEquals(0L, nodeUpdate.nodeId());
+        assertNull(nodeUpdate.associatedRegisteredNodeList());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void genesisSetupSkipsClprStakingAccountWhileClprIsDisabled() {
+        final var systemContext = doGenesisSetup(false);
+
+        verify(systemContext, never()).dispatchCreation(any(Consumer.class), eq(CLPR_STAKING_ACCOUNT_NUM));
+    }
+
+    @Test
+    void genesisSetupCreatesClprStakingAccountWhenClprIsEnabled() {
+        final var systemContext = doGenesisSetup(true);
+
+        final var body = capturedAccountCreation(systemContext, CLPR_STAKING_ACCOUNT_NUM);
+        assertEquals("CLPR staking account creation record", body.memo());
+        assertEquals(
+                IMMUTABILITY_SENTINEL_KEY, body.cryptoCreateAccountOrThrow().key());
+    }
+
+    @Test
+    void genesisSetupCreatesMissingConfiguredClprAdminWithGenesisKey() {
+        final var accounts = givenAccountsState();
+        givenEntityIdStates();
+        given(accounts.get(givenLocalAccountId(CUSTOM_CLPR_ADMIN_ACCOUNT_NUM))).willReturn(null);
+
+        final var systemContext = doGenesisSetup(HederaTestConfigBuilder.create()
+                .withValue("clpr.enabled", true)
+                .withValue("accounts.clprAdmin", CUSTOM_CLPR_ADMIN_ACCOUNT_NUM));
+
+        assertClprAdminAccountCreation(systemContext, CUSTOM_CLPR_ADMIN_ACCOUNT_NUM, GENESIS_KEY);
+    }
+
+    @Test
+    void genesisSetupDoesNotDuplicateConfiguredClprAdminTreasuryClone() {
+        final var accounts = givenAccountsState();
+        givenEntityIdStates();
+        final var adminId = givenLocalAccountId(CLPR_ADMIN_ACCOUNT_NUM);
+        // The mock dispatch does not write the treasury clone created earlier in genesis.
+        given(accounts.get(adminId)).willReturn(Account.DEFAULT);
+
+        final var systemContext = doGenesisSetup(HederaTestConfigBuilder.create()
+                .withValue("clpr.enabled", true)
+                .withValue("accounts.clprAdmin", CLPR_ADMIN_ACCOUNT_NUM));
+
+        final var body = capturedAccountCreation(systemContext, CLPR_ADMIN_ACCOUNT_NUM);
+        assertEquals("Synthetic zero-balance treasury clone", body.memo());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void postUpgradeSkipsClprStakingAccountWhileClprIsDisabled() {
+        final var systemContext = doPostUpgradeSetupWithMockContext(
+                false, CLPR_LEDGER_CONFIGURATION, "data/config", CLPR_ADMIN_ACCOUNT_NUM);
+
+        verify(systemContext, never()).dispatchCreation(any(Consumer.class), eq(CLPR_STAKING_ACCOUNT_NUM));
+        verify(state, never()).getReadableStates(TokenService.NAME);
+    }
+
+    @Test
+    void postUpgradeCreatesMissingClprStakingAccountWhenClprIsEnabled() {
+        givenAccountsState();
+
+        final var systemContext = doPostUpgradeSetupWithMockContext(true);
+
+        final var body = capturedAccountCreation(systemContext, CLPR_STAKING_ACCOUNT_NUM);
+        assertEquals("CLPR staking account creation record", body.memo());
+        assertEquals(
+                IMMUTABILITY_SENTINEL_KEY, body.cryptoCreateAccountOrThrow().key());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void postUpgradeDoesNotRecreateExistingClprStakingAccount() {
+        given(givenAccountsState().get(CLPR_STAKING_ACCOUNT_ID)).willReturn(Account.DEFAULT);
+
+        final var systemContext = doPostUpgradeSetupWithMockContext(true);
+
+        verify(systemContext, never()).dispatchCreation(any(Consumer.class), eq(CLPR_STAKING_ACCOUNT_NUM));
+    }
+
+    @Test
+    void postUpgradeCreatesMissingClprAdminWithCurrentTreasuryKey() {
+        final var accounts = givenAccountsState();
+        given(accounts.get(CLPR_STAKING_ACCOUNT_ID)).willReturn(Account.DEFAULT);
+        given(accounts.get(givenLocalAccountId(CLPR_ADMIN_ACCOUNT_NUM))).willReturn(null);
+        givenTreasuryKey(accounts);
+
+        final var systemContext = doPostUpgradeSetupWithMockContext(
+                true, CLPR_LEDGER_CONFIGURATION, "data/config", CLPR_ADMIN_ACCOUNT_NUM);
+
+        assertClprAdminAccountCreation(systemContext, CLPR_ADMIN_ACCOUNT_NUM, TREASURY_KEY);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void postUpgradePreservesExistingClprAdmin() {
+        final var accounts = givenAccountsState();
+        given(accounts.get(CLPR_STAKING_ACCOUNT_ID)).willReturn(Account.DEFAULT);
+        final var adminId = givenLocalAccountId(CLPR_ADMIN_ACCOUNT_NUM);
+        given(accounts.get(adminId))
+                .willReturn(Account.newBuilder().tinybarBalance(123L).build());
+
+        final var systemContext = doPostUpgradeSetupWithMockContext(
+                true, CLPR_LEDGER_CONFIGURATION, "data/config", CLPR_ADMIN_ACCOUNT_NUM);
+
+        verify(systemContext, never()).dispatchCreation(any(Consumer.class), eq(CLPR_ADMIN_ACCOUNT_NUM));
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {DISABLED_CLPR_ADMIN_ACCOUNT_NUM, 350L, 1001L})
+    @SuppressWarnings("unchecked")
+    void postUpgradeSkipsProvisioningIneligibleClprAdmin(final long accountNum) {
+        given(givenAccountsState().get(CLPR_STAKING_ACCOUNT_ID)).willReturn(Account.DEFAULT);
+
+        final var systemContext =
+                doPostUpgradeSetupWithMockContext(true, CLPR_LEDGER_CONFIGURATION, "data/config", accountNum);
+
+        verify(systemContext, never()).dispatchCreation(any(Consumer.class), eq(accountNum));
+        verify(entityIdFactory, never()).newAccountId(accountNum);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void postUpgradeAppliesChangedClprLedgerConfigurationFile(@TempDir final Path upgradeDir) throws IOException {
+        given(givenAccountsState().get(CLPR_STAKING_ACCOUNT_ID)).willReturn(Account.DEFAULT);
+        writeClprLedgerConfigurationFile(upgradeDir, 500);
+
+        final var systemContext =
+                doPostUpgradeSetupWithMockContext(true, CLPR_LEDGER_CONFIGURATION, upgradeDir.toString());
+
+        final ArgumentCaptor<Consumer<TransactionBody.Builder>> spec = ArgumentCaptor.forClass(Consumer.class);
+        verify(systemContext).dispatchAdmin(spec.capture());
+        final var builder = TransactionBody.newBuilder();
+        spec.getValue().accept(builder);
+        final var update =
+                builder.build().clprUpdateLedgerConfigurationOrThrow().configurationOrThrow();
+        assertEquals(
+                ClprLedgerConfiguration.newBuilder()
+                        .throttles(CLPR_THROTTLES
+                                .copyBuilder()
+                                .maxMessagesPerBundle(500)
+                                .build())
+                        .build(),
+                update);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void postUpgradeSkipsUnchangedClprLedgerConfigurationFile(@TempDir final Path upgradeDir) throws IOException {
+        given(givenAccountsState().get(CLPR_STAKING_ACCOUNT_ID)).willReturn(Account.DEFAULT);
+        writeClprLedgerConfigurationFile(upgradeDir, CLPR_THROTTLES.maxMessagesPerBundle());
+
+        final var systemContext =
+                doPostUpgradeSetupWithMockContext(true, CLPR_LEDGER_CONFIGURATION, upgradeDir.toString());
+
+        verify(systemContext, never()).dispatchAdmin(any(Consumer.class));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void postUpgradeSkipsClprLedgerConfigurationFileWhileClprIsDisabled(@TempDir final Path upgradeDir)
+            throws IOException {
+        writeClprLedgerConfigurationFile(upgradeDir, 500);
+
+        final var systemContext =
+                doPostUpgradeSetupWithMockContext(false, CLPR_LEDGER_CONFIGURATION, upgradeDir.toString());
+
+        verify(systemContext, never()).dispatchAdmin(any(Consumer.class));
+        verify(state, never()).getReadableStates(ClprService.NAME);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void postUpgradeSkipsClprLedgerConfigurationFileBeforeLedgerConfigurationExists(@TempDir final Path upgradeDir)
+            throws IOException {
+        given(givenAccountsState().get(CLPR_STAKING_ACCOUNT_ID)).willReturn(Account.DEFAULT);
+        writeClprLedgerConfigurationFile(upgradeDir, 500);
+
+        final var systemContext = doPostUpgradeSetupWithMockContext(true, null, upgradeDir.toString());
+
+        verify(systemContext, never()).dispatchAdmin(any(Consumer.class));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void postUpgradeSkipsInvalidClprLedgerConfigurationFile(@TempDir final Path upgradeDir) throws IOException {
+        given(givenAccountsState().get(CLPR_STAKING_ACCOUNT_ID)).willReturn(Account.DEFAULT);
+        // A file may only set throttles
+        Files.writeString(
+                upgradeDir.resolve("clprLedgerConfiguration.json"),
+                ClprLedgerConfiguration.JSON.toJSON(CLPR_LEDGER_CONFIGURATION
+                        .copyBuilder()
+                        .throttles(CLPR_THROTTLES
+                                .copyBuilder()
+                                .maxMessagesPerBundle(500)
+                                .build())
+                        .build()));
+
+        final var systemContext =
+                doPostUpgradeSetupWithMockContext(true, CLPR_LEDGER_CONFIGURATION, upgradeDir.toString());
+
+        verify(systemContext, never()).dispatchAdmin(any(Consumer.class));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void postUpgradeCapsClprMaxGasPerMessageAtMaxGasPerTransaction(@TempDir final Path upgradeDir) throws IOException {
+        given(givenAccountsState().get(CLPR_STAKING_ACCOUNT_ID)).willReturn(Account.DEFAULT);
+        Files.writeString(
+                upgradeDir.resolve("clprLedgerConfiguration.json"),
+                ClprLedgerConfiguration.JSON.toJSON(ClprLedgerConfiguration.newBuilder()
+                        .throttles(CLPR_THROTTLES
+                                .copyBuilder()
+                                .maxGasPerMessage(30_000_000L)
+                                .build())
+                        .build()));
+
+        // The file's 30M gas is capped at the default contracts.maxGasPerTransaction of 15M, matching the
+        // existing throttles, so nothing is dispatched
+        final var systemContext =
+                doPostUpgradeSetupWithMockContext(true, CLPR_LEDGER_CONFIGURATION, upgradeDir.toString());
+
+        verify(systemContext, never()).dispatchAdmin(any(Consumer.class));
+    }
+
+    private static void writeClprLedgerConfigurationFile(@NonNull final Path dir, final int maxMessagesPerBundle)
+            throws IOException {
+        Files.writeString(
+                dir.resolve("clprLedgerConfiguration.json"),
+                ClprLedgerConfiguration.JSON.toJSON(ClprLedgerConfiguration.newBuilder()
+                        .throttles(CLPR_THROTTLES
+                                .copyBuilder()
+                                .maxMessagesPerBundle(maxMessagesPerBundle)
+                                .build())
+                        .build()));
+    }
+
+    @Test
     void testFirstReservedSystemTimeForWithZeroReservedNanos() {
         // Create config with 0 reserved nanos
         final var config = HederaTestConfigBuilder.create()
@@ -349,7 +1090,6 @@ class SystemTransactionsTest {
 
         // Recreate subject
         subject = new SystemTransactions(
-                initTrigger,
                 parentTxnFactory,
                 fileService,
                 networkInfo,
@@ -392,7 +1132,6 @@ class SystemTransactionsTest {
 
         // Recreate subject
         subject = new SystemTransactions(
-                initTrigger,
                 parentTxnFactory,
                 fileService,
                 networkInfo,
@@ -443,7 +1182,7 @@ class SystemTransactionsTest {
     @Test
     @SuppressWarnings("unchecked")
     void testPostUpgradeCreatesSimpleFeesFileWhenMissing() {
-        // Reconfigure with nodes.enableDAB=false
+        // Focus on simple fees file creation without DAB or CLPR setup.
         final var config = HederaTestConfigBuilder.create()
                 .withValue("blockStream.streamMode", "BLOCKS")
                 .withValue("consensus.handleMaxPrecedingRecords", 3)
@@ -452,6 +1191,7 @@ class SystemTransactionsTest {
                 .withValue("hedera.transactionMaxValidDuration", 180)
                 .withValue("accounts.systemAdmin", 50)
                 .withValue("nodes.enableDAB", "false")
+                .withValue("clpr.enabled", false)
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
 
@@ -473,7 +1213,6 @@ class SystemTransactionsTest {
 
         // Recreate subject with updated config
         subject = new SystemTransactions(
-                initTrigger,
                 parentTxnFactory,
                 fileService,
                 networkInfo,
@@ -501,7 +1240,7 @@ class SystemTransactionsTest {
     @Test
     @SuppressWarnings("unchecked")
     void testPostUpgradeSkipsSimpleFeesFileCreationWhenPresent() {
-        // Reconfigure with nodes.enableDAB=false
+        // Focus on the existing simple fees file without DAB or CLPR setup.
         final var config = HederaTestConfigBuilder.create()
                 .withValue("blockStream.streamMode", "BLOCKS")
                 .withValue("consensus.handleMaxPrecedingRecords", 3)
@@ -510,6 +1249,7 @@ class SystemTransactionsTest {
                 .withValue("hedera.transactionMaxValidDuration", 180)
                 .withValue("accounts.systemAdmin", 50)
                 .withValue("nodes.enableDAB", "false")
+                .withValue("clpr.enabled", false)
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
 
@@ -526,7 +1266,6 @@ class SystemTransactionsTest {
         given(filesState.get(any())).willReturn(File.DEFAULT);
         // Recreate subject with updated config
         subject = new SystemTransactions(
-                initTrigger,
                 parentTxnFactory,
                 fileService,
                 networkInfo,
@@ -628,7 +1367,6 @@ class SystemTransactionsTest {
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
         subject = new SystemTransactions(
-                initTrigger,
                 parentTxnFactory,
                 fileService,
                 networkInfo,
@@ -664,5 +1402,267 @@ class SystemTransactionsTest {
         assertEquals(123L, method.invoke(subject));
         verify(blockStreamManager).blockNo();
         verify(blockRecordManager, never()).blockNo();
+    }
+
+    @SuppressWarnings("unchecked")
+    private ReadableKVState<AccountID, Account> givenAccountsState() {
+        final var readableStates = mock(ReadableStates.class);
+        final ReadableKVState<AccountID, Account> accounts = mock(ReadableKVState.class);
+        given(state.getReadableStates(TokenService.NAME)).willReturn(readableStates);
+        given(readableStates.<AccountID, Account>get(ACCOUNTS_STATE_ID)).willReturn(accounts);
+        return accounts;
+    }
+
+    private AccountID givenLocalAccountId(final long accountNum) {
+        final var id = AccountID.newBuilder().accountNum(accountNum).build();
+        given(entityIdFactory.newAccountId(accountNum)).willReturn(id);
+        return id;
+    }
+
+    private void givenTreasuryKey(final ReadableKVState<AccountID, Account> accounts) {
+        final var treasuryId = givenLocalAccountId(2L);
+        given(accounts.get(treasuryId))
+                .willReturn(Account.newBuilder().key(TREASURY_KEY).build());
+    }
+
+    private void givenEntityIdStates() {
+        given(state.getReadableStates(EntityIdService.NAME)).willReturn(mock(ReadableStates.class));
+    }
+
+    private SystemContext doPostUpgradeSetupWithMockContext(final boolean clprEnabled) {
+        return doPostUpgradeSetupWithMockContext(clprEnabled, CLPR_LEDGER_CONFIGURATION, "data/config");
+    }
+
+    private SystemContext doPostUpgradeSetupWithMockContext(
+            final boolean clprEnabled,
+            @Nullable final ClprLedgerConfiguration ledgerConfiguration,
+            @NonNull final String upgradeSysFilesLoc) {
+        return doPostUpgradeSetupWithMockContext(
+                clprEnabled, ledgerConfiguration, upgradeSysFilesLoc, DISABLED_CLPR_ADMIN_ACCOUNT_NUM);
+    }
+
+    @SuppressWarnings("unchecked")
+    private SystemContext doPostUpgradeSetupWithMockContext(
+            final boolean clprEnabled,
+            @Nullable final ClprLedgerConfiguration ledgerConfiguration,
+            @NonNull final String upgradeSysFilesLoc,
+            final long clprAdminAccountNum) {
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("blockStream.streamMode", "BLOCKS")
+                .withValue("nodes.enableDAB", "false")
+                .withValue("clpr.enabled", clprEnabled)
+                .withValue("accounts.clprAdmin", clprAdminAccountNum)
+                .withValue("networkAdmin.upgradeSysFilesLoc", upgradeSysFilesLoc)
+                .getOrCreateConfig();
+        if (clprEnabled) {
+            given(entityIdFactory.newAccountId(CLPR_STAKING_ACCOUNT_NUM)).willReturn(CLPR_STAKING_ACCOUNT_ID);
+            final var clprStates = mock(ReadableStates.class);
+            final ReadableSingletonState<ClprLedgerConfiguration> ledgerConfigurationState =
+                    mock(ReadableSingletonState.class);
+            given(state.getReadableStates(ClprService.NAME)).willReturn(clprStates);
+            given(clprStates.<ClprLedgerConfiguration>getSingleton(LEDGER_CONFIGURATION_STATE_ID))
+                    .willReturn(ledgerConfigurationState);
+            given(ledgerConfigurationState.get()).willReturn(ledgerConfiguration);
+        }
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
+        final var selfNodeInfo = mock(NodeInfo.class);
+        given(selfNodeInfo.accountId()).willReturn(NODE_ACCOUNT_ID);
+        given(networkInfo.selfNodeInfo()).willReturn(selfNodeInfo);
+        // The simple fees file already exists, so only CLPR accounts might be created.
+        final ReadableStates fileStates = mock(ReadableStates.class);
+        final ReadableKVState<FileID, File> filesState = mock(ReadableKVState.class);
+        given(state.getReadableStates(FileService.NAME)).willReturn(fileStates);
+        given(fileStates.<FileID, File>get(FILES_STATE_ID)).willReturn(filesState);
+        given(filesState.get(any())).willReturn(File.DEFAULT);
+        final var systemContext = mock(SystemContext.class);
+        final var spySubject = spy(subject);
+        doReturn(systemContext).when(spySubject).newSystemContext(any(), any(), any(), any(), any());
+
+        spySubject.doPostUpgradeSetup(NOW, state);
+
+        return systemContext;
+    }
+
+    private record Dispatched(@NonNull TransactionBody body, long entityNum) {}
+
+    private static RegisteredNode registeredNode(final long registeredNodeId) {
+        return RegisteredNode.newBuilder()
+                .registeredNodeId(registeredNodeId)
+                .adminKey(Key.newBuilder().ed25519(Bytes.wrap(new byte[32])).build())
+                .description("registered node " + registeredNodeId)
+                .serviceEndpoint(List.of(RegisteredServiceEndpoint.newBuilder()
+                        .domainName("rn" + registeredNodeId + ".example.com")
+                        .port(40840)
+                        .requiresTls(true)
+                        .blockNode(RegisteredServiceEndpoint.BlockNodeEndpoint.newBuilder()
+                                .endpointApi(List.of(RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.PUBLISH))
+                                .build())
+                        .build()))
+                .build();
+    }
+
+    /**
+     * Stubs the given mock system context to record each dispatched transaction in order; and, for each
+     * registered node creation, to add the created registered node to the given map of registered nodes in state.
+     */
+    @SuppressWarnings("unchecked")
+    private static List<Dispatched> recordDispatches(
+            @NonNull final SystemContext systemContext,
+            @NonNull final Map<Long, RegisteredNode> registeredNodesInState) {
+        final List<Dispatched> dispatches = new ArrayList<>();
+        lenient()
+                .doAnswer(invocation -> {
+                    final var builder = TransactionBody.newBuilder();
+                    invocation.<Consumer<TransactionBody.Builder>>getArgument(0).accept(builder);
+                    final var body = builder.build();
+                    final long entityNum = invocation.getArgument(1);
+                    if (body.hasRegisteredNodeCreate()) {
+                        final var op = body.registeredNodeCreateOrThrow();
+                        registeredNodesInState.put(
+                                entityNum,
+                                RegisteredNode.newBuilder()
+                                        .registeredNodeId(entityNum)
+                                        .adminKey(op.adminKey())
+                                        .description(op.description())
+                                        .serviceEndpoint(op.serviceEndpoint())
+                                        .build());
+                    }
+                    dispatches.add(new Dispatched(body, entityNum));
+                    return null;
+                })
+                .when(systemContext)
+                .dispatchCreation(any(Consumer.class), anyLong());
+        lenient()
+                .doAnswer(invocation -> {
+                    final var builder = TransactionBody.newBuilder();
+                    invocation.<Consumer<TransactionBody.Builder>>getArgument(0).accept(builder);
+                    dispatches.add(new Dispatched(builder.build(), 0L));
+                    return null;
+                })
+                .when(systemContext)
+                .dispatchAdmin(any());
+        return dispatches;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static ReadableStates addressBookStatesWith(
+            @NonNull final Map<Long, Node> nodes, @NonNull final Map<Long, RegisteredNode> registeredNodes) {
+        final var addressBookStates = mock(ReadableStates.class);
+        final ReadableKVState<EntityNumber, Node> nodesState = mock(ReadableKVState.class);
+        lenient()
+                .when(nodesState.get(any()))
+                .thenAnswer(invocation ->
+                        nodes.get(invocation.<EntityNumber>getArgument(0).number()));
+        final ReadableKVState<EntityNumber, RegisteredNode> registeredNodesState = mock(ReadableKVState.class);
+        lenient()
+                .when(registeredNodesState.get(any()))
+                .thenAnswer(invocation -> registeredNodes.get(
+                        invocation.<EntityNumber>getArgument(0).number()));
+        lenient()
+                .when(addressBookStates.<EntityNumber, Node>get(NODES_STATE_ID))
+                .thenReturn(nodesState);
+        lenient()
+                .when(addressBookStates.<EntityNumber, RegisteredNode>get(REGISTERED_NODES_STATE_ID))
+                .thenReturn(registeredNodesState);
+        return addressBookStates;
+    }
+
+    private List<Dispatched> doGenesisSetupWith(@NonNull final Network network, final boolean registeredNodesEnabled) {
+        return doGenesisSetupWith(
+                network,
+                HederaTestConfigBuilder.create().withValue("nodes.registeredNodesEnabled", registeredNodesEnabled));
+    }
+
+    private List<Dispatched> doGenesisSetupWith(
+            @NonNull final Network network, @NonNull final TestConfigBuilder configBuilder) {
+        final var config =
+                configBuilder.withValue("blockStream.streamMode", "BLOCKS").getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
+        given(startupNetworks.genesisNetworkOrThrow(any())).willReturn(network);
+        given(state.getReadableStates(any())).willReturn(mock(ReadableStates.class));
+        final Map<Long, RegisteredNode> registeredNodesInState = new HashMap<>();
+        final var addressBookStates = addressBookStatesWith(Map.of(), registeredNodesInState);
+        lenient().when(state.getReadableStates(AddressBookService.NAME)).thenReturn(addressBookStates);
+        final var systemContext = mock(SystemContext.class);
+        final var dispatches = recordDispatches(systemContext, registeredNodesInState);
+        final var spySubject = spy(subject);
+        doReturn(systemContext).when(spySubject).newSystemContext(any(), any(), any(), any(), any());
+
+        spySubject.doGenesisSetup(NOW, state, stateChangeStreaming);
+
+        return dispatches;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Dispatched> doTransplantWith(
+            @NonNull final Network network,
+            @NonNull final Map<Long, Node> nodesInState,
+            @NonNull final Map<Long, RegisteredNode> registeredNodesInState,
+            final long highestNodeId) {
+        given(startupNetworks.lastUsedOverrideNetwork(any())).willReturn(Optional.of(network));
+        final var rosterStates = mock(ReadableStates.class);
+        final ReadableSingletonState<RosterState> rosterState = mock(ReadableSingletonState.class);
+        given(rosterState.get())
+                .willReturn(RosterState.newBuilder().transplantInProgress(true).build());
+        given(rosterStates.<RosterState>getSingleton(ROSTER_STATE_STATE_ID)).willReturn(rosterState);
+        final var entityIdStates = mock(ReadableStates.class);
+        final ReadableSingletonState<NodeId> highestNodeIdState = mock(ReadableSingletonState.class);
+        given(highestNodeIdState.get()).willReturn(new NodeId(highestNodeId));
+        given(entityIdStates.getSingleton(anyInt()))
+                .willAnswer(invocation -> invocation.<Integer>getArgument(0) == HIGHEST_NODE_ID_STATE_ID
+                        ? highestNodeIdState
+                        : mock(ReadableSingletonState.class));
+        given(state.getReadableStates(RosterService.NAME)).willReturn(rosterStates);
+        given(state.getReadableStates(EntityIdService.NAME)).willReturn(entityIdStates);
+        final var addressBookStates = addressBookStatesWith(nodesInState, registeredNodesInState);
+        given(state.getReadableStates(AddressBookService.NAME)).willReturn(addressBookStates);
+        final var systemContext = mock(SystemContext.class);
+        final var dispatches = recordDispatches(systemContext, registeredNodesInState);
+        final var spySubject = spy(subject);
+        doReturn(systemContext).when(spySubject).newSystemContext(any(), any(), any(), any(), any());
+
+        assertTrue(spySubject.dispatchTransplantUpdates(state, NOW, 1L));
+
+        return dispatches;
+    }
+
+    private SystemContext doGenesisSetup(final boolean clprEnabled) {
+        givenEntityIdStates();
+        return doGenesisSetup(HederaTestConfigBuilder.create()
+                .withValue("clpr.enabled", clprEnabled)
+                .withValue("accounts.clprAdmin", DISABLED_CLPR_ADMIN_ACCOUNT_NUM));
+    }
+
+    private SystemContext doGenesisSetup(final TestConfigBuilder configBuilder) {
+        final var config =
+                configBuilder.withValue("blockStream.streamMode", "BLOCKS").getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
+        given(startupNetworks.genesisNetworkOrThrow(any())).willThrow(new IllegalStateException("No genesis network"));
+        given(state.getReadableStates(AddressBookService.NAME)).willReturn(mock(ReadableStates.class));
+        final var systemContext = mock(SystemContext.class);
+        final var spySubject = spy(subject);
+        doReturn(systemContext).when(spySubject).newSystemContext(any(), any(), any(), any(), any());
+
+        spySubject.doGenesisSetup(NOW, state, stateChangeStreaming);
+
+        return systemContext;
+    }
+
+    private static void assertClprAdminAccountCreation(
+            final SystemContext systemContext, final long accountNum, final Key expectedKey) {
+        final var body = capturedAccountCreation(systemContext, accountNum);
+        final var creation = body.cryptoCreateAccountOrThrow();
+        assertEquals("CLPR admin account creation record", body.memo());
+        assertEquals(expectedKey, creation.key());
+        assertEquals(0L, creation.initialBalance());
+    }
+
+    @SuppressWarnings("unchecked")
+    private static TransactionBody capturedAccountCreation(final SystemContext systemContext, final long accountNum) {
+        final ArgumentCaptor<Consumer<TransactionBody.Builder>> spec = ArgumentCaptor.forClass(Consumer.class);
+        verify(systemContext).dispatchCreation(spec.capture(), eq(accountNum));
+        final var builder = TransactionBody.newBuilder();
+        spec.getValue().accept(builder);
+        return builder.build();
     }
 }

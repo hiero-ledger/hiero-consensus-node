@@ -14,12 +14,10 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
-import org.hiero.base.iterator.TypedIterator;
+import org.hiero.base.crypto.RunningHash;
 import org.hiero.consensus.model.event.CesEvent;
-import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.roster.RosterWrapper;
-import org.hiero.consensus.model.transaction.Transaction;
 
 /** A consensus round with events and all other relevant data. */
 public class ConsensusRound implements Round {
@@ -28,6 +26,7 @@ public class ConsensusRound implements Round {
      * an unmodifiable list of consensus events in this round, in consensus order
      */
     private final List<PlatformEvent> consensusEvents;
+
     /**
      * the same events that are stored in {@link #consensusEvents} but repackaged for the Consensus Event Stream. since
      * the CES is something that will be removed as soon as possible, this additional list allows us to decouple the CES
@@ -91,11 +90,7 @@ public class ConsensusRound implements Round {
         this.streamedEvents = new ArrayList<>(consensusEvents.size());
         for (final Iterator<PlatformEvent> iterator = consensusEvents.iterator(); iterator.hasNext(); ) {
             final PlatformEvent e = iterator.next();
-            final Iterator<Transaction> ti = e.transactionIterator();
-            while (ti.hasNext()) {
-                ti.next();
-                numAppTransactions++;
-            }
+            numAppTransactions += e.getTransactionCount();
             streamedEvents.add(new CesEvent(e, snapshot.round(), !iterator.hasNext()));
         }
     }
@@ -114,44 +109,34 @@ public class ConsensusRound implements Round {
      *
      * @return the list of events in this round
      */
-    public @NonNull List<PlatformEvent> getConsensusEvents() {
+    @NonNull
+    @Override
+    public List<PlatformEvent> getConsensusEvents() {
         return consensusEvents;
     }
 
     /**
      * @return the list of CES events in this round
      */
-    public @NonNull List<CesEvent> getStreamedEvents() {
+    @NonNull
+    public List<CesEvent> getStreamedEvents() {
         return streamedEvents;
     }
 
     /**
      * @return the event window for this round
      */
-    public @NonNull EventWindow getEventWindow() {
+    @NonNull
+    public EventWindow getEventWindow() {
         return eventWindow;
     }
 
     /**
      * @return a snapshot of consensus at this consensus round
      */
-    public @NonNull ConsensusSnapshot getSnapshot() {
+    @NonNull
+    public ConsensusSnapshot getSnapshot() {
         return snapshot;
-    }
-
-    /**
-     * @return the number of events in this round
-     */
-    public int getNumEvents() {
-        return consensusEvents.size();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public @NonNull Iterator<ConsensusEvent> iterator() {
-        return new TypedIterator<>(consensusEvents.iterator());
     }
 
     /**
@@ -166,31 +151,17 @@ public class ConsensusRound implements Round {
      * {@inheritDoc}
      */
     @Override
-    public boolean isEmpty() {
-        return consensusEvents.isEmpty();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public int getEventCount() {
-        return consensusEvents.size();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     @NonNull
     public Roster getConsensusRoster() {
         return consensusRoster.toPbj();
     }
 
     /**
+     * Returns the roster wrapper that was active when this round reached consensus.
+     *
      * @return the consensus roster for this round
      */
-    public RosterWrapper getRosterWrapper() {
+    public RosterWrapper getConsensusRosterWrapper() {
         return consensusRoster;
     }
 
@@ -198,17 +169,42 @@ public class ConsensusRound implements Round {
      * {@inheritDoc}
      */
     @Override
-    public @NonNull Instant getConsensusTimestamp() {
+    @NonNull
+    public Instant getConsensusTimestamp() {
         return Objects.requireNonNull(fromPbjTimestamp(snapshot.consensusTimestamp()));
     }
 
     /**
-     * @return the local time (not consensus time) at which the round reached consensus
+     * {@inheritDoc}
      */
-    public @NonNull Instant getReachedConsTimestamp() {
+    @Override
+    @NonNull
+    public ConsensusSnapshot getConsensusSnapshot() {
+        return snapshot;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public Instant getReachedConsTimestamp() {
         return reachedConsTimestamp;
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public RunningHash getLastEventRunningHash() {
+        return streamedEvents.getLast().getRunningHash();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public boolean isPcesRound() {
         return pcesRound;
     }

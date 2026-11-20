@@ -34,8 +34,45 @@ public record HederaEvmTransaction(
         @Nullable List<AccessListItem> accessLists,
         @Nullable List<CodeDelegation> codeDelegations,
         @Nullable HandleException exception,
-        @Nullable HookDispatchTransactionBody hookDispatch) {
+        @Nullable HookDispatchTransactionBody hookDispatch,
+        @Nullable Address senderAddress,
+        boolean clprDispatch) {
     public static final long NOT_APPLICABLE = -1L;
+
+    public HederaEvmTransaction(
+            @NonNull final AccountID senderId,
+            @Nullable final AccountID relayerId,
+            @Nullable final ContractID contractId,
+            final long nonce,
+            @NonNull final Bytes payload,
+            @Nullable final Bytes chainId,
+            final long value,
+            final long gasLimit,
+            final long offeredGasPrice,
+            final long maxGasAllowance,
+            @Nullable final ContractCreateTransactionBody hapiCreation,
+            @Nullable final HandleException exception,
+            @Nullable final HookDispatchTransactionBody hookDispatch,
+            final boolean clprDispatch) {
+        this(
+                senderId,
+                relayerId,
+                contractId,
+                nonce,
+                payload,
+                chainId,
+                value,
+                gasLimit,
+                offeredGasPrice,
+                maxGasAllowance,
+                hapiCreation,
+                null,
+                null,
+                exception,
+                hookDispatch,
+                null,
+                clprDispatch);
+    }
 
     public boolean hasExpectedNonce() {
         return nonce != NOT_APPLICABLE;
@@ -65,6 +102,10 @@ public record HederaEvmTransaction(
         return hookDispatch != null;
     }
 
+    public boolean isClprDispatch() {
+        return clprDispatch;
+    }
+
     public boolean isContractCall() {
         return !isEthereumTransaction() && !isCreate();
     }
@@ -89,6 +130,15 @@ public record HederaEvmTransaction(
         return pbjToTuweniBytes(payload);
     }
 
+    /**
+     * Returns the value transferred by this transaction as a Besu {@link Wei}.
+     *
+     * <p><b>Unit:</b> despite the type name, the amount is in <b>tinybars</b> (the raw {@code value} of this
+     * transaction), not weibars. This is what the {@code CALLVALUE} opcode (and {@code msg.value} in Solidity) observes.
+     * For Ethereum transactions the weibar {@code value} is already divided by 10<sup>10</sup> before it gets here.
+     *
+     * @return the transaction value in tinybars, wrapped in a {@code Wei}
+     */
     public Wei weiValue() {
         return Wei.of(value);
     }
@@ -142,7 +192,9 @@ public record HederaEvmTransaction(
                 this.accessLists,
                 this.codeDelegations,
                 exception,
-                this.hookDispatch);
+                this.hookDispatch,
+                this.senderAddress,
+                this.clprDispatch);
     }
 
     /**

@@ -12,16 +12,17 @@ import org.hyperledger.besu.datatypes.Wei;
 import org.hyperledger.besu.evm.frame.BlockValues;
 
 /**
- * @param gasLimit the effective gas limit
+ * @param gasLimit the block gas limit (what the {@code GASLIMIT} opcode returns)
  * @param blockNo the block number
  * @param blockTime the block time
  */
-public record HevmBlockValues(long gasLimit, long blockNo, @NonNull Timestamp blockTime) implements BlockValues {
+public record HevmBlockValues(
+        long gasLimit, long blockNo, @NonNull Timestamp blockTime) implements BlockValues {
     private static final Optional<Wei> ZERO_BASE_FEE = Optional.of(Wei.ZERO);
 
     /**
      * @param blockRecordInfo the block record info
-     * @param gasLimit the effective gas limit
+     * @param gasLimit the block gas limit
      * @return the hedera evm block values
      */
     public static HevmBlockValues from(@NonNull final BlockRecordInfo blockRecordInfo, final long gasLimit) {
@@ -30,7 +31,7 @@ public record HevmBlockValues(long gasLimit, long blockNo, @NonNull Timestamp bl
     }
 
     /**
-     * @param gasLimit the effective gas limit
+     * @param gasLimit the block gas limit
      * @param blockNo the block number
      * @param blockTime the block time
      */
@@ -48,6 +49,12 @@ public record HevmBlockValues(long gasLimit, long blockNo, @NonNull Timestamp bl
         return blockTime.seconds();
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Hedera has no EIP-1559 base fee, so {@code BASEFEE} is always zero. Zero is the same in tinybars and
+     * weibars, so this value cannot reveal a unit mix-up, see {@code tx.gasprice} for a tinybar-valued opcode.
+     */
     @Override
     public Optional<Wei> getBaseFee() {
         return ZERO_BASE_FEE;

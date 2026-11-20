@@ -402,7 +402,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                                         test.expectedGas,
                                         gasUsed,
                                         "Unexpected gas used for txn size " + test.txnSize + " and type " + test.type))
-                                .hasPrecheck(TRANSACTION_OVERSIZE));
+                                .hasKnownStatus(TRANSACTION_OVERSIZE));
             });
         }
 
@@ -461,7 +461,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                             .payingWith(RELAYER)
                             .signingWith(SECP_256K1_SOURCE_KEY)
                             .gasLimit(1_350_000L)
-                            .hasPrecheck(TRANSACTION_OVERSIZE),
+                            .hasKnownStatus(TRANSACTION_OVERSIZE),
                     getAccountBalance(RELAYER)
                             .exposingBalanceTo(newBalance -> assertTrue(
                                     balance.get() > newBalance,
@@ -522,7 +522,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                             .signingWith("unrelatedKey")
                             .payingWith(RELAYER)
                             .gasLimit(1_000_000L)
-                            .hasPrecheck(INVALID_ACCOUNT_ID));
+                            .hasKnownStatus(INVALID_ACCOUNT_ID));
         }
 
         @HapiTest

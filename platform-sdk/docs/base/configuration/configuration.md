@@ -350,12 +350,44 @@ several places. That equivalence is the rule to fall back on whenever the behavi
 Two consequences worth stating, because both follow from the equivalence rather than from a decision:
 
 - A group is always created. A flat set of properties has no state in which it is collectively absent, so neither does a
-  group, and a component that holds one accepts no default value at all. A property that has to be able to be absent is
-  declared as a nullable property of the group, with `ConfigProperty.NULL_DEFAULT_VALUE`, exactly as it would be
-  declared flat.
+  group, and a component that holds one accepts no `ConfigProperty.defaultValue()` of its own. A property that has to
+  be able to be absent is declared as a nullable property of the group, with `ConfigProperty.NULL_DEFAULT_VALUE`,
+  exactly as it would be declared flat.
 - The component that holds a group is not a property. A config source defines `network.primary.port` and never
   `network.primary`, so the component itself is never exported, never counted as a known property name, and setting a
   value under its name does nothing.
+
+#### Overriding defaults below a nested record
+
+To override the default values of leaf properties below a component holding a nested config data object, use
+`com.swirlds.config.api.ConfigDefault` on that component:
+
+```
+@ConfigData("wiring")
+public record WiringConfig(
+    @ConfigDefault(property = "type", defaultValue = "CONCURRENT")
+    @ConfigDefault(property = "capacity", defaultValue = "1000")
+    SchedulerConfig prehandler,
+
+    SchedulerConfig handler) {}
+
+@NestedConfig
+public record SchedulerConfig(
+    @ConfigProperty(defaultValue = "SEQUENTIAL") SchedulerType type,
+    @ConfigProperty(defaultValue = "500") long capacity) {}
+```
+
+The `property` is a dotted path **relative to the nested config data object held by the annotated component**, using the
+same property names that the equivalent flat declaration would use. In the example above the defaults of
+`wiring.prehandler.type` and `wiring.prehandler.capacity` are overridden, while `wiring.handler.type` and
+`wiring.handler.capacity` keep the defaults declared on `SchedulerConfig`.
+
+`ConfigDefault.defaultValue()` behaves exactly like `ConfigProperty.defaultValue()`: it is a raw string that is
+converted to the targeted property's type, so `ConfigProperty.NULL_DEFAULT_VALUE`, lists and sets all work the same
+way. `ConfigProperty.UNDEFINED_DEFAULT_VALUE` is rejected instead: not declaring an override for a property already
+means it has no default here, so there is nothing left for the marker to mean as a `defaultValue`. When several
+components on the path to the same leaf property override it, the override declared closest to the config data root
+wins.
 
 Nesting can go any number of levels deep, and a cycle in the record types, where a record contains itself directly or
 through other records, is detected and fails the creation of the configuration. Like any config data record a nested
@@ -387,8 +419,9 @@ component. Each of the following fails instead of being silently misinterpreted:
   type. The properties of a group follow from its type, and the annotation processor resolves that type from the source
   while the runtime resolves it by reflection; requiring the type to be written out is what makes the two provably
   arrive at the same set of properties.
-- a component that holds a `@NestedConfig` record and declares a `defaultValue`, since a group has no value of its own
-  that a default could describe. The defaults belong on the properties of the nested record.
+- a component that holds a `@NestedConfig` record and declares a `ConfigProperty.defaultValue()`, since a group has no
+  value of its own that such a default could describe. The defaults belong on the properties of the nested record, and
+  `@ConfigDefault` can be used on the holding component to override those leaf-property defaults.
 
 **Note:** a record type without `@NestedConfig` stays a single property whose raw string value is converted by a
 registered `ConfigConverter`, which keeps config data records that use record based value types working unchanged. Such

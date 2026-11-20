@@ -46,7 +46,10 @@ import org.hiero.consensus.metrics.SpeedometerMetric;
 /**
  * This class contains all workflow-related functionality regarding {@link
  * HederaFunctionality#CRYPTO_GET_ACCOUNT_BALANCE}.
+ *
+ * @deprecated Obtain account balances from a mirror node instead.
  */
+@Deprecated(forRemoval = true)
 @Singleton
 public class CryptoGetAccountBalanceHandler extends FreeQueryHandler {
 

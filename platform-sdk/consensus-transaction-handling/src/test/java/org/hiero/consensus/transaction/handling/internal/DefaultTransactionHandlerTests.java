@@ -3,6 +3,7 @@ package org.hiero.consensus.transaction.handling.internal;
 
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.assertAllDatabasesClosed;
 import static org.hiero.consensus.model.PbjConverters.toPbjTimestamp;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.eventCutoverMinBirthRoundOf;
 import static org.hiero.consensus.state.test.fixtures.RandomSignedStateGenerator.releaseAllBuiltSignedStates;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -130,8 +131,8 @@ class DefaultTransactionHandlerTests {
                         "the round handled should be the one we provided");
                 boolean eventWithNoTransactions = false;
                 for (final ConsensusEvent consensusEvent :
-                        tester.getHandledRounds().getFirst()) {
-                    if (!consensusEvent.consensusTransactionIterator().hasNext()) {
+                        tester.getHandledRounds().getFirst().getConsensusEvents()) {
+                    if (consensusEvent.getTransactions().isEmpty()) {
                         eventWithNoTransactions = true;
                         break;
                     }
@@ -307,6 +308,29 @@ class DefaultTransactionHandlerTests {
         }
         stateToHash.close();
         garbageCollector.heartbeat();
+    }
+
+    @DisplayName("Event cutover is recorded with the first round only at genesis with the cutover enabled")
+    @ParameterizedTest(name = "cutover enabled {0}, start from genesis {1} -> recorded cutover {2}")
+    @CsvSource({"true, true, 1", "true, false, 0", "false, true, 0", "false, false, 0"})
+    void genesisEventCutover(
+            final boolean eventCutoverEnabled, final boolean startFromGenesis, final long expectedCutover) {
+        try (final TransactionHandlerTester tester =
+                new TransactionHandlerTester(eventCutoverEnabled, startFromGenesis)) {
+            assertEquals(
+                    0,
+                    eventCutoverMinBirthRoundOf(
+                            tester.getStateLifecycleManager().getMutableState()),
+                    "no cutover should be recorded before the first round");
+
+            tester.getTransactionHandler().handleConsensusRound(newConsensusRound(false));
+
+            assertEquals(
+                    expectedCutover,
+                    eventCutoverMinBirthRoundOf(
+                            tester.getStateLifecycleManager().getMutableState()),
+                    "unexpected cutover recorded with the first round");
+        }
     }
 
     private static @NonNull ConsensusSnapshot getSnapshotWithTimestamp(final @NonNull Instant consensusTimestamp) {

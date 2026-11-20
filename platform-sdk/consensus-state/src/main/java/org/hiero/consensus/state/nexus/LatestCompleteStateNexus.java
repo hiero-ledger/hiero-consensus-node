@@ -42,7 +42,7 @@ public interface LatestCompleteStateNexus extends SignedStateNexus {
 
     /**
      * Update the current platform status. If the platform enters {@link PlatformStatus#FREEZING}, the latest complete
-     * state is released. When asynchronous snapshots are enabled, no subsequent states are retained by this nexus.
+     * state is released and no subsequent states are retained by this nexus.
      *
      * @param platformStatus the new platform status
      */

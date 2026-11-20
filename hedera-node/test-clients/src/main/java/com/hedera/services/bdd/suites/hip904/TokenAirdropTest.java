@@ -1495,7 +1495,7 @@ public class TokenAirdropTest extends TokenAirdropBase {
         final Stream<DynamicTest> missingSenderSigFails() {
             return hapiTest(
                     tokenAirdrop(moving(1, FUNGIBLE_TOKEN).between(OWNER, RECEIVER_WITH_UNLIMITED_AUTO_ASSOCIATIONS))
-                            .hasPrecheck(INVALID_SIGNATURE));
+                            .hasKnownStatus(INVALID_SIGNATURE));
         }
 
         @EmbeddedHapiTest(NEEDS_STATE_ACCESS)

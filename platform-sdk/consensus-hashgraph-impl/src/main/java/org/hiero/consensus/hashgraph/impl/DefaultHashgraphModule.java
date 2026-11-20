@@ -40,6 +40,15 @@ public class DefaultHashgraphModule implements HashgraphModule {
     @Nullable
     private OutputWire<PlatformEvent> staleEventOutputWire;
 
+    @Nullable
+    private InputWire<PlatformEvent> eventInputWire;
+
+    @Nullable
+    private InputWire<PlatformStatus> platformStatusInputWire;
+
+    @Nullable
+    private InputWire<ConsensusSnapshot> consensusSnapshotOverrideInputWire;
+
     /**
      * {@inheritDoc}
      */
@@ -60,11 +69,18 @@ public class DefaultHashgraphModule implements HashgraphModule {
             throw new IllegalStateException("Already initialized");
         }
 
+        // Set up wired components
         final HashgraphWiringConfig wiringConfig = configuration.getConfigData(HashgraphWiringConfig.class);
-
         this.consensusEngineWiring =
                 new ComponentWiring<>(model, ConsensusEngine.class, wiringConfig.consensusEngine());
 
+        // Set up input wires
+        eventInputWire = consensusEngineWiring.getInputWire(ConsensusEngine::addEvent);
+        platformStatusInputWire = consensusEngineWiring.getInputWire(ConsensusEngine::updatePlatformStatus);
+        consensusSnapshotOverrideInputWire =
+                consensusEngineWiring.getInputWire(ConsensusEngine::outOfBandSnapshotUpdate);
+
+        // Wire components
         this.consensusRoundOutputWire = consensusEngineWiring
                 .getOutputWire()
                 .buildTransformer("consensusRounds", "consensusEngineOutput", ConsensusEngineOutput::consensusRounds)
@@ -78,9 +94,6 @@ public class DefaultHashgraphModule implements HashgraphModule {
                 .getOutputWire()
                 .buildTransformer("staleEvents", "consensusEngineOutput", ConsensusEngineOutput::staleEvents)
                 .buildSplitter("staleEventsSplitter", "stale events");
-
-        // Force not soldered wires to be built
-        consensusEngineWiring.getInputWire(ConsensusEngine::outOfBandSnapshotUpdate);
 
         // Create and bind components
         final ConsensusEngine consensusEngine = new DefaultConsensusEngine(
@@ -100,7 +113,7 @@ public class DefaultHashgraphModule implements HashgraphModule {
     @NonNull
     @Override
     public InputWire<PlatformEvent> eventInputWire() {
-        return requireNonNull(consensusEngineWiring, "Not initialized").getInputWire(ConsensusEngine::addEvent);
+        return requireNonNull(eventInputWire, "Not initialized");
     }
 
     /**
@@ -136,8 +149,7 @@ public class DefaultHashgraphModule implements HashgraphModule {
     @NonNull
     @Override
     public InputWire<PlatformStatus> platformStatusInputWire() {
-        return requireNonNull(consensusEngineWiring, "Not initialized")
-                .getInputWire(ConsensusEngine::updatePlatformStatus);
+        return requireNonNull(platformStatusInputWire, "Not initialized");
     }
 
     /**
@@ -146,8 +158,7 @@ public class DefaultHashgraphModule implements HashgraphModule {
     @NonNull
     @Override
     public InputWire<ConsensusSnapshot> consensusSnapshotOverrideInputWire() {
-        return requireNonNull(consensusEngineWiring, "Not initialized")
-                .getInputWire(ConsensusEngine::outOfBandSnapshotUpdate);
+        return requireNonNull(consensusSnapshotOverrideInputWire, "Not initialized");
     }
 
     /**

@@ -8,6 +8,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.stream.Stream;
+import org.hiero.base.crypto.DigestType;
 
 /**
  * Defines a data source, used with {@code VirtualMap}, to implement a virtual tree. Both in-memory and
@@ -35,18 +36,7 @@ public interface VirtualDataSource {
      * @throws IOException
      * 		If there was a problem closing the data source
      */
-    default void close() throws IOException {
-        close(false);
-    }
-
-    /**
-     * Close the data source.
-     *
-     * @param keepData Indicates whether to keep data source data or not
-     * @throws IOException
-     * 		If there was a problem closing the data source
-     */
-    void close(boolean keepData) throws IOException;
+    void close() throws IOException;
 
     /**
      * Save a batch of data to data store.
@@ -158,10 +148,13 @@ public interface VirtualDataSource {
      */
     void enableBackgroundCompaction();
 
-    /**
-     * Cancels all compactions that are currently running and disables background compaction process.
-     */
-    void stopAndDisableBackgroundCompaction();
+    ///
+    /// Disables background compaction and interrupts all compactions that are currently running.
+    ///
+    /// @param waitForTasksToComplete whether to wait, up to the implementation's shutdown timeout,
+    ///     for all current background compaction tasks, including scanner tasks, to complete
+    ///
+    void stopAndDisableBackgroundCompaction(boolean waitForTasksToComplete);
 
     /**
      * Returns the first leaf path stored in this data source.
@@ -177,4 +170,14 @@ public interface VirtualDataSource {
      * Returns the height of hash chunks stored in this data source.
      */
     int getHashChunkHeight();
+
+    ///
+    /// If this data source is loaded from a snapshot, returns the digest type of all
+    /// hashes stored in the data source, e.g. SHA-384.
+    ///
+    /// If this data source is created from scratch, this method always returns the default
+    /// digest type. See [org.hiero.base.crypto.Cryptography#DEFAULT_DIGEST_TYPE] for details.
+    ///
+    @NonNull
+    DigestType getLoadedHashDigestType();
 }

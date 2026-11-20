@@ -38,21 +38,26 @@ public class MetricSnapshotVerifier {
         return -1;
     };
 
-    final Metric metric;
+    final Metric<?> metric;
     private final List<MeasurementSnapshot> expectations = new ArrayList<>();
     private boolean snapshotsAnyOrder = false;
 
-    public MetricSnapshotVerifier(Metric metric) {
+    public MetricSnapshotVerifier(Metric<?> metric) {
         this.metric = metric;
     }
 
     public MetricSnapshotVerifier add(double value, String... labelNamesAndValues) {
-        expectations.add(new DoubleMeasurementSnapshot(new LabelValues(labelNamesAndValues), () -> value));
-        return this;
+        return addExpectation(new DoubleMeasurementSnapshot(new LabelValues(labelNamesAndValues), () -> value));
     }
 
     public MetricSnapshotVerifier add(long value, String... labelNamesAndValues) {
-        expectations.add(new LongMeasurementSnapshot(new LabelValues(labelNamesAndValues), () -> value));
+        return addExpectation(new LongMeasurementSnapshot(new LabelValues(labelNamesAndValues), () -> value));
+    }
+
+    private MetricSnapshotVerifier addExpectation(MeasurementSnapshot expectation) {
+        // a snapshot reads its value only when updated
+        expectation.update();
+        expectations.add(expectation);
         return this;
     }
 
@@ -88,7 +93,7 @@ public class MetricSnapshotVerifier {
         }
     }
 
-    public static void verifMetricHasNoSnapshot(Metric metric) {
+    public static void verifMetricHasNoSnapshot(Metric<?> metric) {
         assertThat(metric.snapshot())
                 .as("Snapshot should be null for metric " + metric.name())
                 .isNull();

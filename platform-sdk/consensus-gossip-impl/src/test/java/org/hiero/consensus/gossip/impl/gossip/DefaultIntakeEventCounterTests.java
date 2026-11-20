@@ -5,14 +5,12 @@ import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSee
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RosterEntry;
-import java.util.ArrayList;
 import org.hiero.base.utility.test.fixtures.ResettableRandom;
 import org.hiero.consensus.event.DefaultIntakeEventCounter;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterEntryBuilder;
+import org.hiero.consensus.model.roster.RosterWrapper;
+import org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -21,20 +19,17 @@ import org.junit.jupiter.api.Test;
 class DefaultIntakeEventCounterTests {
     private IntakeEventCounter intakeCounter;
 
-    final NodeId nodeId1 = NodeId.of(1);
-    final NodeId nodeId2 = NodeId.of(2);
+    private NodeId nodeId1;
+    private NodeId nodeId2;
 
     @BeforeEach
     void setup() {
         final ResettableRandom random = getRandomPrintSeed();
-        final ArrayList<RosterEntry> rosterEntries = new ArrayList<>();
-        rosterEntries.add(
-                RandomRosterEntryBuilder.create(random).withNodeId(nodeId1.id()).build());
-        rosterEntries.add(
-                RandomRosterEntryBuilder.create(random).withNodeId(nodeId2.id()).build());
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(random, 2);
+        nodeId1 = roster.nodeIdAtIndex(0);
+        nodeId2 = roster.nodeIdAtIndex(1);
 
-        this.intakeCounter = new DefaultIntakeEventCounter(
-                Roster.newBuilder().rosterEntries(rosterEntries).build());
+        this.intakeCounter = new DefaultIntakeEventCounter(roster);
     }
 
     @Test

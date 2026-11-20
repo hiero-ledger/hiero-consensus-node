@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.state.merkle;
 
-import static com.hedera.node.app.state.merkle.SchemaApplicationType.MIGRATION;
 import static com.hedera.node.app.state.merkle.SchemaApplicationType.RESTART;
 import static com.hedera.node.app.state.merkle.SchemaApplicationType.STATE_DEFINITIONS;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -29,8 +28,6 @@ class SchemaApplicationsTest {
             SemanticVersion.newBuilder().major(3).build();
     private static final SemanticVersion PRECEDING_VERSION =
             SemanticVersion.newBuilder().major(2).build();
-    private static final SemanticVersion FIRST_VERSION =
-            SemanticVersion.newBuilder().major(1).build();
 
     @Mock
     private Schema schema;
@@ -41,46 +38,36 @@ class SchemaApplicationsTest {
     private final SchemaApplications subject = new SchemaApplications();
 
     @Test
-    void genesisUseWithNoCreatedOrRemovedStatesIsMigrateOnlyIfNotCurrent() {
+    void schemaWithNoCreatedOrRemovedStatesIsNotAppliedIfNotLatest() {
         given(schema.getVersion()).willReturn(PRECEDING_VERSION);
-        assertThat(subject.computeApplications(null, LATEST_VERSION, schema, config))
-                .containsExactly(MIGRATION);
+        assertThat(subject.computeApplications(LATEST_VERSION, schema, config)).isEmpty();
     }
 
     @Test
-    void genesisUseWithCreatedStatesIsStateDefsAndMigrateIfNotCurrent() {
+    void schemaWithCreatedStatesContributesStateDefsIfNotLatest() {
         given(schema.getVersion()).willReturn(PRECEDING_VERSION);
         given(schema.statesToCreate(config)).willReturn(Set.of(STATE_DEFINITION));
-        assertThat(subject.computeApplications(null, LATEST_VERSION, schema, config))
-                .containsExactly(STATE_DEFINITIONS, MIGRATION);
+        assertThat(subject.computeApplications(LATEST_VERSION, schema, config)).containsExactly(STATE_DEFINITIONS);
     }
 
     @Test
-    void genesisUseWithRemovedStatesIsStateDefsAndMigrateIfNotCurrent() {
+    void schemaWithRemovedStatesContributesStateDefsIfNotLatest() {
         given(schema.getVersion()).willReturn(PRECEDING_VERSION);
         given(schema.statesToRemove()).willReturn(Set.of(STATE_DEFINITION.stateId()));
-        assertThat(subject.computeApplications(null, LATEST_VERSION, schema, config))
-                .containsExactly(STATE_DEFINITIONS, MIGRATION);
+        assertThat(subject.computeApplications(LATEST_VERSION, schema, config)).containsExactly(STATE_DEFINITIONS);
     }
 
     @Test
-    void genesisUseWithNoCreatedOrRemovedStatesIsMigrateAndRestartIfCurrent() {
+    void latestSchemaWithNoCreatedOrRemovedStatesIsRestartOnly() {
         given(schema.getVersion()).willReturn(LATEST_VERSION);
-        assertThat(subject.computeApplications(null, LATEST_VERSION, schema, config))
-                .containsExactly(MIGRATION, RESTART);
+        assertThat(subject.computeApplications(LATEST_VERSION, schema, config)).containsExactly(RESTART);
     }
 
     @Test
-    void restartUseWithEarlierStateDoesMigrate() {
-        given(schema.getVersion()).willReturn(PRECEDING_VERSION);
-        assertThat(subject.computeApplications(FIRST_VERSION, LATEST_VERSION, schema, config))
-                .containsExactly(MIGRATION);
-    }
-
-    @Test
-    void restartUseWithSameStateDoesNotMigrate() {
-        given(schema.getVersion()).willReturn(PRECEDING_VERSION);
-        assertThat(subject.computeApplications(PRECEDING_VERSION, LATEST_VERSION, schema, config))
-                .isEmpty();
+    void latestSchemaWithCreatedStatesIsStateDefsAndRestart() {
+        given(schema.getVersion()).willReturn(LATEST_VERSION);
+        given(schema.statesToCreate(config)).willReturn(Set.of(STATE_DEFINITION));
+        assertThat(subject.computeApplications(LATEST_VERSION, schema, config))
+                .containsExactly(STATE_DEFINITIONS, RESTART);
     }
 }

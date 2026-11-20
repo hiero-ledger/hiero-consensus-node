@@ -33,10 +33,11 @@ the default is.
 
 ## Block-node integration
 
-|                 Property                  |                             Read in                             |                  Values                   |                                                      Default                                                      |             Set by              |
-|-------------------------------------------|-----------------------------------------------------------------|-------------------------------------------|-------------------------------------------------------------------------------------------------------------------|---------------------------------|
-| `hapi.spec.blocknode.mode`                | `SharedNetworkLauncherSessionListener`, `BlockNodeMode` Javadoc | `REAL`, `SIMULATOR`, `LOCAL_NODE`, `NONE` | falls back to `REAL` in the listener when `blockStream.writerMode` is `FILE_AND_GRPC` or `GRPC`; otherwise `NONE` | unset by default; pass via `-D` |
-| `hapi.spec.blocknode.simulator.manyToOne` | `SubProcessNetwork`                                             | `true` / `false`                          | `false`                                                                                                           | unset by default; pass via `-D` |
+|                 Property                  |                             Read in                             |                      Values                      |                                                                                           Default                                                                                           |                                                                                        Set by                                                                                        |
+|-------------------------------------------|-----------------------------------------------------------------|--------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `hapi.spec.blocknode.mode`                | `SharedNetworkLauncherSessionListener`, `BlockNodeMode` Javadoc | `REAL`, `SIMULATOR`, `LOCAL_NODE`, `NONE`        | In CI, `REAL` when the effective `writerMode` is not `FILE` and the stream is not `RECORDS`, otherwise `NONE`; outside CI an unpinned shared network runs a `FILE` writer and no block node | unset by default; pass via `-D`                                                                                                                                                      |
+| `hapi.spec.blocknode.version`             | `BlockNodeContainer`                                            | a block node version, such as `0.45.0-tssupdate` | none; starting a real block node fails without it                                                                                                                                           | every test task, from `block-node-version` in `.github/workflows/support/citr/.citr-env` (a non-blank `BLOCK_NODE_VERSION` environment variable overrides it), minus its leading `v` |
+| `hapi.spec.blocknode.simulator.manyToOne` | `SubProcessNetwork`                                             | `true` / `false`                                 | `false`                                                                                                                                                                                     | unset by default; pass via `-D`                                                                                                                                                      |
 
 See [`../README.md`](../README.md) § *Block Node Testing*.
 
@@ -44,16 +45,15 @@ See [`../README.md`](../README.md) § *Block Node Testing*.
 
 |            Property            |                       Read in                       |                     Format                     | Default |                 Set by                 |
 |--------------------------------|-----------------------------------------------------|------------------------------------------------|---------|----------------------------------------|
-| `hapi.spec.test.overrides`     | `ProcessUtils`                                      | comma-separated `key=value` pairs              | empty   | per-task in `prCheckPropOverrides`     |
+| `hapi.spec.test.overrides`     | `ProcessUtils`                                      | comma-separated `key=value` pairs              | empty   | per-task; see `GRADLE_TASKS.md`        |
 | `hapi.spec.platform.overrides` | `SubProcessNetwork` (`PLATFORM_OVERRIDES_PROPERTY`) | comma-separated `key=value` for `settings.txt` | empty   | per-task in `prCheckPlatformOverrides` |
 
 ## TSS (`wraps` / hinTS / history)
 
-|               Property                |                        Read in                        |      Values      |              Default               |                                  Set by                                  |
-|---------------------------------------|-------------------------------------------------------|------------------|------------------------------------|--------------------------------------------------------------------------|
-| `hapi.spec.assertAtLeastOneWraps`     | `StateChangesValidator`                               | `true` / `false` | `false`                            | `hapiTestWraps`, `hapiTestCutover`                                       |
-| `hapi.spec.tssLibWrapsArtifactsPath`  | `ProcessUtils`, `WrapsHandoffsTest`, `TssCutoverTest` | filesystem path  | empty                              | per-task; exported into subprocess env as `TSS_LIB_WRAPS_ARTIFACTS_PATH` |
-| `hapi.spec.hintsThresholdDenominator` | `StateChangesValidator`                               | integer          | `3` (or `4` for `hapiTestRestart`) | per-task                                                                 |
+|               Property                |         Read in         |      Values      |              Default               |               Set by               |
+|---------------------------------------|-------------------------|------------------|------------------------------------|------------------------------------|
+| `hapi.spec.assertAtLeastOneWraps`     | `StateChangesValidator` | `true` / `false` | `false`                            | `hapiTestWraps`, `hapiTestCutover` |
+| `hapi.spec.hintsThresholdDenominator` | `StateChangesValidator` | integer          | `3` (or `4` for `hapiTestRestart`) | per-task                           |
 
 ## Lifecycle / upgrade scheduling
 

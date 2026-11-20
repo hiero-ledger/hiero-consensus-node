@@ -23,7 +23,9 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.otter.docker.app.EventMessageFactory;
 import org.hiero.consensus.otter.docker.app.EventStreamManager;
+import org.hiero.consensus.test.fixtures.eventbus.EventBus;
 import org.hiero.otter.fixtures.container.proto.EventMessage;
+import org.hiero.otter.fixtures.container.proto.InstrumentationPingRequest;
 import org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceGrpc.NodeCommunicationServiceImplBase;
 import org.hiero.otter.fixtures.container.proto.QuiescenceRequest;
 import org.hiero.otter.fixtures.container.proto.StartRequest;
@@ -31,6 +33,7 @@ import org.hiero.otter.fixtures.container.proto.SubscribeRequest;
 import org.hiero.otter.fixtures.container.proto.SyntheticBottleneckRequest;
 import org.hiero.otter.fixtures.container.proto.TransactionRequest;
 import org.hiero.otter.fixtures.container.proto.TransactionRequestAnswer;
+import org.hiero.otter.fixtures.internal.InstrumentedModules;
 import org.hiero.otter.fixtures.internal.KeysAndCertsConverter;
 import org.hiero.otter.fixtures.internal.ProtobufConverter;
 import org.hiero.otter.fixtures.logging.internal.InMemorySubscriptionManager;
@@ -257,6 +260,29 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
                     };
 
             consensusNodeManager.sendQuiescenceCommand(command);
+            responseObserver.onNext(Empty.getDefaultInstance());
+            responseObserver.onCompleted();
+        });
+    }
+
+    /**
+     * Handles a ping request from the test framework by publishing the message on the {@link EventBus} of this node.
+     * All instrumented modules of the node receive it.
+     *
+     * @param request the ping request
+     * @param responseObserver the observer used to confirm the ping
+     */
+    @Override
+    public void instrumentationPing(
+            @NonNull final InstrumentationPingRequest request, @NonNull final StreamObserver<Empty> responseObserver) {
+        log.info(DEMO_INFO.getMarker(), "Received instrumentation ping request: {}", request.getMessage());
+        if (consensusNodeManager == null) {
+            setPlatformNotStartedResponse(responseObserver);
+            return;
+        }
+
+        wrapWithErrorHandling(responseObserver, () -> {
+            EventBus.getInstance(selfId).publish(InstrumentedModules.PING_CHANNEL, request.getMessage());
             responseObserver.onNext(Empty.getDefaultInstance());
             responseObserver.onCompleted();
         });

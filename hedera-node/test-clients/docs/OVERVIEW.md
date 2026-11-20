@@ -92,10 +92,11 @@ embedded networks exist for tests that need direct state access, deterministic t
 
 ### Specialised testing flavours
 
-|                       Doc                        |                                                     Purpose                                                      |
-|--------------------------------------------------|------------------------------------------------------------------------------------------------------------------|
-| [`EMBEDDED_INTERNALS.md`](EMBEDDED_INTERNALS.md) | What's inside an `EmbeddedNetwork`: `EmbeddedHedera`, `EmbeddedMode`, all the fakes.                             |
-| [`RESTART_TESTING.md`](RESTART_TESTING.md)       | The `@RestartHapiTest` annotation: `RestartType`, `StartupAssets`, `SavedStateSpec`, setup-vs-restart overrides. |
+|                       Doc                        |                                                      Purpose                                                      |
+|--------------------------------------------------|-------------------------------------------------------------------------------------------------------------------|
+| [`EMBEDDED_INTERNALS.md`](EMBEDDED_INTERNALS.md) | What's inside an `EmbeddedNetwork`: `EmbeddedHedera`, `EmbeddedMode`, all the fakes.                              |
+| [`RESTART_TESTING.md`](RESTART_TESTING.md)       | The `@RestartHapiTest` annotation: `RestartType`, `StartupAssets`, `SavedStateSpec`, setup-vs-restart overrides.  |
+| [`MULTINETWORK.md`](MULTINETWORK.md)             | How `@MultiNetworkHapiTest` networks start: port allocation, cold vs warm (TSS fixture) path, per-test overrides. |
 
 ### Validation and stream tooling
 

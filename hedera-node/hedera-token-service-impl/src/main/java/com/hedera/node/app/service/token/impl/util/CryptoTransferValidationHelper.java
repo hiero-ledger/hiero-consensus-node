@@ -2,12 +2,14 @@
 package com.hedera.node.app.service.token.impl.util;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ALIAS_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSFER_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TREASURY_ACCOUNT_FOR_TOKEN;
 import static com.hedera.hapi.util.HapiUtils.isHollow;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isValid;
 import static com.hedera.node.app.service.token.AliasUtils.isAlias;
+import static com.hedera.node.app.service.token.AliasUtils.isEntityNumAlias;
 import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.isStakingAccount;
 import static com.hedera.node.app.service.token.impl.handlers.transfer.TransferExecutor.OptionalKeyCheck.RECEIVER_KEY_IS_OPTIONAL;
 
@@ -18,6 +20,7 @@ import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.handlers.transfer.TransferExecutor;
+import com.hedera.node.app.spi.key.KeyRequirement;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -36,15 +39,14 @@ public class CryptoTransferValidationHelper {
             throws PreCheckException {
         final var hasSenderHook =
                 nftTransfer.hasPreTxSenderAllowanceHook() || nftTransfer.hasPrePostTxSenderAllowanceHook();
-        if (hasSenderHook) {
-            // If there is a sender hook, we skip the sender checks, as the hook will handle them.
-            return;
-        }
-
         // Lookup the sender account and verify it.
         final var senderAccount = accountStore.getAliasedAccountById(senderId);
         if (senderAccount == null) {
             throw new PreCheckException(INVALID_ACCOUNT_ID);
+        }
+        if (hasSenderHook) {
+            // A hook replaces signature authorization, but its owner must still exist.
+            return;
         }
 
         // If the sender account is immutable, then we throw an exception.
@@ -58,7 +60,7 @@ public class CryptoTransferValidationHelper {
                 throw new PreCheckException(INVALID_ACCOUNT_ID);
             }
         } else if (!nftTransfer.isApproval()) {
-            meta.requireKey(key);
+            meta.requireKeyRequirement(KeyRequirement.forAccount(senderAccount.accountIdOrThrow(), key));
         }
     }
 
@@ -78,13 +80,16 @@ public class CryptoTransferValidationHelper {
         // Lookup the receiver account and verify it.
         final var receiverAccount = accountStore.getAliasedAccountById(receiverId);
         if (receiverAccount == null) {
-            // It may be that the receiver account does not yet exist. If it is being addressed by alias,
-            // then this is OK, as we will automatically create the account. Otherwise, fail.
             if (!isAlias(receiverId)) {
                 throw new PreCheckException(INVALID_ACCOUNT_ID);
-            } else {
-                return;
             }
+            // A missing long-zero address cannot be auto-created. Preserve the creation path's
+            // INVALID_ALIAS_KEY status while rejecting it before signature collection completes.
+            if (isEntityNumAlias(receiverId.aliasOrThrow())) {
+                throw new PreCheckException(INVALID_ALIAS_KEY);
+            }
+            // Other aliases may be auto-created during handle.
+            return;
         }
 
         final var receiverKey = receiverAccount.key();
@@ -95,11 +100,19 @@ public class CryptoTransferValidationHelper {
         } else if (!hasReceiverHook) {
             if (receiverAccount.receiverSigRequired()) {
                 if (receiverKeyCheck == RECEIVER_KEY_IS_OPTIONAL) {
-                    meta.optionalKey(receiverKey);
+                    if (receiverKey == null) {
+                        throw new PreCheckException(INVALID_ACCOUNT_ID);
+                    }
+                    meta.optionalKeyRequirement(
+                            KeyRequirement.forAccount(receiverAccount.accountIdOrThrow(), receiverKey));
                 } else {
                     // If receiverSigRequired is set, and if there is no key on the receiver's account, then fail with
                     // INVALID_TRANSFER_ACCOUNT_ID. Otherwise, add the key.
-                    meta.requireKeyOrThrow(receiverKey, INVALID_TRANSFER_ACCOUNT_ID);
+                    if (!isValid(receiverKey)) {
+                        throw new PreCheckException(INVALID_TRANSFER_ACCOUNT_ID);
+                    }
+                    meta.requireKeyRequirement(
+                            KeyRequirement.forAccount(receiverAccount.accountIdOrThrow(), receiverKey));
                 }
             } else if (tokenMeta.hasRoyaltyWithFallback()) {
                 // For airdrops, we don't support tokens with royalties with fallback
@@ -111,8 +124,10 @@ public class CryptoTransferValidationHelper {
                     // the treasury, in which case fallback fees will not be applied when the transaction is handled,
                     // so the receiver key does not need to sign.
                     final var treasuryId = tokenMeta.treasuryAccountId();
-                    if (!treasuryId.equals(senderId) && !treasuryId.equals(receiverId)) {
-                        meta.requireKeyOrThrow(receiverId, INVALID_TREASURY_ACCOUNT_FOR_TOKEN);
+                    final var senderAccount = accountStore.getAliasedAccountById(senderId);
+                    if ((senderAccount == null || !treasuryId.equals(senderAccount.accountId()))
+                            && !treasuryId.equals(receiverAccount.accountId())) {
+                        meta.requireKeyOrThrow(receiverAccount.accountIdOrThrow(), INVALID_TREASURY_ACCOUNT_FOR_TOKEN);
                     }
                 }
             }

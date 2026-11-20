@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.CompletableFuture.completedFuture;
 
 import com.hedera.hapi.node.state.history.ChainOfTrustProof;
+import com.hedera.hapi.node.state.history.HintsKeyWitness;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -34,12 +35,22 @@ public interface BlockHashSigner {
      * @param chainOfTrustProof if not null, the chain of trust proof for the verification key being used
      * @param signatureFuture a future that resolves to the signature
      * @param submissionFuture a future that resolves when the node has submitted its partial signature
+     * @param constructionId the captured hinTS generation, or zero for a signer without one
      */
     record Attempt(
             @Nullable Bytes verificationKey,
             @Nullable ChainOfTrustProof chainOfTrustProof,
             CompletableFuture<Bytes> signatureFuture,
-            CompletableFuture<Void> submissionFuture) {
+            CompletableFuture<Void> submissionFuture,
+            long constructionId) {
+        public Attempt(
+                @Nullable final Bytes verificationKey,
+                @Nullable final ChainOfTrustProof chainOfTrustProof,
+                @NonNull final CompletableFuture<Bytes> signatureFuture,
+                @NonNull final CompletableFuture<Void> submissionFuture) {
+            this(verificationKey, chainOfTrustProof, signatureFuture, submissionFuture, 0);
+        }
+
         public Attempt(
                 @Nullable final Bytes verificationKey,
                 @Nullable final ChainOfTrustProof chainOfTrustProof,
@@ -64,6 +75,12 @@ public interface BlockHashSigner {
      * @param blockNumber the block number being started
      */
     default void onBlockStarted(final long blockNumber) {}
+
+    /**
+     * Offers a directly signed block as an adoption witness for its captured signing generation.
+     * Implementations may submit a consensus transaction; this callback must not mutate consensus state.
+     */
+    void publishKeyWitness(@NonNull Bytes verificationKey, @NonNull HintsKeyWitness witness);
 
     /**
      * Returns an attempt to sign the given block hash.

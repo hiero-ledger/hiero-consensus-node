@@ -2,13 +2,22 @@
 package org.hiero.consensus.event.creator.impl.tipset;
 
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_4_2;
+import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 
+import com.swirlds.base.time.Time;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import org.hiero.consensus.metrics.RunningAverageMetric;
 import org.hiero.consensus.metrics.SpeedometerMetric;
+import org.hiero.consensus.metrics.config.ConsensusLayerMetricsConfig;
+import org.hiero.consensus.metrics.extensions.LatencyGauges;
 import org.hiero.consensus.metrics.statistics.AverageStat;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.RosterEntryWrapper;
@@ -38,12 +47,39 @@ public class TipsetMetrics {
     private final AverageStat mopMetric;
 
     /**
+     * Percentiles and the maximum of the time from a transaction without priority entering the transaction pool until
+     * the event creator takes it, or {@code null} if latency gauges are disabled.
+     */
+    @Nullable
+    private final LatencyGauges poolWait;
+
+    /**
      * Create metrics for the tipset event creator.
      *
-     * @param metrics the metrics instance to use
-     * @param roster  the roster of nodes in the network
+     * @param configuration the configuration, which enables the latency gauges and sets their window and percentiles
+     * @param metrics       the metrics instance to use
+     * @param time          the clock that advances the window of the latency gauges
+     * @param roster        the roster of nodes in the network
      */
-    public TipsetMetrics(@NonNull final Metrics metrics, @NonNull final RosterWrapper roster) {
+    public TipsetMetrics(
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
+            @NonNull final RosterWrapper roster) {
+
+        final ConsensusLayerMetricsConfig metricsConfig =
+                configuration.getConfigData(ConsensusLayerMetricsConfig.class);
+        if (metricsConfig.latencyEnabled()) {
+            final LatencyGauges.Config transactionLatencyPoolWait = new LatencyGauges.Config(
+                            PLATFORM_CATEGORY, "transactionLatency_poolWait")
+                    .withWindow(metricsConfig.transactionLatencyWindow())
+                    .withPercentiles(metricsConfig.transactionLatencyPercentiles())
+                    .withDescription("time from a transaction without priority entering the transaction pool until"
+                            + " the event creator takes it");
+            poolWait = LatencyGauges.register(metrics, configuration, time, transactionLatencyPoolWait);
+        } else {
+            poolWait = null;
+        }
 
         tipsetAdvancementMetric = metrics.getOrCreate(TIPSET_ADVANCEMENT_CONFIG);
         selfishnessMetric = metrics.getOrCreate(SELFISHNESS_CONFIG);
@@ -127,5 +163,22 @@ public class TipsetMetrics {
     @NonNull
     public AverageStat getMopMetric() {
         return mopMetric;
+    }
+
+    /**
+     * Records the time the transactions of a new event waited in the transaction pool.
+     *
+     * @param timeTransactionsTaken    the time the event creator took the transactions from the pool
+     * @param transactionReceivedTimes the times the transactions without priority entered the pool
+     */
+    public void recordPoolWait(
+            @NonNull final Instant timeTransactionsTaken, @NonNull final List<Instant> transactionReceivedTimes) {
+        if (poolWait == null) {
+            return;
+        }
+        for (final Instant transactionReceived : transactionReceivedTimes) {
+            poolWait.record(
+                    Duration.between(transactionReceived, timeTransactionsTaken).toNanos());
+        }
     }
 }

@@ -3,6 +3,7 @@ package org.hiero.metrics;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.ToDoubleFunction;
 import java.util.function.ToLongFunction;
 import org.hiero.metrics.core.MetricBaseTest;
@@ -54,6 +55,29 @@ public class GaugeAdapterTest
     @Test
     void testNullNameMetricKey() {
         assertThatThrownBy(() -> GaugeAdapter.key(null)).isInstanceOf(NullPointerException.class);
+    }
+
+    @Test
+    void testExportGetterIsCalledOnlyByExports() {
+        AtomicBoolean getterFails = new AtomicBoolean(true);
+        GaugeAdapter<TestContainer> metric = GaugeAdapter.<TestContainer>builderForLong(
+                        GaugeAdapter.key(DEFAULT_NAME), TestContainer::new, container -> {
+                            if (getterFails.get()) {
+                                throw new IllegalStateException("getter failed");
+                            }
+                            return container.getAsLong();
+                        })
+                .addDynamicLabelNames("label")
+                .build();
+
+        // creating the measurement does not call the export getter, so it does not fail
+        metric.getOrCreateLabeled("label", "a").set(5L);
+        assertThatThrownBy(() -> new MetricSnapshotVerifier(metric).verify())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("getter failed");
+
+        getterFails.set(false);
+        new MetricSnapshotVerifier(metric).add(5L, "label", "a").verify();
     }
 
     @Nested

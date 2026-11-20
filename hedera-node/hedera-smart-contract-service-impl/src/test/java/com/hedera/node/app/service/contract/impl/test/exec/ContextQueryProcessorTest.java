@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_SERVICE_ACCOUNT_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HEVM_CREATION;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS_RESULT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.processorsForAllCurrentEvmVersions;
@@ -15,9 +18,11 @@ import com.hedera.node.app.service.contract.impl.exec.ContextQueryProcessor;
 import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
 import com.hedera.node.app.service.contract.impl.exec.utils.OpsDurationCounter;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
+import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction;
 import com.hedera.node.app.service.contract.impl.infra.HevmStaticTransactionFactory;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
@@ -50,6 +55,9 @@ class ContextQueryProcessorTest {
 
     @Mock
     private EntityIdFactory entityIdFactory;
+
+    @Mock
+    private HederaEvmTransaction abortedTransaction;
 
     @Test
     void callsComponentInfraAsExpectedForValidQuery() {
@@ -85,5 +93,29 @@ class ContextQueryProcessorTest {
                 null,
                 null);
         assertEquals(expectedResult, subject.call());
+    }
+
+    @Test
+    void abortedQueryUsesTheTransactionsSyntheticSenderWithoutRequiringAQueryPayer() {
+        final var subject = new ContextQueryProcessor(
+                context,
+                hederaEvmContext,
+                tracer,
+                proxyWorldUpdater,
+                hevmStaticTransactionFactory,
+                processorsForAllCurrentEvmVersions(processor));
+        final var exception = new HandleException(INVALID_CONTRACT_ID);
+        given(context.query()).willReturn(Query.DEFAULT);
+        given(hevmStaticTransactionFactory.fromHapiQuery(Query.DEFAULT)).willThrow(exception);
+        given(hevmStaticTransactionFactory.fromHapiQueryException(Query.DEFAULT, exception))
+                .willReturn(abortedTransaction);
+        given(abortedTransaction.senderId()).willReturn(CLPR_SERVICE_ACCOUNT_ID);
+        given(abortedTransaction.contractId()).willReturn(CALLED_CONTRACT_ID);
+        given(abortedTransaction.exception()).willReturn(exception);
+
+        final var outcome = subject.call();
+
+        assertEquals(INVALID_CONTRACT_ID, outcome.status());
+        assertEquals(CALLED_CONTRACT_ID, outcome.recipientId());
     }
 }

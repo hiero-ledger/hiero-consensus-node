@@ -92,7 +92,7 @@ jobs:
           setup-gradle: "true"
           gradle-cache-read-only: "false"
           setup-node: "true"
-          node-version: "22.23.2"
+          node-version: "24"
 
       #  Checkout the sdk-tck repository and the TCK SDK Client
       - name: Checkout Regression Code
@@ -203,7 +203,7 @@ jobs:
           solo --version
 
       - name: Setup Kind
-        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
+        uses: helm/kind-action@ea822c7bf1874f08e5a491df991c228edffc3376 # v1.15.2
         with:
           install_only: true
           node_image: kindest/node:v1.32.0
@@ -281,6 +281,7 @@ jobs:
           kubectl -n "${SOLO_NAMESPACE}" port-forward svc/mirror-1-rest 5551:http &
           kubectl -n "${SOLO_NAMESPACE}" port-forward svc/mirror-1-restjava 8084:http &
           kubectl -n "${SOLO_NAMESPACE}" port-forward svc/mirror-1-grpc 5600:5600 &
+          kubectl -n "${SOLO_NAMESPACE}" port-forward svc/mirror-1-web3 8545:http &
           sleep 5
 
       - name: Wait for network readiness

@@ -31,6 +31,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.config.Configurator;
+import org.hiero.base.crypto.DigestType;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.utility.test.fixtures.file.AbstractFileManagerAwareTest;
 import org.junit.jupiter.api.AfterAll;
@@ -133,14 +134,11 @@ public class CloseFlushTest extends AbstractFileManagerAwareTest {
         @NonNull
         @Override
         public VirtualDataSource build(
-                final String label,
-                @Nullable final Path sourceDir,
-                final boolean compactionEnabled,
-                final boolean offlineUse) {
+                final String label, @Nullable final Path sourceDir, final boolean compactionEnabled) {
             return new VirtualDataSource() {
                 @Override
-                public void close(boolean keepData) throws IOException {
-                    delegate.close(keepData);
+                public void close() throws IOException {
+                    delegate.close();
                 }
 
                 @Override
@@ -215,13 +213,18 @@ public class CloseFlushTest extends AbstractFileManagerAwareTest {
                 }
 
                 @Override
+                public DigestType getLoadedHashDigestType() {
+                    return delegate.getLoadedHashDigestType();
+                }
+
+                @Override
                 public void enableBackgroundCompaction() {
                     delegate.enableBackgroundCompaction();
                 }
 
                 @Override
-                public void stopAndDisableBackgroundCompaction() {
-                    delegate.stopAndDisableBackgroundCompaction();
+                public void stopAndDisableBackgroundCompaction(final boolean waitForTasksToComplete) {
+                    delegate.stopAndDisableBackgroundCompaction(waitForTasksToComplete);
                 }
             };
         }

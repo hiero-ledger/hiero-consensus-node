@@ -106,4 +106,22 @@ public class MultipleNodeConsensusResultsImpl implements MultipleNodeConsensusRe
     public void clear() {
         results.forEach(OtterResult::clear);
     }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Returns {@code true} if {@link #clear()} has been called on the result of any node.
+     */
+    @Override
+    public boolean isCleared() {
+        return results.stream().anyMatch(OtterResult::isCleared);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean allResultsArrived() {
+        return results.stream().allMatch(OtterResult::allResultsArrived);
+    }
 }

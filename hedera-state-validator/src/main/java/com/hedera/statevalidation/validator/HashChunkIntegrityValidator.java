@@ -1,16 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.validator;
 
+import com.hedera.pbj.runtime.hashing.WritableMessageDigest;
 import com.hedera.statevalidation.validator.util.ValidationException;
 import com.swirlds.merkledb.internal.MerkleDbDataSource;
 import com.swirlds.state.merkle.VirtualMapState;
-import com.swirlds.virtualmap.MerkleHasher;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.ThreadLocalStorage;
+import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 
 /**
@@ -97,8 +99,10 @@ public class HashChunkIntegrityValidator implements HashChunkValidator {
                 return;
             }
 
-            final Hash calculatedChunkHash =
-                    hashChunk.chunkRootHash(MerkleHasher.threadSafeDefault(), firstLeafPath, lastLeafPath);
+            final WritableMessageDigest messageDigest =
+                    ThreadLocalStorage.getWritableMessageDigest(Cryptography.DEFAULT_DIGEST_TYPE.algorithmName());
+            final Hash calculatedChunkHash = hashChunk.chunkRootHash(
+                    firstLeafPath, lastLeafPath, messageDigest, Cryptography.DEFAULT_DIGEST_TYPE);
 
             if (chunkId == 0) {
                 // The root chunk. Compare the hash with VM root hash

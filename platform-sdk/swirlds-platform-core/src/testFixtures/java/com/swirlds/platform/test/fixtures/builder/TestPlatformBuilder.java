@@ -22,7 +22,7 @@ import org.hiero.consensus.ConsensusLayerInputs;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.roster.RosterHistory;
+import org.hiero.consensus.model.roster.ConsensusLayerRosterInputs;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.wiring.framework.model.WiringModel;
 
@@ -46,7 +46,7 @@ public class TestPlatformBuilder extends PlatformBuilder<TestPlatformBuilder> {
      * @param configuration The configuration settings for the platform.
      * @param metrics The metrics system for monitoring and reporting platform performance.
      * @param time The time source for the platform, used for timestamping events and transactions.
-     * @param rosterHistory The roster history provided by the application to use at startup.
+     * @param rosterInputs The roster inputs provided by the application to use at startup.
      * @param keysAndCerts The cryptographic keys and certificates for the node, used for signing and verifying messages.
      * @param selfId The unique identifier of the node within the network.
      * @param recycleBin The recycle bin, which stores deleted files before they are permanently deleted.
@@ -64,7 +64,7 @@ public class TestPlatformBuilder extends PlatformBuilder<TestPlatformBuilder> {
             @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
             @NonNull final Time time,
-            @NonNull final RosterHistory rosterHistory,
+            @NonNull final ConsensusLayerRosterInputs rosterInputs,
             @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final NodeId selfId,
             @NonNull final RecycleBin recycleBin,
@@ -81,7 +81,7 @@ public class TestPlatformBuilder extends PlatformBuilder<TestPlatformBuilder> {
                 configuration,
                 metrics,
                 time,
-                rosterHistory,
+                rosterInputs,
                 keysAndCerts,
                 selfId,
                 recycleBin,
@@ -156,7 +156,7 @@ public class TestPlatformBuilder extends PlatformBuilder<TestPlatformBuilder> {
                 configuration,
                 metrics,
                 time,
-                rosterHistory,
+                rosterInputs,
                 keysAndCerts,
                 selfId,
                 recycleBin,

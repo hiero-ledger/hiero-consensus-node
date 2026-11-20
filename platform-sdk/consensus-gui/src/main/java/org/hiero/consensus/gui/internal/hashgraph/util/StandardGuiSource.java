@@ -20,7 +20,7 @@ public class StandardGuiSource implements HashgraphGuiSource {
     /**
      * Constructor
      *
-     * @param roster       the current roster
+     * @param roster       the active roster
      * @param eventStorage stores information about events
      */
     public StandardGuiSource(@NonNull final RosterWrapper roster, @NonNull final GuiEventStorage eventStorage) {

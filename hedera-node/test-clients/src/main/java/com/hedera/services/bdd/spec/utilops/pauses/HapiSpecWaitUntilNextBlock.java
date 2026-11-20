@@ -10,15 +10,11 @@ import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 
 import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
-import com.hedera.node.config.types.BlockStreamWriterMode;
-import com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension;
-import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
-import com.hedera.services.bdd.junit.hedera.BlockNodeNetwork;
-import com.hedera.services.bdd.junit.hedera.containers.BlockNodeSubscribeClient;
+import com.hedera.services.bdd.junit.hedera.BlockNodeReader;
+import com.hedera.services.bdd.junit.support.BlockSourceFactory;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.utilops.UtilOp;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -57,25 +53,32 @@ public class HapiSpecWaitUntilNextBlock extends UtilOp {
             throw new IllegalArgumentException("Must wait for at least one block");
         }
         this.blocksToWaitFor = count;
-        this.timeout = Duration.ofSeconds(10L * count);
+        // Base matches the default timeout above and absorbs block node serving lag; without it a
+        // single-block wait would get less budget (10s) than a plain wait (30s).
+        this.timeout = Duration.ofSeconds(30L + 10L * count);
         return this;
     }
 
     @Override
     protected boolean submitOp(@NonNull final HapiSpec spec) throws Throwable {
-        if (isWriterModeGrpcOnly(spec)) {
+        // Read the next block from block nodes only when the node streams over gRPC AND a block node network
+        // actually exists to read from. Embedded networks never have a block node (they write blocks to disk),
+        // so they fall through to the disk path even though their configured writerMode resolves as GRPC. This
+        // mirrors the guard StreamValidationOp already uses.
+        if (BlockSourceFactory.isWriterModeGrpcOnly(spec) && BlockNodeReader.activeNetwork() != null) {
             return submitOpViaBlockNodes(spec);
         }
         return submitOpViaDisk(spec);
     }
 
     private boolean submitOpViaBlockNodes(@NonNull final HapiSpec spec) throws Throwable {
-        final var blockNodeNetwork = resolveBlockNodeNetwork();
+        final var blockNodeNetwork = BlockNodeReader.activeNetwork();
         if (blockNodeNetwork == null) {
             throw new IllegalStateException("No block node network available for GRPC-only writer mode");
         }
 
-        final var currentBlock = findLatestBlockNumberFromBlockNodes(blockNodeNetwork);
+        final var reader = BlockNodeReader.of(blockNodeNetwork);
+        final var currentBlock = reader.latestAvailableBlock();
         final var targetBlock = currentBlock + blocksToWaitFor;
 
         log.info(
@@ -90,7 +93,7 @@ public class HapiSpecWaitUntilNextBlock extends UtilOp {
         try {
             final var startTime = System.currentTimeMillis();
             while (true) {
-                if (isBlockCompleteOnBlockNodes(blockNodeNetwork, targetBlock)) {
+                if (reader.hasBlock(targetBlock)) {
                     log.info("Block {} confirmed on block nodes", targetBlock);
                     return false;
                 }
@@ -196,73 +199,5 @@ public class HapiSpecWaitUntilNextBlock extends UtilOp {
         String fileName = path.getFileName().toString();
         return Files.isRegularFile(path)
                 && (fileName.endsWith(BLOCK_FILE_EXTENSION) || fileName.endsWith(COMPRESSED_BLOCK_FILE_EXTENSION));
-    }
-
-    @Nullable
-    private static BlockNodeNetwork resolveBlockNodeNetwork() {
-        var network = HapiSpec.TARGET_BLOCK_NODE_NETWORK.get();
-        if (network == null) {
-            network = NetworkTargetingExtension.SHARED_BLOCK_NODE_NETWORK.get();
-        }
-        return network;
-    }
-
-    private static long findLatestBlockNumberFromBlockNodes(@NonNull final BlockNodeNetwork blockNodeNetwork) {
-        final var mode = blockNodeNetwork.getBlockNodeModeById().values().stream()
-                .findFirst()
-                .orElse(BlockNodeMode.NONE);
-        if (mode == BlockNodeMode.SIMULATOR) {
-            return blockNodeNetwork.getSimulatedBlockNodeById().values().stream()
-                    .mapToLong(sim -> sim.getLastVerifiedBlockNumber())
-                    .max()
-                    .orElse(-1L);
-        } else if (mode == BlockNodeMode.REAL) {
-            long best = -1L;
-            for (final var entry : blockNodeNetwork.getBlockNodeContainerById().entrySet()) {
-                try (final var client = new BlockNodeSubscribeClient(
-                        entry.getValue().getHost(), entry.getValue().getPort())) {
-                    final long last = client.getLastAvailableBlock();
-                    if (last > best) {
-                        best = last;
-                    }
-                } catch (Exception e) {
-                    log.warn("Failed to query real block node {} for latest block", entry.getKey(), e);
-                }
-            }
-            return best;
-        }
-        return -1L;
-    }
-
-    private static boolean isBlockCompleteOnBlockNodes(
-            @NonNull final BlockNodeNetwork blockNodeNetwork, final long blockNumber) {
-        final var mode = blockNodeNetwork.getBlockNodeModeById().values().stream()
-                .findFirst()
-                .orElse(BlockNodeMode.NONE);
-        if (mode == BlockNodeMode.SIMULATOR) {
-            return blockNodeNetwork.getSimulatedBlockNodeById().values().stream()
-                    .anyMatch(sim -> sim.hasReceivedBlock(blockNumber));
-        } else if (mode == BlockNodeMode.REAL) {
-            for (final var entry : blockNodeNetwork.getBlockNodeContainerById().entrySet()) {
-                try (final var client = new BlockNodeSubscribeClient(
-                        entry.getValue().getHost(), entry.getValue().getPort())) {
-                    if (client.getLastAvailableBlock() >= blockNumber) {
-                        return true;
-                    }
-                } catch (Exception e) {
-                    log.warn("Failed to query real block node {} for block {}", entry.getKey(), blockNumber, e);
-                }
-            }
-        }
-        return false;
-    }
-
-    private static boolean isWriterModeGrpcOnly(@NonNull final HapiSpec spec) {
-        try {
-            final var writerMode = spec.startupProperties().get("blockStream.writerMode");
-            return BlockStreamWriterMode.GRPC.name().equals(writerMode);
-        } catch (Exception e) {
-            return false;
-        }
     }
 }

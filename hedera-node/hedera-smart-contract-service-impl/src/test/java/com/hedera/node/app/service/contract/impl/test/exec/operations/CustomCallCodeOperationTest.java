@@ -4,12 +4,15 @@ package com.hedera.node.app.service.contract.impl.test.exec.operations;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.INVALID_SOLIDITY_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.*;
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.DefaultExceptionalHaltReason.INVALID_OPERATION;
+import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.INSUFFICIENT_GAS;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.verify;
 
 import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
@@ -24,6 +27,7 @@ import org.hyperledger.besu.evm.EVM;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
+import org.hyperledger.besu.evm.gascalculator.StateGasCostCalculator;
 import org.hyperledger.besu.evm.internal.UnderflowException;
 import org.hyperledger.besu.evm.operation.Operation;
 import org.hyperledger.besu.evm.worldstate.WorldUpdater;
@@ -113,6 +117,25 @@ class CustomCallCodeOperationTest {
         }
     }
 
+    @Test
+    void warmTargetIsPricedWarmInGasPreCheck() {
+        try (MockedStatic<FrameUtils> frameUtils = Mockito.mockStatic(FrameUtils.class)) {
+            frameUtils.when(() -> FrameUtils.isHookExecution(frame)).thenReturn(false);
+            givenWellKnownFrameWithNoGasCalc(1L, SYSTEM_ADDRESS, 2L);
+            given(frame.getRemainingGas()).willReturn(0L);
+            given(frame.isAddressWarm(SYSTEM_ADDRESS)).willReturn(true);
+            given(gasCalculator.callOperationGasCost(
+                            any(), anyLong(), anyLong(), anyLong(), anyLong(), anyLong(), anyLong(), any(), any(),
+                            eq(true)))
+                    .willReturn(REQUIRED_GAS);
+            final var expected = new Operation.OperationResult(REQUIRED_GAS, INSUFFICIENT_GAS);
+            assertSameResult(expected, subject.execute(frame, evm));
+            verify(gasCalculator)
+                    .callOperationStaticGasCost(
+                            any(), anyLong(), anyLong(), anyLong(), anyLong(), anyLong(), any(), any(), eq(true));
+        }
+    }
+
     private void givenWellKnownFrameWithNoGasCalcNoValue(final Address to, final long gas) {
         given(frame.getStackItem(0)).willReturn(Bytes32.leftPad(Bytes.ofUnsignedLong(gas)));
         given(frame.getStackItem(3)).willReturn(Bytes32.leftPad(Bytes.ofUnsignedLong(3)));
@@ -135,6 +158,8 @@ class CustomCallCodeOperationTest {
     private void givenWellKnownFrameWith(final long value, final Address to, final long gas) {
         givenWellKnownFrameWithNoGasCalc(value, to, gas);
         given(frame.getRemainingGas()).willReturn(REQUIRED_GAS);
+        lenient().when(gasCalculator.stateGasCostCalculator()).thenReturn(StateGasCostCalculator.NONE);
+        lenient().when(frame.consumeStateGas(anyLong())).thenReturn(true);
         given(gasCalculator.callOperationGasCost(
                         any(),
                         anyLong(),

@@ -1,0 +1,338 @@
+# SPDX-License-Identifier: Apache-2.0
+# Reruns the MATS HAPI panels, CLPR and Wraps in the pre-cutover world (the pre-cutover profile):
+# the block stream and TSS defaults from before the switch, which MATS no longer runs
+name: "829: [CALL] Exec XTS HAPI Pre-cutover"
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: "The branch, tag or SHA to checkout."
+        required: false
+        type: string
+        default: ""
+      java-distribution:
+        description: "Java JDK Distribution:"
+        type: string
+        required: false
+        default: "temurin"
+      java-version:
+        description: "Java JDK Version:"
+        type: string
+        required: false
+      node-version:
+        description: "NodeJS Version:"
+        type: string
+        required: false
+        default: "24"
+      enable-network-log-capture:
+        description: "Network Log Capture Enabled"
+        type: string
+        required: false
+        default: "false"
+    secrets:
+      access-token:
+        description: "The GitHub access token used to checkout the repository, submodules, and make GitHub API calls."
+        required: true
+      gradle-cache-username:
+        description: "The username used to authenticate with the Gradle Build Cache Node."
+        required: true
+      gradle-cache-password:
+        description: "The password used to authenticate with the Gradle Build Cache Node."
+        required: true
+    outputs:
+      failure-mode:
+        description: "Indicates the failure mode of the job, if any."
+        value: ${{ jobs.set-failure-mode.outputs.failure-mode }}
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  id-token: write
+  actions: read
+  pull-requests: write
+  statuses: write
+  checks: write
+  contents: read
+
+jobs:
+  hapi-tests-misc:
+    uses: ./.github/workflows/874-call-execute-hapi-suite.yaml
+    with:
+      suite-name: "Misc"
+      # yahcli ignores the HAPI test config profile, so a profile rerun would only repeat it
+      gradle-tasks: >-
+        hapiTestMisc
+        hapiTestGenesisSubProcess
+        hapiTestMiscEmbedded
+        hapiTestMiscRepeatable
+      ref: ${{ inputs.ref }}
+      java-distribution: ${{ inputs.java-distribution }}
+      java-version: ${{ inputs.java-version }}
+      node-version: ${{ inputs.node-version }}
+      enable-network-log-capture: ${{ inputs.enable-network-log-capture }}
+      hapi-test-config-profile: "pre-cutover"
+      name-suffix: " (Pre-cutover configs)"
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  hapi-tests-misc-records-crypto-and-serial:
+    uses: ./.github/workflows/874-call-execute-hapi-suite.yaml
+    with:
+      suite-name: "Misc Records, Crypto & Misc Serial"
+      gradle-tasks: >-
+        hapiTestMiscRecords
+        hapiTestMiscRecordsSerial
+        hapiTestCrypto
+        hapiTestCryptoEmbedded
+        hapiTestCryptoSerial
+        hapiTestMiscSerial
+      ref: ${{ inputs.ref }}
+      java-distribution: ${{ inputs.java-distribution }}
+      java-version: ${{ inputs.java-version }}
+      node-version: ${{ inputs.node-version }}
+      enable-network-log-capture: ${{ inputs.enable-network-log-capture }}
+      hapi-test-config-profile: "pre-cutover"
+      name-suffix: " (Pre-cutover configs)"
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  hapi-tests-time-consuming-and-node-staking:
+    uses: ./.github/workflows/874-call-execute-hapi-suite.yaml
+    with:
+      suite-name: "Time Consuming & Node Staking"
+      gradle-tasks: >-
+        hapiTestTimeConsuming
+        hapiTestTimeConsumingSerial
+        hapiTestNodeStaking
+        hapiTestNodeStakingSerial
+      ref: ${{ inputs.ref }}
+      java-distribution: ${{ inputs.java-distribution }}
+      java-version: ${{ inputs.java-version }}
+      node-version: ${{ inputs.node-version }}
+      enable-network-log-capture: ${{ inputs.enable-network-log-capture }}
+      hapi-test-config-profile: "pre-cutover"
+      name-suffix: " (Pre-cutover configs)"
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  hapi-tests-simple-fees-and-nd-reconnect:
+    uses: ./.github/workflows/874-call-execute-hapi-suite.yaml
+    with:
+      suite-name: "Simple Fees & ND Reconnect"
+      gradle-tasks: >-
+        hapiTestSimpleFees
+        hapiTestSimpleFeesEmbedded
+        hapiTestSimpleFeesSerial
+        hapiTestNDReconnect
+      ref: ${{ inputs.ref }}
+      java-distribution: ${{ inputs.java-distribution }}
+      java-version: ${{ inputs.java-version }}
+      node-version: ${{ inputs.node-version }}
+      enable-network-log-capture: ${{ inputs.enable-network-log-capture }}
+      hapi-test-config-profile: "pre-cutover"
+      name-suffix: " (Pre-cutover configs)"
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  hapi-tests-smart-contracts-and-iss:
+    uses: ./.github/workflows/874-call-execute-hapi-suite.yaml
+    with:
+      suite-name: "Smart Contracts & ISS"
+      gradle-tasks: >-
+        hapiTestSmartContract
+        hapiTestSmartContractSerial
+        hapiTestIss
+        hapiTestIssGrpc
+      ref: ${{ inputs.ref }}
+      java-distribution: ${{ inputs.java-distribution }}
+      java-version: ${{ inputs.java-version }}
+      node-version: ${{ inputs.node-version }}
+      enable-network-log-capture: ${{ inputs.enable-network-log-capture }}
+      hapi-test-config-profile: "pre-cutover"
+      name-suffix: " (Pre-cutover configs)"
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  hapi-tests-restart:
+    uses: ./.github/workflows/874-call-execute-hapi-suite.yaml
+    with:
+      suite-name: "Restart"
+      # hapiTestPreCutover ignores the HAPI test config profile, so a profile rerun would only repeat it
+      gradle-tasks: >-
+        hapiTestRestart
+      ref: ${{ inputs.ref }}
+      java-distribution: ${{ inputs.java-distribution }}
+      java-version: ${{ inputs.java-version }}
+      node-version: ${{ inputs.node-version }}
+      enable-network-log-capture: ${{ inputs.enable-network-log-capture }}
+      hapi-test-config-profile: "pre-cutover"
+      name-suffix: " (Pre-cutover configs)"
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  hapi-tests-atomic-batch:
+    uses: ./.github/workflows/874-call-execute-hapi-suite.yaml
+    with:
+      suite-name: "Atomic Batch"
+      gradle-tasks: >-
+        hapiTestAtomicBatch
+        hapiTestAtomicBatchSerial
+        hapiTestAtomicBatchEmbedded
+      runner: "hl-cn-hapi-lin-xl"
+      ref: ${{ inputs.ref }}
+      java-distribution: ${{ inputs.java-distribution }}
+      java-version: ${{ inputs.java-version }}
+      node-version: ${{ inputs.node-version }}
+      enable-network-log-capture: ${{ inputs.enable-network-log-capture }}
+      hapi-test-config-profile: "pre-cutover"
+      name-suffix: " (Pre-cutover configs)"
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  hapi-tests-token-and-state-throttling:
+    uses: ./.github/workflows/874-call-execute-hapi-suite.yaml
+    with:
+      suite-name: "Token & State Throttling"
+      gradle-tasks: >-
+        hapiTestToken
+        hapiTestTokenSerial
+        hapiTestStateThrottling
+      ref: ${{ inputs.ref }}
+      java-distribution: ${{ inputs.java-distribution }}
+      java-version: ${{ inputs.java-version }}
+      node-version: ${{ inputs.node-version }}
+      enable-network-log-capture: ${{ inputs.enable-network-log-capture }}
+      hapi-test-config-profile: "pre-cutover"
+      name-suffix: " (Pre-cutover configs)"
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  hapi-tests-clpr:
+    uses: ./.github/workflows/874-call-execute-hapi-suite.yaml
+    with:
+      suite-name: "CLPR"
+      # CLPR (cross-ledger) HAPI suites: @Tag(CLPR), @Tag(CLPR)+embedded, and the
+      # @Tag(MULTINETWORK) subprocess suites. The harness installs TSS startup fixtures;
+      # WRAPS parameters are bundled in the 3.20.1 library, so no CI download is needed.
+      gradle-tasks: >-
+        hapiTestClpr
+        hapiTestClprEmbedded
+        hapiTestClprMultinetwork
+      ref: ${{ inputs.ref }}
+      java-distribution: ${{ inputs.java-distribution }}
+      java-version: ${{ inputs.java-version }}
+      node-version: ${{ inputs.node-version }}
+      enable-network-log-capture: ${{ inputs.enable-network-log-capture }}
+      hapi-test-config-profile: "pre-cutover"
+      name-suffix: " (Pre-cutover configs)"
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  hapi-tests-wraps:
+    uses: ./.github/workflows/874-call-execute-hapi-suite.yaml
+    with:
+      suite-name: "Wraps"
+      gradle-tasks: >-
+        hapiTestWraps
+      # Dedicated runner pool sized for WRAPS proof construction, which uses every
+      # available core and a few GiB of off-heap memory per proving node
+      runner: "hl-cn-hapi-wraps-lin-lg"
+      # Each subtask spins up its own subprocess network and constructs WRAPS proofs
+      timeout-minutes: 120
+      # Cap each node JVM's share of the heap pool (4 GiB x 3 nodes) on the shared pod
+      node-pool-mib: "12288"
+      ref: ${{ inputs.ref }}
+      java-distribution: ${{ inputs.java-distribution }}
+      java-version: ${{ inputs.java-version }}
+      node-version: ${{ inputs.node-version }}
+      enable-network-log-capture: ${{ inputs.enable-network-log-capture }}
+      # This rerun skips 846, whose hapiTestCutover ignores the profile anyway
+      hapi-test-config-profile: "pre-cutover"
+      name-suffix: " (Pre-cutover configs)"
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  set-failure-mode:
+    name: "Set Failure Mode"
+    runs-on: hl-cn-default-lin-sm
+    needs:
+      - hapi-tests-misc
+      - hapi-tests-misc-records-crypto-and-serial
+      - hapi-tests-time-consuming-and-node-staking
+      - hapi-tests-simple-fees-and-nd-reconnect
+      - hapi-tests-smart-contracts-and-iss
+      - hapi-tests-restart
+      - hapi-tests-atomic-batch
+      - hapi-tests-token-and-state-throttling
+      - hapi-tests-clpr
+      - hapi-tests-wraps
+    if: ${{ always() }}
+    outputs:
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
+      failed-tests: ${{ steps.set-failure-mode.outputs.failed-tests }}
+    steps:
+      - name: Initialize GitHub Job
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
+        with:
+          checkout: "true"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Set Failure Mode
+        id: set-failure-mode
+        env:
+          INPUT_JOB_STATUSES: >-
+            ${{ needs.hapi-tests-misc.result }}
+            ${{ needs.hapi-tests-misc-records-crypto-and-serial.result }}
+            ${{ needs.hapi-tests-time-consuming-and-node-staking.result }}
+            ${{ needs.hapi-tests-simple-fees-and-nd-reconnect.result }}
+            ${{ needs.hapi-tests-smart-contracts-and-iss.result }}
+            ${{ needs.hapi-tests-restart.result }}
+            ${{ needs.hapi-tests-atomic-batch.result }}
+            ${{ needs.hapi-tests-token-and-state-throttling.result }}
+            ${{ needs.hapi-tests-clpr.result }}
+            ${{ needs.hapi-tests-wraps.result }}
+          INPUT_JOB_FAILURE_MODES: >-
+            ${{ needs.hapi-tests-misc.outputs.failure-mode || 'none' }}
+            ${{ needs.hapi-tests-misc-records-crypto-and-serial.outputs.failure-mode || 'none' }}
+            ${{ needs.hapi-tests-time-consuming-and-node-staking.outputs.failure-mode || 'none' }}
+            ${{ needs.hapi-tests-simple-fees-and-nd-reconnect.outputs.failure-mode || 'none' }}
+            ${{ needs.hapi-tests-smart-contracts-and-iss.outputs.failure-mode || 'none' }}
+            ${{ needs.hapi-tests-restart.outputs.failure-mode || 'none' }}
+            ${{ needs.hapi-tests-atomic-batch.outputs.failure-mode || 'none' }}
+            ${{ needs.hapi-tests-token-and-state-throttling.outputs.failure-mode || 'none' }}
+            ${{ needs.hapi-tests-clpr.outputs.failure-mode || 'none' }}
+            ${{ needs.hapi-tests-wraps.outputs.failure-mode || 'none' }}
+          INPUT_JOB_NAMES: >-
+            hapi-tests-misc
+            hapi-tests-misc-records-crypto-and-serial
+            hapi-tests-time-consuming-and-node-staking
+            hapi-tests-simple-fees-and-nd-reconnect
+            hapi-tests-smart-contracts-and-iss
+            hapi-tests-restart
+            hapi-tests-atomic-batch
+            hapi-tests-token-and-state-throttling
+            hapi-tests-clpr
+            hapi-tests-wraps
+        run: bash .github/workflows/support/scripts/set-failure-mode.sh

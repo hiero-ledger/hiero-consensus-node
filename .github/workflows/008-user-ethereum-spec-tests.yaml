@@ -1,0 +1,101 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "008: [USER] Ethereum Spec Tests"
+
+# Runs the Ethereum Execution Spec Tests (Hedera fork) against a single solo network built from the selected ref.
+# The tests themselves live in 873-call-ethereum-spec-tests.yaml, which XTS (815) also calls; this workflow only adds
+# the manual and pull request label triggers.
+#
+# Triggers: manually (workflow_dispatch), or on a pull request that carries the "Run Ethereum Spec Tests" label. Pull
+# request runs, and blank inputs of manual runs, use the DEFAULT_* values of 873.
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Consensus-node branch, tag, or SHA to build and deploy (e.g. the branch of the PR under test)."
+        required: true
+        type: string
+      # The optional inputs have no default here: a blank input falls back to its DEFAULT_* value in the env of 873,
+      # the single place where the defaults are kept.
+      spec-tests-ref:
+        description: "hiero-ethereum-execution-spec-tests branch, tag, or SHA to test with. Blank → 873's DEFAULT_SPEC_TESTS_REF."
+        required: false
+        type: string
+      evm-testing-ref:
+        description: "hashgraph/hedera-evm-testing branch, tag, or SHA whose test.sh (spec profile) starts the network. Blank → 873's DEFAULT_EVM_TESTING_REF."
+        required: false
+        type: string
+      forks:
+        description: "Comma-separated spec test directories (tests/<fork>/) to run in parallel against the network. Blank → 873's DEFAULT_FORKS (all)."
+        required: false
+        type: string
+      workers-scale:
+        description: "Multiplier for the per-fork pytest-xdist worker counts (see the Run the tests step). Blank → 873's DEFAULT_WORKERS_SCALE (1)."
+        required: false
+        type: string
+      extra-pytest-args:
+        description: "Extra arguments appended to `execute remote` (e.g. `-k test_name`). Blank → none."
+        required: false
+        type: string
+      solo-version:
+        description: "Solo version to install. Blank → adhoc-solo-version from .citr-env."
+        required: false
+        type: string
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - labeled
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+
+# A new push to a labelled pull request cancels the run in progress instead of queueing another ~2 hour run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # On pull requests everything is skipped unless the PR has the "Run Ethereum Spec Tests" label; spec-tests needs
+  # both jobs below, so gating them gates the whole workflow.
+  extract-jdk-version:
+    name: Extract Java Version
+    if: ${{ github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'Run Ethereum Spec Tests') }}
+    uses: ./.github/workflows/854-call-extract-jdk-version.yaml
+    with:
+      ref: ${{ inputs.ref || github.ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  extract-citr-vars:
+    name: Extract CITR Vars
+    if: ${{ github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'Run Ethereum Spec Tests') }}
+    uses: ./.github/workflows/855-call-extract-citr-vars.yaml
+    with:
+      ref: ${{ inputs.ref || github.ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  spec-tests:
+    name: Ethereum Spec Tests
+    needs:
+      - extract-jdk-version
+      - extract-citr-vars
+    uses: ./.github/workflows/873-call-ethereum-spec-tests.yaml
+    with:
+      ref: ${{ inputs.ref || '' }}
+      java-version: ${{ needs.extract-jdk-version.outputs.jdk-version }}
+      solo-version: ${{ inputs.solo-version || needs.extract-citr-vars.outputs.adhoc-solo-version }}
+      spec-tests-ref: ${{ inputs.spec-tests-ref }}
+      evm-testing-ref: ${{ inputs.evm-testing-ref }}
+      forks: ${{ inputs.forks }}
+      workers-scale: ${{ inputs.workers-scale }}
+      extra-pytest-args: ${{ inputs.extra-pytest-args }}
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}

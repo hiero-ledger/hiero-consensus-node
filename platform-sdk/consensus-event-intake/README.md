@@ -8,6 +8,11 @@ deduplicating, and topologically ordering events before emitting them downstream
 The API half of the event-intake module pair. For how intake works, see the
 [event-intake topic](../docs/consensus-layer/architecture/topics/event-intake.md).
 
+## Benchmarks
+
+The JMH benchmarks in `src/jmh` follow the
+[benchmark conventions](../docs/consensus-layer/benchmarks/README.md).
+
 ## Dependency Rules
 
 May depend on:
@@ -22,7 +27,4 @@ Must not depend on:
 - `swirlds-metrics-impl`, `swirlds-logging-log4j-appender`,
 `swirlds-state-api`, `swirlds-state-impl`, `swirlds-virtualmap`
 
-Known violation — `requires transitive org.hiero.consensus.roster`: `consensus-roster` is a
-structural-transitional module that nothing outside that category should depend on (rules 3 and
-7). This does not resolve on its own — the dependency has to be removed before `consensus-roster`
-can move to the execution layer.
+No known violations.

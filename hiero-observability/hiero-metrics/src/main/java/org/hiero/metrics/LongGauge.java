@@ -62,6 +62,7 @@ public final class LongGauge extends SettableMetric<LongSupplier, LongGauge.Meas
         return new Measurement(initializer);
     }
 
+    @NonNull
     @Override
     protected MeasurementSnapshot createMeasurementSnapshot(
             @NonNull Measurement measurement, @NonNull LabelValues labelValues) {

@@ -8,6 +8,7 @@ import static java.util.Objects.requireNonNull;
 import static org.hiero.otter.fixtures.app.OtterStateUtils.commitState;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
@@ -20,7 +21,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
-import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
@@ -73,16 +73,22 @@ public class OtterApp implements ConsensusStateEventHandler {
      *
      * @param configuration the configuration to use to create the app and its services
      * @param version the software version to set in the state
+     * @param genesisRoster the roster to write to the state in the first round, if the state does not contain a roster
+     * yet
      */
-    public OtterApp(@NonNull final Configuration configuration, @NonNull final SemanticVersion version) {
+    public OtterApp(
+            @NonNull final Configuration configuration,
+            @NonNull final SemanticVersion version,
+            @NonNull final Roster genesisRoster) {
         this.version = requireNonNull(version);
 
         final OtterAppConfig appConfig = configuration.getConfigData(OtterAppConfig.class);
         this.appServices =
                 appConfig.services().stream().map(OtterApp::instantiateService).toList();
-        this.allServices = Stream.concat(
-                        appServices.stream(), Stream.of(new PlatformStateService(), new RosterService()))
-                .toList();
+        final Stream<OtterService> hederaAppServices =
+                Stream.of(new PlatformStateService(), new RosterService(genesisRoster));
+        this.allServices =
+                Stream.concat(appServices.stream(), hederaAppServices).toList();
     }
 
     @NonNull
@@ -130,11 +136,10 @@ public class OtterApp implements ConsensusStateEventHandler {
         for (final OtterService service : allServices) {
             service.preHandleEvent(event);
         }
-        final Iterator<Transaction> transactionIterator = event.transactionIterator();
-        while (transactionIterator.hasNext()) {
+        for (final Transaction txn : event.getTransactions()) {
             try {
                 final OtterTransaction transaction = OtterTransaction.parseFrom(
-                        transactionIterator.next().getApplicationTransaction().toInputStream());
+                        txn.getApplicationTransaction().toInputStream());
                 for (final OtterService service : allServices) {
                     service.preHandleTransaction(event, transaction, callback);
                 }
@@ -159,13 +164,11 @@ public class OtterApp implements ConsensusStateEventHandler {
             service.onRoundStart(state.getWritableStates(service.name()), round);
         }
 
-        for (final ConsensusEvent consensusEvent : round) {
+        for (final ConsensusEvent consensusEvent : round.getConsensusEvents()) {
             for (final OtterService service : allServices) {
                 service.onEventStart(state.getWritableStates(service.name()), consensusEvent);
             }
-            final Iterator<ConsensusTransaction> transactionIterator = consensusEvent.consensusTransactionIterator();
-            while (transactionIterator.hasNext()) {
-                final ConsensusTransaction consensusTransaction = transactionIterator.next();
+            for (final ConsensusTransaction consensusTransaction : consensusEvent.getTransactions()) {
                 try {
                     final OtterTransaction transaction = OtterTransaction.parseFrom(
                             consensusTransaction.getApplicationTransaction().toInputStream());

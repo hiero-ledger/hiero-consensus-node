@@ -4,15 +4,19 @@ package com.hedera.node.app.workflows.handle.record;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS_BUT_MISSING_EXPECTED_OPERATION;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
+import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.GENESIS_WORK;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.parseEd25519NodeAdminKeysFrom;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.LEDGER_CONFIGURATION_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.dispatchSynthFileUpdate;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.parseConfigList;
 import static com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUpdater.END_OF_PERIOD_MEMO;
 import static com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUtils.fromStakingInfo;
 import static com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUtils.lastInstantOfPreviousPeriodFor;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.dispatchSynthNodeRewards;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.INTERNAL_SYSTEM_TRANSACTION;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.SYSTEM_TXN_CREATION_ENTITY_NUM;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
 import static com.hedera.node.app.util.FileUtilities.createFileID;
@@ -21,15 +25,18 @@ import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
 import static com.hedera.node.app.workflows.handle.TransactionType.INTERNAL_TRANSACTION;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
-import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.node.NodeUtilities.formatNodeName;
 import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.hedera.hapi.node.addressbook.AssociatedRegisteredNodeList;
 import com.hedera.hapi.node.addressbook.NodeCreateTransactionBody;
 import com.hedera.hapi.node.addressbook.NodeDeleteTransactionBody;
 import com.hedera.hapi.node.addressbook.NodeUpdateTransactionBody;
+import com.hedera.hapi.node.addressbook.RegisteredNodeCreateTransactionBody;
+import com.hedera.hapi.node.addressbook.RegisteredNodeDeleteTransactionBody;
+import com.hedera.hapi.node.addressbook.RegisteredNodeUpdateTransactionBody;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Duration;
 import com.hedera.hapi.node.base.FileID;
@@ -38,12 +45,18 @@ import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
+import com.hedera.hapi.node.clpr.ClprUpdateLedgerConfigurationTransactionBody;
+import com.hedera.hapi.node.state.addressbook.Node;
+import com.hedera.hapi.node.state.addressbook.RegisteredNode;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.NodeMigrationRootHashVote;
+import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
+import com.hedera.hapi.node.state.clpr.ClprThrottles;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.state.history.ProofKey;
 import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
@@ -63,7 +76,10 @@ import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.records.impl.WrappedRecordBlockHashMigration;
 import com.hedera.node.app.records.schemas.V0490BlockRecordSchema;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
+import com.hedera.node.app.service.addressbook.ReadableRegisteredNodeStore;
 import com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema;
+import com.hedera.node.app.service.clpr.ClprService;
+import com.hedera.node.app.service.clpr.impl.ClprLedgerConfigurationFile;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.ReadableEntityIdStore;
@@ -97,6 +113,7 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.BootstrapConfig;
+import com.hedera.node.config.data.ClprConfig;
 import com.hedera.node.config.data.ConsensusConfig;
 import com.hedera.node.config.data.FilesConfig;
 import com.hedera.node.config.data.HederaConfig;
@@ -106,10 +123,10 @@ import com.hedera.node.config.data.NodesConfig;
 import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.data.StakingConfig;
 import com.hedera.node.config.types.StreamMode;
+import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
@@ -123,15 +140,22 @@ import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.SortedMap;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -171,7 +195,6 @@ public class SystemTransactions {
             EnumSet.of(SUCCESS, SUCCESS_BUT_MISSING_EXPECTED_OPERATION);
     private static final Consumer<Dispatch> DEFAULT_DISPATCH_ON_SUCCESS = dispatch -> {};
 
-    private final InitTrigger initTrigger;
     private final BlocklistParser blocklistParser = new BlocklistParser();
     private final FileServiceImpl fileService;
     private final ParentTxnFactory parentTxnFactory;
@@ -206,7 +229,6 @@ public class SystemTransactions {
      */
     @Inject
     public SystemTransactions(
-            @NonNull final InitTrigger initTrigger,
             @NonNull final ParentTxnFactory parentTxnFactory,
             @NonNull final FileServiceImpl fileService,
             @NonNull final NetworkInfo networkInfo,
@@ -223,7 +245,6 @@ public class SystemTransactions {
             @NonNull final SelfNodeAccountIdManager selfNodeAccountIdManager,
             @NonNull final WrappedRecordBlockHashMigration wrappedRecordBlockHashMigration,
             @NonNull final MigrationRootHashSubmissions migrationRootHashSubmissions) {
-        this.initTrigger = requireNonNull(initTrigger);
         this.fileService = requireNonNull(fileService);
         this.parentTxnFactory = requireNonNull(parentTxnFactory);
         this.networkInfo = requireNonNull(networkInfo);
@@ -349,6 +370,11 @@ public class SystemTransactions {
                                 .build())
                         .build(),
                 accountsConfig.feeCollectionAccount());
+        // Create the CLPR staking account only if CLPR is enabled at genesis; otherwise post-upgrade
+        // setup creates it at the upgrade that enables CLPR
+        if (config.getConfigData(ClprConfig.class).enabled()) {
+            dispatchClprStakingAccountCreation(systemContext, systemAutoRenewPeriod, config);
+        }
         // Create the miscellaneous accounts
         final var hederaConfig = config.getConfigData(HederaConfig.class);
         for (long i : LongStream.range(FIRST_MISC_ACCOUNT_NUM, hederaConfig.firstUserEntity())
@@ -360,6 +386,11 @@ public class SystemTransactions {
                                     .build())
                             .build(),
                     i);
+        }
+        // Create the CLPR admin account only if CLPR is enabled and its number is not one of the accounts
+        // created above (the default is a treasury clone)
+        if (isClprAdminAccountMissing(state, config)) {
+            dispatchClprAdminAccountCreation(systemContext, systemKey, systemAutoRenewPeriod, config);
         }
         // If requested, create accounts with aliases from the blocklist
         if (accountsConfig.blocklistEnabled()) {
@@ -375,6 +406,28 @@ public class SystemTransactions {
             }
         }
 
+        // Create any registered nodes in the genesis network, before the consensus nodes that may associate them
+        final var genesisNetwork = maybeGenesisNetwork(config);
+        final var consensusNodeIds =
+                networkInfo.addressBook().stream().map(NodeInfo::nodeId).collect(Collectors.toSet());
+        final var genesisRegisteredNodes =
+                genesisNetwork.map(Network::registeredNodes).orElse(List.of());
+        final Set<Long> genesisRegisteredNodeIds = new HashSet<>();
+        for (final var registeredNode : usableRegisteredNodes(genesisRegisteredNodes, consensusNodeIds, config)) {
+            dispatchSynthRegisteredNodeCreation(systemContext, registeredNode);
+            genesisRegisteredNodeIds.add(registeredNode.registeredNodeId());
+        }
+        final var registeredNodeIdsInState = registeredNodeIdsInState(state, genesisRegisteredNodeIds);
+        final var maxAssociatedRegisteredNodes =
+                config.getConfigData(NodesConfig.class).maxAssociatedRegisteredNodes();
+        final Map<Long, List<Long>> genesisAssociations = genesisNetwork
+                .map(network -> network.nodeMetadata().stream()
+                        .filter(NodeMetadata::hasNode)
+                        .map(NodeMetadata::nodeOrThrow)
+                        .collect(Collectors.toMap(
+                                Node::nodeId, Node::associatedRegisteredNode, (first, second) -> first)))
+                .orElse(Map.of());
+
         // Create the address book nodes
         final var stakingConfig = config.getConfigData(StakingConfig.class);
         final var numStoredPeriods = stakingConfig.rewardHistoryNumStoredPeriods();
@@ -387,6 +440,11 @@ public class SystemTransactions {
             }
             final var hapiEndpoints =
                     nodeInfo.hapiEndpoints().isEmpty() ? UNKNOWN_HAPI_ENDPOINT : nodeInfo.hapiEndpoints();
+            final var associatedRegisteredNodes = associationsIn(
+                    registeredNodeIdsInState,
+                    nodeInfo.nodeId(),
+                    genesisAssociations.getOrDefault(nodeInfo.nodeId(), List.of()),
+                    maxAssociatedRegisteredNodes);
             onSuccess.set(dispatch -> {
                 final var stack = dispatch.stack();
                 final var writableStakingInfoStore = new WritableStakingInfoStore(
@@ -417,7 +475,8 @@ public class SystemTransactions {
                                 .gossipEndpoint(nodeInfo.gossipEndpoints())
                                 .gossipCaCertificate(nodeInfo.sigCertBytes())
                                 .serviceEndpoint(hapiEndpoints)
-                                .declineReward(true);
+                                .declineReward(true)
+                                .associatedRegisteredNode(associatedRegisteredNodes);
                         Optional.ofNullable(nodeInfo.grpcCertHash()).ifPresent(nodeCreate::grpcCertificateHash);
                         b.nodeCreate(nodeCreate.build());
                     },
@@ -505,6 +564,15 @@ public class SystemTransactions {
                 adminConfig.upgradeNodeAdminKeysFile(),
                 SystemTransactions::parseNodeAdminKeys);
         autoNodeAdminKeyUpdates.tryIfPresent(adminConfig.upgradeSysFilesLoc(), systemContext);
+        // Use the configuration as of now, so the upgrade's property overrides can enable CLPR
+        final var currentConfig = configProvider.getConfiguration();
+        if (isClprStakingAccountMissing(state, currentConfig)) {
+            createClprStakingAccount(systemContext, currentConfig);
+        }
+        if (isClprAdminAccountMissing(state, currentConfig)) {
+            createClprAdminAccount(state, systemContext, currentConfig);
+        }
+        maybeUpdateClprLedgerConfiguration(state, systemContext, currentConfig, adminConfig.upgradeSysFilesLoc());
         startupNetworks.clearCachedNetworks();
     }
 
@@ -577,27 +645,24 @@ public class SystemTransactions {
     }
 
     /**
-     * Externalizes the ledger id and associated verification key for recursive chain-of-trust proofs.
+     * Externalizes the ledger id and the node contributions to the chain of trust it identifies.
      *
      * @param state the current state
      * @param now the consensus time for the synthetic transaction
      * @param ledgerId the new ledger id
      * @param proofKeys the proof keys for the new ledger id
      * @param targetNodeWeights the weights of the nodes in the target roster
-     * @param historyProofVerificationKey the verification key for the new ledger id
      */
     public void externalizeLedgerId(
             @NonNull final State state,
             @NonNull final Instant now,
             @NonNull final Bytes ledgerId,
             @NonNull final List<ProofKey> proofKeys,
-            @NonNull final SortedMap<Long, Long> targetNodeWeights,
-            @NonNull final Bytes historyProofVerificationKey) {
+            @NonNull final SortedMap<Long, Long> targetNodeWeights) {
         requireNonNull(now);
         requireNonNull(ledgerId);
         requireNonNull(proofKeys);
         requireNonNull(targetNodeWeights);
-        requireNonNull(historyProofVerificationKey);
         final var systemContext = newSystemContext(
                 now, state, dispatch -> {}, UseReservedConsensusTimes.NO, TriggerStakePeriodSideEffects.YES);
         final List<LedgerIdNodeContribution> contributions = proofKeys.stream()
@@ -611,7 +676,6 @@ public class SystemTransactions {
                 .ledgerIdPublication(LedgerIdPublicationTransactionBody.newBuilder()
                         .ledgerId(ledgerId)
                         .nodeContributions(contributions)
-                        .historyProofVerificationKey(historyProofVerificationKey)
                         .build()));
     }
 
@@ -639,6 +703,174 @@ public class SystemTransactions {
         dispatchSynthNodeRewards(systemContext, rewardAmounts);
     }
 
+    /**
+     * Returns whether CLPR is enabled but its staking account does not exist yet. Reads no state while CLPR is
+     * disabled.
+     *
+     * @param state the current state
+     * @param config the current configuration
+     * @return whether the CLPR staking account needs to be created
+     */
+    private boolean isClprStakingAccountMissing(@NonNull final State state, @NonNull final Configuration config) {
+        final var clprConfig = config.getConfigData(ClprConfig.class);
+        if (!clprConfig.enabled()) {
+            return false;
+        }
+        final var stakingAccountId = idFactory.newAccountId(clprConfig.stakingAccount());
+        final var accounts = state.getReadableStates(TokenService.NAME).<AccountID, Account>get(ACCOUNTS_STATE_ID);
+        return accounts.get(stakingAccountId) == null;
+    }
+
+    /**
+     * Returns whether CLPR is enabled but its admin account does not exist yet. Only an account number in the
+     * reserved system range, outside the system file and system contract numbers, is eligible, since synthetic
+     * creations do not advance the entity allocator. Reads no state while CLPR is disabled or the admin account
+     * number is ineligible.
+     *
+     * @param state the current state
+     * @param config the current configuration
+     * @return whether the CLPR admin account needs to be created
+     */
+    private boolean isClprAdminAccountMissing(@NonNull final State state, @NonNull final Configuration config) {
+        if (!config.getConfigData(ClprConfig.class).enabled()) {
+            return false;
+        }
+        final var adminAccountNum = config.getConfigData(AccountsConfig.class).clprAdmin();
+        if (adminAccountNum < FIRST_POST_SYSTEM_FILE_ENTITY
+                || adminAccountNum >= config.getConfigData(HederaConfig.class).firstUserEntity()
+                || (adminAccountNum >= FIRST_RESERVED_SYSTEM_CONTRACT
+                        && adminAccountNum <= LAST_RESERVED_SYSTEM_CONTRACT)) {
+            return false;
+        }
+        final var adminAccountId = idFactory.newAccountId(adminAccountNum);
+        final var accounts = state.getReadableStates(TokenService.NAME).<AccountID, Account>get(ACCOUNTS_STATE_ID);
+        return accounts.get(adminAccountId) == null;
+    }
+
+    /**
+     * Applies the throttles in the CLPR ledger configuration upgrade file, if present, with a synthetic
+     * {@code ClprUpdateLedgerConfiguration}. Skipped when CLPR is disabled (the handler would fail), when the
+     * ledger configuration does not exist yet (it is seeded from the same file right after post-upgrade setup),
+     * and when the throttles are unchanged (every update sets a new timestamp, which queues a config update on
+     * every channel).
+     *
+     * @param state the current state
+     * @param systemContext the system context to dispatch in
+     * @param config the current configuration
+     * @param upgradeSysFilesLoc the directory with the post-upgrade system files
+     */
+    private void maybeUpdateClprLedgerConfiguration(
+            @NonNull final State state,
+            @NonNull final SystemContext systemContext,
+            @NonNull final Configuration config,
+            @NonNull final String upgradeSysFilesLoc) {
+        final var clprConfig = config.getConfigData(ClprConfig.class);
+        if (!clprConfig.enabled()) {
+            log.info("CLPR is disabled, not applying any CLPR ledger configuration upgrade file");
+            return;
+        }
+        final var existing = state.getReadableStates(ClprService.NAME)
+                .<ClprLedgerConfiguration>getSingleton(LEDGER_CONFIGURATION_STATE_ID)
+                .get();
+        if (existing == null) {
+            log.info("CLPR ledger configuration not yet initialized, not applying its upgrade file");
+            return;
+        }
+        final var autoClprLedgerConfigurationUpdate = new AutoEntityUpdate<ClprThrottles>(
+                (ctx, throttles) -> applyClprThrottles(ctx, existing, throttles, config),
+                clprConfig.upgradeLedgerConfigurationFile(),
+                ClprLedgerConfigurationFile::parse);
+        autoClprLedgerConfigurationUpdate.tryIfPresent(upgradeSysFilesLoc, systemContext);
+    }
+
+    /**
+     * Dispatches a synthetic {@code ClprUpdateLedgerConfiguration} with the given throttles from the upgrade
+     * file, unless they match the existing ones.
+     *
+     * @param systemContext the system context to dispatch in
+     * @param existing the existing ledger configuration
+     * @param throttles the validated throttles from the upgrade file
+     * @param config the current configuration
+     */
+    private static void applyClprThrottles(
+            @NonNull final SystemContext systemContext,
+            @NonNull final ClprLedgerConfiguration existing,
+            @NonNull final ClprThrottles throttles,
+            @NonNull final Configuration config) {
+        final var maybeUpdate = ClprLedgerConfigurationFile.upgradeConfiguration(existing, throttles, config);
+        if (maybeUpdate.isEmpty()) {
+            log.info("CLPR ledger configuration throttles unchanged, not updating");
+            return;
+        }
+        final var body = ClprUpdateLedgerConfigurationTransactionBody.newBuilder()
+                .configuration(maybeUpdate.get())
+                .build();
+        systemContext.dispatchAdmin(b -> b.clprUpdateLedgerConfiguration(body));
+    }
+
+    private void createClprStakingAccount(
+            @NonNull final SystemContext systemContext, @NonNull final Configuration config) {
+        log.info(
+                "Creating CLPR staking account {}",
+                idFactory.newAccountId(config.getConfigData(ClprConfig.class).stakingAccount()));
+        dispatchClprStakingAccountCreation(
+                systemContext,
+                new Duration(config.getConfigData(LedgerConfig.class).autoRenewPeriodMaxDuration()),
+                config);
+    }
+
+    /**
+     * Creates the CLPR admin account with the treasury's current key, so an upgrade honors any treasury key
+     * rotation since genesis.
+     *
+     * @param state the current state
+     * @param systemContext the system context to dispatch in
+     * @param config the current configuration
+     */
+    private void createClprAdminAccount(
+            @NonNull final State state,
+            @NonNull final SystemContext systemContext,
+            @NonNull final Configuration config) {
+        final var accountsConfig = config.getConfigData(AccountsConfig.class);
+        final var accounts = state.getReadableStates(TokenService.NAME).<AccountID, Account>get(ACCOUNTS_STATE_ID);
+        final var treasury = requireNonNull(accounts.get(idFactory.newAccountId(accountsConfig.treasury())));
+        log.info("Creating CLPR admin account {}", idFactory.newAccountId(accountsConfig.clprAdmin()));
+        dispatchClprAdminAccountCreation(
+                systemContext,
+                treasury.keyOrThrow(),
+                new Duration(config.getConfigData(LedgerConfig.class).autoRenewPeriodMaxDuration()),
+                config);
+    }
+
+    private static void dispatchClprStakingAccountCreation(
+            @NonNull final SystemContext systemContext,
+            @NonNull final Duration autoRenewPeriod,
+            @NonNull final Configuration config) {
+        systemContext.dispatchCreation(
+                b -> b.memo("CLPR staking account creation record")
+                        .cryptoCreateAccount(CryptoCreateTransactionBody.newBuilder()
+                                .key(IMMUTABILITY_SENTINEL_KEY)
+                                .autoRenewPeriod(autoRenewPeriod)
+                                .build())
+                        .build(),
+                config.getConfigData(ClprConfig.class).stakingAccount());
+    }
+
+    private static void dispatchClprAdminAccountCreation(
+            @NonNull final SystemContext systemContext,
+            @NonNull final Key key,
+            @NonNull final Duration autoRenewPeriod,
+            @NonNull final Configuration config) {
+        systemContext.dispatchCreation(
+                b -> b.memo("CLPR admin account creation record")
+                        .cryptoCreateAccount(CryptoCreateTransactionBody.newBuilder()
+                                .key(key)
+                                .autoRenewPeriod(autoRenewPeriod)
+                                .build())
+                        .build(),
+                config.getConfigData(AccountsConfig.class).clprAdmin());
+    }
+
     public boolean dispatchTransplantUpdates(final State state, final Instant now, final long currentRoundNum) {
         requireNonNull(state);
         requireNonNull(now);
@@ -655,11 +887,63 @@ public class SystemTransactions {
                     .map(NodeMetadata::rosterEntryOrThrow)
                     .map(RosterEntry::nodeId)
                     .toList();
+            // Create or update the override network's registered nodes before any consensus node that may
+            // associate them; while registered nodes are enabled, the override network's list is authoritative,
+            // so an empty list means every registered node in state will be deleted
+            final var config = configProvider.getConfiguration();
+            final var overrideRegisteredNodes = network.get().registeredNodes();
+            final var reconcileRegisteredNodes =
+                    config.getConfigData(NodesConfig.class).registeredNodesEnabled();
+            final Set<Long> consensusNodeIds = new HashSet<>(overrideNodes);
+            network.get().nodeMetadata().stream()
+                    .filter(NodeMetadata::hasNode)
+                    .map(meta -> meta.nodeOrThrow().nodeId())
+                    .forEach(consensusNodeIds::add);
+            final var initialNextNodeId = readableStoreFactory
+                    .readableStore(ReadableEntityIdStore.class)
+                    .peekAtNextNodeId();
+            LongStream.range(0, initialNextNodeId)
+                    .filter(id -> nodeStore.get(id) != null)
+                    .forEach(consensusNodeIds::add);
+            final var initialRegisteredNodeStore =
+                    readableStoreFactory.readableStore(ReadableRegisteredNodeStore.class);
+            final Set<Long> overrideRegisteredNodeIds = new HashSet<>();
+            for (final var registeredNode : usableRegisteredNodes(overrideRegisteredNodes, consensusNodeIds, config)) {
+                final var registeredNodeId = registeredNode.registeredNodeId();
+                if (initialRegisteredNodeStore.get(registeredNodeId) == null) {
+                    dispatchSynthRegisteredNodeCreation(systemContext, registeredNode);
+                    log.info("Registered node {} is new in override network and is being created", registeredNodeId);
+                } else {
+                    systemContext.dispatchAdmin(b -> b.memo("Synthetic registered node update")
+                            .registeredNodeUpdate(RegisteredNodeUpdateTransactionBody.newBuilder()
+                                    .registeredNodeId(registeredNodeId)
+                                    .adminKey(registeredNode.adminKey())
+                                    .description(registeredNode.description())
+                                    .serviceEndpoint(registeredNode.serviceEndpoint())
+                                    .build()));
+                    log.info(
+                            "Registered node {} in state is part of the override network and is being updated",
+                            registeredNodeId);
+                }
+                overrideRegisteredNodeIds.add(registeredNodeId);
+            }
+            // Consensus nodes may only associate registered nodes that exist in state; and, when reconciling,
+            // only those that are also in the override network (since all others are about to be deleted)
+            final var associableRegisteredNodeIds = reconcileRegisteredNodes
+                    ? registeredNodeIdsInState(state, overrideRegisteredNodeIds)
+                    : registeredNodeIdsInState(state, nodeIdsUpToNext(state));
+            final var maxAssociatedRegisteredNodes =
+                    config.getConfigData(NodesConfig.class).maxAssociatedRegisteredNodes();
             for (final var meta : network.get().nodeMetadata()) {
                 final var node = meta.node();
                 if (node == null) {
                     continue;
                 }
+                final var associatedRegisteredNodes = associationsIn(
+                        associableRegisteredNodeIds,
+                        node.nodeId(),
+                        node.associatedRegisteredNode(),
+                        maxAssociatedRegisteredNodes);
                 final var currentNode = nodeStore.get(node.nodeId());
                 if (currentNode == null || currentNode.deleted()) {
                     // Node is new in the override roster, dispatch a node creation transaction
@@ -675,24 +959,29 @@ public class SystemTransactions {
                                             .declineReward(node.declineReward())
                                             .grpcProxyEndpoint(node.grpcProxyEndpoint())
                                             .grpcCertificateHash(node.grpcCertificateHash())
+                                            .associatedRegisteredNode(associatedRegisteredNodes)
                                             .build())
                                     .build(),
                             node.nodeId());
                     log.info("Node {} is new in override network and is being created", node.nodeId());
                 } else {
                     // Node is in the override roster and in current state, dispatch a node update transaction
-                    systemContext.dispatchAdmin(b -> b.memo("Synthetic node update")
-                            .nodeUpdate(NodeUpdateTransactionBody.newBuilder()
-                                    .nodeId(node.nodeId())
-                                    .adminKey(node.adminKey())
-                                    .description(node.description())
-                                    .gossipEndpoint(node.gossipEndpoint())
-                                    .gossipCaCertificate(node.gossipCaCertificate())
-                                    .serviceEndpoint(node.serviceEndpoint())
-                                    .declineReward(node.declineReward())
-                                    .grpcProxyEndpoint(node.grpcProxyEndpoint())
-                                    .grpcCertificateHash(node.grpcCertificateHash())
-                                    .build()));
+                    final var nodeUpdate = NodeUpdateTransactionBody.newBuilder()
+                            .nodeId(node.nodeId())
+                            .adminKey(node.adminKey())
+                            .description(node.description())
+                            .gossipEndpoint(node.gossipEndpoint())
+                            .gossipCaCertificate(node.gossipCaCertificate())
+                            .serviceEndpoint(node.serviceEndpoint())
+                            .declineReward(node.declineReward())
+                            .grpcProxyEndpoint(node.grpcProxyEndpoint())
+                            .grpcCertificateHash(node.grpcCertificateHash());
+                    if (reconcileRegisteredNodes) {
+                        nodeUpdate.associatedRegisteredNodeList(
+                                new AssociatedRegisteredNodeList(associatedRegisteredNodes));
+                    }
+                    systemContext.dispatchAdmin(
+                            b -> b.memo("Synthetic node update").nodeUpdate(nodeUpdate.build()));
                     log.info("Node {} in state is part of the override network and is being updated", node.nodeId());
                 }
             }
@@ -711,17 +1000,180 @@ public class SystemTransactions {
                     log.info("Node {} in state is not part of the override network and is being marked deleted", i);
                 }
             }
+            // Only after no remaining consensus node can still associate them, delete the registered nodes in
+            // state that are not in the override network
+            if (reconcileRegisteredNodes) {
+                for (final long registeredNodeId : registeredNodeIdsInState(state, nodeIdsUpToNext(state))) {
+                    if (!overrideRegisteredNodeIds.contains(registeredNodeId)) {
+                        systemContext.dispatchAdmin(b -> b.memo("Synthetic registered node deletion")
+                                .registeredNodeDelete(RegisteredNodeDeleteTransactionBody.newBuilder()
+                                        .registeredNodeId(registeredNodeId)
+                                        .build()));
+                        log.info(
+                                "Registered node {} in state is not part of the override network and is being deleted",
+                                registeredNodeId);
+                    }
+                }
+            }
             log.info("Roster transplant completed, node updates dispatched");
             return true;
         }
         return false;
     }
 
+    /**
+     * Returns the genesis network, if one is available.
+     *
+     * @param config the configuration to use
+     * @return the genesis network, if available
+     */
+    private Optional<Network> maybeGenesisNetwork(@NonNull final Configuration config) {
+        try {
+            return Optional.of(startupNetworks.genesisNetworkOrThrow(config));
+        } catch (IllegalStateException e) {
+            log.debug("No genesis startup network available for registered nodes", e);
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * Returns the registered nodes in the given startup network list that can be created or updated with their
+     * given ids; that is, those whose id is neither used by a consensus node nor by an earlier registered node
+     * in the list. Returns no registered nodes if registered nodes are disabled.
+     *
+     * @param registeredNodes the registered nodes from a startup network
+     * @param consensusNodeIds the ids already used by consensus nodes
+     * @param config the configuration to use
+     * @return the usable registered nodes, in list order
+     */
+    private static List<RegisteredNode> usableRegisteredNodes(
+            @NonNull final List<RegisteredNode> registeredNodes,
+            @NonNull final Set<Long> consensusNodeIds,
+            @NonNull final Configuration config) {
+        if (registeredNodes.isEmpty()) {
+            return List.of();
+        }
+        if (!config.getConfigData(NodesConfig.class).registeredNodesEnabled()) {
+            log.warn(
+                    "Ignoring {} registered node(s) in startup network since registered nodes are disabled",
+                    registeredNodes.size());
+            return List.of();
+        }
+        final Set<Long> usedIds = new HashSet<>(consensusNodeIds);
+        final List<RegisteredNode> usable = new ArrayList<>();
+        for (final var registeredNode : registeredNodes) {
+            final var registeredNodeId = registeredNode.registeredNodeId();
+            if (usedIds.add(registeredNodeId)) {
+                usable.add(registeredNode);
+            } else {
+                log.error(
+                        "Ignoring registered node {} in startup network since its id is already used by another node",
+                        registeredNodeId);
+            }
+        }
+        return usable;
+    }
+
+    /**
+     * Dispatches a synthetic creation of the given registered node with its given id.
+     *
+     * @param systemContext the system context to dispatch in
+     * @param registeredNode the registered node to create
+     */
+    private static void dispatchSynthRegisteredNodeCreation(
+            @NonNull final SystemContext systemContext, @NonNull final RegisteredNode registeredNode) {
+        systemContext.dispatchCreation(
+                b -> b.memo("Synthetic registered node creation")
+                        .registeredNodeCreate(RegisteredNodeCreateTransactionBody.newBuilder()
+                                .adminKey(registeredNode.adminKey())
+                                .description(registeredNode.description())
+                                .serviceEndpoint(registeredNode.serviceEndpoint())
+                                .build())
+                        .build(),
+                registeredNode.registeredNodeId());
+    }
+
+    /**
+     * Returns every id a consensus or registered node in the given state could have; that is, all ids
+     * less than the next node id.
+     *
+     * @param state the state to read from
+     * @return the possible node ids, in ascending order
+     */
+    private static List<Long> nodeIdsUpToNext(@NonNull final State state) {
+        final var nextNodeId = new ReadableStoreFactoryImpl(state)
+                .readableStore(ReadableEntityIdStore.class)
+                .peekAtNextNodeId();
+        return LongStream.range(0, nextNodeId).boxed().toList();
+    }
+
+    /**
+     * Returns the given candidate ids that are ids of registered nodes in the given state.
+     *
+     * @param state the state to read from
+     * @param candidateIds the candidate registered node ids
+     * @return the ids of registered nodes in state, in ascending order
+     */
+    private static SortedSet<Long> registeredNodeIdsInState(
+            @NonNull final State state, @NonNull final Collection<Long> candidateIds) {
+        if (candidateIds.isEmpty()) {
+            return Collections.emptySortedSet();
+        }
+        final var registeredNodeStore =
+                new ReadableStoreFactoryImpl(state).readableStore(ReadableRegisteredNodeStore.class);
+        return candidateIds.stream()
+                .filter(id -> registeredNodeStore.get(id) != null)
+                .collect(Collectors.toCollection(TreeSet::new));
+    }
+
+    /**
+     * Returns the given consensus node's associations with registered nodes, dropping (with a warning) any
+     * association with a registered node not in the given set, any duplicate association, and any association
+     * past the given maximum; so a consensus node is never left uncreated or un-updated just because its startup
+     * network entry has an association the node create and update handlers would reject.
+     *
+     * @param registeredNodeIds the ids of the registered nodes that may be associated
+     * @param nodeId the consensus node id
+     * @param associations the consensus node's associations from the startup network
+     * @param maxAssociations the maximum number of associations a consensus node may have
+     * @return the first {@code maxAssociations} distinct associations with registered nodes in the given set,
+     * in their original order
+     */
+    private static List<Long> associationsIn(
+            @NonNull final Set<Long> registeredNodeIds,
+            final long nodeId,
+            @NonNull final List<Long> associations,
+            final int maxAssociations) {
+        final var present =
+                associations.stream().filter(registeredNodeIds::contains).toList();
+        if (present.size() < associations.size()) {
+            log.warn(
+                    "Dropping association(s) of node{} with missing registered node(s) {}",
+                    nodeId,
+                    associations.stream()
+                            .filter(id -> !registeredNodeIds.contains(id))
+                            .toList());
+        }
+        final var distinct = present.stream().distinct().toList();
+        if (distinct.size() < present.size()) {
+            log.warn("Dropping duplicate association(s) of node{} in {}", nodeId, present);
+        }
+        if (distinct.size() > maxAssociations) {
+            log.warn(
+                    "Dropping association(s) of node{} with registered node(s) {} past the maximum of {}",
+                    nodeId,
+                    distinct.subList(maxAssociations, distinct.size()),
+                    maxAssociations);
+            return distinct.subList(0, maxAssociations);
+        }
+        return distinct;
+    }
+
     private void maybeWriteGenesisTssPrivateKeys(@NonNull final Configuration config) {
         requireNonNull(config);
         try {
             final var network = startupNetworks.genesisNetworkOrThrow(config);
-            if (!TssStartupNetworks.hasTssMetadata(network)) {
+            if (!TssStartupNetworks.shouldImportTssMetadata(network, config)) {
                 return;
             }
             log.warn("Writing dev-only local TSS private keys from startup network JSON");
@@ -783,7 +1235,8 @@ public class SystemTransactions {
     }
 
     /**
-     * Returns the timestamp to use for startup work state change consensus time in the block stream.
+     * Returns the first consensus time reserved for system work before the given event or user transaction. While
+     * genesis work is pending, the reservation steps further back to make room for creating the system entities.
      *
      * @param firstEventTime the timestamp of the first event in the current round
      */
@@ -800,9 +1253,65 @@ public class SystemTransactions {
                 .minusNanos(config.getConfigData(SchedulingConfig.class).reservedSystemTxnNanos())
                 // And at genesis, further step back to accommodate creating system entities
                 .minusNanos(
-                        initTrigger == GENESIS
+                        isGenesisWorkPending()
                                 ? (int) config.getConfigData(HederaConfig.class).firstUserEntity()
                                 : 0);
+    }
+
+    /**
+     * Whether genesis work is still pending in the current round. Unlike how this process started, this is the same on
+     * every node, so reserved consensus times derived from it are deterministic.
+     */
+    private boolean isGenesisWorkPending() {
+        return switch (streamMode) {
+            case RECORDS -> Instant.EPOCH.equals(blockRecordManager.consTimeOfLastHandledTxn());
+            case BLOCKS, BOTH -> blockStreamManager.pendingWork() == GENESIS_WORK;
+        };
+    }
+
+    /**
+     * Returns the next unused reserved consensus time before the given event or user transaction.
+     * Leaves room for a preceding stake update and never enters the user's preceding-record window.
+     */
+    public Instant nextReservedSystemTimeFor(@NonNull final Instant before) {
+        final var firstReserved = firstReservedSystemTimeFor(before);
+        final var lastUsed = streamMode == RECORDS
+                ? blockRecordManager.lastUsedConsensusTime()
+                : blockStreamManager.lastUsedConsensusTime();
+        final var afterLastUsed = lastUsed.plusNanos(MAX_NANOS_PER_SYSTEM_DISPATCH);
+        final var next = firstReserved.isAfter(afterLastUsed) ? firstReserved : afterLastUsed;
+        if (next.isAfter(lastReservedSystemTimeFor(before))) {
+            throw new IllegalStateException("No reserved consensus time remains before " + before);
+        }
+        return next;
+    }
+
+    /**
+     * Returns the id of a system-initiated transaction at the given consensus time. Like every system dispatch, it
+     * uses the next dispatch nonce, so block stream consumers never mistake it for a transaction from an event.
+     *
+     * @param consensusTime the consensus time of the transaction
+     * @return the transaction id
+     */
+    public TransactionID nextSystemTransactionIdAt(@NonNull final Instant consensusTime) {
+        requireNonNull(consensusTime);
+        final var systemAdmin = configProvider
+                .getConfiguration()
+                .getConfigData(AccountsConfig.class)
+                .systemAdmin();
+        return TransactionID.newBuilder()
+                .accountID(idFactory.newAccountId(systemAdmin))
+                .transactionValidStart(asTimestamp(consensusTime))
+                .nonce(nextDispatchNonce++)
+                .build();
+    }
+
+    private Instant lastReservedSystemTimeFor(final Instant before) {
+        return before.minusNanos(1)
+                .minusNanos(configProvider
+                        .getConfiguration()
+                        .getConfigData(ConsensusConfig.class)
+                        .handleMaxPrecedingRecords());
     }
 
     /**
@@ -834,16 +1343,17 @@ public class SystemTransactions {
             @NonNull final TriggerStakePeriodSideEffects triggerStakePeriodSideEffects) {
         final var config = configProvider.getConfiguration();
         final boolean useReserved = useReservedConsensusTimes == UseReservedConsensusTimes.YES;
-        final var firstConsTime = useReserved ? firstReservedSystemTimeFor(now) : now;
+        final var firstConsTime = useReserved ? nextReservedSystemTimeFor(now) : now;
         final boolean applyStakePeriodSideEffects = triggerStakePeriodSideEffects == TriggerStakePeriodSideEffects.YES;
         // The number of dispatches we can do in this context is determined by the number of available consensus times,
         // where each dispatch also has an earlier nanosecond free for a preceding NODE_STAKE_UPDATE if this context is
         // applying stake period side effects
-        final var remainingDispatches = new AtomicInteger(
-                useReserved
-                        ? (int) java.time.Duration.between(firstConsTime, now).toNanos()
-                                / (applyStakePeriodSideEffects ? MAX_NANOS_PER_SYSTEM_DISPATCH : 1)
-                        : 1);
+        final long availableNanos = useReserved
+                ? java.time.Duration.between(firstConsTime, lastReservedSystemTimeFor(now))
+                        .toNanos()
+                : 0;
+        final int nanosPerDispatch = applyStakePeriodSideEffects ? MAX_NANOS_PER_SYSTEM_DISPATCH : 1;
+        final var remainingDispatches = new AtomicInteger(1 + (int) (availableNanos / nanosPerDispatch));
         final AtomicReference<Instant> nextConsTime = new AtomicReference<>(firstConsTime);
         final var systemAdminId = idFactory.newAccountId(
                 config.getConfigData(AccountsConfig.class).systemAdmin());
@@ -871,7 +1381,7 @@ public class SystemTransactions {
                 spec.accept(builder);
                 final var body = builder.build();
                 final var output = dispatch(body, 0, triggerStakePeriodSideEffects);
-                final var statuses = output.preferringBlockRecordSource().identifiedReceipts().stream()
+                final var statuses = output.preferredRecordSource().identifiedReceipts().stream()
                         .map(RecordSource.IdentifiedReceipt::receipt)
                         .map(TransactionReceipt::status)
                         .toList();
@@ -947,7 +1457,9 @@ public class SystemTransactions {
                     blockRecordManager.endUserTransaction(records.stream(), state);
                 }
                 if (streamMode != RECORDS) {
-                    handleOutput.blockRecordSourceOrThrow().forEachItem(blockStreamManager::writeItem);
+                    blockStreamManager.writeSavepointItems(
+                            handleOutput.blockRecordSourceOrThrow().blockItems(),
+                            handleOutput.lastAssignedConsensusTime());
                 }
                 return handleOutput;
             }
@@ -987,10 +1499,14 @@ public class SystemTransactions {
                 parentTxnFactory.createSystemTxn(state, creatorInfo, now, INTERNAL_TRANSACTION, payerId, body);
         parentTxn.initBaseBuilder(exchangeRateManager.exchangeRates());
         final var createMetadata = new HandleContext.DispatchMetadata(SYSTEM_TXN_CREATION_ENTITY_NUM, nextEntityNum);
-        final var dispatch = parentTxnFactory.createDispatch(
-                parentTxn, parentTxn.baseBuilder(), ignore -> true, NODE, createMetadata);
-        stakePeriodChanges.advanceTimeTo(parentTxn, applyStakePeriodSideEffects);
+        createMetadata.putMetadata(INTERNAL_SYSTEM_TRANSACTION, true);
         try {
+            // Fee computation for this dispatch (and advancing the stake period) can itself throw, e.g. if the
+            // currently active simple fee schedule cannot price this system transaction's own functionality; that
+            // must fail only this one system transaction, not propagate past this try
+            final var dispatch = parentTxnFactory.createDispatch(
+                    parentTxn, parentTxn.baseBuilder(), ignore -> true, NODE, createMetadata);
+            stakePeriodChanges.advanceTimeTo(parentTxn, applyStakePeriodSideEffects);
             WritableSingletonState<EntityNumber> controlledNum =
                     dispatch.stack().getWritableStates(EntityIdService.NAME).getSingleton(ENTITY_ID_STATE_ID);
             final var prevEntityNum = requireNonNull(controlledNum.get()).number();
@@ -1024,7 +1540,7 @@ public class SystemTransactions {
                     creatorInfo.nodeId(),
                     parentTxn.txnInfo().transactionID(),
                     HederaRecordCache.DueDiligenceFailure.NO,
-                    handleOutput.preferringBlockRecordSource());
+                    handleOutput.preferredRecordSource());
             return handleOutput;
         } catch (final Exception e) {
             log.error("{} - exception thrown while handling system transaction", ALERT_MESSAGE, e);

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.throttle;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CHANNEL;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SUBMIT_BUNDLE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
@@ -10,10 +12,12 @@ import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_ASSOCIATE_TO_A
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.populateEthTxData;
 import static com.hedera.node.app.spi.workflows.HandleContext.ConsensusThrottling.ON;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_GAS_RESERVATION;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static com.hedera.node.app.throttle.ThrottleAccumulator.canAutoAssociate;
 import static com.hedera.node.app.throttle.ThrottleAccumulator.canAutoCreate;
+import static com.hedera.node.app.throttle.ThrottleAccumulator.isPayerThrottleExempt;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.EvmHookCall;
@@ -31,8 +35,11 @@ import com.hedera.node.app.throttle.CongestionThrottleService;
 import com.hedera.node.app.throttle.NetworkUtilizationManager;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
+import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.handle.Dispatch;
+import com.hedera.node.config.data.ClprConfig;
 import com.hedera.node.config.data.ContractsConfig;
+import com.hedera.node.config.data.EntitiesConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.EnumSet;
 import java.util.Set;
@@ -82,6 +89,13 @@ public class DispatchUsageManager {
             } else if (isThrottled) {
                 throw ThrottleException.newNativeThrottleException();
             }
+            final var txnInfo = dispatch.txnInfo();
+            if ((txnInfo.functionality() == CLPR_COMPLETE_CHANNEL || txnInfo.functionality() == CLPR_SUBMIT_BUNDLE)
+                    && dispatch.config().getConfigData(ClprConfig.class).enabled()
+                    && dispatch.config().getConfigData(ContractsConfig.class).throttleThrottleByGas()
+                    && !isPayerThrottleExempt(txnInfo, dispatch.config())) {
+                dispatch.handleContext().dispatchMetadata().putMetadata(CLPR_GAS_RESERVATION, txnInfo);
+            }
             // Persist this dispatch's tracked usage into its own savepoint immediately, so that a
             // subsequently dispatched child that resets its throttles from state sees this dispatch's
             // usage instead of a stale snapshot (and thus cannot wipe it); if this dispatch is later
@@ -101,12 +115,7 @@ public class DispatchUsageManager {
         }
         if ((dispatch.txnCategory() == USER || dispatch.txnCategory() == NODE)
                 && dispatch.streamBuilder().status() != SUCCESS) {
-            if (canAutoCreate(function)) {
-                reclaimFailedCryptoCreateCapacity(dispatch);
-            }
-            if (canAutoAssociate(function)) {
-                reclaimFailedTokenAssociate(dispatch);
-            }
+            reclaimFailedFrontendCapacity(dispatch, function);
         }
         throttleServiceManager.saveThrottleSnapshotsAndCongestionLevelStartsTo(dispatch.stack());
     }
@@ -138,48 +147,63 @@ public class DispatchUsageManager {
                 final var txnInfo = dispatch.txnInfo();
                 final var gasLimitForContractTx = getGasLimitForContractTx(txnInfo.txBody(), txnInfo.functionality());
                 final var excessAmount = gasLimitForContractTx - gasUsed;
-                networkUtilizationManager.leakUnusedGasPreviouslyReserved(txnInfo, excessAmount);
+                // A verifier child spends its parent's reservation, including for otherwise exempt node payers.
+                // Use the reserving transaction when applying the payer exemption during the refund.
+                final var reservation = dispatch.handleContext()
+                        .dispatchMetadata()
+                        .getMetadata(CLPR_GAS_RESERVATION, TransactionInfo.class)
+                        .orElse(txnInfo);
+                networkUtilizationManager.leakUnusedGasPreviouslyReserved(reservation, excessAmount);
             }
         }
     }
 
     /**
-     * Reclaims the throttle capacity for a failed dispatch that tried to implicitly
-     * perform {@link HederaFunctionality#CRYPTO_CREATE} operations.
+     * Reclaims the frontend throttle capacity for a failed dispatch that implicitly performed
+     * {@link HederaFunctionality#CRYPTO_CREATE} or {@link HederaFunctionality#TOKEN_ASSOCIATE_TO_ACCOUNT}
+     * operations.
      *
-     * @param dispatch the dispatch
+     * <p>This mirrors the claim made at ingest by {@code ThrottleAccumulator.shouldThrottleCryptoTransfer}: the
+     * two legs are additive, so a transfer doing both charges both buckets, and auto associations are charged
+     * only when {@link EntitiesConfig#unlimitedAutoAssociationsEnabled()} is set. The claim picks one bucket
+     * (normal or high-volume) for both legs from the implicit creation count, so the reclaim leaks each leg it
+     * charged back into that same bucket.
+     *
+     * @param dispatch the failed dispatch
+     * @param function the functionality of the dispatch
      */
-    private void reclaimFailedCryptoCreateCapacity(@NonNull final Dispatch dispatch) {
-        final var readableAccountStore = dispatch.readableStoreFactory().readableStore(ReadableAccountStore.class);
-        final var numImplicitCreations =
-                throttleServiceManager.numImplicitCreations(dispatch.txnInfo().txBody(), readableAccountStore);
-        if (usedSelfFrontendThrottleCapacity(
-                numImplicitCreations, dispatch.txnInfo().txBody())) {
-            throttleServiceManager.reclaimFrontendThrottleCapacity(numImplicitCreations, CRYPTO_CREATE);
+    private void reclaimFailedFrontendCapacity(
+            @NonNull final Dispatch dispatch, @NonNull final HederaFunctionality function) {
+        final var txnBody = dispatch.txnInfo().txBody();
+        // Without implicit creations the claim never uses the high-volume bucket
+        boolean useHighVolumeBucket = false;
+        if (canAutoCreate(function)) {
+            final var readableAccountStore = dispatch.readableStoreFactory().readableStore(ReadableAccountStore.class);
+            final var numImplicitCreations = throttleServiceManager.numImplicitCreations(txnBody, readableAccountStore);
+            if (numImplicitCreations > 0 && usedSelfFrontendThrottleCapacity(numImplicitCreations, txnBody)) {
+                useHighVolumeBucket = throttleServiceManager.usesHighVolumeBucketForImplicitCreations(
+                        txnBody, function, numImplicitCreations);
+                throttleServiceManager.reclaimFrontendThrottleCapacity(
+                        numImplicitCreations, CRYPTO_CREATE, useHighVolumeBucket);
+            }
         }
-    }
-
-    /**
-     * Reclaims the throttle capacity for a failed dispatch that tried to
-     * perform {@link HederaFunctionality#TOKEN_ASSOCIATE_TO_ACCOUNT} operations for Auto Association.
-     *
-     * @param dispatch the dispatch
-     */
-    private void reclaimFailedTokenAssociate(@NonNull final Dispatch dispatch) {
-        final var readableTokenRelStore =
-                dispatch.readableStoreFactory().readableStore(ReadableTokenRelationStore.class);
-        final var numAutoAssociations =
-                throttleServiceManager.numAutoAssociations(dispatch.txnInfo().txBody(), readableTokenRelStore);
-        if (usedSelfFrontendThrottleCapacity(
-                numAutoAssociations, dispatch.txnInfo().txBody())) {
-            throttleServiceManager.reclaimFrontendThrottleCapacity(numAutoAssociations, TOKEN_ASSOCIATE_TO_ACCOUNT);
+        if (canAutoAssociate(function)) {
+            final var readableTokenRelStore =
+                    dispatch.readableStoreFactory().readableStore(ReadableTokenRelationStore.class);
+            final var numAutoAssociations = throttleServiceManager.numAutoAssociations(txnBody, readableTokenRelStore);
+            if (numAutoAssociations > 0
+                    && dispatch.config().getConfigData(EntitiesConfig.class).unlimitedAutoAssociationsEnabled()
+                    && usedSelfFrontendThrottleCapacity(numAutoAssociations, txnBody)) {
+                throttleServiceManager.reclaimFrontendThrottleCapacity(
+                        numAutoAssociations, TOKEN_ASSOCIATE_TO_ACCOUNT, useHighVolumeBucket);
+            }
         }
     }
 
     /**
      * Returns true if the transaction used frontend throttle capacity on this node.
      *
-     * @param numUsedCapacity the number of used capacity for either create ot auto associate operations
+     * @param numUsedCapacity the number of used capacity for either create or auto associate operations
      * @param txnBody         the transaction body
      * @return true if the transaction used frontend throttle capacity on this node
      */

@@ -9,7 +9,10 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.EnumSet;
+import java.util.Set;
 import org.hiero.hapi.fees.FeeResult;
+import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.FeeSchedule;
 import org.hiero.hapi.support.fees.ServiceFeeDefinition;
 
@@ -33,5 +36,10 @@ public class FileAppendFeeCalculator implements ServiceFeeCalculator {
     @Override
     public TransactionBody.DataOneOfType getTransactionType() {
         return TransactionBody.DataOneOfType.FILE_APPEND;
+    }
+
+    @Override
+    public Set<Extra> requiredExtras() {
+        return EnumSet.of(Extra.STATE_BYTES);
     }
 }

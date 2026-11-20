@@ -125,7 +125,7 @@ public class UpdateNodeAccountTestEmbedded {
                             .accountId("0.0.0")
                             .payingWith(DEFAULT_PAYER)
                             .signedByPayerAnd("initialNodeAccount")
-                            .hasPrecheck(INVALID_NODE_ACCOUNT_ID),
+                            .hasKnownStatus(INVALID_NODE_ACCOUNT_ID),
                     // signed with correct sig passes if account is valid
                     nodeUpdate("testNode")
                             .accountId("newAccount")
@@ -144,7 +144,7 @@ public class UpdateNodeAccountTestEmbedded {
                             .description("updatedNode")
                             .payingWith(DEFAULT_PAYER)
                             .signedByPayerAnd("initialNodeAccount", "newAccount")
-                            .hasPrecheck(INVALID_SIGNATURE),
+                            .hasKnownStatus(INVALID_SIGNATURE),
                     viewNode("testNode", node -> assertEquals(toPbj(initialNodeAccountId.get()), node.accountId())));
         }
 

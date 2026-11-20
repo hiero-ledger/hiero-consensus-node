@@ -33,8 +33,7 @@ with `java -jar`.
   package/FQN checks), the generated/external `Allowlist`, `AnchorResolver` (Tier 0/1/2
   per-anchor checks), and `ConfigRecords` (the shared scan of every indexed `@ConfigData` record —
   `src/main/java` trees only, so a test-resource fixture copy never masquerades as a real record).
-- `findings/` — collapse to stable-id findings, `InterfaceDiffAssembler` (Tier 2 method-set diff),
-  `TunablesDiffAssembler` (Tier 1/2 config key/default/prefix checks; also the undocumented-record
+- `findings/` — collapse to stable-id findings, `TunablesDiffAssembler` (Tier 1/2 config key/default/prefix checks; also the undocumented-record
   coverage check, scoped to `consensus-*` modules plus modules the catalog already documents),
   baseline TSV + join. The engine subsumes a Tier-0 source-path GONE finding when a `CONFIG_PREFIX`
   finding already asserts the same citation as a class move (one root cause, one finding).
@@ -127,12 +126,6 @@ with `java -jar`.
 - **Parse-only, no build of the target.** `JavaParsing` uses `JavacTask.parse()` (not `.analyze()`),
   so it reads *declared* symbols and *as-written* signatures without a classpath. It needs
   `requires jdk.compiler` (for `com.sun.source.*`) and `requires java.compiler` (for `javax.tools`).
-- **Tier-2 interface method-set diff is opt-in.** It fires only on `architecture/interfaces/*`
-  entries with explicit frontmatter `interface:` (a platform-sdk-relative source path) and
-  `methods:` (documented names) — see `InterfaceDiffAssembler.optsIntoTier2`. Loose interface prose is
-  deliberately left to the semantic pass to avoid false positives — do not "improve" it into scraping
-  prose. Interface docs that do *not* opt in are surfaced in the coverage lane so the dormancy is
-  visible rather than reading as "all clear".
 - **`components:`/`verification:` paths are platform-sdk-relative** (first segment = module dir); the
   extractor prefixes `platform-sdk/`. Body code spans accept both the full `platform-sdk/…` form and
   the same module-relative form (`<module>/src/…`). Markdown links resolve relative to the doc's

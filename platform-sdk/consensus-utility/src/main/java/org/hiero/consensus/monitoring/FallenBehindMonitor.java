@@ -4,7 +4,6 @@ package org.hiero.consensus.monitoring;
 import static com.swirlds.metrics.api.Metrics.INTERNAL_CATEGORY;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashSet;
@@ -16,7 +15,7 @@ import javax.annotation.concurrent.GuardedBy;
 import org.hiero.consensus.metrics.FunctionGauge;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.roster.RosterLookup;
+import org.hiero.consensus.model.roster.RosterWrapper;
 
 /**
  * Detects when this node has fallen behind the network.
@@ -34,7 +33,7 @@ public class FallenBehindMonitor {
     private final Condition fallenBehindCondition = lock.newCondition();
     private final Condition gossipSyncPausedCondition = lock.newCondition();
 
-    private final RosterLookup rosterLookup;
+    private final RosterWrapper roster;
 
     /**
      * Total weight of the roster except for self node
@@ -62,7 +61,7 @@ public class FallenBehindMonitor {
     private boolean pausedNotificationReceived;
 
     public FallenBehindMonitor(
-            @NonNull final Roster roster,
+            @NonNull final RosterWrapper roster,
             @NonNull final Metrics metrics,
             @NonNull final NodeId selfId,
             final double fallenBehindThreshold) {
@@ -82,9 +81,9 @@ public class FallenBehindMonitor {
     }
 
     public FallenBehindMonitor(
-            @NonNull final Roster roster, @NonNull final NodeId selfId, final double fallenBehindThreshold) {
-        this.rosterLookup = new RosterLookup(requireNonNull(roster));
-        this.totalWeightExceptSelf = rosterLookup.rosterTotalWeight() - rosterLookup.getWeight(selfId);
+            @NonNull final RosterWrapper roster, @NonNull final NodeId selfId, final double fallenBehindThreshold) {
+        this.roster = requireNonNull(roster);
+        this.totalWeightExceptSelf = roster.totalWeight() - roster.weight(selfId);
         this.fallenBehindWeightThreshold = Math.round(totalWeightExceptSelf * fallenBehindThreshold);
     }
 
@@ -107,7 +106,7 @@ public class FallenBehindMonitor {
         lock.lock();
         try {
             if (reportFallenBehind.add(id)) {
-                fallenBehindWeight += rosterLookup.getWeight(id);
+                fallenBehindWeight += roster.weight(id);
                 checkAndNotify();
             }
         } finally {
@@ -125,7 +124,7 @@ public class FallenBehindMonitor {
         lock.lock();
         try {
             if (reportFallenBehind.remove(id)) {
-                fallenBehindWeight -= rosterLookup.getWeight(id);
+                fallenBehindWeight -= roster.weight(id);
             }
             checkAndNotify();
         } finally {

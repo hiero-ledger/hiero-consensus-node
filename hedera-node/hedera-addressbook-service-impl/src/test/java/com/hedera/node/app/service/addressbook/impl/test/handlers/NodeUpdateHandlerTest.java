@@ -2,17 +2,21 @@
 package com.hedera.node.app.service.addressbook.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.GRPC_WEB_PROXY_NOT_SUPPORTED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_GOSSIP_CA_CERTIFICATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_GRPC_CERTIFICATE_HASH;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_IPV4_ADDRESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UPDATE_NODE_ACCOUNT_NOT_ALLOWED;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_LABEL;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
+import static com.hedera.node.app.spi.fixtures.NestedKeys.nestedKeyList;
+import static com.hedera.node.app.spi.validation.AttributeValidator.MAX_NESTED_KEY_LEVELS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -24,6 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.spy;
 
 import com.hedera.hapi.node.addressbook.AssociatedRegisteredNodeList;
@@ -152,6 +157,19 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
                 .withNodeId(1)
                 .withAccountId(accountId)
                 .withAdminKey(invalidKey)
+                .build();
+        given(pureChecksContext.body()).willReturn(txn);
+        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
+        assertThat(msg.responseCode()).isEqualTo(INVALID_ADMIN_KEY);
+    }
+
+    @Test
+    @DisplayName("invalid adminKey fail when nested beyond the depth cap")
+    void adminKeyOverlyNested() {
+        txn = new NodeUpdateBuilder()
+                .withNodeId(1)
+                .withAccountId(accountId)
+                .withAdminKey(nestedKeyList(MAX_NESTED_KEY_LEVELS))
                 .build();
         given(pureChecksContext.body()).willReturn(txn);
         final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
@@ -760,6 +778,45 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
         assertDoesNotThrow(() -> subject.handle(handleContext));
         // Verify decline reward was updated to true
         assertTrue(writableStore.get(nodeId.number()).declineReward());
+    }
+
+    @Test
+    void accountOnlyUpdatePreservesOldAccountLookupFailure() throws PreCheckException {
+        givenValidNode();
+        final var newAccountId = idFactory.newAccountId(4);
+        txn = new NodeUpdateBuilder()
+                .withNodeId(nodeId.number())
+                .withAccountId(newAccountId)
+                .build();
+        final var context = spy(setupPreHandle(true, txn));
+        mockAccountLookup(aPrimitiveKey, newAccountId, accountStore);
+        doThrow(new PreCheckException(INVALID_ACCOUNT_ID)).when(context).getAccountKey(accountId);
+
+        assertThrowsPreCheck(() -> subject.preHandle(context), INVALID_ACCOUNT_ID);
+    }
+
+    @Test
+    void accountOnlyUpdateWithoutAdminKeyFailsWithInvalidSignature() throws PreCheckException {
+        final var newAccountId = idFactory.newAccountId(4);
+        final var nodeWithoutAdminKey =
+                Node.newBuilder().nodeId(nodeId.number()).accountId(accountId).build();
+        readableNodeState =
+                readableNodeStateBuilder(0).value(nodeId, nodeWithoutAdminKey).build();
+        given(readableStates.<EntityNumber, Node>get(NODES_STATE_ID)).willReturn(readableNodeState);
+        readableStore = new ReadableNodeStoreImpl(readableStates, readableEntityCounters);
+        txn = new NodeUpdateBuilder()
+                .withNodeId(nodeId.number())
+                .withAccountId(newAccountId)
+                .build();
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("nodes.updateAccountIdAllowed", true)
+                .getOrCreateConfig();
+        mockAccountLookup(aPrimitiveKey, newAccountId, accountStore);
+        mockAccountLookup(anotherKey, payerId, accountStore);
+        final var context = new FakePreHandleContext(accountStore, txn, config);
+        context.registerStore(ReadableNodeStore.class, readableStore);
+
+        assertThrowsPreCheck(() -> subject.preHandle(context), INVALID_SIGNATURE);
     }
 
     @Test

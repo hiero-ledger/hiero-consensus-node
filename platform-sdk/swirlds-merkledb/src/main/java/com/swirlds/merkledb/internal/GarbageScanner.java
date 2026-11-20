@@ -19,6 +19,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.function.BooleanSupplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -46,6 +47,12 @@ import org.apache.logging.log4j.Logger;
 public class GarbageScanner {
 
     private static final Logger logger = LogManager.getLogger(GarbageScanner.class);
+
+    /**
+     * How often, in index entries, {@link #scan(BooleanSupplier)} checks whether it should keep scanning.
+     * Scanning this many entries takes a few milliseconds.
+     */
+    static final long STOP_CHECK_INTERVAL = 1L << 20;
 
     private final LongList index;
     private final DataFileCollection dataFileCollection;
@@ -89,15 +96,37 @@ public class GarbageScanner {
 
     /**
      * Traverse the index and compute per-file garbage statistics for all completed files
-     * in the collection.
-     *
-     * <p>This method is intended to be called from a single background thread. It is read-only
-     * with respect to both the index and the data files — no data is copied or modified.
+     * in the collection. Same as {@link #scan(BooleanSupplier)}, but the scan always runs to
+     * completion.
      *
      * @return per-file statistics for all completed files, indexed by file index
      */
     @NonNull
     public IndexedGarbageFileStats scan() {
+        return requireNonNull(scan(() -> true));
+    }
+
+    /**
+     * Traverse the index and compute per-file garbage statistics for all completed files
+     * in the collection.
+     *
+     * <p>This method is intended to be called from a single background thread. It is read-only
+     * with respect to both the index and the data files — no data is copied or modified.
+     *
+     * <p>A scan of an index with billions of entries takes tens of seconds. To stop early, it checks
+     * {@code keepScanning} every {@link #STOP_CHECK_INTERVAL} entries, and stops if it returns
+     * {@code false}. Thread interrupts aren't used on purpose: an interrupt during {@code index.get()}
+     * on a {@link com.swirlds.merkledb.collections.LongListDisk} closes the index's shared file channel,
+     * and nothing reopens it. Compactions are stopped with a flag for the same reason, see
+     * {@link com.swirlds.merkledb.files.DataFileCompactor#interruptCompaction()}.
+     *
+     * @param keepScanning checked periodically during the scan; the scan stops when it returns {@code false}
+     * @return per-file statistics for all completed files, indexed by file index, or {@code null}
+     *      if the scan was stopped early
+     */
+    @Nullable
+    public IndexedGarbageFileStats scan(@NonNull final BooleanSupplier keepScanning) {
+        requireNonNull(keepScanning);
         final long start = System.currentTimeMillis();
 
         // Count alive items per file by traversing the index
@@ -105,6 +134,9 @@ public class GarbageScanner {
         if (deduplicateMirroredEntries) {
             final long halfSize = index.size() / 2;
             for (long i = max(0, index.getMinValidIndex()); i < halfSize; i++) {
+                if (i % STOP_CHECK_INTERVAL == 0 && !keepScanning.getAsBoolean()) {
+                    return scanStopped(start);
+                }
                 final long locationLow = index.get(i, 0);
                 final long locationHigh = index.get(i + halfSize, 0);
                 if (locationLow != 0) {
@@ -116,6 +148,9 @@ public class GarbageScanner {
             }
         } else {
             for (long i = max(0, index.getMinValidIndex()); i < index.size(); i++) {
+                if (i % STOP_CHECK_INTERVAL == 0 && !keepScanning.getAsBoolean()) {
+                    return scanStopped(start);
+                }
                 final long location = index.get(i, 0);
                 if (location != 0) {
                     countAlive(location, statsByFileIndex);
@@ -129,6 +164,13 @@ public class GarbageScanner {
         logger.debug(MERKLE_DB.getMarker(), "[{}] Garbage scan finished in {} ms", storeName, tookMillis);
 
         return statsByFileIndex;
+    }
+
+    @Nullable
+    private IndexedGarbageFileStats scanStopped(final long start) {
+        final long tookMillis = System.currentTimeMillis() - start;
+        logger.info(MERKLE_DB.getMarker(), "[{}] Garbage scan stopped early after {} ms", storeName, tookMillis);
+        return null;
     }
 
     private static void countAlive(final long dataLocation, @NonNull final IndexedGarbageFileStats statsByFileIndex) {

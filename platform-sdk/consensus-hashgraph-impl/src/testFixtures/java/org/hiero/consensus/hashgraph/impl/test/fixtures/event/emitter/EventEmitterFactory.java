@@ -60,7 +60,7 @@ public class EventEmitterFactory {
         this.random = requireNonNull(random);
         this.roster = requireNonNull(roster);
         this.commonSeed = random.nextLong();
-        this.sourceFactory = new EventSourceFactory(roster.rosterEntries().size());
+        this.sourceFactory = new EventSourceFactory(roster.size());
     }
 
     /**
@@ -84,7 +84,7 @@ public class EventEmitterFactory {
      * @return the new {@link ShuffledEventEmitter}
      */
     public ShuffledEventEmitter newBranchingShuffledGenerator() {
-        final int numNetworkNodes = roster.rosterEntries().size();
+        final int numNetworkNodes = roster.size();
         // No more than 1/3 of the nodes can create branches for consensus to be successful
         final int maxNumBranchingSources = (int) Math.floor(numNetworkNodes / 3.0);
 

@@ -18,6 +18,7 @@ import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeHelidonGrpcConfiguration;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeHelidonHttpConfiguration;
+import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeTlsConfiguration;
 import com.hedera.node.app.utils.TestCaseLoggerExtension;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
@@ -128,6 +129,8 @@ public abstract class BlockNodeCommunicationTestBase {
                 blockNumber, BlockItem.PROTOBUF.toBytes(item), item.item().kind());
     }
 
+    protected static int MAX_OBSERVER_IDLE_SECONDS = 5;
+
     protected TestConfigBuilder createDefaultConfigProvider() {
         final var configPath = Objects.requireNonNull(
                         BlockNodeCommunicationTestBase.class.getClassLoader().getResource("bootstrap/"))
@@ -135,11 +138,14 @@ public abstract class BlockNodeCommunicationTestBase {
         assertThat(Files.exists(Path.of(configPath))).isTrue();
 
         return HederaTestConfigBuilder.create()
+                .withValue("blockStream.blockPeriod", "2s")
+                .withValue("blockStream.buffer.minAcksRequiredPerBlock", 1)
                 .withValue("blockStream.writerMode", "FILE_AND_GRPC")
                 .withValue("blockNode.blockNodeConnectionFileDir", configPath)
                 .withValue("blockNode.highLatencyEventsBeforeSwitching", 3)
                 .withValue("blockNode.highLatencyThresholdMs", 500)
-                .withValue("blockNode.streamResetPeriodJitter", "0s");
+                .withValue("blockNode.streamResetPeriodJitter", "0s")
+                .withValue("blockNode.maxObserverIdleSeconds", MAX_OBSERVER_IDLE_SECONDS);
     }
 
     protected ConfigProvider createConfigProvider(final TestConfigBuilder configBuilder) {
@@ -215,6 +221,30 @@ public abstract class BlockNodeCommunicationTestBase {
 
     protected static BlockNodeConfiguration newBlockNodeConfig(final int port, final int priority) {
         return newBlockNodeConfig("localhost", port, priority);
+    }
+
+    /**
+     * A configuration whose two APIs sit on distinct ports with their own TLS settings, for per-API TLS tests.
+     */
+    protected static BlockNodeConfiguration newBlockNodeConfig(
+            final String address,
+            final int streamingPort,
+            final int servicePort,
+            final int priority,
+            final BlockNodeTlsConfiguration streamingTls,
+            final BlockNodeTlsConfiguration serviceTls) {
+        return BlockNodeConfiguration.newBuilder()
+                .address(address)
+                .streamingPort(streamingPort)
+                .servicePort(servicePort)
+                .priority(priority)
+                .messageSizeSoftLimitBytes(BlockNodeConfiguration.DEFAULT_MESSAGE_SOFT_LIMIT_BYTES)
+                .messageSizeHardLimitBytes(36L * 1024 * 1024)
+                .clientHttpConfig(BlockNodeHelidonHttpConfiguration.DEFAULT)
+                .clientGrpcConfig(BlockNodeHelidonGrpcConfiguration.DEFAULT)
+                .streamingTls(streamingTls)
+                .serviceTls(serviceTls)
+                .build();
     }
 
     protected static BlockNodeConfiguration newBlockNodeConfig(

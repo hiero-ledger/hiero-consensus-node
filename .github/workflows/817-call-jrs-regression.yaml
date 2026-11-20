@@ -226,9 +226,9 @@ jobs:
           echo "file=${FINAL_PATH}" >> "${GITHUB_OUTPUT}"
 
       - name: Setup NodeJS Environment
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 18
+          node-version: "24"
 
       - name: Setup Java
         uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
@@ -264,7 +264,7 @@ jobs:
           fi
 
       - name: Install SSH key
-        uses: step-security/ssh-key-action@f1316fac9982b07b13cadd1b0c20b6c00db5e92a # v2.7.1
+        uses: step-security/ssh-key-action@e0aedd5caae2dc5a751528ac275d1dd49e451a2f # v2.8.1
         with:
           name: jrs-ssh-keyfile
           key: ${{ secrets.jrs-ssh-key-file }}
@@ -313,7 +313,7 @@ jobs:
       - name: Gradle Assemble
         id: gradle-build
         working-directory: ${{ github.workspace }}
-        run: ./gradlew assemble :test-clients:shadowJar
+        run: ./gradlew assemble :test-clients:fatModuleJar
 
       - name: Regression Gradle Assemble
         id: regression-gradle-build

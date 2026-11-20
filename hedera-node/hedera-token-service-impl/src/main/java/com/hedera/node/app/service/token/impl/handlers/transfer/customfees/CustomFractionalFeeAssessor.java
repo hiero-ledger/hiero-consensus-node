@@ -111,6 +111,10 @@ public class CustomFractionalFeeAssessor {
                 if (totalDebits == 0) {
                     continue;
                 }
+                // Senders exempt from this fee (see CustomFeeExemptions) are not assessed
+                if (isPayerExempt(token, fee, sender)) {
+                    continue;
+                }
                 // Assess fee relative to the proportion of total debits that this debit accounted for
                 final var nonNetAssessment = assessNonNetOfTransferForDebit(
                         -initialAdjustment, totalDebits, nonExemptCredits, fractionalFee);
@@ -209,7 +213,11 @@ public class CustomFractionalFeeAssessor {
         if (fractionalFee.maximumAmount() > 0) {
             effectiveFee = Math.min(effectiveFee, fractionalFee.maximumAmount());
         }
-        return new NonNetAssessment(safeFractionMultiply(activeDebit, totalDebits, effectiveFee), isMinimum);
+        try {
+            return new NonNetAssessment(safeFractionMultiply(activeDebit, totalDebits, effectiveFee), isMinimum);
+        } catch (final ArithmeticException e) {
+            throw new HandleException(CUSTOM_FEE_OUTSIDE_NUMERIC_RANGE);
+        }
     }
 
     /**

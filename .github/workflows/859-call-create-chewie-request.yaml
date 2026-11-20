@@ -74,14 +74,10 @@ on:
         value: ${{ jobs.create-allocation-request.outputs.cn-tolerations }}
       aux-tolerations:
         value: ${{ jobs.create-allocation-request.outputs.aux-tolerations }}
-      cn-role:
-        value: ${{ jobs.create-allocation-request.outputs.cn-role }}
-      aux-role:
-        value: ${{ jobs.create-allocation-request.outputs.aux-role }}
-      network-id:
-        value: ${{ jobs.create-allocation-request.outputs.network-id }}
-      owner:
-        value: ${{ jobs.create-allocation-request.outputs.owner }}
+      cn-labels:
+        value: ${{ jobs.create-allocation-request.outputs.cn-labels }}
+      aux-labels:
+        value: ${{ jobs.create-allocation-request.outputs.aux-labels }}
       request-expiration:
         value: ${{ jobs.create-allocation-request.outputs.expiration }}
       allocation-id:
@@ -117,10 +113,8 @@ jobs:
       aux-quantity: ${{ steps.read-chewie-response.outputs.aux-quantity }}
       cn-tolerations: ${{ steps.read-chewie-response.outputs.cn-tolerations }}
       aux-tolerations: ${{ steps.read-chewie-response.outputs.aux-tolerations }}
-      cn-role: ${{ steps.read-chewie-response.outputs.cn-role }}
-      aux-role: ${{ steps.read-chewie-response.outputs.aux-role }}
-      network-id: ${{ steps.read-chewie-response.outputs.network-id }}
-      owner: ${{ steps.read-chewie-response.outputs.owner }}
+      cn-labels: ${{ steps.read-chewie-response.outputs.cn-labels }}
+      aux-labels: ${{ steps.read-chewie-response.outputs.aux-labels }}
       expiration: ${{ steps.read-chewie-response.outputs.expiration }}
       allocation-id: ${{ steps.create-allocation-request.outputs.allocation-id }}
     steps:

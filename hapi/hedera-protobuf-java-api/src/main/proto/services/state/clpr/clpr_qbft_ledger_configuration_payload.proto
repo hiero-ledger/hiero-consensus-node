@@ -1,0 +1,144 @@
+syntax = "proto3";
+
+package com.hedera.hapi.node.state.clpr;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.state.clpr">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/state/clpr/clpr_ledger_configuration.proto";
+
+/**
+ * An EVM block header carried verbatim as its RLP encoding. The receiver
+ * decodes the RLP to reach the validator address from the QBFT extra_data,
+ * the state_root, and other fields needed to verify proofs against the
+ * block. Carrying RLP rather than parsed fields keeps the wire form
+ * canonical with what the EVM node serves and what the receiver's QBFT
+ * verifier already expects.
+ */
+message BlockHeader {
+    /**
+     * Canonical RLP encoding of the block header (the bytes whose keccak256
+     * yields the block hash).
+     */
+    bytes rlp = 1;
+}
+
+/**
+ * One entry in an EIP-1186 storage proof: a (key, value, proof) tuple
+ * proving the value of a single storage slot under the account's storage
+ * trie.
+ */
+message StorageProofEntry {
+    /**
+     * The 32-byte storage slot key (left-padded).
+     */
+    bytes key = 1;
+
+    /**
+     * The slot value in RLP-canonical form (leading zero bytes stripped).
+     */
+    bytes value = 2;
+
+    /**
+     * The RLP-encoded MPT nodes on the path from the account's storage
+     * trie root to the slot leaf.
+     */
+    repeated bytes proof = 3;
+}
+
+/**
+ * QBFT-specific wire payload returned by getLedgerConfiguration on EVM
+ * (Besu QBFT) endpoints. Wraps the platform-neutral
+ * ClprLedgerConfiguration with the additional ledger state a peer's
+ * QBFT verifier contract needs to reconstruct the trust anchor and
+ * verify the configuration against the source ledger's state root.
+ *
+ * The trust anchor is derived on the verifier side from
+ * current_block_header (its block number, and the QBFT validator set that
+ * must have sealed it: listed in its extra_data in header mode, or proven
+ * from the validator contract by contract_mode_validator_source in
+ * contract mode), the ClprService address from the configuration, and the
+ * contract's code hash from clpr_service_account_proof. Carrying the raw header instead of a
+ * pre-computed anchor lets the verifier check the derivation rather
+ * than trusting the source.
+ */
+message ClprQbftLedgerConfigurationPayload {
+    /**
+     * Not read by the verifier: the initial set is taken from current_block_header (header
+     * mode) or contract_mode_validator_source (contract mode). Kept for wire compatibility.
+     */
+    BlockHeader genesis_block_header = 1;
+
+    /**
+     * The platform-neutral CLPR configuration of the source ledger,
+     * read from contract storage at the block whose header is
+     * current_block_header.
+     */
+    ClprLedgerConfiguration ledger_configuration = 2;
+
+    /**
+     * The most recent finalized block header of the source ledger.
+     * Its state_root is the root against which clpr_service_account_proof
+     * and clpr_service_storage_proofs are verified.
+     */
+    BlockHeader current_block_header = 3;
+
+    /**
+     * EIP-1186 account proof for the ClprService contract at
+     * current_block_header.state_root: an ordered list of RLP-encoded
+     * MPT nodes from state root to the account leaf.
+     *
+     * Empty in the initial PR that introduces this payload; populated
+     * in the follow-up PR that wires eth_getProof.
+     */
+    repeated bytes clpr_service_account_proof = 4;
+
+    /**
+     * EIP-1186 storage proofs for the specific ClprService storage slots
+     * that compose the ledger_configuration value above. The verifier
+     * reconstructs ledger_configuration from these slot values and
+     * checks it matches the ledger_configuration field.
+     *
+     * Empty in the initial PR that introduces this payload; populated
+     * in the follow-up PR that wires eth_getProof.
+     */
+    repeated StorageProofEntry clpr_service_storage_proofs = 5;
+
+    /**
+     * Present only when the source ledger's QBFT validator set is managed by a validator smart
+     * contract (Besu's "contract" validator-selection mode) rather than listed in each block
+     * header's extra_data. Absent (the default) means header mode: the validator set is read
+     * from current_block_header.extra_data.
+     */
+    QbftContractModeValidatorSource contract_mode_validator_source = 6;
+}
+
+/**
+ * The QBFT contract-mode data a verifier needs to prove the source ledger's validator set: the
+ * validator contract's address and the storage slot of its `address[]` array, with a proof of the
+ * array (its length slot and every element slot) under current_block_header.state_root.
+ */
+message QbftContractModeValidatorSource {
+    /**
+     * The 20-byte address of the deployed validator contract.
+     */
+    bytes validator_contract_address = 1;
+
+    /**
+     * Storage slot of the validator contract's address[] array (32 bytes).
+     */
+    bytes array_slot = 2;
+
+    /**
+     * EIP-1186 account proof for the validator contract under current_block_header.state_root.
+     */
+    repeated bytes validator_contract_account_proof = 3;
+
+    /**
+     * EIP-1186 storage proofs for the array's length slot and every element slot. Only key and
+     * proof are read; the value comes from the proof's leaf.
+     */
+    repeated StorageProofEntry validator_contract_storage_proofs = 4;
+}

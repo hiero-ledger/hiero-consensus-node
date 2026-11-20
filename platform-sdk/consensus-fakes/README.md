@@ -26,6 +26,4 @@ fake must not pin them in place
 - `swirlds-metrics-impl`, `swirlds-logging-log4j-appender` — depend on the API instead
 - `swirlds-state-api`, `swirlds-state-impl`, `swirlds-virtualmap`
 
-Known violation — `requires transitive org.hiero.consensus.roster`: `FakeRosterFactory` returns a
-`RosterHistory`, which lives in a structural-transitional module. This does not resolve on its own —
-that class has to move out of this module before `consensus-roster` can move to the execution layer.
+No known violations.

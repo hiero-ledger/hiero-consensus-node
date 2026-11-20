@@ -108,6 +108,15 @@ class EthTxDataTest {
     }
 
     @Test
+    void ethereumValueInWeibarsIsConvertedToTinybarsDroppingRemainder() {
+        final var subject = EthTxData.populateEthTxData(HexFormat.of().parseHex(RAW_TX_TYPE_0))
+                .replaceValue(
+                        BigInteger.valueOf(7).multiply(WEIBARS_IN_A_TINYBAR).add(BigInteger.valueOf(9_999_999_999L)));
+        assertEquals(7L, subject.getAmount());
+        assertEquals(7L, subject.effectiveTinybarValue());
+    }
+
+    @Test
     void effectiveOfferedGasPriceIsNominalWhenReasonable() {
         final var subject = EthTxData.populateEthTxData(HexFormat.of().parseHex(RAW_TX_TYPE_0));
         final var nominal = subject.getMaxGasAsBigInteger(TINYBAR_GAS_PRICE)
@@ -445,14 +454,14 @@ class EthTxDataTest {
         assertNull(EthTxData.populateEthTxData(Arrays.copyOf(canonical, canonical.length + 1)));
     }
 
-    byte[][] normalRlpData() {
+    Object[] normalRlpData() {
         final var oneByte = new byte[] {1};
-        final byte[][] rlpArray = new byte[][] {
+        final var emptyObjectArray = new Object[] {};
+        return new Object[] {
             oneByte, oneByte, oneByte, oneByte,
             oneByte, oneByte, oneByte, oneByte,
-            oneByte, oneByte, oneByte, oneByte
+            emptyObjectArray, oneByte, oneByte, oneByte
         };
-        return rlpArray;
     }
 
     @Test

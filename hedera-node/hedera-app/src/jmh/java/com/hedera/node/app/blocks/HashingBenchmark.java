@@ -2,6 +2,7 @@
 package com.hedera.node.app.blocks;
 
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ACCOUNTS;
+import static com.hedera.node.app.hapi.utils.CommonUtils.sha256DigestOrThrow;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 
 import com.hedera.hapi.block.stream.BlockItem;
@@ -59,11 +60,11 @@ public class HashingBenchmark {
         leafHashes = new ArrayList<>(numLeafHashes);
         for (int i = 0; i < numLeafHashes; i++) {
             final var item = randomBlockItem();
-            final var hash = BlockImplUtils.hashLeaf(BlockItem.PROTOBUF.toBytes(item));
+            final var hash = BlockImplUtils.hashLeaf(sha384DigestOrThrow(), BlockItem.PROTOBUF.toBytes(item));
             leafHashes.add(hash.toByteArray());
         }
         expectedAnswer = Bytes.wrap(
-                new IncrementalStreamingHasher(sha384DigestOrThrow(), leafHashes, numLeafHashes).computeRootHash());
+                new IncrementalStreamingHasher(sha256DigestOrThrow(), leafHashes, numLeafHashes).computeRootHash());
     }
 
     @Benchmark
@@ -71,7 +72,7 @@ public class HashingBenchmark {
     @OutputTimeUnit(TimeUnit.SECONDS)
     public void hashItemTree(@NonNull final Blackhole blackhole) {
         final var subject =
-                new IncrementalStreamingHasher(sha384DigestOrThrow(), new ArrayList<>(leafHashes.size()), 0);
+                new IncrementalStreamingHasher(sha256DigestOrThrow(), new ArrayList<>(leafHashes.size()), 0);
         for (final var hash : leafHashes) {
             subject.addLeaf(hash);
         }

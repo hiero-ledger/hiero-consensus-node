@@ -12,8 +12,7 @@ public record StatsConfig(
         List<String> consThrottlesToSample,
 
         @ConfigProperty(
-                defaultValue =
-                        "<GAS>,<BYTES>,ThroughputLimits,OffHeapQueryLimits,CreationLimits,FreeQueryLimits,BalanceQueryLimits")
+                defaultValue = "<GAS>,<BYTES>,ThroughputLimits,OffHeapQueryLimits,CreationLimits,FreeQueryLimits")
         @NodeProperty
         List<String> hapiThrottlesToSample,
 

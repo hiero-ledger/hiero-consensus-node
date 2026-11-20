@@ -102,15 +102,18 @@ class EnsureAliasesStepTest extends StepsBase {
 
         assertThat(transferContext.numOfAutoCreations()).isEqualTo(2);
         assertThat(transferContext.numOfLazyCreations()).isZero();
-        assertThat(transferContext.resolutions()).containsKey(edKeyAlias.value());
-        assertThat(transferContext.resolutions()).containsKey(ecKeyAlias.value());
+        assertThat(transferContext.resolutions()).containsKey(idFactory.newAccountIdWithAlias(edKeyAlias.value()));
+        assertThat(transferContext.resolutions()).containsKey(idFactory.newAccountIdWithAlias(ecKeyAlias.value()));
+        assertThat(transferContext.isAutoCreated(hbarReceiverId)).isTrue();
+        assertThat(transferContext.isAutoCreated(tokenReceiverId)).isTrue();
+        assertThat(transferContext.isAutoCreated(ownerId)).isFalse();
     }
 
     @Test
     void autoCreateEvmAddressesAccounts() {
-        final var evmAddressAlias1 = new ProtoBytes(Bytes.wrap(unhex("0000000000000000000000000000000000000004")));
-        final var evmAddressAlias2 = new ProtoBytes(Bytes.wrap(unhex("0000000000000000000000000000000000000005")));
-        final var evmAddressAlias3 = new ProtoBytes(Bytes.wrap(unhex("0000000000000000000000000000000000000002")));
+        final var evmAddressAlias1 = new ProtoBytes(Bytes.wrap(unhex("abcdef0000000000000000000000000000000004")));
+        final var evmAddressAlias2 = new ProtoBytes(Bytes.wrap(unhex("abcdef0000000000000000000000000000000005")));
+        final var evmAddressAlias3 = new ProtoBytes(Bytes.wrap(unhex("abcdef0000000000000000000000000000000002")));
         body = CryptoTransferTransactionBody.newBuilder()
                 .transfers(TransferList.newBuilder()
                         .accountAmounts(
@@ -192,9 +195,21 @@ class EnsureAliasesStepTest extends StepsBase {
 
         assertThat(transferContext.numOfAutoCreations()).isZero();
         assertThat(transferContext.numOfLazyCreations()).isEqualTo(3);
-        assertThat(transferContext.resolutions()).containsKey(evmAddressAlias1.value());
-        assertThat(transferContext.resolutions()).containsKey(evmAddressAlias2.value());
-        assertThat(transferContext.resolutions()).containsKey(evmAddressAlias3.value());
+        assertThat(transferContext.resolutions())
+                .containsKey(idFactory.newAccountIdWithAlias(evmAddressAlias1.value()));
+        assertThat(transferContext.resolutions())
+                .containsKey(idFactory.newAccountIdWithAlias(evmAddressAlias2.value()));
+        assertThat(transferContext.resolutions())
+                .containsKey(idFactory.newAccountIdWithAlias(evmAddressAlias3.value()));
+        assertThat(transferContext.isAutoCreated(
+                        transferContext.resolutions().get(idFactory.newAccountIdWithAlias(evmAddressAlias1.value()))))
+                .isTrue();
+        assertThat(transferContext.isAutoCreated(
+                        transferContext.resolutions().get(idFactory.newAccountIdWithAlias(evmAddressAlias2.value()))))
+                .isTrue();
+        assertThat(transferContext.isAutoCreated(
+                        transferContext.resolutions().get(idFactory.newAccountIdWithAlias(evmAddressAlias3.value()))))
+                .isTrue();
     }
 
     @Test
@@ -216,8 +231,10 @@ class EnsureAliasesStepTest extends StepsBase {
 
         assertThat(transferContext.numOfAutoCreations()).isZero();
         assertThat(transferContext.numOfLazyCreations()).isZero();
-        assertThat(transferContext.resolutions()).containsKey(edKeyAlias.value());
-        assertThat(transferContext.resolutions()).containsKey(ecKeyAlias.value());
+        assertThat(transferContext.resolutions()).containsKey(idFactory.newAccountIdWithAlias(edKeyAlias.value()));
+        assertThat(transferContext.resolutions()).containsKey(idFactory.newAccountIdWithAlias(ecKeyAlias.value()));
+        assertThat(transferContext.isAutoCreated(hbarReceiverId)).isFalse();
+        assertThat(transferContext.isAutoCreated(tokenReceiverId)).isFalse();
     }
 
     @Test
@@ -309,7 +326,8 @@ class EnsureAliasesStepTest extends StepsBase {
 
         ensureAliasesStep.doIn(transferContext);
 
-        assertThat(transferContext.resolutions()).containsEntry(mirrorAlias.value(), payerId);
+        assertThat(transferContext.resolutions())
+                .containsEntry(idFactory.newAccountIdWithAlias(mirrorAlias.value()), payerId);
         assertThat(transferContext.numOfLazyCreations()).isZero();
     }
 
@@ -332,7 +350,8 @@ class EnsureAliasesStepTest extends StepsBase {
 
         ensureAliasesStep.doIn(transferContext);
 
-        assertThat(transferContext.resolutions()).containsEntry(mirrorAlias.value(), payerId);
+        assertThat(transferContext.resolutions())
+                .containsEntry(idFactory.newAccountIdWithAlias(mirrorAlias.value()), payerId);
         assertThat(transferContext.numOfLazyCreations()).isZero();
     }
 

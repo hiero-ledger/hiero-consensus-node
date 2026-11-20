@@ -5,10 +5,13 @@ import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.transaction.Query;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -17,6 +20,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.EnumSource;
 
 final class HapiUtilsTest {
 
@@ -138,5 +142,24 @@ final class HapiUtilsTest {
                 Bytes.EMPTY, HapiUtils.endpointFor(invalidIpAddress, 2).ipAddressV4());
         Assertions.assertEquals(
                 invalidIpAddress, HapiUtils.endpointFor(invalidIpAddress, 2).domainName());
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = TransactionBody.DataOneOfType.class, names = "UNSET", mode = EnumSource.Mode.EXCLUDE)
+    void everyTransactionKindMapsToAFunction(final TransactionBody.DataOneOfType kind)
+            throws UnknownHederaFunctionality {
+        assertThat(HapiUtils.functionOf(kind)).isNotNull();
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = Query.QueryOneOfType.class, names = "UNSET", mode = EnumSource.Mode.EXCLUDE)
+    void everyQueryKindMapsToAFunction(final Query.QueryOneOfType kind) throws UnknownHederaFunctionality {
+        assertThat(HapiUtils.functionOf(kind)).isNotNull();
+    }
+
+    @Test
+    void unsetKindsHaveNoFunction() {
+        assertThrows(UnknownHederaFunctionality.class, () -> HapiUtils.functionOf(TransactionBody.DataOneOfType.UNSET));
+        assertThrows(UnknownHederaFunctionality.class, () -> HapiUtils.functionOf(Query.QueryOneOfType.UNSET));
     }
 }

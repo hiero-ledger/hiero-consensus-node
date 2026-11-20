@@ -5,6 +5,7 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.as
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -22,7 +23,11 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.RELAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_EXECUTION_EXCEPTION;
+import static org.hyperledger.besu.datatypes.Address.P256_VERIFY;
+import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.INVALID_OPERATION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType;
@@ -48,6 +53,23 @@ import org.junit.jupiter.api.Tag;
 public class Evm70ValidationTest {
 
     private static final String CALL_CONTRACT = "MakeCalls";
+
+    // Initcode (11-byte loader) for runtime `60011e60005260206000f3`:
+    // PUSH1 0x01, CLZ (0x1e — Osaka-only, EIP-7939), MSTORE at 0, RETURN 32 bytes
+    private static final String CLZ_CONTRACT_INITCODE = "600b80600b6000396000f360011e60005260206000f3";
+
+    // A VALID EIP-7951 P256VERIFY input (sha256(msg) || r || s || qx || qy); its validity is
+    // proven by V070ModuleTest#p256VerifyTestVectorIsAValidSignature in the contract service module
+    private static final String VALID_P256_VERIFY_INPUT =
+            "41ea0d2cdcb0c7dd73c99d38e3d7c49e175f1a187749705330ccb984436c7761"
+                    + "34e133d3fa30f5d149f52988be137c3ce24dbdd18b123f35f8079d764abb8d4f"
+                    + "d342e12f72d39310f9c9fa9f23228cea7ef1258795104d3406db132ed32c07ed"
+                    + "da4c5fd0340a53a76206bd73087ec90914560da20ce8756f49a536e0fd2a0d36"
+                    + "a6f41dbd32635090146629c7984505f5f26aca336ba6b1360cdd8a33bd69d02f";
+
+    // What an Osaka-enabled EVM returns from P256VERIFY for a valid signature
+    private static final ByteString P256_VERIFY_SUCCESS_WORD =
+            ByteString.fromHex("0000000000000000000000000000000000000000000000000000000000000001");
     // Pre-computed test vectors for BLS12-381 precompiles
     // Source: evm-spec-testing repository
     private static final Map<Address, Pair<String, String>> BLS_12_381_TEST_VECTORS = Map.of(
@@ -89,6 +111,46 @@ public class Evm70ValidationTest {
                 cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
                 uploadInitCode(CALL_CONTRACT),
                 contractCreate(CALL_CONTRACT).gas(4_000_000L));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> postPectraClzOpcodeIsNotAvailable() {
+        final var contract = "RawClzOpcodeContract";
+        return hapiTest(
+                // Initcode deploying runtime `PUSH1 0x01, CLZ (0x1e), MSTORE, RETURN 32 bytes`;
+                // CLZ is Osaka-only (EIP-7939) and must be an invalid opcode up to Pectra
+                contractCreate(contract)
+                        .inlineInitCode(ByteString.fromHex(CLZ_CONTRACT_INITCODE))
+                        .gas(500_000L)
+                        .refusingEthConversion(),
+                contractCall(contract).gas(100_000L).via("clzCall").hasKnownStatus(CONTRACT_EXECUTION_EXCEPTION),
+                getTxnRecord("clzCall")
+                        .exposingTo(txnRecord -> assertEquals(
+                                INVALID_OPERATION.toString(),
+                                txnRecord.getContractCallResult().getErrorMessage())));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> postPectraP256VerifyPrecompileIsNotAvailable() {
+        return hapiTest(
+                // Plain contractCall (not ethereumCall) so this test cannot race the shared
+                // relayer alias nonce with other concurrently running tests in this class
+                contractCall(
+                                CALL_CONTRACT,
+                                "makeCallWithoutAmount",
+                                asHeadlongAddress(P256_VERIFY.getBytes().toArray()),
+                                ByteString.fromHex(VALID_P256_VERIFY_INPUT).toByteArray())
+                        .gas(2_000_000L)
+                        .via("p256Call"),
+                getTxnRecord("p256Call").exposingTo(txnRecord -> {
+                    // An Osaka-enabled EVM would return the 32-byte success word 0x…01 for this
+                    // valid signature (validity is proven by V070ModuleTest); up to Pectra the
+                    // 0x100 address must behave like any unregistered system address: no output
+                    final var result = txnRecord.getContractCallResult().getContractCallResult();
+                    final var returnData = result.size() > 96 ? result.substring(64 + 32) : ByteString.EMPTY;
+                    assertNotEquals(P256_VERIFY_SUCCESS_WORD, returnData);
+                    assertEquals(ByteString.EMPTY, returnData);
+                }));
     }
 
     @HapiTest

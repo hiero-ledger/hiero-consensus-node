@@ -1,9 +1,22 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle;
 
+import static com.hedera.hapi.services.auxiliary.clpr.ClprMaintenanceReason.ENDPOINT_MANIFEST_RECONCILIATION;
+import static com.hedera.hapi.services.auxiliary.clpr.ClprMaintenanceReason.GENESIS_INITIALIZATION;
+import static com.hedera.hapi.services.auxiliary.clpr.ClprMaintenanceReason.UPGRADE_INITIALIZATION;
+import static com.hedera.hapi.services.auxiliary.clpr.ClprMaintenanceReason.UPGRADE_ROSTER_RECONCILIATION;
+import static com.hedera.hapi.util.HapiUtils.asTimestamp;
+import static com.hedera.hapi.util.HapiUtils.endpointFor;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.POST_UPGRADE_WORK;
+import static com.hedera.node.app.hints.schemas.V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.LEDGER_ID_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.ENDPOINT_MANIFEST_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.LEDGER_CONFIGURATION_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSchema.HIGHEST_NODE_ID_STATE_ID;
@@ -13,57 +26,104 @@ import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ST
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.BOTH;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
-import static java.util.Collections.emptyIterator;
 import static java.util.Collections.emptyList;
+import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.platformstate.PlatformStateService.NAME;
+import static org.hiero.consensus.roster.RosterStateId.ROSTERS_STATE_ID;
+import static org.hiero.consensus.roster.RosterStateId.ROSTER_STATE_STATE_ID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willAnswer;
+import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.withSettings;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.input.EventHeader;
 import com.hedera.hapi.block.stream.input.ParentEventReference;
+import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.FileID;
+import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
+import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
+import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
+import com.hedera.hapi.node.state.clpr.ClprEndpointManifestConstruction;
+import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.file.File;
+import com.hedera.hapi.node.state.hints.CRSStage;
+import com.hedera.hapi.node.state.hints.CRSState;
+import com.hedera.hapi.node.state.hints.HintsConstruction;
+import com.hedera.hapi.node.state.hints.HintsScheme;
+import com.hedera.hapi.node.state.hints.NodePartyId;
+import com.hedera.hapi.node.state.hints.PreprocessedKeys;
 import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
+import com.hedera.hapi.node.state.history.ProofNodeWeight;
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.hedera.hapi.node.state.roster.RosterState;
+import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.hapi.node.state.token.NetworkStakingRewards;
+import com.hedera.hapi.node.transaction.ExchangeRateSet;
+import com.hedera.hapi.node.transaction.SignedTransaction;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.hapi.platform.state.PlatformState;
+import com.hedera.hapi.services.auxiliary.clpr.ClprMaintenanceReason;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
 import com.hedera.node.app.fees.ExchangeRateManager;
+import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.HintsService;
+import com.hedera.node.app.hints.WritableHintsStore;
+import com.hedera.node.app.hints.impl.HintsContext;
+import com.hedera.node.app.hints.impl.HintsGenerationWeights;
+import com.hedera.node.app.hints.impl.HintsServiceFixtures;
+import com.hedera.node.app.hints.impl.HintsSigningMetrics;
+import com.hedera.node.app.hints.impl.OnHintsFinished;
+import com.hedera.node.app.hints.impl.WritableHintsStoreImpl;
+import com.hedera.node.app.hints.schemas.V059HintsSchema;
+import com.hedera.node.app.hints.schemas.V060HintsSchema;
+import com.hedera.node.app.hints.schemas.V079HintsSchema;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.WritableHistoryStore;
 import com.hedera.node.app.history.impl.OnProofFinished;
@@ -72,11 +132,13 @@ import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
 import com.hedera.node.app.records.impl.WrappedRecordBlockHashMigration;
 import com.hedera.node.app.service.addressbook.AddressBookService;
+import com.hedera.node.app.service.clpr.ClprService;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.roster.RosterService;
+import com.hedera.node.app.service.schedule.ExecutableTxn;
 import com.hedera.node.app.service.schedule.ExecutableTxnIterator;
 import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.token.TokenService;
@@ -89,16 +151,28 @@ import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
+import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.state.HederaRecordCache;
+import com.hedera.node.app.state.recordcache.BlockRecordSource;
+import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
 import com.hedera.node.app.throttle.CongestionMetrics;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
+import com.hedera.node.app.tss.PreparedTssHandoff;
+import com.hedera.node.app.tss.TssBlockHashSigner;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
+import com.hedera.node.app.workflows.TransactionInfo;
+import com.hedera.node.app.workflows.clpr.ClprEndpointManifestReconciler;
+import com.hedera.node.app.workflows.clpr.ClprHapiTlsEndpoint;
+import com.hedera.node.app.workflows.clpr.ClprSubmissions;
 import com.hedera.node.app.workflows.handle.cache.CacheWarmer;
 import com.hedera.node.app.workflows.handle.record.MigrationRootHashSubmissions;
 import com.hedera.node.app.workflows.handle.record.SystemTransactions;
+import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
 import com.hedera.node.app.workflows.handle.steps.HollowAccountCompletions;
+import com.hedera.node.app.workflows.handle.steps.ParentTxn;
 import com.hedera.node.app.workflows.handle.steps.ParentTxnFactory;
 import com.hedera.node.app.workflows.handle.steps.StakePeriodChanges;
 import com.hedera.node.config.ConfigProvider;
@@ -108,8 +182,10 @@ import com.hedera.node.config.types.BlockStreamWriterMode;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.system.InitTrigger;
+import com.swirlds.state.State;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
+import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableSingletonState;
@@ -119,11 +195,18 @@ import com.swirlds.state.test.fixtures.MapWritableKVState;
 import com.swirlds.state.test.fixtures.MapWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
+import java.util.stream.LongStream;
+import javax.inject.Provider;
 import org.apache.logging.log4j.LogManager;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
@@ -132,14 +215,19 @@ import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 import org.hiero.consensus.platformstate.V0540PlatformStateSchema;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
@@ -230,6 +318,11 @@ class HandleWorkflowTest {
     private StakeInfoHelper stakeInfoHelper;
 
     @Mock
+    private ClprEndpointManifestReconciler clprEndpointManifestReconciler;
+
+    private final AtomicInteger clprEndpointManifestReconcilerProviderCalls = new AtomicInteger();
+
+    @Mock
     private ParentTxnFactory parentTxnFactory;
 
     @Mock
@@ -281,6 +374,7 @@ class HandleWorkflowTest {
 
     @BeforeEach
     void setUp() {
+        clprEndpointManifestReconcilerProviderCalls.set(0);
         final ReadableStates readableStates = mock(ReadableStates.class);
         final ReadableSingletonState singletonState = mock(ReadableSingletonState.class);
         lenient()
@@ -309,17 +403,15 @@ class HandleWorkflowTest {
         final var missingCreatorId = NodeId.of(2L);
         final var eventFromPresentCreator = mock(ConsensusEvent.class);
         final var eventFromMissingCreator = mock(ConsensusEvent.class);
-        given(round.iterator())
-                .willReturn(List.of(eventFromMissingCreator, eventFromPresentCreator)
-                        .iterator())
-                .willReturn(List.of(eventFromMissingCreator, eventFromPresentCreator)
-                        .iterator());
+        given(round.getConsensusEvents())
+                .willAnswer(_ -> List.of(eventFromMissingCreator, eventFromPresentCreator))
+                .willAnswer(_ -> List.of(eventFromMissingCreator, eventFromPresentCreator));
         given(eventFromPresentCreator.getCreatorId()).willReturn(presentCreatorId);
         given(eventFromMissingCreator.getCreatorId()).willReturn(missingCreatorId);
         given(networkInfo.nodeInfo(presentCreatorId.id())).willReturn(mock(NodeInfo.class));
         given(networkInfo.nodeInfo(missingCreatorId.id())).willReturn(null);
-        given(eventFromPresentCreator.consensusTransactionIterator()).willReturn(emptyIterator());
-        given(eventFromMissingCreator.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(eventFromPresentCreator.getTransactions()).willReturn(emptyList());
+        given(eventFromMissingCreator.getTransactions()).willReturn(emptyList());
         given(round.getConsensusTimestamp()).willReturn(Instant.ofEpochSecond(12345L));
         given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(NOW);
         given(blockRecordManager.lastIntervalProcessTime()).willReturn(NOW);
@@ -328,8 +420,8 @@ class HandleWorkflowTest {
 
         subject.handleRound(state, round, txns -> {});
 
-        verify(eventFromPresentCreator).consensusTransactionIterator();
-        verify(eventFromMissingCreator).consensusTransactionIterator();
+        verify(eventFromPresentCreator).getTransactions();
+        verify(eventFromMissingCreator).getTransactions();
         verify(recordCache).resetRoundReceipts();
         verify(recordCache)
                 .commitReceipts(any(), any(), same(immediateStateChangeListener), same(blockStreamManager), any());
@@ -337,10 +429,9 @@ class HandleWorkflowTest {
 
     @Test
     void writesEachMigrationStateChangeWithBlockTimestamp() {
-        given(round.iterator())
-                .willReturn(List.of(event).iterator())
-                .willReturn(List.of(event).iterator());
-        given(event.allParentsIterator()).willReturn(List.of(wrapper).iterator());
+        given(round.getConsensusEvents()).willAnswer(_ -> List.of(event));
+        given(event.getCreatorId()).willReturn(NodeId.of(0));
+        given(event.getAllParents()).willReturn(List.of(wrapper));
         given(event.getConsensusTimestamp()).willReturn(NOW);
         given(systemTransactions.firstReservedSystemTimeFor(any())).willReturn(NOW);
         final var firstBuilder = StateChanges.newBuilder().stateChanges(List.of(StateChange.DEFAULT));
@@ -380,6 +471,54 @@ class HandleWorkflowTest {
         assertEquals(123L, method.invoke(subject));
         verify(blockStreamManager).blockNo();
         verify(blockRecordManager, never()).blockNo();
+    }
+
+    @Test
+    void disabledClprDoesNotInstantiateEndpointManifestReconciler() throws Exception {
+        givenSubjectWith(RECORDS, BlockStreamWriterMode.FILE, emptyList(), Map.of("clpr.enabled", "false"));
+
+        for (final var methodName : List.of("reconcileClprEndpointManifest", "pruneClprEndpointManifestOnUpgrade")) {
+            final var reconcile = methodName.equals("reconcileClprEndpointManifest");
+            final var method = reconcile
+                    ? HandleWorkflow.class.getDeclaredMethod(
+                            methodName, com.swirlds.state.State.class, Instant.class, Instant.class)
+                    : HandleWorkflow.class.getDeclaredMethod(methodName, com.swirlds.state.State.class, Instant.class);
+            method.setAccessible(true);
+            if (reconcile) {
+                method.invoke(subject, state, NOW, NOW);
+            } else {
+                method.invoke(subject, state, NOW);
+            }
+        }
+
+        assertEquals(0, clprEndpointManifestReconcilerProviderCalls.get());
+    }
+
+    @Test
+    void failedPostUpgradeSetupStaysPendingWithoutDroppingTheTransaction() {
+        given(blockStreamManager.pendingWork()).willReturn(POST_UPGRADE_WORK);
+        willThrow(new IllegalStateException("No reserved consensus time remains"))
+                .given(systemTransactions)
+                .doPostUpgradeSetup(any(), any());
+        final var txn = new TransactionWrapper(com.hedera.pbj.runtime.io.buffer.Bytes.EMPTY);
+        txn.setConsensusTimestamp(NOW);
+        given(event.getHash()).willReturn(CryptoRandomUtils.randomHash());
+        given(event.getAllParents()).willReturn(List.<EventDescriptorWrapper>of());
+        given(event.getEventCore()).willReturn(EventCore.DEFAULT);
+        given(blockStreamManager.lastIntervalProcessTime()).willReturn(NOW);
+        given(round.getConsensusEvents()).willAnswer(invocation -> List.of(event));
+        final var creatorId = NodeId.of(0);
+        given(event.getCreatorId()).willReturn(creatorId);
+        given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
+        given(event.getTransactions()).willAnswer(invocation -> List.of(txn));
+        givenSubjectWith(StreamMode.BLOCKS, BlockStreamWriterMode.FILE, List.of());
+
+        subject.handleRound(state, round, txns -> {});
+
+        // The transaction is still handled, while the rest of the post-upgrade work waits for a later one
+        verify(parentTxnFactory).createTopLevelTxn(eq(state), any(), eq(txn), eq(NOW), any());
+        verify(blockStreamManager, never()).confirmPendingWorkFinished();
+        verify(state, never()).getWritableStates(ClprService.NAME);
     }
 
     @Test
@@ -433,16 +572,14 @@ class HandleWorkflowTest {
         final var txn = new TransactionWrapper(com.hedera.pbj.runtime.io.buffer.Bytes.EMPTY);
         txn.setConsensusTimestamp(NOW);
         given(event.getHash()).willReturn(CryptoRandomUtils.randomHash());
-        given(event.allParentsIterator())
-                .willReturn(List.<EventDescriptorWrapper>of().iterator());
+        given(event.getAllParents()).willReturn(List.<EventDescriptorWrapper>of());
         given(event.getEventCore()).willReturn(EventCore.DEFAULT);
         given(blockStreamManager.lastIntervalProcessTime()).willReturn(NOW);
-        given(round.iterator()).willAnswer(invocation -> List.of(event).iterator());
+        given(round.getConsensusEvents()).willAnswer(invocation -> List.of(event));
         final var creatorId = NodeId.of(0);
         given(event.getCreatorId()).willReturn(creatorId);
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
-        given(event.consensusTransactionIterator())
-                .willAnswer(invocation -> List.<ConsensusTransaction>of(txn).iterator());
+        given(event.getTransactions()).willAnswer(invocation -> List.of(txn));
 
         givenSubjectWith(StreamMode.BLOCKS, BlockStreamWriterMode.FILE, List.of());
 
@@ -458,20 +595,18 @@ class HandleWorkflowTest {
     void writeEventHeaderWithNoParentEvents() {
         // Setup event with no parents
         given(event.getHash()).willReturn(CryptoRandomUtils.randomHash());
-        given(event.allParentsIterator())
-                .willReturn(List.<EventDescriptorWrapper>of().iterator());
+        given(event.getAllParents()).willReturn(List.<EventDescriptorWrapper>of());
         given(event.getEventCore()).willReturn(EventCore.DEFAULT);
         given(blockStreamManager.lastIntervalProcessTime()).willReturn(NOW);
 
         // Set up the round
-        given(round.iterator()).willAnswer(invocationOnMock -> List.of(event).iterator());
+        given(round.getConsensusEvents()).willAnswer(invocationOnMock -> List.of(event));
 
         // Setup node info for event creator
         NodeId creatorId = NodeId.of(0);
         given(event.getCreatorId()).willReturn(creatorId);
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
-        given(event.consensusTransactionIterator())
-                .willReturn(List.<ConsensusTransaction>of().iterator());
+        given(event.getTransactions()).willReturn(emptyList());
 
         // Create subject with BLOCKS mode
         givenSubjectWith(StreamMode.BLOCKS, BlockStreamWriterMode.FILE, List.of());
@@ -511,17 +646,17 @@ class HandleWorkflowTest {
         given(parent.hash()).willReturn(parentHash);
 
         given(event.getHash()).willReturn(eventHash);
-        given(event.allParentsIterator()).willReturn(List.of(parent).iterator());
+        given(event.getAllParents()).willReturn(List.of(parent));
         given(event.getEventCore()).willReturn(EventCore.DEFAULT);
 
         // Setup node info for event creator
         NodeId creatorId = NodeId.of(0);
         given(event.getCreatorId()).willReturn(creatorId);
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
-        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(event.getTransactions()).willReturn(emptyList());
 
         // Set up the round
-        given(round.iterator()).willAnswer(invocationOnMock -> List.of(event).iterator());
+        given(round.getConsensusEvents()).willAnswer(invocationOnMock -> List.of(event));
 
         // Create subject with BLOCKS mode
         givenSubjectWith(StreamMode.BLOCKS, BlockStreamWriterMode.FILE, List.of());
@@ -568,17 +703,17 @@ class HandleWorkflowTest {
         given(parent.toPbj()).willReturn(parentDescriptor);
 
         given(event.getHash()).willReturn(eventHash);
-        given(event.allParentsIterator()).willReturn(List.of(parent).iterator());
+        given(event.getAllParents()).willReturn(List.of(parent));
         given(event.getEventCore()).willReturn(EventCore.DEFAULT);
 
         // Setup node info for event creator
         NodeId creatorId = NodeId.of(0);
         given(event.getCreatorId()).willReturn(creatorId);
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
-        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(event.getTransactions()).willReturn(emptyList());
 
         // Set up the round
-        given(round.iterator()).willAnswer(invocationOnMock -> List.of(event).iterator());
+        given(round.getConsensusEvents()).willAnswer(invocationOnMock -> List.of(event));
 
         // Create subject with BLOCKS mode
         givenSubjectWith(StreamMode.BLOCKS, BlockStreamWriterMode.FILE, List.of());
@@ -633,18 +768,17 @@ class HandleWorkflowTest {
 
         // Setup event with two parents
         given(event.getHash()).willReturn(eventHash);
-        given(event.allParentsIterator())
-                .willReturn(List.of(parentInBlock, parentNotInBlock).iterator());
+        given(event.getAllParents()).willReturn(List.of(parentInBlock, parentNotInBlock));
         given(event.getEventCore()).willReturn(EventCore.DEFAULT);
 
         // Setup node info for event creator
         NodeId creatorId = NodeId.of(0);
         given(event.getCreatorId()).willReturn(creatorId);
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
-        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(event.getTransactions()).willReturn(emptyList());
 
         // Set up the round
-        given(round.iterator()).willAnswer(invocationOnMock -> List.of(event).iterator());
+        given(round.getConsensusEvents()).willAnswer(invocationOnMock -> List.of(event));
 
         // Create subject with BLOCKS mode
         givenSubjectWith(StreamMode.BLOCKS, BlockStreamWriterMode.FILE, List.of());
@@ -710,6 +844,16 @@ class HandleWorkflowTest {
         final var hederaConfig = config.getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(hederaConfig, 1L));
         lenient().when(round.getConsensusTimestamp()).thenReturn(NOW);
+        lenient()
+                .when(systemTransactions.nextReservedSystemTimeFor(any()))
+                .thenAnswer(invocation -> ((Instant) invocation.getArgument(0)).minusNanos(100));
+        lenient()
+                .when(systemTransactions.nextSystemTransactionIdAt(any()))
+                .thenAnswer(invocation -> TransactionID.newBuilder()
+                        .transactionValidStart(asTimestamp(invocation.getArgument(0)))
+                        .nonce(1)
+                        .build());
+        lenient().when(exchangeRateManager.exchangeRates()).thenReturn(ExchangeRateSet.DEFAULT);
         subject = new HandleWorkflow(
                 networkInfo,
                 stakePeriodChanges,
@@ -724,6 +868,10 @@ class HandleWorkflowTest {
                 hollowAccountCompletions,
                 systemTransactions,
                 stakeInfoHelper,
+                () -> {
+                    clprEndpointManifestReconcilerProviderCalls.incrementAndGet();
+                    return clprEndpointManifestReconciler;
+                },
                 recordCache,
                 exchangeRateManager,
                 stakePeriodManager,
@@ -737,7 +885,7 @@ class HandleWorkflowTest {
                 congestionMetrics,
                 () -> PlatformStatus.ACTIVE,
                 blockHashSigner,
-                null,
+                new java.util.concurrent.atomic.AtomicBoolean(),
                 nodeRewardManager,
                 blockBufferService,
                 Map.of(),
@@ -775,19 +923,688 @@ class HandleWorkflowTest {
         given(event.getHash()).willReturn(eventHash);
         given(event.getCreatorId()).willReturn(creatorId);
         given(event.getEventCore()).willReturn(EventCore.DEFAULT);
-        given(event.allParentsIterator())
-                .willReturn(List.<EventDescriptorWrapper>of().iterator());
+        given(event.getAllParents()).willReturn(List.<EventDescriptorWrapper>of());
         given(blockStreamManager.lastIntervalProcessTime()).willReturn(NOW);
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
-        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
-        given(round.iterator()).willAnswer(invocationOnMock -> List.of(event).iterator());
+        given(event.getTransactions()).willReturn(emptyList());
+        given(round.getConsensusEvents()).willAnswer(_ -> List.of(event));
 
         // Create subject with streamToBlockNodes enabled
         givenSubjectWith(BOTH, BlockStreamWriterMode.FILE_AND_GRPC, emptyList());
 
-        subject.handleRound(state, round, txn -> {});
+        subject.handleRound(state, round, _ -> {});
 
         verify(blockBufferService).ensureNewBlocksPermitted();
+    }
+
+    @Test
+    void historyRecoveryClockAdvancesOnEmptyRoundsUntilSignerIsReady() {
+        givenTssEnabledEmptyRounds();
+        given(blockHashSigner.isReady()).willReturn(false);
+        given(blockStreamManager.lastUsedConsensusTime()).willReturn(NOW);
+
+        // A missing genesis WRAPS message must not freeze recovery time before its 10-second deadline.
+        final var firstRoundTime = NOW.plusSeconds(1);
+        final var afterGracePeriod = NOW.plusSeconds(11);
+        given(round.getConsensusTimestamp()).willReturn(firstRoundTime);
+        subject.handleRound(state, round, txn -> {});
+        given(round.getConsensusTimestamp()).willReturn(afterGracePeriod);
+        subject.handleRound(state, round, txn -> {});
+
+        // After readiness, history must retain the block-based clock even when subsequent rounds are empty.
+        final var readyBlockTime = NOW.plusSeconds(12);
+        given(blockHashSigner.isReady()).willReturn(true);
+        given(blockStreamManager.lastUsedConsensusTime()).willReturn(readyBlockTime);
+        given(round.getConsensusTimestamp()).willReturn(NOW.plusSeconds(13));
+        subject.handleRound(state, round, txn -> {});
+        given(round.getConsensusTimestamp()).willReturn(NOW.plusSeconds(23));
+        subject.handleRound(state, round, txn -> {});
+
+        final var reconciliationTimes = ArgumentCaptor.forClass(Instant.class);
+        verify(historyService, times(4))
+                .reconcile(
+                        any(),
+                        any(),
+                        any(),
+                        reconciliationTimes.capture(),
+                        any(),
+                        eq(true),
+                        any(),
+                        eq(false),
+                        any(),
+                        anyLong());
+        assertEquals(
+                List.of(firstRoundTime, afterGracePeriod, readyBlockTime, readyBlockTime),
+                reconciliationTimes.getAllValues());
+    }
+
+    @Test
+    void invalidSigningGenerationStillCommitsHintsProgressAndCompletesHistoryLedgerWork() {
+        givenTssEnabledEmptyRounds();
+        final var failure = assertThrows(
+                HintsGenerationWeights.InvalidGenerationException.class,
+                () -> HintsGenerationWeights.from(HintsConstruction.DEFAULT, null));
+        willThrow(failure).given(hintsService).reconcile(any(), any(), any(), any(), any(), anyBoolean(), any());
+        final var callback = new AtomicReference<OnProofFinished>();
+        willAnswer(invocation -> {
+                    callback.set(invocation.getArgument(0));
+                    return null;
+                })
+                .given(historyService)
+                .onFinishedConstruction(any());
+        final var proof =
+                HistoryProof.newBuilder().targetHistory(History.DEFAULT).build();
+        final var completed = HistoryProofConstruction.newBuilder()
+                .constructionId(5)
+                .targetProof(proof)
+                .build();
+        final var callbackStore = mock(WritableHistoryStore.class);
+        given(callbackStore.getActiveConstruction()).willReturn(completed);
+        final var ledgerId = Bytes.wrap("recovered-ledger-id");
+        given(historyService.ledgerIdOf(proof)).willReturn(ledgerId);
+        willAnswer(_ -> {
+                    callback.get().onFinished(callbackStore, completed, new TreeMap<>());
+                    return null;
+                })
+                .given(historyService)
+                .reconcile(any(), any(), any(), any(), any(), anyBoolean(), any(), anyBoolean(), any(), anyLong());
+
+        subject.handleRound(state, round, txn -> {});
+
+        final var order = inOrder(historyService, hintsService, callbackStore);
+        order.verify(historyService).recoverActiveBook(any(), any(), any());
+        order.verify(hintsService).reconcile(any(), any(), any(), any(), any(), anyBoolean(), any());
+        order.verify(historyService)
+                .reconcile(any(), any(), any(), any(), any(), anyBoolean(), any(), anyBoolean(), any(), anyLong());
+        order.verify(historyService).setLatestHistoryProof(proof);
+        order.verify(callbackStore).setLedgerId(ledgerId);
+        verify((CommittableWritableStates) state.getWritableStates(HintsService.NAME))
+                .commit();
+        verify((CommittableWritableStates) state.getWritableStates(HistoryService.NAME), times(2))
+                .commit();
+        verify(hintsService, never()).setActiveConstruction(any(), any(), any());
+    }
+
+    @Test
+    void repeatedInvalidGenerationsAreLoggedOnceWhileHistoryContinuesAndResetAfterRecovery() {
+        givenTssEnabledEmptyRounds();
+        final var failure = assertThrows(
+                HintsGenerationWeights.InvalidGenerationException.class,
+                () -> HintsGenerationWeights.from(HintsConstruction.DEFAULT, null));
+        final var currentFailure = new AtomicReference<RuntimeException>(failure);
+        willAnswer(_ -> {
+                    if (currentFailure.get() != null) {
+                        throw currentFailure.get();
+                    }
+                    return null;
+                })
+                .given(hintsService)
+                .reconcile(any(), any(), any(), any(), any(), anyBoolean(), any());
+        final var logs = new LogCaptor(LogManager.getLogger(HandleWorkflow.class));
+        try {
+            for (int i = 1; i <= 3; i++) {
+                given(round.getConsensusTimestamp()).willReturn(NOW.plusSeconds(i));
+                subject.handleRound(state, round, txn -> {});
+            }
+            assertEquals(
+                    1,
+                    logs.errorLogs().stream()
+                            .filter(message ->
+                                    message.contains("Cannot advance hinTS with the current generation snapshot"))
+                            .count());
+            verify(historyService, times(3))
+                    .reconcile(any(), any(), any(), any(), any(), anyBoolean(), any(), anyBoolean(), any(), anyLong());
+
+            currentFailure.set(null);
+            given(round.getConsensusTimestamp()).willReturn(NOW.plusSeconds(4));
+            subject.handleRound(state, round, txn -> {});
+            currentFailure.set(failure);
+            given(round.getConsensusTimestamp()).willReturn(NOW.plusSeconds(5));
+            subject.handleRound(state, round, txn -> {});
+
+            assertEquals(
+                    2,
+                    logs.errorLogs().stream()
+                            .filter(message ->
+                                    message.contains("Cannot advance hinTS with the current generation snapshot"))
+                            .count());
+            verify(historyService, times(5))
+                    .reconcile(any(), any(), any(), any(), any(), anyBoolean(), any(), anyBoolean(), any(), anyLong());
+            verify((CommittableWritableStates) state.getWritableStates(HintsService.NAME), times(5))
+                    .commit();
+        } finally {
+            logs.stopCapture();
+        }
+    }
+
+    @Test
+    void unrelatedHintsFailureStillAbortsTheTssReconciliationAction() {
+        givenTssEnabledEmptyRounds();
+        willThrow(new IllegalStateException("unrelated local failure"))
+                .given(hintsService)
+                .reconcile(any(), any(), any(), any(), any(), anyBoolean(), any());
+
+        subject.handleRound(state, round, txn -> {});
+
+        verify(historyService).recoverActiveBook(any(), any(), any());
+        verify(historyService, never())
+                .reconcile(any(), any(), any(), any(), any(), anyBoolean(), any(), anyBoolean(), any(), anyLong());
+        verify((CommittableWritableStates) state.getWritableStates(HintsService.NAME), never())
+                .commit();
+        verify((CommittableWritableStates) state.getWritableStates(HistoryService.NAME))
+                .commit();
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void compatibilityCompletionStartsGenesisSigningWithoutAHistorySnapshot(final boolean historyEnabled)
+            throws Exception {
+        givenSubjectWith(
+                BLOCKS,
+                BlockStreamWriterMode.FILE,
+                emptyList(),
+                Map.of(
+                        "tss.hintsEnabled",
+                        "true",
+                        "tss.historyEnabled",
+                        "" + historyEnabled,
+                        "tss.forceMockSignatures",
+                        "" + historyEnabled));
+        final var configure =
+                HandleWorkflow.class.getDeclaredMethod("configureTssCallbacks", State.class, AtomicReference.class);
+        configure.setAccessible(true);
+        configure.invoke(subject, state, new AtomicReference<>());
+        final var callback = ArgumentCaptor.forClass(OnHintsFinished.class);
+        verify(hintsService).onFinishedConstruction(callback.capture());
+        final var active = HintsConstruction.newBuilder()
+                .constructionId(7)
+                .hintsScheme(HintsScheme.DEFAULT)
+                .build();
+        final var store = mock(WritableHintsStore.class);
+        given(store.getActiveConstruction()).willReturn(active);
+        given(store.getCrsStateFor(active)).willReturn(CRSState.DEFAULT);
+
+        callback.getValue().accept(store, active, mock(HintsContext.class));
+
+        verify(hintsService).setActiveConstruction(active, CRSState.DEFAULT);
+        verify(hintsService, never()).setActiveConstruction(any(), any(), any());
+    }
+
+    @Test
+    void switchingFromCompatibilityToStrictModeClearsTheCapturedHintsCallback() throws Exception {
+        givenSubjectWith(
+                BLOCKS,
+                BlockStreamWriterMode.FILE,
+                emptyList(),
+                Map.of("tss.hintsEnabled", "true", "tss.historyEnabled", "false", "tss.forceMockSignatures", "false"));
+        final var installedCallback = new AtomicReference<OnHintsFinished>();
+        willAnswer(invocation -> {
+                    installedCallback.set(invocation.getArgument(0));
+                    return null;
+                })
+                .given(hintsService)
+                .onFinishedConstruction(any());
+        final var configure =
+                HandleWorkflow.class.getDeclaredMethod("configureTssCallbacks", State.class, AtomicReference.class);
+        configure.setAccessible(true);
+        configure.invoke(subject, state, new AtomicReference<>());
+        assertNotNull(installedCallback.get());
+
+        final var strictConfig = HederaTestConfigBuilder.create()
+                .withValue("tss.hintsEnabled", true)
+                .withValue("tss.historyEnabled", true)
+                .withValue("tss.forceMockSignatures", false)
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(strictConfig, 2L));
+        configure.invoke(subject, state, new AtomicReference<>());
+
+        assertNull(installedCallback.get());
+        final var order = inOrder(hintsService);
+        order.verify(hintsService).onFinishedConstruction(any(OnHintsFinished.class));
+        order.verify(hintsService).onFinishedConstruction(null);
+    }
+
+    private void givenTssEnabledEmptyRounds() {
+        final var rosterStates = mock(ReadableStates.class);
+        final ReadableSingletonState<RosterState> rosterState = mock(ReadableSingletonState.class);
+        given(state.getReadableStates(RosterService.NAME)).willReturn(rosterStates);
+        given(rosterStates.<RosterState>getSingleton(ROSTER_STATE_STATE_ID)).willReturn(rosterState);
+        given(rosterState.get())
+                .willReturn(RosterState.newBuilder()
+                        .roundRosterPairs(new RoundRosterPair(0, Bytes.wrap("genesis-roster")))
+                        .build());
+
+        final var entityStates =
+                mock(WritableStates.class, withSettings().extraInterfaces(CommittableWritableStates.class));
+        given(state.getWritableStates(EntityIdService.NAME)).willReturn(entityStates);
+        final var hintsStates =
+                mock(WritableStates.class, withSettings().extraInterfaces(CommittableWritableStates.class));
+        final WritableSingletonState<HintsConstruction> hintsConstruction = mock(WritableSingletonState.class);
+        given(state.getWritableStates(HintsService.NAME)).willReturn(hintsStates);
+        lenient()
+                .when(hintsStates.<HintsConstruction>getSingleton(ACTIVE_HINTS_CONSTRUCTION_STATE_ID))
+                .thenReturn(hintsConstruction);
+        given(hintsConstruction.get()).willReturn(HintsConstruction.DEFAULT);
+        final var historyStates =
+                mock(WritableStates.class, withSettings().extraInterfaces(CommittableWritableStates.class));
+        given(state.getWritableStates(HistoryService.NAME)).willReturn(historyStates);
+        lenient()
+                .when(historyStates.<ProtoBytes>getSingleton(LEDGER_ID_STATE_ID))
+                .thenReturn(mock(WritableSingletonState.class));
+        final WritableSingletonState<HistoryProofConstruction> proofConstruction = mock(WritableSingletonState.class);
+        lenient()
+                .when(historyStates.<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID))
+                .thenReturn(proofConstruction);
+        lenient()
+                .when(historyStates.<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID))
+                .thenReturn(proofConstruction);
+        lenient().when(proofConstruction.get()).thenReturn(HistoryProofConstruction.DEFAULT);
+
+        given(event.getHash()).willReturn(CryptoRandomUtils.randomHash());
+        given(event.getCreatorId()).willReturn(NodeId.of(0));
+        given(event.getEventCore()).willReturn(EventCore.DEFAULT);
+        given(event.getAllParents()).willAnswer(ignore -> emptyList());
+        given(event.getTransactions()).willAnswer(ignore -> emptyList());
+        given(round.getConsensusEvents()).willAnswer(ignore -> List.of(event));
+        given(networkInfo.nodeInfo(0)).willReturn(mock(NodeInfo.class));
+        lenient().when(blockStreamManager.lastIntervalProcessTime()).thenReturn(NOW);
+        lenient()
+                .when(scheduleService.executableTxns(any(), any(), any()))
+                .thenReturn(mock(ExecutableTxnIterator.class));
+        lenient().when(state.getWritableStates(ScheduleService.NAME)).thenReturn(mock(WritableStates.class));
+
+        givenSubjectWith(
+                BLOCKS,
+                BlockStreamWriterMode.FILE,
+                emptyList(),
+                Map.of("tss.hintsEnabled", "true", "tss.historyEnabled", "true"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void initializesMissingClprSingletonsOnUpgrade() throws Exception {
+        givenSubjectWith(RECORDS, BlockStreamWriterMode.FILE, emptyList());
+        final var clprStates = mock(WritableStates.class);
+        final WritableSingletonState<ClprLedgerConfiguration> ledgerConfiguration = mock(WritableSingletonState.class);
+        final WritableSingletonState<ClprEndpointManifest> manifest = mock(WritableSingletonState.class);
+        final WritableSingletonState<ClprEndpointManifestConstruction> construction =
+                mock(WritableSingletonState.class);
+        given(state.getWritableStates(ClprService.NAME)).willReturn(clprStates);
+        given(clprStates.<ClprLedgerConfiguration>getSingleton(LEDGER_CONFIGURATION_STATE_ID))
+                .willReturn(ledgerConfiguration);
+        given(clprStates.<ClprEndpointManifest>getSingleton(ENDPOINT_MANIFEST_STATE_ID))
+                .willReturn(manifest);
+        given(clprStates.<ClprEndpointManifestConstruction>getSingleton(ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID))
+                .willReturn(construction);
+
+        final var method = HandleWorkflow.class.getDeclaredMethod(
+                "initializeMissingClprSingletons",
+                com.swirlds.state.State.class,
+                Instant.class,
+                ClprMaintenanceReason.class);
+        method.setAccessible(true);
+        method.invoke(subject, state, NOW, UPGRADE_INITIALIZATION);
+
+        verify(ledgerConfiguration).put(any(ClprLedgerConfiguration.class));
+        verify(manifest).put(any(ClprEndpointManifest.class));
+        verify(construction).put(ClprEndpointManifestConstruction.DEFAULT);
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = StreamMode.class,
+            names = {"BLOCKS", "BOTH"})
+    void upgradeSingletonInitializationEmitsOneTransactionAndPreservesBoundaryChanges(final StreamMode mode)
+            throws Exception {
+        boundaryStateChangeListener = new BoundaryStateChangeListener(
+                mock(StoreMetricsService.class), () -> configProvider.getConfiguration());
+        final var ledgerConfig =
+                clprSingleton(LEDGER_CONFIGURATION_STATE_ID, "LEDGER_CONFIGURATION", (ClprLedgerConfiguration) null);
+        final var manifest =
+                clprSingleton(ENDPOINT_MANIFEST_STATE_ID, "ENDPOINT_MANIFEST", (ClprEndpointManifest) null);
+        final var construction = clprSingleton(
+                ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID,
+                "ENDPOINT_MANIFEST_CONSTRUCTION",
+                (ClprEndpointManifestConstruction) null);
+        final var clprStates = MapWritableStates.builder()
+                .state(ledgerConfig)
+                .state(manifest)
+                .state(construction)
+                .build();
+        given(state.getWritableStates(ClprService.NAME)).willReturn(clprStates);
+        givenSubjectWith(mode, BlockStreamWriterMode.FILE, emptyList(), Map.of("contracts.chainId", "299"));
+        final var method = HandleWorkflow.class.getDeclaredMethod(
+                "initializeMissingClprSingletons",
+                com.swirlds.state.State.class,
+                Instant.class,
+                ClprMaintenanceReason.class);
+        method.setAccessible(true);
+        boundaryStateChangeListener.singletonUpdateChange(LEDGER_ID_STATE_ID, new ProtoBytes(Bytes.wrap("ledger-id")));
+        final var pendingChange = boundaryStateChangeListener.allStateChanges().getFirst();
+
+        method.invoke(subject, state, NOW, UPGRADE_INITIALIZATION);
+
+        final var changes = boundaryStateChangeListener.allStateChanges();
+        assertEquals(List.of(pendingChange), changes);
+        verify(blockStreamManager)
+                .writeSavepointItems(
+                        argThat(items -> {
+                            final var updates = items.stream()
+                                    .filter(BlockItem::hasStateChanges)
+                                    .flatMap(item -> item.stateChangesOrThrow().stateChanges().stream())
+                                    .toList();
+                            return updates.size() == 3
+                                    && reasonOf(items) == UPGRADE_INITIALIZATION
+                                    && items.get(1).hasTransactionResult();
+                        }),
+                        eq(NOW.minusNanos(100)));
+        assertEquals(ClprEndpointManifestConstruction.DEFAULT, construction.get());
+        assertEquals("eip155:299", ledgerConfig.get().chainId());
+        assertEquals(new Timestamp(1, 0), ledgerConfig.get().timestamp());
+        assertEquals(1, manifest.get().version());
+
+        // Once the block boundary has consumed these changes, initialization must not emit them again.
+        boundaryStateChangeListener.reset();
+        method.invoke(subject, state, NOW, UPGRADE_INITIALIZATION);
+        assertTrue(boundaryStateChangeListener.allStateChanges().isEmpty());
+        verify(blockStreamManager, times(1)).writeSavepointItems(any(), any());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        "false, NONE", "true, NONE",
+        "false, TLS_ENDPOINT_INITIALIZATION", "true, TLS_ENDPOINT_INITIALIZATION",
+        "false, SUBMISSION", "true, SUBMISSION",
+        "false, SUBMISSIONS_INITIALIZATION", "true, SUBMISSIONS_INITIALIZATION"
+    })
+    void emptyRoundStreamsReconciliationDespiteLocalPublicationFailures(
+            final boolean extendsGrace, final LocalClprFailure failure) throws Exception {
+        boundaryStateChangeListener = new BoundaryStateChangeListener(
+                mock(StoreMetricsService.class), () -> configProvider.getConfiguration());
+        final var hapiTlsEndpoint = mock(ClprHapiTlsEndpoint.class);
+        lenient().when(hapiTlsEndpoint.certificateDer()).thenReturn(Bytes.EMPTY);
+        final var submissions = mock(ClprSubmissions.class);
+        final Provider<ClprHapiTlsEndpoint> hapiTlsEndpointProvider = () -> {
+            if (failure == LocalClprFailure.TLS_ENDPOINT_INITIALIZATION) {
+                throw new IllegalStateException("local HAPI TLS endpoint unavailable");
+            }
+            return hapiTlsEndpoint;
+        };
+        final Provider<ClprSubmissions> submissionsProvider = () -> {
+            if (failure == LocalClprFailure.SUBMISSIONS_INITIALIZATION) {
+                throw new IllegalStateException("local submissions unavailable");
+            }
+            return submissions;
+        };
+        if (failure == LocalClprFailure.SUBMISSION) {
+            given(submissions.submitEndpointPublication(any()))
+                    .willThrow(new RejectedExecutionException("local gossip executor unavailable"));
+        }
+        clprEndpointManifestReconciler =
+                new ClprEndpointManifestReconciler(submissionsProvider, hapiTlsEndpointProvider);
+        // Timeout-close without changing manifest contents, or extend grace while waiting for a publication.
+        final var manifest = clprSingleton(
+                ENDPOINT_MANIFEST_STATE_ID,
+                "ENDPOINT_MANIFEST",
+                ClprEndpointManifest.newBuilder().version(1).build());
+        final var construction = clprSingleton(
+                ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID,
+                "ENDPOINT_MANIFEST_CONSTRUCTION",
+                ClprEndpointManifestConstruction.newBuilder()
+                        .constructionId(2)
+                        .targetNodeIds(List.of(0L))
+                        .gracePeriodEndTime(new Timestamp(NOW.getEpochSecond() - 1, 0))
+                        .graceExtensionsUsed(extendsGrace ? 0 : 2)
+                        .build());
+        given(state.getWritableStates(ClprService.NAME))
+                .willReturn(MapWritableStates.builder()
+                        .state(manifest)
+                        .state(construction)
+                        .state(clprSingleton(
+                                LEDGER_CONFIGURATION_STATE_ID, "LEDGER_CONFIGURATION", ClprLedgerConfiguration.DEFAULT))
+                        .build());
+        givenClprRoster(Roster.DEFAULT);
+        given(networkInfo.selfNodeInfo()).willReturn(creatorInfo);
+        final var firstEventTime = givenEmptyRound();
+        givenSubjectWith(BLOCKS, BlockStreamWriterMode.FILE, emptyList(), Map.of("clpr.enabled", "true"));
+        // Preserve singleton updates from earlier rounds of this still-open block.
+        boundaryStateChangeListener.singletonUpdateChange(LEDGER_ID_STATE_ID, new ProtoBytes(Bytes.wrap("ledger-id")));
+        final var pendingChange = boundaryStateChangeListener.allStateChanges().getFirst();
+
+        subject.handleRound(state, round, ignore -> {});
+        subject.handleRound(state, round, ignore -> {});
+
+        final var changes = boundaryStateChangeListener.allStateChanges();
+        verify(systemTransactions, atLeastOnce()).nextReservedSystemTimeFor(firstEventTime);
+        verify(blockStreamManager)
+                .writeSavepointItems(
+                        argThat(items -> {
+                            final var updates = items.stream()
+                                    .filter(BlockItem::hasStateChanges)
+                                    .flatMap(item -> item.stateChangesOrThrow().stateChanges().stream())
+                                    .toList();
+                            return reasonOf(items) == ENDPOINT_MANIFEST_RECONCILIATION
+                                    && updates.stream()
+                                            .anyMatch(change -> change.singletonUpdateOrThrow()
+                                                    .hasClprEndpointManifestConstructionValue());
+                        }),
+                        eq(firstEventTime.minusNanos(100)));
+        assertEquals(List.of(pendingChange), changes);
+        if (extendsGrace) {
+            assertEquals(1, construction.get().graceExtensionsUsed());
+        } else {
+            assertEquals(ClprEndpointManifestConstruction.DEFAULT, construction.get());
+        }
+        assertEquals(1, manifest.get().version());
+    }
+
+    private void givenClprRoster(final Roster roster) {
+        final var rosterHash = Bytes.wrap("active-roster");
+        final var rosterState = new FunctionWritableSingletonState<>(
+                ROSTER_STATE_STATE_ID,
+                "ROSTER_STATE",
+                () -> RosterState.newBuilder()
+                        .roundRosterPairs(new RoundRosterPair(0, rosterHash))
+                        .build(),
+                ignore -> {});
+        given(state.getReadableStates(RosterService.NAME))
+                .willReturn(MapWritableStates.builder()
+                        .state(rosterState)
+                        .state(MapWritableKVState.<ProtoBytes, Roster>builder(ROSTERS_STATE_ID, "ROSTERS")
+                                .value(new ProtoBytes(rosterHash), roster)
+                                .build())
+                        .build());
+        given(state.getReadableStates(AddressBookService.NAME))
+                .willReturn(MapWritableStates.builder()
+                        .state(MapWritableKVState.<EntityNumber, Node>builder(NODES_STATE_ID, "NODES")
+                                .value(
+                                        new EntityNumber(0),
+                                        Node.newBuilder()
+                                                .nodeId(0)
+                                                .accountId(AccountID.newBuilder()
+                                                        .accountNum(3)
+                                                        .build())
+                                                .serviceEndpoint(endpointFor("10.0.0.1", 50211))
+                                                .build())
+                                .build())
+                        .build());
+        given(state.getReadableStates(EntityIdService.NAME)).willReturn(mock(ReadableStates.class));
+    }
+
+    private Instant givenEmptyRound() {
+        given(event.getHash()).willReturn(CryptoRandomUtils.randomHash());
+        given(event.getCreatorId()).willReturn(NodeId.of(0));
+        given(event.getEventCore()).willReturn(EventCore.DEFAULT);
+        given(event.getAllParents()).willAnswer(ignore -> emptyList());
+        given(event.getTransactions()).willAnswer(ignore -> emptyList());
+        given(round.getConsensusEvents()).willAnswer(ignore -> List.of(event));
+        final var firstEventTime = NOW.minusNanos(1000);
+        given(event.getConsensusTimestamp()).willReturn(firstEventTime);
+        given(networkInfo.nodeInfo(0)).willReturn(creatorInfo);
+        given(blockStreamManager.lastIntervalProcessTime()).willReturn(NOW);
+        return firstEventTime;
+    }
+
+    @Test
+    void genesisSeedsClprInsideSyntheticTransaction() {
+        final var clprStates = MapWritableStates.builder()
+                .state(clprSingleton(
+                        LEDGER_CONFIGURATION_STATE_ID, "LEDGER_CONFIGURATION", (ClprLedgerConfiguration) null))
+                .state(clprSingleton(ENDPOINT_MANIFEST_STATE_ID, "ENDPOINT_MANIFEST", (ClprEndpointManifest) null))
+                .state(clprSingleton(
+                        ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID,
+                        "ENDPOINT_MANIFEST_CONSTRUCTION",
+                        (ClprEndpointManifestConstruction) null))
+                .build();
+        given(state.getWritableStates(ClprService.NAME)).willReturn(clprStates);
+        given(blockStreamManager.pendingWork())
+                .willReturn(com.hedera.node.app.blocks.BlockStreamManager.PendingWork.GENESIS_WORK);
+        final var firstEventTime = givenEmptyRound();
+        givenSubjectWith(BLOCKS, BlockStreamWriterMode.FILE, emptyList());
+        willAnswer(invocation -> {
+                    final SystemTransactions.StateChangeStreaming streaming = invocation.getArgument(2);
+                    streaming.doStreamingChanges(
+                            clprStates,
+                            null,
+                            () -> com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.initializeSingletons(
+                                    clprStates, configProvider.getConfiguration()));
+                    return null;
+                })
+                .given(systemTransactions)
+                .doGenesisSetup(eq(firstEventTime), eq(state), any());
+
+        subject.handleRound(state, round, ignore -> {});
+
+        verify(blockStreamManager)
+                .writeSavepointItems(
+                        argThat(items -> items.size() == 3
+                                && reasonOf(items) == GENESIS_INITIALIZATION
+                                && items.getLast()
+                                                .stateChangesOrThrow()
+                                                .stateChanges()
+                                                .size()
+                                        == 3),
+                        eq(firstEventTime.minusNanos(100)));
+        assertEquals(
+                ClprEndpointManifestConstruction.DEFAULT,
+                clprStates.getSingleton(ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID).get());
+    }
+
+    @Test
+    void upgradeRosterChangeEmitsSyntheticMaintenanceTransaction() throws Exception {
+        clprEndpointManifestReconciler = new ClprEndpointManifestReconciler(
+                () -> mock(ClprSubmissions.class), () -> mock(ClprHapiTlsEndpoint.class));
+        final var construction = clprSingleton(
+                ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID,
+                "ENDPOINT_MANIFEST_CONSTRUCTION",
+                ClprEndpointManifestConstruction.DEFAULT);
+        final var clprStates = MapWritableStates.builder()
+                .state(clprSingleton(
+                        LEDGER_CONFIGURATION_STATE_ID, "LEDGER_CONFIGURATION", ClprLedgerConfiguration.DEFAULT))
+                .state(clprSingleton(
+                        ENDPOINT_MANIFEST_STATE_ID,
+                        "ENDPOINT_MANIFEST",
+                        ClprEndpointManifest.newBuilder().version(1).build()))
+                .state(construction)
+                .build();
+        given(state.getWritableStates(ClprService.NAME)).willReturn(clprStates);
+        givenClprRoster(Roster.newBuilder()
+                .rosterEntries(RosterEntry.newBuilder().nodeId(0).weight(1).build())
+                .build());
+        givenSubjectWith(BLOCKS, BlockStreamWriterMode.FILE, emptyList(), Map.of("clpr.enabled", "true"));
+        final var method = HandleWorkflow.class.getDeclaredMethod(
+                "pruneClprEndpointManifestOnUpgrade", com.swirlds.state.State.class, Instant.class);
+        method.setAccessible(true);
+
+        method.invoke(subject, state, NOW);
+
+        verify(blockStreamManager)
+                .writeSavepointItems(
+                        argThat(items -> reasonOf(items) == UPGRADE_ROSTER_RECONCILIATION
+                                && items.getLast()
+                                                .stateChangesOrThrow()
+                                                .stateChanges()
+                                                .size()
+                                        == 1),
+                        eq(NOW.minusNanos(100)));
+        assertEquals(List.of(0L), construction.get().targetNodeIds());
+        assertEquals(2, construction.get().constructionId());
+    }
+
+    private static ClprMaintenanceReason reasonOf(final List<BlockItem> items) {
+        try {
+            final var body = TransactionBody.PROTOBUF.parse(SignedTransaction.PROTOBUF
+                    .parse(items.getFirst().signedTransactionOrThrow())
+                    .bodyBytes());
+            return body.clprMaintenanceOrThrow().reason();
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    private enum LocalClprFailure {
+        NONE,
+        TLS_ENDPOINT_INITIALIZATION,
+        SUBMISSION,
+        SUBMISSIONS_INITIALIZATION
+    }
+
+    private <T> FunctionWritableSingletonState<T> clprSingleton(final int stateId, final String name, final T initial) {
+        final var value = new AtomicReference<>(initial);
+        final var singleton = new FunctionWritableSingletonState<>(stateId, name, value::get, value::set);
+        singleton.registerListener(updated -> boundaryStateChangeListener.singletonUpdateChange(stateId, updated));
+        return singleton;
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void initializingClprSingletonsKeepsPendingSingletonChangesOfOpenBlock() throws Exception {
+        givenSubjectWith(BOTH, BlockStreamWriterMode.FILE, emptyList());
+        final var clprStates = mock(WritableStates.class);
+        given(state.getWritableStates(ClprService.NAME)).willReturn(clprStates);
+        given(clprStates.<ClprLedgerConfiguration>getSingleton(LEDGER_CONFIGURATION_STATE_ID))
+                .willReturn(mock(WritableSingletonState.class));
+        given(clprStates.<ClprEndpointManifest>getSingleton(ENDPOINT_MANIFEST_STATE_ID))
+                .willReturn(mock(WritableSingletonState.class));
+        given(clprStates.<ClprEndpointManifestConstruction>getSingleton(ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID))
+                .willReturn(mock(WritableSingletonState.class));
+
+        final var method = HandleWorkflow.class.getDeclaredMethod(
+                "initializeMissingClprSingletons",
+                com.swirlds.state.State.class,
+                Instant.class,
+                ClprMaintenanceReason.class);
+        method.setAccessible(true);
+        method.invoke(subject, state, NOW, UPGRADE_INITIALIZATION);
+
+        verify(boundaryStateChangeListener, never()).reset();
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void streamingAllChangesFlushesPendingBoundarySingletonsBeforeReset() throws Exception {
+        givenSubjectWith(BLOCKS, BlockStreamWriterMode.FILE, emptyList());
+        // A boundary singleton change made earlier in the still-open block, before the action
+        final var pendingChange = StateChange.newBuilder()
+                .stateId(ENTITY_COUNTS_STATE_ID)
+                .singletonUpdate(SingletonUpdateChange.DEFAULT)
+                .build();
+        given(boundaryStateChangeListener.allStateChanges()).willReturn(new LinkedList<>(List.of(pendingChange)));
+
+        final var method = HandleWorkflow.class.getDeclaredMethod(
+                "doStreamingAllChanges", WritableStates.class, WritableStates.class, Runnable.class);
+        method.setAccessible(true);
+        method.invoke(subject, mock(WritableStates.class), null, (Runnable) () -> {});
+
+        // The pending change is streamed before the listener is reset, so it is neither dropped nor repeated
+        // when the block closes
+        final ArgumentCaptor<Function<Timestamp, BlockItem>> itemCaptor = ArgumentCaptor.forClass(Function.class);
+        final var inOrder = inOrder(blockStreamManager, boundaryStateChangeListener);
+        inOrder.verify(blockStreamManager).writeItem(itemCaptor.capture());
+        inOrder.verify(boundaryStateChangeListener).reset();
+        assertEquals(
+                List.of(pendingChange),
+                itemCaptor.getValue().apply(BLOCK_TIME).stateChangesOrThrow().stateChanges());
     }
 
     @Test
@@ -841,6 +1658,137 @@ class HandleWorkflowTest {
         }
     }
 
+    @Test
+    void restartedNodeUsesTheSameTssWorkTimeInTheRoundSigningIsInstalled() throws Exception {
+        // Both nodes handle the round after the genesis history proof completed; one restarted in between
+        final var runningNodeWorkTime = tssWorkTimeInRoundAfterGenesisProof(false);
+        final var restartedNodeWorkTime = tssWorkTimeInRoundAfterGenesisProof(true);
+
+        assertEquals(runningNodeWorkTime, restartedNodeWorkTime);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Instant tssWorkTimeInRoundAfterGenesisProof(final boolean restartedBeforeRound) throws Exception {
+        final var rosterHash = Bytes.wrap("genesis-roster");
+        final var verificationKey = Bytes.wrap("vk");
+        final var active = HintsConstruction.newBuilder()
+                .constructionId(1L)
+                .crsId(1L)
+                .numParties(16)
+                .sourceRosterHash(rosterHash)
+                .targetRosterHash(rosterHash)
+                .hintsScheme(new HintsScheme(
+                        new PreprocessedKeys(Bytes.wrap("ak"), verificationKey),
+                        LongStream.range(0, 7)
+                                .mapToObj(id -> new NodePartyId(id, (int) id + 1, 1L))
+                                .toList()))
+                .build();
+        final var crs = CRSState.newBuilder()
+                .stage(CRSStage.COMPLETED)
+                .ceremonyId(1L)
+                .numParties(16)
+                .crs(Bytes.wrap("crs"))
+                .build();
+        final var history = HistoryProofConstruction.newBuilder()
+                .constructionId(1L)
+                .sourceRosterHash(rosterHash)
+                .targetRosterHash(rosterHash)
+                .targetProof(HistoryProof.newBuilder()
+                        .targetHistory(new History(Bytes.wrap("book-hash"), verificationKey))
+                        .targetNodeWeights(LongStream.range(0, 10)
+                                .mapToObj(id -> new ProofNodeWeight(id, 1L))
+                                .toList()))
+                .build();
+        final var roster = new Roster(LongStream.range(0, 10)
+                .mapToObj(id -> RosterEntry.newBuilder().nodeId(id).weight(1L).build())
+                .toList());
+
+        final var rosterStates = mock(ReadableStates.class);
+        final ReadableSingletonState<RosterState> rosterState = mock(ReadableSingletonState.class);
+        final ReadableKVState<ProtoBytes, Roster> rosters = mock(ReadableKVState.class);
+        lenient().when(state.getReadableStates(RosterService.NAME)).thenReturn(rosterStates);
+        lenient()
+                .when(rosterStates.<RosterState>getSingleton(ROSTER_STATE_STATE_ID))
+                .thenReturn(rosterState);
+        lenient().when(rosterStates.<ProtoBytes, Roster>get(ROSTERS_STATE_ID)).thenReturn(rosters);
+        lenient()
+                .when(rosterState.get())
+                .thenReturn(RosterState.newBuilder()
+                        .roundRosterPairs(new RoundRosterPair(0, rosterHash))
+                        .build());
+        lenient().when(rosters.get(new ProtoBytes(rosterHash))).thenReturn(roster);
+        lenient()
+                .when(state.getWritableStates(EntityIdService.NAME))
+                .thenReturn(
+                        mock(WritableStates.class, withSettings().extraInterfaces(CommittableWritableStates.class)));
+        final var hintsStates =
+                mock(WritableStates.class, withSettings().extraInterfaces(CommittableWritableStates.class));
+        lenient().when(state.getWritableStates(HintsService.NAME)).thenReturn(hintsStates);
+        givenSingleton(hintsStates, ACTIVE_HINTS_CONSTRUCTION_STATE_ID, active);
+        givenSingleton(hintsStates, V059HintsSchema.NEXT_HINTS_CONSTRUCTION_STATE_ID, HintsConstruction.DEFAULT);
+        givenSingleton(hintsStates, V060HintsSchema.CRS_STATE_STATE_ID, crs);
+        givenSingleton(hintsStates, V079HintsSchema.NEXT_CRS_STATE_ID, CRSState.DEFAULT);
+        final var historyStates =
+                mock(WritableStates.class, withSettings().extraInterfaces(CommittableWritableStates.class));
+        lenient().when(state.getWritableStates(HistoryService.NAME)).thenReturn(historyStates);
+        givenSingleton(historyStates, ACTIVE_PROOF_CONSTRUCTION_STATE_ID, history);
+        givenSingleton(historyStates, NEXT_PROOF_CONSTRUCTION_STATE_ID, HistoryProofConstruction.DEFAULT);
+        givenSingleton(historyStates, LEDGER_ID_STATE_ID, new ProtoBytes(Bytes.wrap("ledger")));
+
+        // The real signing context, service, and block hash signer decide readiness
+        final var selfNodeInfo = mock(NodeInfo.class);
+        final var context = new HintsContext(
+                mock(HintsLibrary.class),
+                () -> configProvider.getConfiguration(),
+                mock(HintsSigningMetrics.class),
+                () -> selfNodeInfo);
+        hintsService = spy(HintsServiceFixtures.serviceOver(context));
+        // Key provenance needs native-sized keys and has no part in readiness
+        doReturn(null).when(hintsService).keyProvenanceFor(any());
+        // Lets the second node restub the answers that read their argument
+        Mockito.reset(systemTransactions);
+        givenSubjectWith(
+                BLOCKS,
+                BlockStreamWriterMode.FILE,
+                emptyList(),
+                Map.of("tss.hintsEnabled", "true", "tss.historyEnabled", "true", "tss.forceMockSignatures", "false"));
+        final var signer = new TssBlockHashSigner(hintsService, historyService, configProvider);
+        lenient().when(blockHashSigner.isReady()).thenAnswer(_ -> signer.isReady());
+        // The completed genesis proof is set on a running node in the previous round, and on a restarted node at init
+        lenient().when(historyService.isReady()).thenReturn(true);
+        lenient().when(blockStreamManager.lastUsedConsensusTime()).thenReturn(NOW.minusSeconds(7));
+        if (restartedBeforeRound) {
+            // What Hedera.initializeHintsSigning() does with this state at startup
+            hintsService.setActiveConstruction(active, crs, history);
+        }
+        final var workTime = new AtomicReference<Instant>();
+        willAnswer(invocation -> {
+                    workTime.set(invocation.getArgument(3));
+                    return null;
+                })
+                .given(historyService)
+                .reconcile(any(), any(), any(), any(), any(), anyBoolean(), any(), anyBoolean(), any(), anyLong());
+
+        final var configure =
+                HandleWorkflow.class.getDeclaredMethod("configureTssCallbacks", State.class, AtomicReference.class);
+        configure.setAccessible(true);
+        configure.invoke(subject, state, new AtomicReference<>());
+        final var reconcile = HandleWorkflow.class.getDeclaredMethod("reconcileTssState", State.class, Instant.class);
+        reconcile.setAccessible(true);
+        reconcile.invoke(subject, state, NOW);
+
+        // Either way the node signs blocks from this round on
+        assertTrue(signer.isReady());
+        return requireNonNull(workTime.get());
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> void givenSingleton(final WritableStates states, final int stateId, final T value) {
+        final WritableSingletonState<T> singleton = mock(WritableSingletonState.class);
+        lenient().when(states.<T>getSingleton(stateId)).thenReturn(singleton);
+        lenient().when(singleton.get()).thenReturn(value);
+    }
+
     private void invokeResetTssReconcileFailureSuppression() {
         try {
             final var method = HandleWorkflow.class.getDeclaredMethod("resetTssReconcileFailureSuppression");
@@ -863,14 +1811,13 @@ class HandleWorkflowTest {
     void freezeRoundSkipsWrappedHashWritesInBlocksMode() {
         final var freezeEvent = mock(ConsensusEvent.class);
         final var creatorId = NodeId.of(0);
-        given(round.iterator()).willAnswer(ignore -> List.of(freezeEvent).iterator());
+        given(round.getConsensusEvents()).willAnswer(ignore -> List.of(freezeEvent));
         given(freezeEvent.getCreatorId()).willReturn(creatorId);
         given(freezeEvent.getConsensusTimestamp()).willReturn(NOW);
         given(freezeEvent.getHash()).willReturn(CryptoRandomUtils.randomHash());
-        given(freezeEvent.allParentsIterator())
-                .willReturn(List.<EventDescriptorWrapper>of().iterator());
+        given(freezeEvent.getAllParents()).willReturn(List.<EventDescriptorWrapper>of());
         given(freezeEvent.getEventCore()).willReturn(EventCore.DEFAULT);
-        given(freezeEvent.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(freezeEvent.getTransactions()).willReturn(emptyList());
         givenFreezeRoundPlatformState();
         givenSubjectWith(
                 BLOCKS,
@@ -887,6 +1834,292 @@ class HandleWorkflowTest {
         verify(blockRecordManager, never()).closeCurrentRecordFileIfOpen(state);
     }
 
+    @ParameterizedTest
+    @EnumSource(
+            value = HederaFunctionality.class,
+            names = {"CRYPTO_TRANSFER", "CLPR_SUBMIT_BUNDLE"})
+    void fullBlockDelegatesToFeeChargingDispatchPath(final HederaFunctionality functionality) throws Exception {
+        givenSubjectWith(BLOCKS, BlockStreamWriterMode.FILE, emptyList());
+        given(blockStreamManager.hasReachedMaxBlockSize()).willReturn(true);
+        final var parent = mock(ParentTxn.class, RETURNS_DEEP_STUBS);
+        given(parent.functionality()).willReturn(functionality);
+        // CLPR bundles are never payer-exempt, so their payer is not consulted
+        lenient()
+                .when(parent.txnInfo().payerID())
+                .thenReturn(AccountID.newBuilder().accountNum(1001L).build());
+        given(parent.consensusNow()).willReturn(NOW);
+        given(parent.baseBuilder().status()).willReturn(ResponseCodeEnum.THROTTLED_AT_CONSENSUS);
+        final var dispatch = mock(Dispatch.class);
+        given(parentTxnFactory.createDispatch(eq(parent), any())).willReturn(dispatch);
+        given(parent.stack().buildHandleOutput(any(), any(), any()))
+                .willReturn(new HandleOutput(new BlockRecordSource(List.of()), null, NOW));
+        final var method = HandleWorkflow.class.getDeclaredMethod(
+                "executeSubmittedParent", ParentTxn.class, long.class, State.class);
+        method.setAccessible(true);
+        method.invoke(subject, parent, 100L, state);
+        verify(dispatchProcessor).processDispatch(eq(dispatch), any(), eq(true));
+        verify(blockStreamManager).recordSubmittedTransaction(List.of(), true);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"0,false", "1,true", "37,true", "38,false"})
+    void fullBlockRespectsConfiguredThrottleExemptPayerRange(final long payerNum, final boolean exempt)
+            throws Exception {
+        givenSubjectWith(BLOCKS, BlockStreamWriterMode.FILE, emptyList(), Map.of("accounts.lastThrottleExempt", "37"));
+        lenient().when(blockStreamManager.hasReachedMaxBlockSize()).thenReturn(true);
+        final var parent = mock(ParentTxn.class, RETURNS_DEEP_STUBS);
+        given(parent.functionality()).willReturn(HederaFunctionality.CRYPTO_TRANSFER);
+        given(parent.txnInfo().payerID())
+                .willReturn(AccountID.newBuilder().accountNum(payerNum).build());
+        given(parent.consensusNow()).willReturn(NOW);
+        final var dispatch = mock(Dispatch.class);
+        given(parentTxnFactory.createDispatch(eq(parent), any())).willReturn(dispatch);
+        given(parent.stack().buildHandleOutput(any(), any(), any()))
+                .willReturn(new HandleOutput(new BlockRecordSource(List.of()), null, NOW));
+        final var method = HandleWorkflow.class.getDeclaredMethod(
+                "executeSubmittedParent", ParentTxn.class, long.class, State.class);
+        method.setAccessible(true);
+
+        method.invoke(subject, parent, 100L, state);
+
+        if (exempt) {
+            verify(dispatchProcessor).processDispatch(eq(dispatch), any());
+            verify(dispatchProcessor, never()).processDispatch(any(), any(), eq(true));
+        } else {
+            verify(dispatchProcessor).processDispatch(eq(dispatch), any(), eq(true));
+        }
+        verify(blockStreamManager).recordSubmittedTransaction(List.of(), false);
+    }
+
+    @Test
+    void fullBlockRejectsClprBundleRelayedByThrottleExemptNodePayer() throws Exception {
+        givenSubjectWith(BLOCKS, BlockStreamWriterMode.FILE, emptyList());
+        given(blockStreamManager.hasReachedMaxBlockSize()).willReturn(true);
+        final var parent = mock(ParentTxn.class, RETURNS_DEEP_STUBS);
+        given(parent.functionality()).willReturn(HederaFunctionality.CLPR_SUBMIT_BUNDLE);
+        // Nodes relay bundles with their own accounts, which are within the default throttle-exempt range
+        lenient()
+                .when(parent.txnInfo().payerID())
+                .thenReturn(AccountID.newBuilder().accountNum(3L).build());
+        given(parent.consensusNow()).willReturn(NOW);
+        given(parent.baseBuilder().status()).willReturn(ResponseCodeEnum.THROTTLED_AT_CONSENSUS);
+        final var dispatch = mock(Dispatch.class);
+        given(parentTxnFactory.createDispatch(eq(parent), any())).willReturn(dispatch);
+        given(parent.stack().buildHandleOutput(any(), any(), any()))
+                .willReturn(new HandleOutput(new BlockRecordSource(List.of()), null, NOW));
+        final var method = HandleWorkflow.class.getDeclaredMethod(
+                "executeSubmittedParent", ParentTxn.class, long.class, State.class);
+        method.setAccessible(true);
+
+        method.invoke(subject, parent, 100L, state);
+
+        verify(dispatchProcessor).processDispatch(eq(dispatch), any(), eq(true));
+        verify(dispatchProcessor, never()).processDispatch(any(), any());
+        verify(blockStreamManager).recordSubmittedTransaction(List.of(), true);
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = HederaFunctionality.class,
+            names = {
+                "HINTS_PARTIAL_SIGNATURE",
+                "MIGRATION_ROOT_HASH_VOTE",
+                "HINTS_KEY_PUBLICATION",
+                "HINTS_PREPROCESSING_VOTE",
+                "CRS_PUBLICATION",
+                "HISTORY_PROOF_KEY_PUBLICATION",
+                "HISTORY_ASSEMBLY_SIGNATURE",
+                "HISTORY_PROOF_VOTE",
+                "CLPR_ENDPOINT_PUBLICATION"
+            })
+    void fullBlockStillDispatchesProtocolTransactionsWithNonExemptPayer(final HederaFunctionality functionality)
+            throws Exception {
+        givenSubjectWith(BLOCKS, BlockStreamWriterMode.FILE, emptyList());
+        lenient().when(blockStreamManager.hasReachedMaxBlockSize()).thenReturn(true);
+        final var parent = mock(ParentTxn.class, RETURNS_DEEP_STUBS);
+        given(parent.functionality()).willReturn(functionality);
+        given(parent.txnInfo().payerID())
+                .willReturn(AccountID.newBuilder().accountNum(1001L).build());
+        given(parent.consensusNow()).willReturn(NOW);
+        final var dispatch = mock(Dispatch.class);
+        given(parentTxnFactory.createDispatch(eq(parent), any())).willReturn(dispatch);
+        given(parent.stack().buildHandleOutput(any(), any(), any()))
+                .willReturn(new HandleOutput(new BlockRecordSource(List.of()), null, NOW));
+        final var method = HandleWorkflow.class.getDeclaredMethod(
+                "executeSubmittedParent", ParentTxn.class, long.class, State.class);
+        method.setAccessible(true);
+
+        method.invoke(subject, parent, 100L, state);
+
+        verify(dispatchProcessor).processDispatch(eq(dispatch), any());
+        verify(dispatchProcessor, never()).processDispatch(any(), any(), eq(true));
+        verify(opWorkflowMetrics, never()).incrementThrottled(any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void fullBlockRejectsButStillConsumesDueSchedulesWithNonExemptPayer(final boolean initiallyFull) throws Exception {
+        givenSubjectWith(BLOCKS, BlockStreamWriterMode.FILE, emptyList(), Map.of("scheduling.longTermEnabled", "true"));
+        final var executionStart = NOW.minusSeconds(2);
+        final var entityIdStates =
+                mock(WritableStates.class, withSettings().extraInterfaces(CommittableWritableStates.class));
+        given(state.getWritableStates(EntityIdService.NAME)).willReturn(entityIdStates);
+        given(state.getWritableStates(ScheduleService.NAME)).willReturn(mock(WritableStates.class));
+        given(blockStreamManager.lastUsedConsensusTime()).willReturn(NOW);
+        // Either the block is already full, or the first scheduled execution's output fills it
+        final var full = new AtomicBoolean(initiallyFull);
+        lenient().when(blockStreamManager.hasReachedMaxBlockSize()).thenAnswer(ignore -> full.get());
+        willAnswer(ignore -> {
+                    full.set(true);
+                    return null;
+                })
+                .given(blockStreamManager)
+                .writeSavepointItems(any(), any());
+
+        // Schedules paid by an account outside the throttle-exempt range
+        final var executable = new ExecutableTxn<>(
+                TransactionBody.DEFAULT,
+                AccountID.newBuilder().accountNum(1001L).build(),
+                key -> true,
+                executionStart,
+                StreamBuilder.class,
+                builder -> {});
+        final var remaining = new AtomicInteger(3);
+        final var iter = mock(ExecutableTxnIterator.class);
+        given(iter.hasNext()).willAnswer(ignore -> remaining.get() > 0);
+        given(iter.next()).willAnswer(ignore -> executable);
+        willAnswer(ignore -> {
+                    remaining.decrementAndGet();
+                    return null;
+                })
+                .given(iter)
+                .remove();
+        given(scheduleService.executableTxns(any(), any(), any())).willReturn(iter);
+
+        final var parent = mock(ParentTxn.class, RETURNS_DEEP_STUBS);
+        given(parentTxnFactory.createSystemTxn(any(), any(), any(), any(), any(), any()))
+                .willReturn(parent);
+        final var dispatch = mock(Dispatch.class);
+        given(parentTxnFactory.createDispatch(eq(parent), any(), any(), any())).willReturn(dispatch);
+        given(parent.stack().buildHandleOutput(any(), any(), any()))
+                .willReturn(new HandleOutput(new BlockRecordSource(List.of()), null, NOW.plusNanos(1)));
+
+        final var method = HandleWorkflow.class.getDeclaredMethod(
+                "executeAsManyScheduled", State.class, Instant.class, Instant.class, NodeInfo.class);
+        method.setAccessible(true);
+
+        assertTrue((boolean) method.invoke(subject, state, executionStart, NOW, mock(NodeInfo.class)));
+
+        // Only a schedule handled before the block is full executes; every later one is rejected
+        final int executed = initiallyFull ? 0 : 1;
+        verify(dispatchProcessor, times(executed)).processDispatch(dispatch);
+        verify(dispatchProcessor, times(3 - executed)).processDispatch(dispatch, null, true);
+        // Rejected schedules are still consumed and their output written, so none are retried in a later block
+        assertEquals(0, remaining.get());
+        verify(blockStreamManager, times(3)).writeSavepointItems(any(), any());
+        verify(blockStreamManager).setLastIntervalProcessTime(NOW);
+        assertTrue(full.get());
+    }
+
+    @ParameterizedTest
+    @CsvSource({"0,false", "1,true", "2,true", "37,true", "38,false", "1001,false"})
+    void fullBlockRejectsDueScheduleUnlessPayerIsThrottleExempt(final long payerNum, final boolean exempt)
+            throws Exception {
+        givenSubjectWith(BLOCKS, BlockStreamWriterMode.FILE, emptyList(), Map.of("accounts.lastThrottleExempt", "37"));
+        given(blockStreamManager.hasReachedMaxBlockSize()).willReturn(true);
+        final var dispatch =
+                givenScheduledDispatch(exempt ? ResponseCodeEnum.SUCCESS : ResponseCodeEnum.THROTTLED_AT_CONSENSUS);
+
+        invokeExecuteScheduled(scheduledPaidBy(payerNum));
+
+        if (exempt) {
+            verify(dispatchProcessor).processDispatch(dispatch);
+            verify(dispatchProcessor, never()).processDispatch(any(), any(), anyBoolean());
+        } else {
+            verify(dispatchProcessor).processDispatch(dispatch, null, true);
+            verify(dispatchProcessor, never()).processDispatch(any());
+        }
+        // Scheduled executions feed their own diagnostics, never the submitted-transaction ones
+        verify(blockStreamManager).recordScheduledTransaction(List.of(), !exempt);
+        verify(blockStreamManager, never()).recordSubmittedTransaction(any(), anyBoolean());
+    }
+
+    @Test
+    void fullBlockDoesNotCountScheduleThatFailedBeforeBudgetRejection() throws Exception {
+        givenSubjectWith(BLOCKS, BlockStreamWriterMode.FILE, emptyList());
+        given(blockStreamManager.hasReachedMaxBlockSize()).willReturn(true);
+        // The payer could not cover the fees, so the dispatch fails before reaching the block-full rejection
+        final var dispatch = givenScheduledDispatch(ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE);
+
+        invokeExecuteScheduled(scheduledPaidBy(1001L));
+
+        verify(dispatchProcessor).processDispatch(dispatch, null, true);
+        verify(blockStreamManager).recordScheduledTransaction(List.of(), false);
+    }
+
+    @Test
+    void dueScheduleWithNonExemptPayerExecutesBeforeBlockIsFull() throws Exception {
+        givenSubjectWith(BLOCKS, BlockStreamWriterMode.FILE, emptyList());
+        given(blockStreamManager.hasReachedMaxBlockSize()).willReturn(false);
+        final var dispatch = givenScheduledDispatch(ResponseCodeEnum.SUCCESS);
+
+        invokeExecuteScheduled(scheduledPaidBy(1001L));
+
+        verify(dispatchProcessor).processDispatch(dispatch);
+        verify(dispatchProcessor, never()).processDispatch(any(), any(), anyBoolean());
+        verify(blockStreamManager).recordScheduledTransaction(List.of(), false);
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = StreamMode.class,
+            names = {"BOTH", "RECORDS"})
+    void dueScheduleIgnoresBlockBudgetOutsideBlocksStreamMode(final StreamMode mode) throws Exception {
+        givenSubjectWith(mode, BlockStreamWriterMode.FILE, emptyList());
+        // Only StreamMode.BLOCKS enforces the budget, even if the manager were to report a full block
+        lenient().when(blockStreamManager.hasReachedMaxBlockSize()).thenReturn(true);
+        final var dispatch = givenScheduledDispatch(ResponseCodeEnum.SUCCESS);
+
+        invokeExecuteScheduled(scheduledPaidBy(1001L));
+
+        verify(dispatchProcessor).processDispatch(dispatch);
+        verify(dispatchProcessor, never()).processDispatch(any(), any(), anyBoolean());
+        verify(blockStreamManager, never()).recordScheduledTransaction(any(), anyBoolean());
+    }
+
+    private static ExecutableTxn<StreamBuilder> scheduledPaidBy(final long payerNum) {
+        return new ExecutableTxn<>(
+                TransactionBody.DEFAULT,
+                AccountID.newBuilder().accountNum(payerNum).build(),
+                key -> true,
+                NOW.minusSeconds(1),
+                StreamBuilder.class,
+                builder -> {});
+    }
+
+    private Dispatch givenScheduledDispatch(@NonNull final ResponseCodeEnum finalStatus) {
+        final var scheduledTxn = mock(ParentTxn.class, RETURNS_DEEP_STUBS);
+        given(parentTxnFactory.createSystemTxn(any(), any(), any(), any(), any(), any()))
+                .willReturn(scheduledTxn);
+        // The status the (mocked) dispatch processor would have left on the base builder
+        final var baseBuilder = mock(StreamBuilder.class);
+        lenient().when(baseBuilder.status()).thenReturn(finalStatus);
+        given(scheduledTxn.initBaseBuilder(any(), any(), any())).willReturn(baseBuilder);
+        final var dispatch = mock(Dispatch.class);
+        given(parentTxnFactory.createDispatch(eq(scheduledTxn), any(), any(), any()))
+                .willReturn(dispatch);
+        given(scheduledTxn.stack().buildHandleOutput(any(), any(), any()))
+                .willReturn(new HandleOutput(new BlockRecordSource(List.of()), null, NOW));
+        return dispatch;
+    }
+
+    private void invokeExecuteScheduled(@NonNull final ExecutableTxn<StreamBuilder> executableTxn) throws Exception {
+        final var method = HandleWorkflow.class.getDeclaredMethod(
+                "executeScheduled", State.class, Instant.class, NodeInfo.class, ExecutableTxn.class);
+        method.setAccessible(true);
+        method.invoke(subject, state, NOW, mock(NodeInfo.class), executableTxn);
+    }
+
     /**
      * The {@code nextTime} for the first scheduled transaction must equal
      * {@code lastUsedConsensusTime + txnOffsetNanos}. This test uses {@code txnOffsetNanos = 104}
@@ -901,9 +2134,9 @@ class HandleWorkflowTest {
     void scheduledTxnNextTimeUsesTxnOffsetNanos() {
         final var creatorId = NodeId.of(0);
         given(event.getCreatorId()).willReturn(creatorId);
-        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(event.getTransactions()).willReturn(emptyList());
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
-        given(round.iterator()).willAnswer(ignore -> List.of(event).iterator());
+        given(round.getConsensusEvents()).willAnswer(ignore -> List.of(event));
 
         given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(NOW);
         // EPOCH causes executionStart to be set to consensusNow, keeping the window simple
@@ -953,9 +2186,9 @@ class HandleWorkflowTest {
     void lastUsableTimePreventsScheduledDispatchWhenOffsetTooLarge() {
         final var creatorId = NodeId.of(0);
         given(event.getCreatorId()).willReturn(creatorId);
-        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(event.getTransactions()).willReturn(emptyList());
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
-        given(round.iterator()).willAnswer(ignore -> List.of(event).iterator());
+        given(round.getConsensusEvents()).willAnswer(ignore -> List.of(event));
 
         given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(NOW);
         given(blockRecordManager.lastIntervalProcessTime()).willReturn(Instant.EPOCH);
@@ -979,8 +2212,221 @@ class HandleWorkflowTest {
 
         // The iterator was obtained (confirms we reached executeAsManyScheduled)
         verify(scheduleService).executableTxns(any(), any(), any());
-        // But the loop body never entered — no scheduled txn was started
-        verify(stakePeriodManager, never()).setCurrentStakePeriodFor(any());
+        // Only the round-start initialization — no scheduled txn dispatch triggered a second call
+        verify(stakePeriodManager).setCurrentStakePeriodFor(eq(NOW));
+    }
+
+    /**
+     * A scheduled transaction whose fee cannot be computed makes dispatch creation throw. That must fail only
+     * the one scheduled transaction, not abandon the rest of the interval: the failing transaction is still
+     * consumed from the iterator and its failure output externalized, and the next due transaction still executes.
+     */
+    @Test
+    void scheduledTxnWhoseDispatchCannotBeCreatedDoesNotDropTheNextOne() {
+        final var creatorId = NodeId.of(0);
+        given(event.getCreatorId()).willReturn(creatorId);
+        given(event.getTransactions()).willReturn(emptyList());
+        given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
+        given(round.getConsensusEvents()).willAnswer(ignore -> List.of(event));
+        given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(NOW);
+        given(blockRecordManager.lastIntervalProcessTime()).willReturn(Instant.EPOCH);
+        given(blockRecordManager.lastUsedConsensusTime()).willReturn(NOW);
+        final var entityIdStates =
+                mock(WritableStates.class, withSettings().extraInterfaces(CommittableWritableStates.class));
+        lenient().when(state.getWritableStates(EntityIdService.NAME)).thenReturn(entityIdStates);
+        lenient().when(state.getWritableStates(ScheduleService.NAME)).thenReturn(mock(WritableStates.class));
+        final var schedIter = mock(ExecutableTxnIterator.class);
+        given(schedIter.hasNext()).willReturn(true, true, false);
+        final var executableTxn = new ExecutableTxn<>(
+                TransactionBody.DEFAULT, AccountID.DEFAULT, key -> true, NOW, StreamBuilder.class, b -> {});
+        Mockito.doReturn(executableTxn, executableTxn).when(schedIter).next();
+        given(scheduleService.executableTxns(any(), any(), any())).willReturn(schedIter);
+        final var failingTxn = mock(ParentTxn.class);
+        final var laterTxn = mock(ParentTxn.class);
+        given(laterTxn.creatorInfo()).willReturn(mock(NodeInfo.class));
+        given(laterTxn.txnInfo()).willReturn(mock(TransactionInfo.class));
+        given(laterTxn.stack()).willReturn(mock(SavepointStackImpl.class));
+        given(parentTxnFactory.createSystemTxn(any(), any(), any(), any(), any(), any()))
+                .willReturn(failingTxn, laterTxn);
+        final var laterDispatch = mock(Dispatch.class);
+        given(parentTxnFactory.createDispatch(any(), any(), any(), any()))
+                .willThrow(new IllegalArgumentException("Extra not defined"))
+                .willReturn(laterDispatch);
+        final var failureOutput = mock(HandleOutput.class);
+        given(failureOutput.lastAssignedConsensusTime()).willReturn(NOW);
+        given(failureOutput.recordSourceOrThrow()).willReturn(new LegacyListRecordSource(List.of(), List.of()));
+        final var laterOutput = mock(HandleOutput.class);
+        given(laterOutput.lastAssignedConsensusTime()).willReturn(NOW);
+        given(laterOutput.recordSourceOrThrow()).willReturn(new LegacyListRecordSource(List.of(), List.of()));
+        given(laterTxn.stack().buildHandleOutput(any(), any(), any())).willReturn(laterOutput);
+        givenSubjectWith(
+                RECORDS, BlockStreamWriterMode.FILE, emptyList(), Map.of("scheduling.longTermEnabled", "true"), 104);
+
+        try (final var handleOutput = Mockito.mockStatic(HandleOutput.class)) {
+            handleOutput
+                    .when(() -> HandleOutput.failInvalidStreamItems(any(), any(), any(), any()))
+                    .thenReturn(failureOutput);
+
+            subject.handleRound(state, round, txns -> {});
+
+            handleOutput.verify(() -> HandleOutput.failInvalidStreamItems(same(failingTxn), any(), any(), any()));
+            handleOutput.verify(
+                    () -> HandleOutput.failInvalidStreamItems(same(laterTxn), any(), any(), any()), never());
+        }
+        verify(dispatchProcessor).processDispatch(same(laterDispatch));
+        verify(blockRecordManager, times(2)).endUserTransaction(any(), same(state));
+        verify(schedIter, times(2)).remove();
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void completedWeightRotationWaitsForHistoryAndRecordsDispatchTime(final boolean mockSignatures) throws Exception {
+        given(hintsService.requiresHistoryWeights()).willReturn(!mockSignatures);
+        final var activeRosterHash = Bytes.wrap("ACTIVE");
+        final var candidateRosterHash = Bytes.wrap("CANDIDATE");
+        final var activeRoster = Roster.newBuilder()
+                .rosterEntries(RosterEntry.newBuilder().nodeId(0L).weight(1L).build())
+                .build();
+        final var candidateRoster = Roster.newBuilder()
+                .rosterEntries(RosterEntry.newBuilder().nodeId(0L).weight(2L).build())
+                .build();
+        final var rosterStates = mock(ReadableStates.class);
+        final ReadableSingletonState<RosterState> rosterState = mock(ReadableSingletonState.class);
+        final ReadableKVState<ProtoBytes, Roster> rosters = mock(ReadableKVState.class);
+        given(state.getReadableStates(RosterService.NAME)).willReturn(rosterStates);
+        given(rosterStates.<RosterState>getSingleton(ROSTER_STATE_STATE_ID)).willReturn(rosterState);
+        given(rosterStates.<ProtoBytes, Roster>get(ROSTERS_STATE_ID)).willReturn(rosters);
+        given(rosterState.get())
+                .willReturn(RosterState.newBuilder()
+                        .candidateRosterHash(candidateRosterHash)
+                        .roundRosterPairs(new RoundRosterPair(0, activeRosterHash))
+                        .build());
+        given(rosters.get(new ProtoBytes(activeRosterHash))).willReturn(activeRoster);
+        given(rosters.get(new ProtoBytes(candidateRosterHash))).willReturn(candidateRoster);
+        final var prepared = new PreparedTssHandoff(candidateRosterHash, 2L);
+        final var historyStore = mock(WritableHistoryStore.class);
+        prepared.stub(historyStore);
+        final var boundary = NOW.plusSeconds(5).plusNanos(123);
+        given(historyStore.handoff(activeRoster, candidateRoster, candidateRosterHash, boundary))
+                .willReturn(true);
+        given(hintsService.handoff(any(), eq(activeRoster), eq(candidateRoster), eq(candidateRosterHash), any()))
+                .willReturn(true);
+        final var dispatch = mock(Dispatch.class, RETURNS_DEEP_STUBS);
+        given(dispatch.consensusNow()).willReturn(boundary);
+        givenSubjectWith(
+                BLOCKS,
+                BlockStreamWriterMode.FILE,
+                emptyList(),
+                Map.of(
+                        "tss.hintsEnabled",
+                        "true",
+                        "tss.historyEnabled",
+                        "true",
+                        "tss.forceMockSignatures",
+                        "" + mockSignatures));
+        final var field = HandleWorkflow.class.getDeclaredField("inFlightDispatch");
+        field.setAccessible(true);
+        field.set(subject, dispatch);
+        final var configure =
+                HandleWorkflow.class.getDeclaredMethod("configureTssCallbacks", State.class, AtomicReference.class);
+        configure.setAccessible(true);
+        configure.invoke(subject, state, new AtomicReference<>());
+        final var callback = ArgumentCaptor.forClass(OnProofFinished.class);
+        verify(historyService).onFinishedConstruction(callback.capture());
+        if (mockSignatures) {
+            final var hintsCallback = ArgumentCaptor.forClass(OnHintsFinished.class);
+            verify(hintsService).onFinishedConstruction(hintsCallback.capture());
+            final var completedHintsStore = mock(WritableHintsStore.class);
+            prepared.stub(completedHintsStore);
+
+            hintsCallback.getValue().accept(completedHintsStore, prepared.next(), mock(HintsContext.class));
+
+            // Mock signatures relax the signing denominator, but both persistent generations still adopt together.
+            assertEquals(prepared.next(), completedHintsStore.getNextConstruction());
+            assertEquals(prepared.active(), completedHintsStore.getActiveConstruction());
+            verify(hintsService, never()).handoff(any(), any(), any(), any());
+            verify(hintsService, never()).handoff(any(), any(), any(), any(), any());
+            verify(historyStore, never()).handoff(any(), any(), any(), any());
+        }
+        try (final var hintsStores =
+                mockConstruction(WritableHintsStoreImpl.class, (store, _) -> prepared.stub(store))) {
+            callback.getValue().onFinished(historyStore, prepared.history(), new TreeMap<>());
+            verify(historyStore).handoff(activeRoster, candidateRoster, candidateRosterHash, boundary);
+            verify(hintsService)
+                    .handoff(
+                            same(hintsStores.constructed().getFirst()),
+                            eq(activeRoster),
+                            eq(candidateRoster),
+                            eq(candidateRosterHash),
+                            any());
+            verify(historyService).setLatestHistoryProof(prepared.history().targetProofOrThrow());
+            assertEquals(1, hintsStores.constructed().size());
+        }
+    }
+
+    @Test
+    void freshGenesisHandoffKeepsTheProofKeysOfNodesAPendingCandidateRosterDrops() {
+        final var activeRosterHash = Bytes.wrap("ACTIVE");
+        final var candidateRosterHash = Bytes.wrap("CANDIDATE");
+        final var activeRoster = Roster.newBuilder()
+                .rosterEntries(
+                        RosterEntry.newBuilder().nodeId(0L).weight(1L).build(),
+                        RosterEntry.newBuilder().nodeId(1L).weight(1L).build())
+                .build();
+        final var candidateRoster = Roster.newBuilder()
+                .rosterEntries(RosterEntry.newBuilder().nodeId(0L).weight(1L).build())
+                .build();
+        final var rosterStates = mock(ReadableStates.class);
+        final ReadableSingletonState<RosterState> rosterState = mock(ReadableSingletonState.class);
+        final ReadableKVState<ProtoBytes, Roster> rosters = mock(ReadableKVState.class);
+        given(state.getReadableStates(RosterService.NAME)).willReturn(rosterStates);
+        given(rosterStates.<RosterState>getSingleton(ROSTER_STATE_STATE_ID)).willReturn(rosterState);
+        given(rosterStates.<ProtoBytes, Roster>get(ROSTERS_STATE_ID)).willReturn(rosters);
+        given(rosterState.get())
+                .willReturn(RosterState.newBuilder()
+                        .candidateRosterHash(candidateRosterHash)
+                        .roundRosterPairs(new RoundRosterPair(0, activeRosterHash))
+                        .build());
+        given(rosters.get(new ProtoBytes(activeRosterHash))).willReturn(activeRoster);
+        given(rosters.get(new ProtoBytes(candidateRosterHash))).willReturn(candidateRoster);
+        final var historyStore = mock(WritableHistoryStore.class);
+        given(historyStore.getActiveConstruction())
+                .willReturn(
+                        HistoryProofConstruction.newBuilder().constructionId(1L).build());
+        // A finished construction that grounds a new chain of trust for the roster the network already has
+        final var groundingConstruction = HistoryProofConstruction.newBuilder()
+                .constructionId(2L)
+                .sourceRosterHash(activeRosterHash)
+                .targetRosterHash(activeRosterHash)
+                .targetProof(HistoryProof.DEFAULT)
+                .build();
+        willAnswer(invocation -> {
+                    invocation
+                            .<OnProofFinished>getArgument(0)
+                            .onFinished(historyStore, groundingConstruction, new TreeMap<>());
+                    return null;
+                })
+                .given(historyService)
+                .onFinishedConstruction(any());
+        // A round with one event and no transactions
+        final var creatorId = NodeId.of(0L);
+        given(round.getConsensusEvents()).willAnswer(ignore -> List.of(event));
+        lenient().when(event.getConsensusTimestamp()).thenReturn(NOW);
+        lenient().when(event.getAllParents()).thenAnswer(ignore -> emptyList());
+        lenient().when(event.getCreatorId()).thenReturn(creatorId);
+        lenient().when(event.getTransactions()).thenAnswer(ignore -> emptyList());
+        lenient().when(networkInfo.nodeInfo(creatorId.id())).thenReturn(mock(NodeInfo.class));
+        lenient().when(blockStreamManager.lastIntervalProcessTime()).thenReturn(NOW);
+        givenSubjectWith(
+                BLOCKS,
+                BlockStreamWriterMode.FILE,
+                emptyList(),
+                Map.of("tss.hintsEnabled", "true", "tss.historyEnabled", "true"));
+
+        subject.handleRound(state, round, txns -> {});
+
+        // The roster does not change, so no node's proof key may be removed
+        verify(historyStore).handoff(activeRoster, null, null, null);
     }
 
     @Test
@@ -988,11 +2434,18 @@ class HandleWorkflowTest {
         final var beforeEvents = Instant.ofEpochSecond(1_234_600L, 100);
         final var afterEvents = beforeEvents.plusSeconds(1);
         final var ledgerId = Bytes.wrap("LEDGER_ID");
+        final var targetRosterHash = Bytes.wrap("generation roster");
+        final var verificationKey = Bytes.wrap("generation verification key");
         final var proof = HistoryProof.newBuilder()
-                .targetHistory(History.newBuilder().addressBookHash(ledgerId).build())
+                .targetHistory(History.newBuilder()
+                        .addressBookHash(Bytes.wrap("ADDRESS_BOOK_HASH"))
+                        .metadata(verificationKey)
+                        .build())
+                .targetNodeWeights(new ProofNodeWeight(0L, 1L))
                 .build();
         final var construction = HistoryProofConstruction.newBuilder()
                 .constructionId(1L)
+                .targetRosterHash(targetRosterHash)
                 .targetProof(proof)
                 .build();
         final var historyStore = mock(WritableHistoryStore.class);
@@ -1005,19 +2458,19 @@ class HandleWorkflowTest {
                 })
                 .given(historyService)
                 .onFinishedConstruction(any());
-        given(historyService.historyProofVerificationKey()).willReturn(Bytes.EMPTY);
+        given(historyService.ledgerIdOf(proof)).willReturn(ledgerId);
         given(state.getReadableStates(RosterService.NAME)).willReturn(mock(ReadableStates.class));
 
         final var creatorId = NodeId.of(0L);
-        given(round.iterator()).willAnswer(_ -> List.of(event).iterator());
+        given(round.getConsensusEvents()).willAnswer(_ -> List.of(event));
         given(event.getConsensusTimestamp()).willReturn(NOW);
-        given(event.allParentsIterator()).willReturn(emptyIterator());
+        given(event.getAllParents()).willReturn(emptyList());
         given(event.getCreatorId()).willReturn(creatorId);
         final var lastUsedConsTime = new AtomicReference<>(beforeEvents);
         // Stands in for handling the round's transactions, which advances the last-used consensus time
-        given(event.consensusTransactionIterator()).willAnswer(invocation -> {
+        given(event.getTransactions()).willAnswer(invocation -> {
             lastUsedConsTime.set(afterEvents);
-            return emptyIterator();
+            return emptyList();
         });
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
         given(blockHashSigner.isReady()).willReturn(true);
@@ -1037,7 +2490,6 @@ class HandleWorkflowTest {
         given(entityIdFactory.newAccountId(anyLong())).willReturn(AccountID.DEFAULT);
         given(networkInfo.addressBook()).willReturn(List.of(creatorInfo));
         final var realSystemTransactions = new SystemTransactions(
-                initTrigger,
                 parentTxnFactory,
                 fileService,
                 networkInfo,
@@ -1076,15 +2528,15 @@ class HandleWorkflowTest {
                             invocation.getArgument(1),
                             invocation.getArgument(2),
                             invocation.getArgument(3),
-                            invocation.getArgument(4),
-                            invocation.getArgument(5));
+                            invocation.getArgument(4));
                     return null;
                 })
                 .given(systemTransactions)
-                .externalizeLedgerId(any(), any(), any(), any(), any(), any());
+                .externalizeLedgerId(any(), any(), any(), any(), any());
 
         subject.handleRound(state, round, txns -> {});
 
+        verify(hintsService, never()).setActiveConstruction(any(), any(), any());
         final var consTimes = assignedConsTimes.getAllValues();
         assertEquals(2, consTimes.size(), "Expected the node fee payment and the ledger id publication to dispatch");
         final var nodeFeeConsTime = consTimes.getFirst();
@@ -1098,5 +2550,48 @@ class HandleWorkflowTest {
                 ledgerIdConsTime.isAfter(afterEvents),
                 "The ledger id publication was assigned " + ledgerIdConsTime + ", which precedes the last transaction "
                         + "handled in the round at " + afterEvents);
+    }
+
+    @Test
+    void stakePeriodInitializedBeforeFeeDistribution() {
+        final var creatorId = NodeId.of(0);
+        given(event.getCreatorId()).willReturn(creatorId);
+        given(event.getConsensusTimestamp()).willReturn(NOW);
+        given(event.getTransactions()).willReturn(emptyList());
+        given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
+        given(round.getConsensusEvents()).willAnswer(ignore -> List.of(event));
+        given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(NOW);
+        given(blockRecordManager.lastIntervalProcessTime()).willReturn(NOW);
+
+        givenSubjectWith(RECORDS, BlockStreamWriterMode.FILE, emptyList());
+
+        subject.handleRound(state, round, txns -> {});
+
+        final InOrder inOrder = Mockito.inOrder(stakePeriodManager, nodeFeeManager);
+        inOrder.verify(stakePeriodManager).setCurrentStakePeriodFor(eq(NOW));
+        inOrder.verify(nodeFeeManager).distributeFees(any(), any(), any());
+    }
+
+    @Test
+    void feeAndRewardDispatchesPrecedeFirstEventUntilSignerIsReady() {
+        final var creatorId = NodeId.of(0);
+        given(event.getCreatorId()).willReturn(creatorId);
+        given(event.getConsensusTimestamp()).willReturn(NOW);
+        given(event.getTransactions()).willReturn(emptyList());
+        given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
+        given(round.getConsensusEvents()).willAnswer(ignore -> List.of(event));
+        given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(NOW);
+        given(blockRecordManager.lastIntervalProcessTime()).willReturn(NOW);
+        given(blockHashSigner.isReady()).willReturn(false);
+        givenSubjectWith(RECORDS, BlockStreamWriterMode.FILE, emptyList());
+        // The round's consensus time is that of its last transaction, which is handled after these dispatches
+        final var lastTxnTime = NOW.plusSeconds(1);
+        given(round.getConsensusTimestamp()).willReturn(lastTxnTime);
+
+        subject.handleRound(state, round, txns -> {});
+
+        // The mock SystemTransactions reserves the time 100ns before the round's first event
+        verify(nodeFeeManager).distributeFees(any(), eq(NOW.minusNanos(100)), any());
+        verify(nodeRewardManager).maybeRewardActiveNodes(any(), eq(NOW.minusNanos(100)), any());
     }
 }

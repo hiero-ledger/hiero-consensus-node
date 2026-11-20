@@ -121,9 +121,9 @@ A signed state passes through six phases.
    marked for saving (step 4) it is written to disk with an incomplete
    `SigSet`, and `DefaultStateSnapshotManager` logs the shortfall via
    `InsufficientSignaturesPayload` and increments
-   `totalUnsignedDiskStates`. Freeze states bypass the parking step:
-   they are expected to lack quorum and are emitted immediately on
-   arrival at the collector.
+   [`platform.totalNeverSignedDiskStates`](../../../../consensus-state/src/main/java/org/hiero/consensus/state/persistence/StateSnapshotManagerMetrics.java#totalNeverSignedDiskStates).
+   Freeze states bypass the parking step: they are expected to lack
+   quorum and are emitted immediately on arrival at the collector.
 4. **Decide to save.** `DefaultSavedStateController#shouldSaveToDisk`
    ([`DefaultSavedStateController.java#shouldSaveToDisk`](../../../../consensus-state/src/main/java/org/hiero/consensus/state/persistence/DefaultSavedStateController.java#shouldSaveToDisk))
    marks freeze states for saving unconditionally; for non-freeze rounds
@@ -179,7 +179,7 @@ A complete round directory contains:
 - `stateMetadata.txt` — human-readable key/value file written by
   [`SavedStateMetadata`](../../../../consensus-state/src/main/java/org/hiero/consensus/state/saved/SavedStateMetadata.java).
 - `hashInfo.txt` — mnemonic of the state hash, diagnostic only.
-- `currentRoster.json` — the active `Roster` as PBJ JSON.
+- `activeRoster.json` — the active `Roster` as PBJ JSON.
 - `consensusSnapshot.json` — the round's `ConsensusSnapshot` as PBJ JSON.
 - `signatureSet.pbj` — the `SigSet` as PBJ binary.
 - `settingsUsed.txt` — effective configuration dump.

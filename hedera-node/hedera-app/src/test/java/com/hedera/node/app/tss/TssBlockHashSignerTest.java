@@ -5,6 +5,7 @@ import static com.hedera.node.app.blocks.BlockHashSigner.Request.LIST_OF_PARTIAL
 import static com.hedera.node.app.blocks.BlockHashSigner.Request.SUCCINCT_SIGNATURE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -14,6 +15,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.state.history.ChainOfTrustProof;
+import com.hedera.hapi.node.state.history.HintsKeyWitness;
 import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.HintsService.SigningResult;
@@ -22,12 +24,15 @@ import com.hedera.node.app.hints.impl.RsaContext;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
+import com.hedera.node.config.data.BlockStreamConfig;
+import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.CompletableFuture;
+import org.hiero.base.crypto.DigestType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -94,6 +99,7 @@ class TssBlockHashSignerTest {
         assertTrue(subject.isReady());
         given(signing.future()).willReturn(CompletableFuture.completedFuture(FAKE_HINTS_SIGNATURE));
         given(signing.verificationKey()).willReturn(verificationKey);
+        given(signing.constructionId()).willReturn(7L);
         final var submissionFuture = CompletableFuture.<Void>completedFuture(null);
         given(hintsService.sign(FAKE_BLOCK_HASH)).willReturn(new SigningResult(signing, submissionFuture));
 
@@ -102,6 +108,7 @@ class TssBlockHashSignerTest {
 
         assertSame(FAKE_HINTS_SIGNATURE, signature);
         assertSame(verificationKey, attempt.verificationKey());
+        assertEquals(7L, attempt.constructionId());
         assertNull(attempt.chainOfTrustProof());
         assertSame(submissionFuture, attempt.submissionFuture());
     }
@@ -139,6 +146,7 @@ class TssBlockHashSignerTest {
         assertTrue(subject.isReady());
         given(signing.future()).willReturn(CompletableFuture.completedFuture(FAKE_HINTS_SIGNATURE));
         given(signing.verificationKey()).willReturn(verificationKey);
+        given(signing.constructionId()).willReturn(7L);
         final var submissionFuture = CompletableFuture.<Void>completedFuture(null);
         given(hintsService.sign(FAKE_BLOCK_HASH)).willReturn(new SigningResult(signing, submissionFuture));
         given(historyService.getCurrentChainOfTrustProof(verificationKey)).willReturn(chainOfTrustProof);
@@ -148,8 +156,29 @@ class TssBlockHashSignerTest {
 
         assertEquals(FAKE_HINTS_SIGNATURE, signature);
         assertSame(verificationKey, attempt.verificationKey());
+        assertEquals(7L, attempt.constructionId());
         assertSame(chainOfTrustProof, attempt.chainOfTrustProof());
         assertSame(submissionFuture, attempt.submissionFuture());
+    }
+
+    @Test
+    void passesCapturedWitnessToHistoryAndSuppressesMockPublication() {
+        givenSubjectWith(HintsEnabled.YES, HistoryEnabled.YES);
+        final var witness =
+                HintsKeyWitness.newBuilder().targetHintsConstructionId(7).build();
+        final var verificationKey = Bytes.wrap("captured key");
+        subject.publishKeyWitness(verificationKey, witness);
+        verify(historyService).publishKeyWitness(verificationKey, witness);
+    }
+
+    @Test
+    void doesNotPublishWitnessWithoutHistoryOrWithMockSignatures() {
+        final var witness = HintsKeyWitness.DEFAULT;
+        givenSubjectWith(HintsEnabled.YES, HistoryEnabled.NO);
+        subject.publishKeyWitness(Bytes.EMPTY, witness);
+        givenSubjectWith(HintsEnabled.YES, HistoryEnabled.YES, ForceMockSignatures.YES, StreamMode.BOTH);
+        subject.publishKeyWitness(Bytes.EMPTY, witness);
+        verifyNoInteractions(historyService);
     }
 
     @Test
@@ -165,6 +194,42 @@ class TssBlockHashSignerTest {
         assertNull(attempt.chainOfTrustProof());
         assertEquals(FAKE_HINTS_SIGNATURE, attempt.signatureFuture().join());
         verifyNoInteractions(hintsService, historyService);
+    }
+
+    @Test
+    void mockSignatureHashLengthFollowsDigestType() {
+        // The forced-mock-signature path "signs" by hashing the block hash with the digest selected by
+        // BlockStreamConfig.digestType: SHA-384 (48 bytes) for SHA_384, SHA-256 (32 bytes) for SHA_256.
+        given(configProvider.getConfiguration())
+                .willReturn(new VersionedConfigImpl(mockSignatureConfigWithDigestType(DigestType.SHA_384), 123));
+        subject = new TssBlockHashSigner(hintsService, historyService, configProvider);
+        final var sha384Sig = subject.sign(FAKE_BLOCK_HASH, SUCCINCT_SIGNATURE)
+                .signatureFuture()
+                .join();
+
+        given(configProvider.getConfiguration())
+                .willReturn(new VersionedConfigImpl(mockSignatureConfigWithDigestType(DigestType.SHA_256), 123));
+        subject = new TssBlockHashSigner(hintsService, historyService, configProvider);
+        final var sha256Sig = subject.sign(FAKE_BLOCK_HASH, SUCCINCT_SIGNATURE)
+                .signatureFuture()
+                .join();
+
+        assertEquals(48L, sha384Sig.length(), "SHA-384 mock signature is 48 bytes");
+        assertEquals(32L, sha256Sig.length(), "SHA-256 mock signature is 32 bytes");
+        assertEquals(
+                Bytes.wrap(CommonUtils.noThrowHashOf(FAKE_BLOCK_HASH.toByteArray(), DigestType.SHA_256)), sha256Sig);
+        assertNotEquals(sha384Sig, sha256Sig);
+        verifyNoInteractions(hintsService, historyService);
+    }
+
+    private Configuration mockSignatureConfigWithDigestType(final DigestType digestType) {
+        return HederaTestConfigBuilder.create()
+                .withValue("tss.hintsEnabled", "true")
+                .withValue("tss.historyEnabled", "true")
+                .withValue("tss.forceMockSignatures", "true")
+                .withValue("blockStream.streamMode", StreamMode.BOTH.name())
+                .withValue("blockStream.digestType", digestType.name())
+                .getOrCreateConfig();
     }
 
     @Test
@@ -225,6 +290,30 @@ class TssBlockHashSignerTest {
         assertThrows(NullPointerException.class, () -> subject.sign(FAKE_BLOCK_HASH, null));
     }
 
+    @Test
+    void chainOfTrustIsOnlyInUseWhenSigningActuallyReachesForIt() {
+        // The only combination in which sign() packages a chain-of-trust proof
+        assertTrue(usesChainOfTrust(HintsEnabled.YES, HistoryEnabled.YES, ForceMockSignatures.NO, StreamMode.BOTH));
+
+        // Mock signatures short-circuit before the history service is consulted
+        assertFalse(usesChainOfTrust(HintsEnabled.YES, HistoryEnabled.YES, ForceMockSignatures.YES, StreamMode.BOTH));
+        // As does a record-only stream, which wires up neither service
+        assertFalse(usesChainOfTrust(HintsEnabled.YES, HistoryEnabled.YES, ForceMockSignatures.NO, StreamMode.RECORDS));
+        // And there is no chain of trust to carry with either half of the protocol disabled
+        assertFalse(usesChainOfTrust(HintsEnabled.NO, HistoryEnabled.YES, ForceMockSignatures.NO, StreamMode.BOTH));
+        assertFalse(usesChainOfTrust(HintsEnabled.YES, HistoryEnabled.NO, ForceMockSignatures.NO, StreamMode.BOTH));
+    }
+
+    private boolean usesChainOfTrust(
+            @NonNull final HintsEnabled hintsEnabled,
+            @NonNull final HistoryEnabled historyEnabled,
+            @NonNull final ForceMockSignatures forceMockSignatures,
+            @NonNull final StreamMode streamMode) {
+        final var config = configWith(hintsEnabled, historyEnabled, forceMockSignatures, streamMode);
+        return TssBlockHashSigner.usesChainOfTrustProof(
+                config.getConfigData(TssConfig.class), config.getConfigData(BlockStreamConfig.class));
+    }
+
     private void givenSubjectWith(
             @NonNull final HintsEnabled hintsEnabled, @NonNull final HistoryEnabled historyEnabled) {
         givenSubjectWith(hintsEnabled, historyEnabled, ForceMockSignatures.NO, StreamMode.BOTH);
@@ -251,6 +340,8 @@ class TssBlockHashSignerTest {
                 .withValue("tss.historyEnabled", "" + (historyEnabled == HistoryEnabled.YES))
                 .withValue("tss.forceMockSignatures", "" + (forceMockSignatures == ForceMockSignatures.YES))
                 .withValue("blockStream.streamMode", streamMode.name())
+                // FAKE_HINTS_SIGNATURE is a SHA-384 hash; mockSignatureHashLengthFollowsDigestType covers SHA-256
+                .withValue("blockStream.digestType", DigestType.SHA_384.name())
                 .getOrCreateConfig();
     }
 }

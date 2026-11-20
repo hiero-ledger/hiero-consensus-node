@@ -8,6 +8,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.hints.PreprocessedKeys;
@@ -20,7 +21,9 @@ import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.time.Instant;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import org.hiero.base.crypto.Signature;
 import org.hiero.base.crypto.SignatureType;
@@ -67,7 +70,7 @@ class HintsSubmissionsTest {
         given(appContext.configSupplier()).willReturn(() -> DEFAULT_CONFIG);
         given(appContext.gossip()).willReturn(gossip);
 
-        subject.submitHintsKey(1, 2, hintsKey);
+        subject.submitHintsKey(3, 4, 1, 4, hintsKey);
 
         final ArgumentCaptor<Consumer<TransactionBody.Builder>> captor = ArgumentCaptor.forClass(Consumer.class);
         verify(gossip)
@@ -86,7 +89,13 @@ class HintsSubmissionsTest {
         spec.accept(builder);
         final var body = builder.build();
         assertTrue(body.hasHintsKeyPublication());
-        final var expectedBody = new HintsKeyPublicationTransactionBody(1, 2, hintsKey);
+        final var expectedBody = HintsKeyPublicationTransactionBody.newBuilder()
+                .constructionId(3)
+                .crsId(4)
+                .partyId(1)
+                .numParties(4)
+                .hintsKey(hintsKey)
+                .build();
         assertEquals(expectedBody, body.hintsKeyPublicationOrThrow());
     }
 
@@ -175,8 +184,10 @@ class HintsSubmissionsTest {
         final var msg = Bytes.wrap("M");
         final var sig = Bytes.wrap("S");
         given(keyAccessor.signWithBlsPrivateKey(123L, msg)).willReturn(sig);
+        given(gossip.submitFuture(any(), any(), any(), any(), any(), anyInt(), anyInt(), any(), any()))
+                .willReturn(new CompletableFuture<>());
 
-        subject.submitPartialSignature(123L, msg);
+        subject.submitPartialSignature(123L, msg, () -> {});
 
         final ArgumentCaptor<Consumer<TransactionBody.Builder>> captor = ArgumentCaptor.forClass(Consumer.class);
         verify(gossip)
@@ -201,6 +212,71 @@ class HintsSubmissionsTest {
                 .partialSignature(sig)
                 .build();
         assertEquals(expectedBody, body.hintsPartialSignatureOrThrow());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void runsOnSubmittedOnlyOnceThePartialSignatureIsSubmitted() {
+        givenGossipAvailable();
+        final var msg = Bytes.wrap("M");
+        given(keyAccessor.signWithBlsPrivateKey(123L, msg)).willReturn(Bytes.wrap("S"));
+        final var gossipFuture = new CompletableFuture<Void>();
+        given(gossip.submitFuture(any(), any(), any(), any(), any(), anyInt(), anyInt(), any(), any()))
+                .willReturn(gossipFuture);
+        final var submitted = new AtomicBoolean();
+
+        final var future = subject.submitPartialSignature(123L, msg, () -> submitted.set(true));
+
+        final ArgumentCaptor<Consumer<TransactionBody.Builder>> captor = ArgumentCaptor.forClass(Consumer.class);
+        verify(gossip).submitFuture(any(), any(), any(), captor.capture(), any(), anyInt(), anyInt(), any(), any());
+        captor.getValue().accept(TransactionBody.newBuilder());
+        assertFalse(submitted.get());
+        gossipFuture.complete(null);
+        assertTrue(submitted.get());
+        assertSame(gossipFuture, future);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void doesNotRunOnSubmittedIfThePartialSignatureCannotBeSubmitted() {
+        givenGossipAvailable();
+        final var msg = Bytes.wrap("M");
+        given(keyAccessor.signWithBlsPrivateKey(123L, msg)).willReturn(Bytes.wrap("S"));
+        final var gossipFuture = new CompletableFuture<Void>();
+        given(gossip.submitFuture(any(), any(), any(), any(), any(), anyInt(), anyInt(), any(), any()))
+                .willReturn(gossipFuture);
+        final var submitted = new AtomicBoolean();
+
+        subject.submitPartialSignature(123L, msg, () -> submitted.set(true));
+
+        final ArgumentCaptor<Consumer<TransactionBody.Builder>> captor = ArgumentCaptor.forClass(Consumer.class);
+        verify(gossip).submitFuture(any(), any(), any(), captor.capture(), any(), anyInt(), anyInt(), any(), any());
+        captor.getValue().accept(TransactionBody.newBuilder());
+        gossipFuture.completeExceptionally(new IllegalStateException("Out of retries"));
+        assertFalse(submitted.get());
+    }
+
+    @Test
+    void doesNotRunOnSubmittedIfGossipIsUnavailable() {
+        given(appContext.gossip()).willReturn(gossip);
+        given(gossip.isAvailable()).willReturn(false);
+        final var submitted = new AtomicBoolean();
+
+        final var future = subject.submitPartialSignature(123L, Bytes.wrap("M"), () -> submitted.set(true));
+
+        // The submission is skipped, but its future still completes normally
+        assertTrue(future.isDone());
+        assertFalse(future.isCompletedExceptionally());
+        assertFalse(submitted.get());
+        verifyNoInteractions(keyAccessor);
+    }
+
+    private void givenGossipAvailable() {
+        given(selfNodeInfo.accountId()).willReturn(AccountID.DEFAULT);
+        given(appContext.selfNodeInfoSupplier()).willReturn(() -> selfNodeInfo);
+        given(appContext.instantSource()).willReturn(() -> Instant.EPOCH);
+        given(appContext.configSupplier()).willReturn(() -> DEFAULT_CONFIG);
+        given(appContext.gossip()).willReturn(gossip);
     }
 
     @Test

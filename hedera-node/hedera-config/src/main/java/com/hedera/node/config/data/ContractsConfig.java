@@ -24,11 +24,17 @@ public record ContractsConfig(
         @ConfigProperty(value = "nonces.externalization.enabled", defaultValue = "true") @NetworkProperty
         boolean noncesExternalizationEnabled,
 
+        @ConfigProperty(value = "selfDestructs.externalization.enabled", defaultValue = "true") @NetworkProperty
+        boolean selfDestructsExternalizationEnabled,
+
         @ConfigProperty(defaultValue = "false") @NetworkProperty
         boolean enforceCreationThrottle,
 
         @ConfigProperty(defaultValue = "15000000") @NetworkProperty
         long maxGasPerTransaction,
+
+        @ConfigProperty(defaultValue = "150000000") @NetworkProperty
+        long blockGasLimit,
 
         @ConfigProperty(defaultValue = "15000000") @NetworkProperty
         long maxGasPerSec,

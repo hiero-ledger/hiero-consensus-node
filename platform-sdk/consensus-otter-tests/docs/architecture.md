@@ -234,12 +234,18 @@ classDiagram
     class OtterResult {
         <<interface>>
         +clear()
+        +isCleared() boolean
+        +allResultsArrived() boolean
     }
 
     class SingleNodeConsensusResult {
         +nodeId() NodeId
         +lastRoundNum() long
         +consensusRounds() List~ConsensusRound~
+        +preConsensusEvents() List~EventDescriptorWrapper~
+        +staleEvents() List~EventDescriptorWrapper~
+        +consensusRatio() double
+        +staleRatio() double
         +subscribe(ConsensusRoundSubscriber)
     }
 

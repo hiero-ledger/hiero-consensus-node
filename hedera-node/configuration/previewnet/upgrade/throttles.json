@@ -2,6 +2,56 @@
   "buckets": [
     {
       "burstPeriod": 0,
+      "burstPeriodMs": 1000,
+      "name": "ClprBundles",
+      "throttleGroups": [
+        {
+          "opsPerSec": 0,
+          "milliOpsPerSec": 10000,
+          "operations": [
+            "ClprSubmitBundle"
+          ]
+        }
+      ]
+    },
+    {
+      "burstPeriod": 0,
+      "burstPeriodMs": 1000,
+      "name": "ClprLimits",
+      "throttleGroups": [
+        {
+          "opsPerSec": 0,
+          "milliOpsPerSec": 10000,
+          "operations": [
+            "ClprUpdateLedgerConfiguration",
+            "ClprRegisterChannel",
+            "ClprCompleteChannel",
+            "ClprCloseChannel",
+            "ClprEvictPeerEndpoint",
+            "ClprRegisterConnector",
+            "ClprCompleteConnector",
+            "ClprDeregisterConnector"
+          ]
+        }
+      ]
+    },
+    {
+      "burstPeriod": 0,
+      "burstPeriodMs": 1000,
+      "name": "ClprQueryLimits",
+      "throttleGroups": [
+        {
+          "opsPerSec": 0,
+          "milliOpsPerSec": 10000,
+          "operations": [
+            "ClprGetLedgerConfiguration",
+            "ClprGetEndpointManifest"
+          ]
+        }
+      ]
+    },
+    {
+      "burstPeriod": 0,
       "burstPeriodMs": 15000,
       "name": "ThroughputLimits",
       "throttleGroups": [
@@ -46,7 +96,17 @@
             "RegisteredNodeCreate",
             "RegisteredNodeUpdate",
             "RegisteredNodeDelete",
-            "AtomicBatch"
+            "AtomicBatch",
+            "ClprUpdateLedgerConfiguration",
+            "ClprRegisterChannel",
+            "ClprCompleteChannel",
+            "ClprCloseChannel",
+            "ClprEvictPeerEndpoint",
+            "ClprRegisterConnector",
+            "ClprCompleteConnector",
+            "ClprDeregisterConnector",
+            "ClprGetLedgerConfiguration",
+            "ClprGetEndpointManifest"
           ]
         },
         {
@@ -158,7 +218,7 @@
       "throttleGroups": [
         {
           "opsPerSec": 0,
-          "milliOpsPerSec": 2000,
+          "milliOpsPerSec": 3000,
           "operations": [
             "CryptoCreate",
             "NodeCreate",

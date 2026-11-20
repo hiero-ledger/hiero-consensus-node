@@ -2,7 +2,7 @@
 package org.hiero.otter.fixtures.network;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.otter.fixtures.Node;
+import org.hiero.otter.fixtures.MiniNode;
 
 /**
  * Interface representing a single direction of a connection between two nodes in a network.
@@ -15,7 +15,7 @@ public interface UnidirectionalConnection extends Connection {
      * @return the start node of the connection
      */
     @NonNull
-    Node sender();
+    MiniNode sender();
 
     /**
      * Gets the end node of the connection.
@@ -23,5 +23,5 @@ public interface UnidirectionalConnection extends Connection {
      * @return the end node of the connection
      */
     @NonNull
-    Node receiver();
+    MiniNode receiver();
 }

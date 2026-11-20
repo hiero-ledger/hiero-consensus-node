@@ -96,11 +96,9 @@ public class LatestCompleteStateNexusTests {
         }
     }
 
-    /**
-     * Verifies that disabling async snapshots preserves the existing nexus behavior.
-     */
+    /// Verifies that with async snapshots disabled, the nexus also retains no state once freezing begins.
     @Test
-    void synchronousFreezeStateCanBeRetainedTest() {
+    void synchronousFreezeStateIsNotRetainedAfterFreezingTest() {
         final Configuration configuration = new TestConfigBuilder()
                 .withValue(StateConfig_.SAVE_STATE_ASYNC, false)
                 .getOrCreateConfig();
@@ -115,12 +113,8 @@ public class LatestCompleteStateNexusTests {
             final ReservedSignedState nexusReservation = freezeState.reserve("nexus state");
             nexus.setStateIfNewer(nexusReservation);
 
-            assertFalse(nexusReservation.isClosed(), "A synchronous freeze state may be retained");
-            try (final ReservedSignedState nexusState = nexus.getState("check retained state")) {
-                assertNotNull(nexusState, "The synchronous freeze state should be retained");
-            }
-            nexus.clear();
-            assertTrue(nexusReservation.isClosed(), "Clearing the nexus should release the synchronous freeze state");
+            assertTrue(nexusReservation.isClosed(), "A state offered after freezing should be released");
+            assertNull(nexus.getState("check retained state"), "No state should be retained after freezing");
         }
     }
 

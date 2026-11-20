@@ -13,6 +13,8 @@ module org.hiero.consensus.gossip.impl {
     exports org.hiero.consensus.gossip.impl.gossip.sync to
             org.hiero.consensus.gossip.impl.test.fixtures,
             org.hiero.consensus.reconnect.impl;
+    exports org.hiero.consensus.gossip.impl.gossip.sync.protocol to
+            org.hiero.otter.fixtures;
     exports org.hiero.consensus.gossip.impl.network to
             org.hiero.consensus.gossip.impl.test.fixtures,
             org.hiero.consensus.reconnect.impl;
@@ -45,7 +47,6 @@ module org.hiero.consensus.gossip.impl {
     requires com.hedera.pbj.runtime;
     requires com.swirlds.logging;
     requires org.hiero.consensus.metrics;
-    requires org.hiero.consensus.roster;
     requires static transitive com.github.spotbugs.annotations;
 
     uses ReconnectProtocolFactory;

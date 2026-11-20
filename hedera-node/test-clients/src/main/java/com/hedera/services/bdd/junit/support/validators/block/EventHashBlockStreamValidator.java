@@ -3,12 +3,15 @@ package com.hedera.services.bdd.junit.support.validators.block;
 
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
 import static org.assertj.core.api.Fail.fail;
+import static org.hiero.base.file.FileUtils.rethrowIO;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import com.hedera.services.bdd.junit.hedera.ExternalPath;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.spec.HapiSpec;
+import com.swirlds.config.api.ConfigurationBuilder;
+import com.swirlds.platform.config.ConfigurationSetupUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -25,7 +28,10 @@ import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.event.stream.config.EventConfig;
+import org.hiero.consensus.model.event.EventHashFactory;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 
 /**
  * A BlockStreamValidator implementation that reassembles consensus events and verifies the hash integrity of the event
@@ -98,10 +104,35 @@ public class EventHashBlockStreamValidator implements BlockStreamValidator {
         @Override
         @NonNull
         public BlockStreamValidator create(@NonNull final HapiSpec spec) {
+            initializeEventHashFactory(spec);
             final var pcesData = readPcesDataFromSpec(spec);
             return new EventHashBlockStreamValidator(pcesData);
         }
     };
+
+    /**
+     * Initializes the {@link EventHashFactory} with the event cutover the nodes in the spec's network use. HAPI test
+     * networks start from genesis, so depending on the event cutover flag in the node's platform settings, either every
+     * event is hashed with the post-cutover algorithm or none are.
+     *
+     * @param spec the HapiSpec providing access to the network nodes
+     */
+    static void initializeEventHashFactory(@NonNull final HapiSpec spec) {
+        final Path settingsPath = spec.getNetworkNodes()
+                .getFirst()
+                .getExternalPath(ExternalPath.WORKING_DIR)
+                .resolve("settings.txt");
+        final ConfigurationBuilder configurationBuilder = ConfigurationBuilder.create();
+        if (Files.exists(settingsPath)) {
+            rethrowIO(() -> ConfigurationSetupUtils.setupConfigBuilder(configurationBuilder, settingsPath));
+        } else {
+            configurationBuilder.autoDiscoverExtensions();
+        }
+        final boolean eventCutoverEnabled =
+                configurationBuilder.build().getConfigData(EventConfig.class).enableEventCutover();
+        logger.info("Event cutover enabled in {}: {}", settingsPath, eventCutoverEnabled);
+        EventHashFactory.initialize(eventCutoverEnabled ? ConsensusConstants.ROUND_FIRST : Long.MAX_VALUE);
+    }
 
     @Override
     public void validateBlocks(@NonNull final List<Block> blocks) {

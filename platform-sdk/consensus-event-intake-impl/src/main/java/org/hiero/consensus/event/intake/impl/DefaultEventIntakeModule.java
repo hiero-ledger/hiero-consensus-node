@@ -4,7 +4,6 @@ package org.hiero.consensus.event.intake.impl;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.wiring.framework.wires.SolderType.INJECT;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -34,9 +33,10 @@ import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.roster.RosterWrapper;
+import org.hiero.consensus.model.roster.RosterWrapperHistory;
 import org.hiero.consensus.orphan.DefaultOrphanBuffer;
 import org.hiero.consensus.orphan.OrphanBuffer;
-import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.transaction.TransactionLimits;
 import org.hiero.consensus.wiring.framework.component.ComponentWiring;
 import org.hiero.consensus.wiring.framework.model.WiringModel;
@@ -79,6 +79,15 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
     @Nullable
     private ComponentWiring<BranchReporter, Void> branchReporterWiring;
 
+    @Nullable
+    private InputWire<PlatformEvent> unhashedEventsInputWire;
+
+    @Nullable
+    private InputWire<PlatformEvent> nonValidatedEventsInputWire;
+
+    @Nullable
+    private InputWire<RosterWrapperHistory> rosterHistoryInputWire;
+
     /**
      * {@inheritDoc}
      */
@@ -88,7 +97,7 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
             @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
             @NonNull final Time time,
-            @NonNull final RosterHistory rosterHistory,
+            @NonNull final RosterWrapperHistory rosterHistory,
             @NonNull final IntakeEventCounter intakeEventCounter,
             @NonNull final TransactionLimits transactionLimits,
             @Nullable final EventPipelineTracker pipelineTracker) {
@@ -97,7 +106,7 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
             throw new IllegalStateException("Already initialized");
         }
 
-        // Set up wiring
+        // Set up wired components
         this.eventWindowExtractor = new WireTransformer<>(
                 model, "EventIntake_EventWindowExtractor", "consensus round", ConsensusRound::getEventWindow);
         this.eventWindowDispatcher =
@@ -116,6 +125,37 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
         this.orphanBufferWiring = new ComponentWiring<>(model, OrphanBuffer.class, wiringConfig.orphanBuffer());
         this.branchDetectorWiring = new ComponentWiring<>(model, BranchDetector.class, wiringConfig.branchDetector());
         this.branchReporterWiring = new ComponentWiring<>(model, BranchReporter.class, wiringConfig.branchReporter());
+
+        // Set up input wires
+        unhashedEventsInputWire = eventHasherWiring.getInputWire(EventHasher::hashEvent);
+        nonValidatedEventsInputWire = eventValidatorWiring.getInputWire(InternalEventValidator::validateEvent);
+        rosterHistoryInputWire =
+                eventSignatureValidatorWiring.getInputWire(EventSignatureValidator::updateRosterHistory);
+
+        // Wire metrics before the components: an output wire forwards to its destinations in the order they were
+        // soldered, and a stage must record an event before the next stage receives it
+        if (pipelineTracker != null) {
+            pipelineTracker.registerMetric("hashing", EventOrigin.GOSSIP, EventOrigin.STORAGE);
+            eventHasherWiring
+                    .getOutputWire()
+                    .solderForMonitoring(platformEvent -> pipelineTracker.recordEvent("hashing", platformEvent));
+            pipelineTracker.registerMetric("validation");
+            eventValidatorWiring
+                    .getOutputWire()
+                    .solderForMonitoring(platformEvent -> pipelineTracker.recordEvent("validation", platformEvent));
+            pipelineTracker.registerMetric("deduplication");
+            eventDeduplicatorWiring
+                    .getOutputWire()
+                    .solderForMonitoring(platformEvent -> pipelineTracker.recordEvent("deduplication", platformEvent));
+            pipelineTracker.registerMetric("verification");
+            eventSignatureValidatorWiring
+                    .getOutputWire()
+                    .solderForMonitoring(platformEvent -> pipelineTracker.recordEvent("verification", platformEvent));
+            pipelineTracker.registerMetric("orphanBuffer");
+            orphanBufferWiring
+                    .<PlatformEvent>getSplitOutput()
+                    .solderForMonitoring(platformEvent -> pipelineTracker.recordEvent("orphanBuffer", platformEvent));
+        }
 
         // Wire components
         eventWindowExtractor.getOutputWire().solderTo(eventWindowDispatcher.getInputWire(), INJECT);
@@ -161,39 +201,8 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
                 .getOutputWire()
                 .solderTo(branchReporterWiring.getInputWire(BranchReporter::clear), INJECT);
 
-        // Wire metrics
-        if (pipelineTracker != null) {
-            pipelineTracker.registerMetric("hashing", EventOrigin.GOSSIP, EventOrigin.STORAGE);
-            eventHasherWiring
-                    .getOutputWire()
-                    .solderForMonitoring(platformEvent -> pipelineTracker.recordEvent("hashing", platformEvent));
-            pipelineTracker.registerMetric("validation");
-            eventValidatorWiring
-                    .getOutputWire()
-                    .solderForMonitoring(platformEvent -> pipelineTracker.recordEvent("validation", platformEvent));
-            pipelineTracker.registerMetric("deduplication");
-            eventDeduplicatorWiring
-                    .getOutputWire()
-                    .solderForMonitoring(platformEvent -> pipelineTracker.recordEvent("deduplication", platformEvent));
-            pipelineTracker.registerMetric("verification");
-            eventSignatureValidatorWiring
-                    .getOutputWire()
-                    .solderForMonitoring(platformEvent -> pipelineTracker.recordEvent("verification", platformEvent));
-            pipelineTracker.registerMetric("orphanBuffer");
-            orphanBufferWiring
-                    .<PlatformEvent>getSplitOutput()
-                    .solderForMonitoring(platformEvent -> pipelineTracker.recordEvent("orphanBuffer", platformEvent));
-        }
-
-        // Force not soldered wires to be built
-        eventDeduplicatorWiring.getInputWire(EventDeduplicator::clear);
-        eventSignatureValidatorWiring.getInputWire(EventSignatureValidator::updateRosterHistory);
-        orphanBufferWiring.getInputWire(OrphanBuffer::clear);
-        branchDetectorWiring.getInputWire(BranchDetector::clear);
-        branchReporterWiring.getInputWire(BranchReporter::clear);
-
         // Create and bind components
-        final Roster currentRoster = rosterHistory.getCurrentRoster();
+        final RosterWrapper activeRoster = rosterHistory.activeRoster();
         final EventHasher eventHasher = new DefaultEventHasher();
         eventHasherWiring.bind(eventHasher);
         final InternalEventValidator internalEventValidator = new DefaultInternalEventValidator(
@@ -206,9 +215,9 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
         eventSignatureValidatorWiring.bind(eventSignatureValidator);
         final OrphanBuffer orphanBuffer = new DefaultOrphanBuffer(metrics, intakeEventCounter);
         orphanBufferWiring.bind(orphanBuffer);
-        final BranchDetector branchDetector = new DefaultBranchDetector(currentRoster);
+        final BranchDetector branchDetector = new DefaultBranchDetector(activeRoster);
         branchDetectorWiring.bind(branchDetector);
-        final BranchReporter branchReporter = new DefaultBranchReporter(metrics, time, currentRoster);
+        final BranchReporter branchReporter = new DefaultBranchReporter(metrics, time, activeRoster);
         branchReporterWiring.bind(branchReporter);
     }
 
@@ -227,7 +236,7 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
     @Override
     @NonNull
     public InputWire<PlatformEvent> unhashedEventsInputWire() {
-        return requireNonNull(eventHasherWiring, "Not initialized").getInputWire(EventHasher::hashEvent);
+        return requireNonNull(unhashedEventsInputWire, "Not initialized");
     }
 
     /**
@@ -236,8 +245,7 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
     @Override
     @NonNull
     public InputWire<PlatformEvent> nonValidatedEventsInputWire() {
-        return requireNonNull(eventValidatorWiring, "Not initialized")
-                .getInputWire(InternalEventValidator::validateEvent);
+        return requireNonNull(nonValidatedEventsInputWire, "Not initialized");
     }
 
     /**
@@ -263,9 +271,8 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
      */
     @Override
     @NonNull
-    public InputWire<RosterHistory> rosterHistoryInputWire() {
-        return requireNonNull(eventSignatureValidatorWiring, "Not initialized")
-                .getInputWire(EventSignatureValidator::updateRosterHistory);
+    public InputWire<RosterWrapperHistory> rosterHistoryInputWire() {
+        return requireNonNull(rosterHistoryInputWire, "Not initialized");
     }
 
     /**

@@ -11,10 +11,13 @@ import com.hedera.pbj.grpc.helidon.config.PbjConfig;
 import com.hedera.pbj.runtime.grpc.Pipeline;
 import com.hedera.pbj.runtime.grpc.ServiceInterface;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.services.bdd.junit.hedera.BlockNodeTlsMode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import io.helidon.common.tls.Tls;
 import io.helidon.webserver.ConnectionConfig;
 import io.helidon.webserver.WebServer;
+import io.helidon.webserver.WebServerConfig;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -77,8 +80,11 @@ public class SimulatedBlockNodeServer {
     private static final int MAX_MESSAGE_SIZE_BYTES = 4_194_304; // 4 MBs
     private static final int BUFFER_SIZE = 32768;
 
-    private final WebServer webServer;
+    private final Spec spec;
+    private final WebServer streamingServer;
+    private final WebServer serviceServer;
     private final int port;
+    private final int servicePort;
     private final MockBlockStreamServiceImpl streamingImpl;
     private final MockBlockNodeServiceImpl serviceImpl;
     private final boolean highLatency;
@@ -119,21 +125,61 @@ public class SimulatedBlockNodeServer {
     private final AtomicBoolean sendingAcksEnabled = new AtomicBoolean(true);
 
     /**
-     * Creates a new simulated block node server on the specified port.
+     * Everything needed to (re)create a simulated block node. Held so that a simulator can be restarted on the same
+     * ports, with the same behaviour, after being shut down mid-test.
      *
-     * @param port the port to listen on
+     * @param streamingPort the port serving the streaming (publish) API
+     * @param servicePort the port serving the service API
      * @param highLatency whether to simulate high-latency responses
+     * @param tlsMode which of the two APIs are served over TLS
+     */
+    public record Spec(
+            int streamingPort,
+            int servicePort,
+            boolean highLatency,
+            @NonNull BlockNodeTlsMode tlsMode) {
+        public Spec {
+            requireNonNull(tlsMode, "tlsMode must not be null");
+            if (streamingPort == servicePort) {
+                throw new IllegalArgumentException("The streaming and service APIs must be served on separate ports");
+            }
+        }
+    }
+
+    /**
+     * Creates a new simulated block node server from the given spec.
+     * <p>
+     * The two APIs a consensus node calls are served by separate {@link WebServer}s on separate ports, so that each
+     * can be secured independently.
+     *
+     * @param spec the ports, latency behaviour, and TLS settings for this block node
      * @param lastVerifiedBlockNumberSupplier an optional supplier that provides the last verified block number
      * from an external source, can be null if not needed
      */
     public SimulatedBlockNodeServer(
-            final int port, final boolean highLatency, @Nullable final Supplier<Long> lastVerifiedBlockNumberSupplier) {
-        this.port = port;
-        this.highLatency = highLatency;
+            @NonNull final Spec spec, @Nullable final Supplier<Long> lastVerifiedBlockNumberSupplier) {
+        this.spec = requireNonNull(spec, "spec must not be null");
+        this.port = spec.streamingPort();
+        this.servicePort = spec.servicePort();
+        this.highLatency = spec.highLatency();
         this.streamingImpl = new MockBlockStreamServiceImpl();
         this.serviceImpl = new MockBlockNodeServiceImpl();
         this.externalLastVerifiedBlockNumberSupplier = lastVerifiedBlockNumberSupplier;
 
+        this.streamingServer = newWebServer(
+                spec.streamingPort(), PbjRouting.builder().service(streamingImpl), streamingTls(spec.tlsMode()));
+        this.serviceServer =
+                newWebServer(spec.servicePort(), PbjRouting.builder().service(serviceImpl), serviceTls(spec.tlsMode()));
+    }
+
+    /**
+     * @param port the port the server listens on
+     * @param routing the services this server exposes
+     * @param tls the TLS settings, or null to serve plaintext
+     * @return a configured, unstarted web server
+     */
+    private static @NonNull WebServer newWebServer(
+            final int port, @NonNull final PbjRouting.Builder routing, @Nullable final Tls tls) {
         final PbjConfig pbjConfig = PbjConfig.builder()
                 .name("pbj")
                 .maxMessageSizeBytes(MAX_MESSAGE_SIZE_BYTES)
@@ -143,12 +189,39 @@ public class SimulatedBlockNodeServer {
                 .receiveBufferSize(BUFFER_SIZE)
                 .build();
 
-        this.webServer = WebServer.builder()
+        final WebServerConfig.Builder builder = WebServer.builder()
                 .port(port)
-                .addRouting(PbjRouting.builder().service(streamingImpl).service(serviceImpl))
+                .addRouting(routing)
                 .addProtocol(pbjConfig)
-                .connectionConfig(connectionConfig)
-                .build();
+                .connectionConfig(connectionConfig);
+        if (tls != null) {
+            builder.tls(tls);
+        }
+        return builder.build();
+    }
+
+    /**
+     * @param tlsMode the TLS mode of this block node
+     * @return the TLS settings for the streaming API, or null if it is served in plaintext
+     */
+    private static @Nullable Tls streamingTls(@NonNull final BlockNodeTlsMode tlsMode) {
+        return switch (tlsMode) {
+            case NONE, SERVICE_ONLY -> null;
+            case PUBLISH_ONLY, ALL, ALL_BAD_FINGERPRINT, ALL_NO_FINGERPRINT ->
+                SelfSignedCert.shared().serverTls();
+        };
+    }
+
+    /**
+     * @param tlsMode the TLS mode of this block node
+     * @return the TLS settings for the service API, or null if it is served in plaintext
+     */
+    private static @Nullable Tls serviceTls(@NonNull final BlockNodeTlsMode tlsMode) {
+        return switch (tlsMode) {
+            case NONE, PUBLISH_ONLY -> null;
+            case SERVICE_ONLY, ALL, ALL_BAD_FINGERPRINT, ALL_NO_FINGERPRINT ->
+                SelfSignedCert.shared().serverTls();
+        };
     }
 
     /**
@@ -157,8 +230,20 @@ public class SimulatedBlockNodeServer {
      * @throws IOException if the server cannot be started
      */
     public void start() throws IOException {
-        webServer.start();
-        log.info("Simulated block node server started on port {}", port);
+        streamingServer.start();
+        try {
+            serviceServer.start();
+        } catch (final Exception e) {
+            // The streaming server is already listening. Leaving it bound would strand its port for the rest of the
+            // JVM, because the caller only records this server once both halves have started.
+            stopQuietly(streamingServer, port);
+            throw e;
+        }
+        log.info(
+                "Simulated block node server started on streaming port {}, service port {} (tls={})",
+                port,
+                servicePort,
+                spec.tlsMode());
     }
 
     /**
@@ -167,24 +252,48 @@ public class SimulatedBlockNodeServer {
      * If interrupted, the current thread's interrupt flag will be set.
      */
     public void stop() {
-        if (webServer != null) {
-            try {
-                webServer.stop();
-                log.info("Simulated block node server on port {} stopped", port);
-            } catch (final Exception e) {
-                log.error("Error stopping simulated block node server on port {}", port, e);
-            }
-            this.hasEverBeenShutdown = true;
+        stopQuietly(streamingServer, port);
+        stopQuietly(serviceServer, servicePort);
+        this.hasEverBeenShutdown = true;
+    }
+
+    /**
+     * Stops a server, logging rather than propagating any failure.
+     *
+     * @param server the server to stop
+     * @param serverPort the port the server listens on, for logging
+     */
+    private static void stopQuietly(@NonNull final WebServer server, final int serverPort) {
+        try {
+            server.stop();
+            log.info("Simulated block node server on port {} stopped", serverPort);
+        } catch (final Exception e) {
+            log.error("Error stopping simulated block node server on port {}", serverPort, e);
         }
     }
 
     /**
-     * Gets the port this server is listening on.
+     * Gets the port this server serves the streaming (publish) API on. This is the port that identifies the block
+     * node throughout the test harness.
      *
-     * @return the port number this server is bound to
+     * @return the port number the streaming API is bound to
      */
     public int getPort() {
         return port;
+    }
+
+    /**
+     * @return the port this server serves the service API on
+     */
+    public int getServicePort() {
+        return servicePort;
+    }
+
+    /**
+     * @return the spec this server was created from, suitable for recreating it on the same ports
+     */
+    public @NonNull Spec spec() {
+        return spec;
     }
 
     public void setSendingBlockAcknowledgementsEnabled(final boolean sendingBlockAcksEnabled) {

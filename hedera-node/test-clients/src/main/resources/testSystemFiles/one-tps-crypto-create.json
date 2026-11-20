@@ -1,0 +1,420 @@
+{
+  "buckets": [
+    {
+      "burstPeriod": 0,
+      "burstPeriodMs": 1000,
+      "name": "ClprBundles",
+      "throttleGroups": [
+        {
+          "opsPerSec": 0,
+          "milliOpsPerSec": 10000,
+          "operations": [
+            "ClprSubmitBundle"
+          ]
+        }
+      ]
+    },
+	{
+	  "name": "ThroughputLimits",
+	  "burstPeriod": 1,
+	  "throttleGroups": [
+		{
+		  "opsPerSec": 20000,
+		  "operations": [
+			"CryptoCreate",
+			"CryptoTransfer",
+			"CryptoUpdate",
+			"CryptoDelete",
+			"CryptoGetInfo",
+			"CryptoGetAccountRecords",
+			"CryptoApproveAllowance",
+			"CryptoDeleteAllowance",
+			"UtilPrng",
+			"ConsensusCreateTopic",
+			"ConsensusSubmitMessage",
+			"ConsensusUpdateTopic",
+			"ConsensusDeleteTopic",
+			"ConsensusGetTopicInfo",
+			"TokenGetInfo",
+			"TokenGetNftInfo",
+			"TokenGetNftInfos",
+			"TokenGetAccountNftInfos",
+			"ScheduleDelete",
+			"ScheduleGetInfo",
+			"FileGetContents",
+			"FileGetInfo",
+			"ContractUpdate",
+			"ContractDelete",
+			"ContractGetInfo",
+			"ContractGetBytecode",
+			"ContractGetRecords",
+			"ContractCallLocal",
+			"TransactionGetRecord",
+			"GetVersionInfo",
+			"NodeCreate",
+			"NodeUpdate",
+			"NodeDelete",
+			"RegisteredNodeCreate",
+			"RegisteredNodeUpdate",
+			"RegisteredNodeDelete",
+				"AtomicBatch",
+				"ClprUpdateLedgerConfiguration",
+				"ClprRegisterChannel",
+				"ClprCompleteChannel",
+				"ClprCloseChannel",
+				"ClprRegisterConnector",
+				"ClprCompleteConnector",
+				"ClprDeregisterConnector",
+				"ClprGetLedgerConfiguration",
+				"ClprGetEndpointManifest"
+		  ]
+		},
+		{
+		  "opsPerSec": 1000,
+		  "operations": [
+			"ContractCall",
+			"ContractCreate",
+			"FileCreate",
+			"FileUpdate",
+			"FileAppend",
+			"FileDelete",
+            "EthereumTransaction"
+          ]
+		},
+		{
+		  "opsPerSec": 6000,
+		  "operations": [
+			"ScheduleSign",
+			"TokenCreate",
+			"TokenDelete",
+			"TokenMint",
+			"TokenBurn",
+			"TokenPause",
+			"TokenUnpause",
+			"TokenUpdate",
+			"TokenFeeScheduleUpdate",
+			"TokenAssociateToAccount",
+			"TokenAccountWipe",
+			"TokenDissociateFromAccount",
+			"TokenFreezeAccount",
+			"TokenUnfreezeAccount",
+			"TokenGrantKycToAccount",
+			"TokenRevokeKycFromAccount",
+			"TokenUpdateNfts",
+			"TokenReject",
+			"TokenAirdrop",
+			"TokenClaimAirdrop",
+			"TokenCancelAirdrop"
+		  ]
+		},
+		  {
+			  "opsPerSec": 0,
+			  "milliOpsPerSec": 50000,
+			  "operations": [
+				  "HookStore"
+			  ]
+		  }
+	  ]
+	},
+	{
+	  "name": "PriorityReservations",
+	  "burstPeriod": 1,
+	  "throttleGroups": [
+		{
+		  "opsPerSec": 1000,
+		  "operations": [
+			"ContractCall",
+			"ContractCreate",
+			"FileCreate",
+			"FileUpdate",
+			"FileAppend",
+			"FileDelete",
+            "EthereumTransaction"
+          ]
+		}
+	  ]
+	},
+	{
+	  "name": "DevCreationLimits",
+	  "burstPeriod": 10,
+	  "throttleGroups": [
+		{
+		  "opsPerSec": 2000,
+		  "operations": [
+			"CryptoCreate",
+			  "NodeCreate",
+			  "RegisteredNodeCreate"
+		  ]
+		},
+		{
+		  "opsPerSec": 1000,
+		  "operations": [
+			"FileCreate"
+		  ]
+		},
+		{
+		  "opsPerSec": 5000,
+		  "operations": [
+			"ConsensusCreateTopic"
+		  ]
+		},
+		{
+		  "opsPerSec": 10000,
+		  "operations": [
+			"TokenCreate",
+			"TokenAssociateToAccount",
+			"ScheduleCreate",
+			  "TokenAirdrop"
+		  ]
+		}
+	  ]
+	},
+	{
+	  "name": "CreationLimits",
+	  "burstPeriod": 1,
+	  "throttleGroups": [
+		{
+		  "opsPerSec": 1,
+		  "operations": [
+			"CryptoCreate"
+		  ]
+		}
+	  ]
+	},
+	{
+	  "name": "FreeQueryLimits",
+	  "burstPeriod": 1,
+	  "throttleGroups": [
+		{
+		  "opsPerSec": 1000000,
+		  "operations": [
+			"TransactionGetReceipt"
+		  ]
+		}
+	  ]
+	},
+	  {
+		  "burstPeriod": 0,
+		  "burstPeriodMs": 1000,
+		  "name": "HVCryptoCreateThrottles",
+		  "highVolume": true,
+		  "throttleGroups": [
+			  {
+				  "opsPerSec": 0,
+				  "milliOpsPerSec": 10000000,
+				  "operations": [
+					  "CryptoCreate"
+				  ]
+			  }
+		  ]
+	  },
+	  {
+		  "burstPeriod": 0,
+		  "burstPeriodMs": 1000,
+		  "name": "HVCryptoApproveAllowanceThrottles",
+		  "highVolume": true,
+		  "throttleGroups": [
+			  {
+				  "opsPerSec": 0,
+				  "milliOpsPerSec": 10000000,
+				  "operations": [
+					  "CryptoApproveAllowance"
+				  ]
+			  }
+		  ]
+	  },
+	  {
+		  "burstPeriod": 0,
+		  "burstPeriodMs": 1000,
+		  "name": "HVConsensusCreateTopicThrottles",
+		  "highVolume": true,
+		  "throttleGroups": [
+			  {
+				  "opsPerSec": 0,
+				  "milliOpsPerSec": 25000000,
+				  "operations": [
+					  "ConsensusCreateTopic"
+				  ]
+			  }
+		  ]
+	  },
+	  {
+		  "burstPeriod": 0,
+		  "burstPeriodMs": 1000,
+		  "name": "HVScheduleCreateThrottles",
+		  "highVolume": true,
+		  "throttleGroups": [
+			  {
+				  "opsPerSec": 0,
+				  "milliOpsPerSec": 10000000,
+				  "operations": [
+					  "ScheduleCreate"
+				  ]
+			  }
+		  ]
+	  },
+	  {
+		  "burstPeriod": 0,
+		  "burstPeriodMs": 1000,
+		  "name": "HVFileCreateThrottles",
+		  "highVolume": true,
+		  "throttleGroups": [
+			  {
+				  "opsPerSec": 0,
+				  "milliOpsPerSec": 10000000,
+				  "operations": [
+					  "FileCreate"
+				  ]
+			  }
+		  ]
+	  },
+	  {
+		  "burstPeriod": 0,
+		  "burstPeriodMs": 1000,
+		  "name": "HVFileAppendThrottles",
+		  "highVolume": true,
+		  "throttleGroups": [
+			  {
+				  "opsPerSec": 0,
+				  "milliOpsPerSec": 50000000,
+				  "operations": [
+					  "FileAppend"
+				  ]
+			  }
+		  ]
+	  },
+	  {
+		  "burstPeriod": 0,
+		  "burstPeriodMs": 1000,
+		  "name": "HVContractCreateThrottles",
+		  "highVolume": true,
+		  "throttleGroups": [
+			  {
+				  "opsPerSec": 0,
+				  "milliOpsPerSec": 17500000,
+				  "operations": [
+					  "ContractCreate"
+				  ]
+			  }
+		  ]
+	  },
+	  {
+		  "burstPeriod": 0,
+		  "burstPeriodMs": 1000,
+		  "name": "HVHookStoreThrottles",
+		  "highVolume": true,
+		  "throttleGroups": [
+			  {
+				  "opsPerSec": 0,
+				  "milliOpsPerSec": 50000000,
+				  "operations": [
+					  "HookStore"
+				  ]
+			  }
+		  ]
+	  },
+	  {
+		  "burstPeriod": 0,
+		  "burstPeriodMs": 1000,
+		  "name": "HVTokenAssociateThrottles",
+		  "highVolume": true,
+		  "throttleGroups": [
+			  {
+				  "opsPerSec": 0,
+				  "milliOpsPerSec": 10000000,
+				  "operations": [
+					  "TokenAssociateToAccount"
+				  ]
+			  }
+		  ]
+	  },
+	  {
+		  "burstPeriod": 0,
+		  "burstPeriodMs": 1000,
+		  "name": "HVTokenAirdropThrottles",
+		  "highVolume": true,
+		  "throttleGroups": [
+			  {
+				  "opsPerSec": 0,
+				  "milliOpsPerSec": 10000000,
+				  "operations": [
+					  "TokenAirdrop"
+				  ]
+			  }
+		  ]
+	  },
+	  {
+		  "burstPeriod": 0,
+		  "burstPeriodMs": 1000,
+		  "name": "HVTokenClaimAirdropThrottles",
+		  "highVolume": true,
+		  "throttleGroups": [
+			  {
+				  "opsPerSec": 0,
+				  "milliOpsPerSec": 10500000,
+				  "operations": [
+					  "TokenClaimAirdrop"
+				  ]
+			  }
+		  ]
+	  },
+	  {
+		  "burstPeriod": 0,
+		  "burstPeriodMs": 1000,
+		  "name": "HVTokenMintThrottles",
+		  "highVolume": true,
+		  "throttleGroups": [
+			  {
+				  "opsPerSec": 0,
+				  "milliOpsPerSec": 12500000,
+				  "operations": [
+					  "TokenMint"
+				  ]
+			  }
+		  ]
+	  },
+	  {
+		  "burstPeriod": 0,
+		  "burstPeriodMs": 1000,
+		  "name": "HVTokenCreateThrottles",
+		  "highVolume": true,
+		  "throttleGroups": [
+			  {
+				  "opsPerSec": 0,
+				  "milliOpsPerSec": 10000000,
+				  "operations": [
+					  "TokenCreate"
+				  ]
+			  }
+		  ]
+	  },
+	  {
+		  "burstPeriod": 0,
+		  "burstPeriodMs": 1000,
+		  "name": "HVTotalThrottles",
+		  "highVolume": true,
+		  "throttleGroups": [
+			  {
+				  "opsPerSec": 0,
+				  "milliOpsPerSec": 31500000,
+				  "operations": [
+					  "CryptoCreate",
+					  "CryptoApproveAllowance",
+					  "ConsensusCreateTopic",
+					  "ScheduleCreate",
+					  "FileCreate",
+					  "FileAppend",
+					  "ContractCreate",
+					  "HookStore",
+					  "TokenAssociateToAccount",
+					  "TokenAirdrop",
+					  "TokenClaimAirdrop",
+					  "TokenMint",
+					  "TokenCreate",
+					  "CryptoTransfer"
+				  ]
+			  }
+		  ]
+	  }
+  ]
+}

@@ -12,6 +12,8 @@ import java.nio.file.Path;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.DigestType;
 
 /**
  * In memory implementation of VirtualDataSource for use in testing.
@@ -60,12 +62,10 @@ public class InMemoryDataSource implements VirtualDataSource {
      * Close the data source
      */
     @Override
-    public void close(final boolean keepData) {
-        if (!keepData) {
-            hashChunks.clear();
-            leafRecords.clear();
-            keyToPathMap.clear();
-        }
+    public void close() {
+        hashChunks.clear();
+        leafRecords.clear();
+        keyToPathMap.clear();
         closed = true;
     }
 
@@ -283,13 +283,19 @@ public class InMemoryDataSource implements VirtualDataSource {
         return DEFAULT_HASH_CHUNK_HEIGHT;
     }
 
+    @NonNull
+    @Override
+    public DigestType getLoadedHashDigestType() {
+        return Cryptography.DEFAULT_DIGEST_TYPE;
+    }
+
     @Override
     public void enableBackgroundCompaction() {
         // no op
     }
 
     @Override
-    public void stopAndDisableBackgroundCompaction() {
+    public void stopAndDisableBackgroundCompaction(final boolean waitForTasksToComplete) {
         // no op
     }
 }
