@@ -20,7 +20,7 @@ val junit5 = "6.1.3"
 val log4j = "2.26.0"
 val mockito = "5.23.0"
 val pbj = pluginVersions.version("com.hedera.pbj.pbj-compiler")
-val protobuf = "4.36.0"
+val protobuf = "4.35.1"
 val prometheusSimpleclient = "0.16.0"
 // The one Block Node pin is block-node-version in .citr-env; Maven versions lack its v
 val blockNodeProtobufSources =
@@ -167,4 +167,10 @@ dependencies.constraints {
         excludes.add("io.grpc:protoc-gen-grpc-java")
         excludes.add("org.hiero.block-node:protobuf-sources")
     }
+}
+configurations.all {
+  resolutionStrategy {
+      force("com.google.protobuf:protobuf-java:$protobuf")
+      force("com.google.protobuf:protobuf-java-util:$protobuf")
+  }
 }
