@@ -15,7 +15,7 @@ class VerifiersRegistryTest {
 
     @Test
     void resolvesCantonByContractNum() {
-        final var cid = ContractID.newBuilder().contractNum(0x172L).build();
+        final var cid = ContractID.newBuilder().contractNum(0x173L).build();
         assertThat(VerifiersRegistry.find(cid)).containsInstanceOf(CantonProofVerifier.class);
     }
 
@@ -27,7 +27,7 @@ class VerifiersRegistryTest {
 
     @Test
     void exposesCantonIdentifiersForCallersThatNeedThem() {
-        assertThat(VerifiersRegistry.CANTON_CONTRACT_NUM).isEqualTo(0x172L);
+        assertThat(VerifiersRegistry.CANTON_CONTRACT_NUM).isEqualTo(0x173L);
         assertThat(VerifiersRegistry.CANTON_EVM_ADDRESS).isEqualTo(CANTON_EVM_ADDRESS);
     }
 
