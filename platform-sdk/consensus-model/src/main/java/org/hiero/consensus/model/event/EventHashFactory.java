@@ -13,7 +13,7 @@ import org.hiero.base.crypto.Hash;
  */
 public class EventHashFactory {
 
-    private static long eventCutoverMinBirthRound = Long.MAX_VALUE;
+    private static long eventCutoverMinBirthRound = 1L;
 
     /**
      * Initializes the factory with the cutover value. If the cutover is not happening yet, the value should be
