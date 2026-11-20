@@ -1,15 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.verifier.canton;
 
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.be32;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.sha256;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.service.clpr.impl.verifier.Rlp;
 import java.io.ByteArrayOutputStream;
-import java.security.MessageDigest;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HexFormat;
 import java.util.List;
 import org.hiero.base.crypto.Ed25519;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -21,7 +26,6 @@ import org.junit.jupiter.api.Test;
  * the multi-member quorum cases that no real fixture covers.
  */
 class CantonVerdictVerifierTest {
-
     private static final byte[] EMPTY_DELEGATION = {(byte) 0x80};
 
     private static final byte[] TYPED = CantonFixtures.verdictTypedContent();
@@ -37,7 +41,416 @@ class CantonVerdictVerifierTest {
     private static final CantonProto.Verdict VERDICT = CantonProto.parseVerdict(TYPED);
     private static final byte[] SYNC = VERDICT.synchronizerId();
 
-    // ---------------------------------------------------------------- helpers
+    private static final String LSU_SYNCHRONIZER =
+            "probe::122042b2d7afca2069ab5231b4384df922987122465472121b048f886edb5f8198c0::35-0";
+    private static final String LSU_SUCCESSOR =
+            "probe::122042b2d7afca2069ab5231b4384df922987122465472121b048f886edb5f8198c0::35-1";
+    private static final byte[] LSU_NAMESPACE =
+            HexFormat.of().parseHex("42b2d7afca2069ab5231b4384df922987122465472121b048f886edb5f8198c0");
+    private static final long LSU_UPGRADE_TIME = 1_893_456_000_000_000L;
+    private static final String APP = "app::1220" + "ff".repeat(32);
+    private static final byte[] NO_ROTATIONS = new byte[0];
+    private static final String VERDICT_SYNC = new String(SYNC, StandardCharsets.UTF_8);
+
+    @Nested
+    class HappyPath {
+        @Test
+        void realVerdictPassesAndReturnsRequestIdAndRootHash() {
+            // REAL: typed content, mediator key, mediator signature (set framing CONSTRUCTED around the real key).
+            final var result = CantonVerdictVerifier.verifyVerdict(TYPED, sigs(realEntry()), REAL_SET, SYNC, 0);
+            assertThat(result.requestId()).isEqualTo(VERDICT.requestId());
+            assertThat(result.rootHash()).isEqualTo(VERDICT.rootHash());
+        }
+
+        @Test
+        void emptyListDelegationEncodingAlsoCountsAsEmpty() {
+            // REAL signature, delegation encoded as the empty list 0xc0 (isEmpty accepts both 0x80 and 0xc0).
+            final byte[] e = entry(realFingerprint(), CantonFixtures.verdictMediatorSig(), new byte[] {(byte) 0xc0});
+            assertThat(verify(sigs(e), REAL_SET)).isEqualTo(VERDICT.rootHash());
+        }
+    }
+
+    @Nested
+    class VerdictRejects {
+        @Test
+        void wrongViewTypeRejected() {
+            // CONSTRUCTED: real typed content with view_type varint 1 -> 2 (length preserving).
+            final byte[] typed = mutate(TYPED, new byte[] {0x10, 0x01}, new byte[] {0x10, 0x02});
+            assertThat(CantonProto.parseVerdict(typed).viewType()).isEqualTo(2);
+            assertError(
+                    "WrongViewType",
+                    () -> CantonVerdictVerifier.verifyVerdict(typed, sigs(realEntry()), REAL_SET, SYNC, 0));
+        }
+
+        @Test
+        void synchronizerMismatchRejected() {
+            // REAL typed content, CONSTRUCTED expected id (one byte flipped).
+            final byte[] other = SYNC.clone();
+            other[other.length - 1] ^= 1;
+            assertError(
+                    "SynchronizerMismatch",
+                    () -> CantonVerdictVerifier.verifyVerdict(TYPED, sigs(realEntry()), REAL_SET, other, 0));
+        }
+
+        @Test
+        void notApprovedRejected() {
+            // CONSTRUCTED: real typed content with the Verdict oneof field 1 (approve) -> field 2 (reject).
+            final byte[] typed =
+                    mutate(TYPED, new byte[] {0x2a, 0x02, 0x0a, 0x00}, new byte[] {0x2a, 0x02, 0x12, 0x00});
+            assertThat(CantonProto.parseVerdict(typed).approved()).isFalse();
+            assertError(
+                    "NotApproved",
+                    () -> CantonVerdictVerifier.verifyVerdict(typed, sigs(realEntry()), REAL_SET, SYNC, 0));
+        }
+
+        @Test
+        void staleVerdictRejectedWhenRequestIdNotAboveLast() {
+            // REAL typed content; lastRequestId == requestId and > requestId are stale, requestId - 1 passes.
+            assertError(
+                    "StaleVerdict",
+                    () -> CantonVerdictVerifier.verifyVerdict(
+                            TYPED, sigs(realEntry()), REAL_SET, SYNC, VERDICT.requestId()));
+            assertError(
+                    "StaleVerdict",
+                    () -> CantonVerdictVerifier.verifyVerdict(
+                            TYPED, sigs(realEntry()), REAL_SET, SYNC, VERDICT.requestId() + 1));
+            assertThat(CantonVerdictVerifier.verifyVerdict(
+                                    TYPED, sigs(realEntry()), REAL_SET, SYNC, VERDICT.requestId() - 1)
+                            .requestId())
+                    .isEqualTo(VERDICT.requestId());
+        }
+    }
+
+    @Nested
+    class DelegationAndShape {
+        @Test
+        void nonEmptyDelegationRejected() {
+            // CONSTRUCTED: real fingerprint + real signature, non-empty delegation.
+            final byte[] e = entry(
+                    realFingerprint(), CantonFixtures.verdictMediatorSig(), Rlp.encodeBytes(new byte[] {1, 2, 3}));
+            assertError("SessionKeysNotSupported", () -> verify(sigs(e), REAL_SET));
+        }
+
+        @Test
+        void nonEmptyDelegationRejectedEvenForUnknownFingerprint() {
+            // CONSTRUCTED: the delegation check precedes the lookup, so an unknown-fingerprint entry is not skipped.
+            final byte[] e = entry(new byte[32], new byte[64], Rlp.encodeBytes(new byte[] {9}));
+            assertError("SessionKeysNotSupported", () -> verify(sigs(e, realEntry()), REAL_SET));
+        }
+
+        @Test
+        void entryWithWrongItemCountRejected() {
+            // CONSTRUCTED: 2-item entry.
+            final byte[] e = Rlp.encodeList(List.of(Rlp.encodeBytes(realFingerprint()), Rlp.encodeBytes(new byte[64])));
+            assertError("InvalidPayloadShape", () -> verify(sigs(e), REAL_SET));
+        }
+
+        @Test
+        void entryThatIsNotAListRejected() {
+            assertError("InvalidPayloadShape", () -> verify(sigs(Rlp.encodeBytes(new byte[40])), REAL_SET));
+        }
+
+        @Test
+        void trailingBytesAfterSignatureListRejected() {
+            final byte[] good = sigs(realEntry());
+            final byte[] bad = Arrays.copyOf(good, good.length + 1);
+            assertError("InvalidPayloadShape", () -> verify(bad, REAL_SET));
+        }
+
+        @Test
+        void nonCanonicalSingleByteStringRejected() {
+            // CONSTRUCTED: fingerprint item 0x81 0x05 (single byte < 0x80 must not be wrapped; OZ RLP rejects it).
+            final byte[] e = Rlp.encodeList(
+                    List.of(new byte[] {(byte) 0x81, 0x05}, Rlp.encodeBytes(new byte[64]), EMPTY_DELEGATION));
+            assertError("InvalidPayloadShape", () -> verify(sigs(e), REAL_SET));
+        }
+
+        @Test
+        void fingerprintLongerThan32BytesRejected() {
+            final byte[] e = Rlp.encodeList(
+                    List.of(Rlp.encodeBytes(new byte[33]), Rlp.encodeBytes(new byte[64]), EMPTY_DELEGATION));
+            assertError("InvalidPayloadShape", () -> verify(sigs(e), REAL_SET));
+        }
+
+        @Test
+        void shortFingerprintIsLeftPaddedLikeReadBytes32() {
+            // CONSTRUCTED: member whose fingerprint is 31 zero bytes + 0x07; the entry carries the 1-byte form 0x07.
+            final var m = Mediator.of(11);
+            final byte[] fp = new byte[32];
+            fp[31] = 7;
+            final byte[] set = setOf(1, new Mediator(m.secret(), m.pub(), fp));
+            final byte[] e =
+                    Rlp.encodeList(List.of(new byte[] {7}, Rlp.encodeBytes(m.sign(message())), EMPTY_DELEGATION));
+            assertThat(verify(sigs(e), set)).isEqualTo(VERDICT.rootHash());
+        }
+    }
+
+    @Nested
+    class Quorum {
+        @Test
+        void emptySignatureListFailsQuorum() {
+            assertError("MediatorQuorumNotMet", () -> verify(new byte[] {(byte) 0xc0}, REAL_SET));
+        }
+
+        @Test
+        void unknownFingerprintOnlyFailsQuorum() {
+            // CONSTRUCTED: unknown fingerprint is skipped, leaving 0 < threshold 1.
+            final byte[] e = entry(new byte[32], CantonFixtures.verdictMediatorSig(), EMPTY_DELEGATION);
+            assertError("MediatorQuorumNotMet", () -> verify(sigs(e), REAL_SET));
+        }
+
+        @Test
+        void belowThresholdFailsQuorum() {
+            // CONSTRUCTED: 2-of-3 set over fresh keys, only one distinct valid signer.
+            final var m = new Mediator[] {Mediator.of(1), Mediator.of(2), Mediator.of(3)};
+            final byte[] set = setOf(2, m);
+            final byte[] e0 = entry(m[0].fp(), m[0].sign(message()), EMPTY_DELEGATION);
+            assertError("MediatorQuorumNotMet", () -> verify(sigs(e0), set));
+        }
+
+        @Test
+        void duplicateSignerIsNotCountedTwice() {
+            // CONSTRUCTED: member 0 signs twice; 2-of-3 is not met.
+            final var m = new Mediator[] {Mediator.of(1), Mediator.of(2), Mediator.of(3)};
+            final byte[] set = setOf(2, m);
+            final byte[] e0 = entry(m[0].fp(), m[0].sign(message()), EMPTY_DELEGATION);
+            assertError("MediatorQuorumNotMet", () -> verify(sigs(e0, e0), set));
+        }
+    }
+
+    @Nested
+    class SkipVsHardReject {
+        @Test
+        void paddingUnknownAndDuplicateEntriesAreSkippedButQuorumStillPasses() {
+            // CONSTRUCTED: 2-of-3 set; entries = [all-zero padding, unknown fp, m0 valid, m0 duplicate WITH GARBAGE
+            // signature (skipped before verification, so it must not reject), m1 valid].
+            final var m = new Mediator[] {Mediator.of(1), Mediator.of(2), Mediator.of(3)};
+            final byte[] set = setOf(2, m);
+            final byte[] padding = entry(new byte[32], new byte[0], EMPTY_DELEGATION);
+            final byte[] unknown = entry(sha256(new byte[] {42}), new byte[64], EMPTY_DELEGATION);
+            final byte[] e0 = entry(m[0].fp(), m[0].sign(message()), EMPTY_DELEGATION);
+            final byte[] dup0Garbage = entry(m[0].fp(), new byte[64], EMPTY_DELEGATION);
+            final byte[] e1 = entry(m[1].fp(), m[1].sign(message()), EMPTY_DELEGATION);
+            assertThat(verify(sigs(padding, unknown, e0, dup0Garbage, e1), set)).isEqualTo(VERDICT.rootHash());
+        }
+
+        @Test
+        void knownKeyWithBadSignatureIsHardRejectedNotSkipped() {
+            // CONSTRUCTED: valid m0 then m1 with m0's signature (known key, bad signature) -> reject, even though
+            // a later valid m2 signature would have met the threshold had m1 merely been skipped.
+            final var m = new Mediator[] {Mediator.of(1), Mediator.of(2), Mediator.of(3)};
+            final byte[] set = setOf(2, m);
+            final byte[] e0 = entry(m[0].fp(), m[0].sign(message()), EMPTY_DELEGATION);
+            final byte[] badM1 = entry(m[1].fp(), m[0].sign(message()), EMPTY_DELEGATION);
+            final byte[] e2 = entry(m[2].fp(), m[2].sign(message()), EMPTY_DELEGATION);
+            assertError("InvalidMediatorSignature", () -> verify(sigs(e0, badM1, e2), set));
+        }
+
+        @Test
+        void tamperedRealSignatureIsHardRejected() {
+            // CONSTRUCTED: REAL signature with one bit flipped, under the REAL known key.
+            final byte[] sig = CantonFixtures.verdictMediatorSig().clone();
+            sig[0] ^= 1;
+            final byte[] e = entry(realFingerprint(), sig, EMPTY_DELEGATION);
+            assertError("InvalidMediatorSignature", () -> verify(sigs(e), REAL_SET));
+        }
+
+        @Test
+        void entriesAfterThresholdAreNotExamined() {
+            // CONSTRUCTED: threshold 1 reached by the REAL entry; the trailing known-key bad signature and the
+            // trailing entry with a non-empty delegation are never looked at (loop stops at threshold).
+            final byte[] badKnown = entry(realFingerprint(), new byte[64], EMPTY_DELEGATION);
+            final byte[] deleg = entry(realFingerprint(), new byte[64], Rlp.encodeBytes(new byte[] {1}));
+            assertThat(verify(sigs(realEntry(), badKnown, deleg), REAL_SET)).isEqualTo(VERDICT.rootHash());
+        }
+
+        @Test
+        void invalidMediatorSetRejected() {
+            // Set truncated by one byte.
+            final byte[] set = Arrays.copyOf(REAL_SET, REAL_SET.length - 1);
+            assertError("InvalidMediatorSet", () -> verify(sigs(realEntry()), set));
+        }
+    }
+
+    @Nested
+    class BundleVerdict {
+        @Test
+        void bundleVerdictWithoutRotationsOrUpgradeLeavesTheAnchorUnchanged() {
+            // REAL typed content, signature and key; CONSTRUCTED anchor naming the verdict's synchronizer.
+            final CantonAnchor.Anchor anchor = anchorOf(VERDICT_SYNC, new byte[] {1}, REAL_SET, "", 0L);
+            final var result =
+                    CantonVerdictVerifier.verifyBundleVerdict(TYPED, sigs(realEntry()), REAL_SET, anchor, NO_ROTATIONS);
+            assertThat(result.requestId()).isEqualTo(VERDICT.requestId());
+            assertThat(result.rootHash()).isEqualTo(VERDICT.rootHash());
+            assertThat(result.anchor().synchronizerId()).isEqualTo(VERDICT_SYNC);
+            assertThat(result.newTrustAnchor()).isEmpty();
+        }
+
+        @Test
+        void bundleVerdictBeforeTheUpgradeTimeStillNamesTheCurrentSynchronizer() {
+            // CONSTRUCTED: pending upgrade whose time equals the request id (not strictly later): no upgrade yet.
+            final CantonAnchor.Anchor anchor =
+                    anchorOf(VERDICT_SYNC, new byte[] {1}, REAL_SET, LSU_SUCCESSOR, VERDICT.requestId());
+            final var result =
+                    CantonVerdictVerifier.verifyBundleVerdict(TYPED, sigs(realEntry()), REAL_SET, anchor, NO_ROTATIONS);
+            assertThat(result.anchor().synchronizerId()).isEqualTo(VERDICT_SYNC);
+            assertThat(result.anchor().successorSynchronizerId()).isEqualTo(LSU_SUCCESSOR);
+            assertThat(result.newTrustAnchor()).isEmpty();
+        }
+
+        @Test
+        void bundleVerdictAfterTheUpgradeTimeCompletesTheUpgrade() {
+            // CONSTRUCTED: the verdict's synchronizer is the pending successor and the request id is past the upgrade
+            // time, so the verdict is checked against the successor and the new anchor completes the upgrade.
+            final CantonAnchor.Anchor anchor =
+                    anchorOf(LSU_SYNCHRONIZER, new byte[] {1}, REAL_SET, VERDICT_SYNC, VERDICT.requestId() - 1);
+            final var result =
+                    CantonVerdictVerifier.verifyBundleVerdict(TYPED, sigs(realEntry()), REAL_SET, anchor, NO_ROTATIONS);
+            assertThat(result.anchor().synchronizerId()).isEqualTo(VERDICT_SYNC);
+            assertThat(result.anchor().successorSynchronizerId()).isEmpty();
+
+            final CantonAnchor.Anchor next = CantonAnchor.Anchor.decode(result.newTrustAnchor());
+            assertThat(next.synchronizerId()).isEqualTo(VERDICT_SYNC);
+            assertThat(next.lastRequestId()).isEqualTo(VERDICT.requestId());
+            assertThat(next.successorSynchronizerId()).isEmpty();
+            assertThat(next.upgradeTime()).isZero();
+            assertThat(next.lsuSerial()).isZero();
+            assertThat(next.app()).isEqualTo(APP);
+        }
+
+        @Test
+        void bundleVerdictAfterTheUpgradeTimeStillNeedsTheSuccessorSynchronizer() {
+            // The request id is past the upgrade time, so the verdict must name the successor, not the old id.
+            final CantonAnchor.Anchor anchor =
+                    anchorOf(VERDICT_SYNC, new byte[] {1}, REAL_SET, LSU_SUCCESSOR, VERDICT.requestId() - 1);
+            assertError(
+                    "SynchronizerMismatch",
+                    () -> CantonVerdictVerifier.verifyBundleVerdict(
+                            TYPED, sigs(realEntry()), REAL_SET, anchor, NO_ROTATIONS));
+        }
+
+        @Test
+        void bundleVerdictAppliesRotationsAndReturnsTheRotatedAnchor() {
+            // REAL LSU announcement (signed by the REAL owner set) as the only rotation; the verdict is the REAL one
+            // re-framed for the LSU synchronizer and signed by a CONSTRUCTED mediator of the (unchanged) set.
+            final byte[] ownerSet = CantonFixtures.lsuOwnerSet();
+            final var mediator = Mediator.of(5);
+            final byte[] mediatorSet = setOf(1, mediator);
+            final byte[] rotations = Rlp.encodeList(List.of(
+                    Rlp.encodeBytes(ownerSet),
+                    Rlp.encodeList(List.of(Rlp.encodeList(List.of(
+                            Rlp.encodeBytes(CantonFixtures.lsuAnnouncement()),
+                            Rlp.encodeBytes(new byte[0]),
+                            Rlp.encodeBytes(new byte[0])))))));
+            final byte[] typed = withSynchronizer(LSU_SYNCHRONIZER);
+            assertThat(VERDICT.requestId()).isLessThan(LSU_UPGRADE_TIME);
+            final byte[] sigs = sigs(
+                    entry(mediator.fp(), mediator.sign(CantonMerkle.verdictSigningInput(typed)), EMPTY_DELEGATION));
+            final CantonAnchor.Anchor anchor = anchorOf(LSU_SYNCHRONIZER, ownerSet, mediatorSet, "", 0L);
+
+            final var result = CantonVerdictVerifier.verifyBundleVerdict(typed, sigs, mediatorSet, anchor, rotations);
+
+            assertThat(result.requestId()).isEqualTo(VERDICT.requestId());
+            assertThat(result.anchor().synchronizerId()).isEqualTo(LSU_SYNCHRONIZER);
+            assertThat(result.anchor().successorSynchronizerId()).isEqualTo(LSU_SUCCESSOR);
+            final CantonAnchor.Anchor next = CantonAnchor.Anchor.decode(result.newTrustAnchor());
+            assertThat(next.synchronizerId()).isEqualTo(LSU_SYNCHRONIZER);
+            assertThat(next.lastRequestId()).isEqualTo(VERDICT.requestId());
+            assertThat(next.successorSynchronizerId()).isEqualTo(LSU_SUCCESSOR);
+            assertThat(next.upgradeTime()).isEqualTo(LSU_UPGRADE_TIME);
+            assertThat(next.lsuSerial()).isEqualTo(1);
+        }
+
+        @Test
+        void bundleVerdictWithoutRotationsRejectsAMediatorSetNotMatchingTheAnchor() {
+            // No rotations: the verdict verifier itself must check the set against the anchor's commitment.
+            final CantonAnchor.Anchor anchor = anchorOf(VERDICT_SYNC, new byte[] {1}, new byte[] {9}, "", 0L);
+            assertError(
+                    "TrustSetMismatch",
+                    () -> CantonVerdictVerifier.verifyBundleVerdict(
+                            TYPED, sigs(realEntry()), REAL_SET, anchor, NO_ROTATIONS));
+        }
+
+        @Test
+        void bundleVerdictRotationsNotMatchingTheAnchorAreRejected() {
+            // The mediator set does not hash to the anchor's commitment, so the rotations are rejected before any
+            // check.
+            final byte[] ownerSet = CantonFixtures.lsuOwnerSet();
+            final CantonAnchor.Anchor anchor = anchorOf(LSU_SYNCHRONIZER, ownerSet, new byte[] {9}, "", 0L);
+            final byte[] rotations = Rlp.encodeList(List.of(Rlp.encodeBytes(ownerSet), Rlp.encodeList(List.of())));
+            assertError(
+                    "TrustSetMismatch",
+                    () -> CantonVerdictVerifier.verifyBundleVerdict(
+                            TYPED, sigs(realEntry()), REAL_SET, anchor, rotations));
+        }
+    }
+
+    private static CantonAnchor.Anchor anchorOf(
+            final String synchronizerId,
+            final byte[] ownerSet,
+            final byte[] mediatorSet,
+            final String successor,
+            final long upgradeTime) {
+        return new CantonAnchor.Anchor(
+                synchronizerId,
+                0L,
+                0,
+                LSU_NAMESPACE,
+                MiscCryptoUtils.keccak256DigestOf(ownerSet),
+                MiscCryptoUtils.keccak256DigestOf(mediatorSet),
+                successor,
+                upgradeTime,
+                successor.isEmpty() ? 0 : 1,
+                APP);
+    }
+
+    private static byte[] varint(final int v) {
+        final var out = new ByteArrayOutputStream();
+        int x = v;
+        while (x >= 0x80) {
+            out.write((x & 0x7f) | 0x80);
+            x >>>= 7;
+        }
+        out.write(x);
+        return out.toByteArray();
+    }
+
+    /**
+     * CONSTRUCTED: the REAL typed content re-framed with another synchronizer id. The three enclosing
+     * length-delimited fields (message, content, verdict) are re-encoded; the trailing two bytes of each of the
+     * outer two levels and everything after the id are the REAL ones.
+     */
+    private static byte[] withSynchronizer(final String synchronizerId) {
+        final byte[] id = synchronizerId.getBytes(StandardCharsets.UTF_8);
+        final int idStart = indexOf(TYPED, SYNC);
+        final byte[] verdictRest = Arrays.copyOfRange(TYPED, idStart + SYNC.length, 9 + 142);
+        final var verdict = new ByteArrayOutputStream();
+        verdict.write(0x0a);
+        verdict.writeBytes(varint(id.length));
+        verdict.writeBytes(id);
+        verdict.writeBytes(verdictRest);
+        final var content = new ByteArrayOutputStream();
+        content.write(0x0a);
+        content.writeBytes(varint(verdict.size()));
+        content.writeBytes(verdict.toByteArray());
+        content.writeBytes(new byte[] {0x10, 0x1e});
+        final var message = new ByteArrayOutputStream();
+        message.write(0x1a);
+        message.writeBytes(varint(content.size()));
+        message.writeBytes(content.toByteArray());
+        message.writeBytes(new byte[] {0x10, 0x1e});
+        final var out = new ByteArrayOutputStream();
+        out.write(0x0a);
+        out.writeBytes(varint(message.size()));
+        out.writeBytes(message.toByteArray());
+        out.writeBytes(new byte[] {0x10, 0x1e});
+        final byte[] typed = out.toByteArray();
+        final CantonProto.Verdict parsed = CantonProto.parseVerdict(typed);
+        assertThat(parsed.synchronizerId()).isEqualTo(id);
+        assertThat(parsed.requestId()).isEqualTo(VERDICT.requestId());
+        assertThat(parsed.rootHash()).isEqualTo(VERDICT.rootHash());
+        return typed;
+    }
 
     private static byte[] realFingerprint() {
         return REAL_FP;
@@ -83,14 +496,6 @@ class CantonVerdictVerifierTest {
         }
     }
 
-    private static byte[] sha256(final byte[] b) {
-        try {
-            return MessageDigest.getInstance("SHA-256").digest(b);
-        } catch (final Exception e) {
-            throw new IllegalStateException(e);
-        }
-    }
-
     /** Packed set layout of CantonMediators: Ed25519 members with one current key each, no delegations. */
     private static byte[] setOf(final int threshold, final Mediator... members) {
         final var out = new ByteArrayOutputStream();
@@ -114,10 +519,6 @@ class CantonVerdictVerifierTest {
         return out.toByteArray();
     }
 
-    private static byte[] be32(final int v) {
-        return new byte[] {(byte) (v >>> 24), (byte) (v >>> 16), (byte) (v >>> 8), (byte) v};
-    }
-
     private static byte[] message() {
         return CantonMerkle.verdictSigningInput(TYPED);
     }
@@ -125,218 +526,6 @@ class CantonVerdictVerifierTest {
     private static byte[] verify(final byte[] signatures, final byte[] set) {
         return CantonVerdictVerifier.verifyVerdict(TYPED, signatures, set, SYNC, 0)
                 .rootHash();
-    }
-
-    // ------------------------------------------------------------ happy path
-
-    @Test
-    void realVerdictPassesAndReturnsRequestIdAndRootHash() {
-        // REAL: typed content, mediator key, mediator signature (set framing CONSTRUCTED around the real key).
-        final var result = CantonVerdictVerifier.verifyVerdict(TYPED, sigs(realEntry()), REAL_SET, SYNC, 0);
-        assertThat(result.requestId()).isEqualTo(VERDICT.requestId());
-        assertThat(result.rootHash()).isEqualTo(VERDICT.rootHash());
-    }
-
-    @Test
-    void emptyListDelegationEncodingAlsoCountsAsEmpty() {
-        // REAL signature, delegation encoded as the empty list 0xc0 (isEmpty accepts both 0x80 and 0xc0).
-        final byte[] e = entry(realFingerprint(), CantonFixtures.verdictMediatorSig(), new byte[] {(byte) 0xc0});
-        assertThat(verify(sigs(e), REAL_SET)).isEqualTo(VERDICT.rootHash());
-    }
-
-    // ------------------------------------------------------- verdict rejects
-
-    @Test
-    void wrongViewTypeRejected() {
-        // CONSTRUCTED: real typed content with view_type varint 1 -> 2 (length preserving).
-        final byte[] typed = mutate(TYPED, new byte[] {0x10, 0x01}, new byte[] {0x10, 0x02});
-        assertThat(CantonProto.parseVerdict(typed).viewType()).isEqualTo(2);
-        assertError(
-                "WrongViewType",
-                () -> CantonVerdictVerifier.verifyVerdict(typed, sigs(realEntry()), REAL_SET, SYNC, 0));
-    }
-
-    @Test
-    void synchronizerMismatchRejected() {
-        // REAL typed content, CONSTRUCTED expected id (one byte flipped).
-        final byte[] other = SYNC.clone();
-        other[other.length - 1] ^= 1;
-        assertError(
-                "SynchronizerMismatch",
-                () -> CantonVerdictVerifier.verifyVerdict(TYPED, sigs(realEntry()), REAL_SET, other, 0));
-    }
-
-    @Test
-    void notApprovedRejected() {
-        // CONSTRUCTED: real typed content with the Verdict oneof field 1 (approve) -> field 2 (reject).
-        final byte[] typed = mutate(TYPED, new byte[] {0x2a, 0x02, 0x0a, 0x00}, new byte[] {0x2a, 0x02, 0x12, 0x00});
-        assertThat(CantonProto.parseVerdict(typed).approved()).isFalse();
-        assertError(
-                "NotApproved", () -> CantonVerdictVerifier.verifyVerdict(typed, sigs(realEntry()), REAL_SET, SYNC, 0));
-    }
-
-    @Test
-    void staleVerdictRejectedWhenRequestIdNotAboveLast() {
-        // REAL typed content; lastRequestId == requestId and > requestId are stale, requestId - 1 passes.
-        assertError(
-                "StaleVerdict",
-                () -> CantonVerdictVerifier.verifyVerdict(
-                        TYPED, sigs(realEntry()), REAL_SET, SYNC, VERDICT.requestId()));
-        assertError(
-                "StaleVerdict",
-                () -> CantonVerdictVerifier.verifyVerdict(
-                        TYPED, sigs(realEntry()), REAL_SET, SYNC, VERDICT.requestId() + 1));
-        assertThat(CantonVerdictVerifier.verifyVerdict(
-                                TYPED, sigs(realEntry()), REAL_SET, SYNC, VERDICT.requestId() - 1)
-                        .requestId())
-                .isEqualTo(VERDICT.requestId());
-    }
-
-    // ----------------------------------------------------- delegation / shape
-
-    @Test
-    void nonEmptyDelegationRejected() {
-        // CONSTRUCTED: real fingerprint + real signature, non-empty delegation.
-        final byte[] e =
-                entry(realFingerprint(), CantonFixtures.verdictMediatorSig(), Rlp.encodeBytes(new byte[] {1, 2, 3}));
-        assertError("SessionKeysNotSupported", () -> verify(sigs(e), REAL_SET));
-    }
-
-    @Test
-    void nonEmptyDelegationRejectedEvenForUnknownFingerprint() {
-        // CONSTRUCTED: the delegation check precedes the lookup, so an unknown-fingerprint entry is not skipped.
-        final byte[] e = entry(new byte[32], new byte[64], Rlp.encodeBytes(new byte[] {9}));
-        assertError("SessionKeysNotSupported", () -> verify(sigs(e, realEntry()), REAL_SET));
-    }
-
-    @Test
-    void entryWithWrongItemCountRejected() {
-        // CONSTRUCTED: 2-item entry.
-        final byte[] e = Rlp.encodeList(List.of(Rlp.encodeBytes(realFingerprint()), Rlp.encodeBytes(new byte[64])));
-        assertError("InvalidPayloadShape", () -> verify(sigs(e), REAL_SET));
-    }
-
-    @Test
-    void entryThatIsNotAListRejected() {
-        assertError("InvalidPayloadShape", () -> verify(sigs(Rlp.encodeBytes(new byte[40])), REAL_SET));
-    }
-
-    @Test
-    void trailingBytesAfterSignatureListRejected() {
-        final byte[] good = sigs(realEntry());
-        final byte[] bad = Arrays.copyOf(good, good.length + 1);
-        assertError("InvalidPayloadShape", () -> verify(bad, REAL_SET));
-    }
-
-    @Test
-    void nonCanonicalSingleByteStringRejected() {
-        // CONSTRUCTED: fingerprint item 0x81 0x05 (single byte < 0x80 must not be wrapped; OZ RLP rejects it).
-        final byte[] e = Rlp.encodeList(
-                List.of(new byte[] {(byte) 0x81, 0x05}, Rlp.encodeBytes(new byte[64]), EMPTY_DELEGATION));
-        assertError("InvalidPayloadShape", () -> verify(sigs(e), REAL_SET));
-    }
-
-    @Test
-    void fingerprintLongerThan32BytesRejected() {
-        final byte[] e =
-                Rlp.encodeList(List.of(Rlp.encodeBytes(new byte[33]), Rlp.encodeBytes(new byte[64]), EMPTY_DELEGATION));
-        assertError("InvalidPayloadShape", () -> verify(sigs(e), REAL_SET));
-    }
-
-    @Test
-    void shortFingerprintIsLeftPaddedLikeReadBytes32() {
-        // CONSTRUCTED: member whose fingerprint is 31 zero bytes + 0x07; the entry carries the 1-byte form 0x07.
-        final var m = Mediator.of(11);
-        final byte[] fp = new byte[32];
-        fp[31] = 7;
-        final byte[] set = setOf(1, new Mediator(m.secret(), m.pub(), fp));
-        final byte[] e = Rlp.encodeList(List.of(new byte[] {7}, Rlp.encodeBytes(m.sign(message())), EMPTY_DELEGATION));
-        assertThat(verify(sigs(e), set)).isEqualTo(VERDICT.rootHash());
-    }
-
-    // ---------------------------------------------------------------- quorum
-
-    @Test
-    void emptySignatureListFailsQuorum() {
-        assertError("MediatorQuorumNotMet", () -> verify(new byte[] {(byte) 0xc0}, REAL_SET));
-    }
-
-    @Test
-    void unknownFingerprintOnlyFailsQuorum() {
-        // CONSTRUCTED: unknown fingerprint is skipped, leaving 0 < threshold 1.
-        final byte[] e = entry(new byte[32], CantonFixtures.verdictMediatorSig(), EMPTY_DELEGATION);
-        assertError("MediatorQuorumNotMet", () -> verify(sigs(e), REAL_SET));
-    }
-
-    @Test
-    void belowThresholdFailsQuorum() {
-        // CONSTRUCTED: 2-of-3 set over fresh keys, only one distinct valid signer.
-        final var m = new Mediator[] {Mediator.of(1), Mediator.of(2), Mediator.of(3)};
-        final byte[] set = setOf(2, m);
-        final byte[] e0 = entry(m[0].fp(), m[0].sign(message()), EMPTY_DELEGATION);
-        assertError("MediatorQuorumNotMet", () -> verify(sigs(e0), set));
-    }
-
-    @Test
-    void duplicateSignerIsNotCountedTwice() {
-        // CONSTRUCTED: member 0 signs twice; 2-of-3 is not met.
-        final var m = new Mediator[] {Mediator.of(1), Mediator.of(2), Mediator.of(3)};
-        final byte[] set = setOf(2, m);
-        final byte[] e0 = entry(m[0].fp(), m[0].sign(message()), EMPTY_DELEGATION);
-        assertError("MediatorQuorumNotMet", () -> verify(sigs(e0, e0), set));
-    }
-
-    // ------------------------------- skip vs hard-reject
-
-    @Test
-    void paddingUnknownAndDuplicateEntriesAreSkippedButQuorumStillPasses() {
-        // CONSTRUCTED: 2-of-3 set; entries = [all-zero padding, unknown fp, m0 valid, m0 duplicate WITH GARBAGE
-        // signature (skipped before verification, so it must not reject), m1 valid].
-        final var m = new Mediator[] {Mediator.of(1), Mediator.of(2), Mediator.of(3)};
-        final byte[] set = setOf(2, m);
-        final byte[] padding = entry(new byte[32], new byte[0], EMPTY_DELEGATION);
-        final byte[] unknown = entry(sha256(new byte[] {42}), new byte[64], EMPTY_DELEGATION);
-        final byte[] e0 = entry(m[0].fp(), m[0].sign(message()), EMPTY_DELEGATION);
-        final byte[] dup0Garbage = entry(m[0].fp(), new byte[64], EMPTY_DELEGATION);
-        final byte[] e1 = entry(m[1].fp(), m[1].sign(message()), EMPTY_DELEGATION);
-        assertThat(verify(sigs(padding, unknown, e0, dup0Garbage, e1), set)).isEqualTo(VERDICT.rootHash());
-    }
-
-    @Test
-    void knownKeyWithBadSignatureIsHardRejectedNotSkipped() {
-        // CONSTRUCTED: valid m0 then m1 with m0's signature (known key, bad signature) -> reject, even though
-        // a later valid m2 signature would have met the threshold had m1 merely been skipped.
-        final var m = new Mediator[] {Mediator.of(1), Mediator.of(2), Mediator.of(3)};
-        final byte[] set = setOf(2, m);
-        final byte[] e0 = entry(m[0].fp(), m[0].sign(message()), EMPTY_DELEGATION);
-        final byte[] badM1 = entry(m[1].fp(), m[0].sign(message()), EMPTY_DELEGATION);
-        final byte[] e2 = entry(m[2].fp(), m[2].sign(message()), EMPTY_DELEGATION);
-        assertError("InvalidMediatorSignature", () -> verify(sigs(e0, badM1, e2), set));
-    }
-
-    @Test
-    void tamperedRealSignatureIsHardRejected() {
-        // CONSTRUCTED: REAL signature with one bit flipped, under the REAL known key.
-        final byte[] sig = CantonFixtures.verdictMediatorSig().clone();
-        sig[0] ^= 1;
-        final byte[] e = entry(realFingerprint(), sig, EMPTY_DELEGATION);
-        assertError("InvalidMediatorSignature", () -> verify(sigs(e), REAL_SET));
-    }
-
-    @Test
-    void entriesAfterThresholdAreNotExamined() {
-        // CONSTRUCTED: threshold 1 reached by the REAL entry; the trailing known-key bad signature and the
-        // trailing entry with a non-empty delegation are never looked at (loop stops at threshold).
-        final byte[] badKnown = entry(realFingerprint(), new byte[64], EMPTY_DELEGATION);
-        final byte[] deleg = entry(realFingerprint(), new byte[64], Rlp.encodeBytes(new byte[] {1}));
-        assertThat(verify(sigs(realEntry(), badKnown, deleg), REAL_SET)).isEqualTo(VERDICT.rootHash());
-    }
-
-    @Test
-    void invalidMediatorSetRejected() {
-        // Set truncated by one byte.
-        final byte[] set = Arrays.copyOf(REAL_SET, REAL_SET.length - 1);
-        assertError("InvalidMediatorSet", () -> verify(sigs(realEntry()), set));
     }
 
     private static byte[] mutate(final byte[] src, final byte[] from, final byte[] to) {
@@ -350,5 +539,14 @@ class CantonVerdictVerifierTest {
         final byte[] out = src.clone();
         System.arraycopy(to, 0, out, hits.getFirst(), to.length);
         return out;
+    }
+
+    private static int indexOf(final byte[] src, final byte[] part) {
+        for (int i = 0; i + part.length <= src.length; i++) {
+            if (Arrays.equals(Arrays.copyOfRange(src, i, i + part.length), part)) {
+                return i;
+            }
+        }
+        throw new AssertionError("not found");
     }
 }

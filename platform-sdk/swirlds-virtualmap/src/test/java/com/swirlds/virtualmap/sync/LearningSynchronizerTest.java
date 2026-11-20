@@ -17,6 +17,7 @@ import com.swirlds.config.api.validation.ConfigViolationException;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.VirtualMapLearner;
+import com.swirlds.virtualmap.config.VirtualMapLearnerSyncConfig;
 import com.swirlds.virtualmap.config.VirtualMapLearnerSyncConfig_;
 import com.swirlds.virtualmap.test.fixtures.sync.PairedStreams;
 import java.io.IOException;
@@ -49,6 +50,33 @@ class LearningSynchronizerTest {
     void tearDown() {
         // Not close(): it flushes buffered data, which fails if a test has already closed the sockets
         streams.disconnect();
+    }
+
+    @Test
+    @DisplayName("A hash prefix length below 8 is rejected when the config is built")
+    void shortHashPrefixLengthRejected() {
+        assertThrows(
+                ConfigViolationException.class,
+                () -> ConfigurationBuilder.create()
+                        .autoDiscoverExtensions()
+                        .withValue(VirtualMapLearnerSyncConfig_.HASH_PREFIX_LENGTH, "7")
+                        .build());
+        assertDoesNotThrow(() -> ConfigurationBuilder.create()
+                .autoDiscoverExtensions()
+                .withValue(VirtualMapLearnerSyncConfig_.HASH_PREFIX_LENGTH, "8")
+                .build());
+    }
+
+    @Test
+    @DisplayName("A learning synchronizer rejects a hash prefix length below the configured minimum")
+    void shortHashPrefixLengthRejectedByConstructor() {
+        final int minimum = VirtualMapLearnerSyncConfig.MIN_HASH_PREFIX_LENGTH;
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> new LearningSynchronizer(
+                        getStaticThreadManager(), DEFAULT_CONFIGURATION, createMetrics(), minimum - 1));
+        assertDoesNotThrow(() ->
+                new LearningSynchronizer(getStaticThreadManager(), DEFAULT_CONFIGURATION, createMetrics(), minimum));
     }
 
     @Test

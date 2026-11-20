@@ -24,7 +24,6 @@ import org.hiero.base.utility.CommonUtils;
 
 public class StreamFileSigner implements Signer {
     public static final String SIG_ALGORITHM = SignatureType.RSA.signingAlgorithm();
-    public static final String SIG_PROVIDER = SignatureType.RSA.provider();
     static final String SIG_TYPE = SignatureType.RSA.keyAlgorithm();
     // size (in bits) of a public or private key
     static final int SIG_KEY_SIZE_BITS = 3072;
@@ -38,7 +37,7 @@ public class StreamFileSigner implements Signer {
 
     public StreamFileSigner() {
         try {
-            KeyPairGenerator sigKeyGen = KeyPairGenerator.getInstance(SIG_TYPE, SIG_PROVIDER);
+            KeyPairGenerator sigKeyGen = KeyPairGenerator.getInstance(SIG_TYPE);
             SecureRandom sigDetRandom = getDetRandom(); // deterministic CSPRNG, used briefly then discarded
             sigKeyGen.initialize(SIG_KEY_SIZE_BITS, sigDetRandom);
             sigDetRandom.setSeed(SEED);
@@ -65,7 +64,7 @@ public class StreamFileSigner implements Signer {
     public org.hiero.base.crypto.Signature sign(byte[] data) {
         Signature signature;
         try {
-            signature = Signature.getInstance(SIG_ALGORITHM, SIG_PROVIDER);
+            signature = Signature.getInstance(SIG_ALGORITHM);
             signature.initSign(sigKeyPair.getPrivate());
             signature.update(data);
             final byte[] result = signature.sign();
@@ -74,7 +73,7 @@ public class StreamFileSigner implements Signer {
             }
             logger.debug(LOGM_OBJECT_STREAM, "Generated signature: {}", () -> hex(result));
             return new org.hiero.base.crypto.Signature(SignatureType.RSA, result);
-        } catch (NoSuchAlgorithmException | NoSuchProviderException | InvalidKeyException | SignatureException e) {
+        } catch (NoSuchAlgorithmException | InvalidKeyException | SignatureException e) {
             logger.error(EXCEPTION.getMarker(), "Failed to sign data", e);
         }
         return new org.hiero.base.crypto.Signature(SignatureType.RSA, new byte[SignatureType.RSA.signatureLength()]);

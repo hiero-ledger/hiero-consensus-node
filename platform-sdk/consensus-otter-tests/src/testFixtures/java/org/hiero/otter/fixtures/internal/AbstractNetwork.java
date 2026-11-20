@@ -704,8 +704,9 @@ public abstract class AbstractNetwork implements Network {
         throwIfInLifecycle(Lifecycle.SHUTDOWN, "Network has been shut down.");
 
         log.info("Sending freeze transaction...");
-        final OtterTransaction freezeTransaction = TransactionFactory.createFreezeTransaction(
-                random.nextLong(), timeManager().now().plus(FREEZE_DELAY));
+        final Instant freezeTime = timeManager().now().plus(FREEZE_DELAY);
+        final OtterTransaction freezeTransaction =
+                TransactionFactory.createFreezeTransaction(random.nextLong(), freezeTime);
         submitTransaction(freezeTransaction);
 
         log.debug("Waiting for nodes to freeze...");
@@ -715,9 +716,29 @@ public abstract class AbstractNetwork implements Network {
                         timeout,
                         "Timeout while waiting for all nodes to freeze.");
 
+        // A node can report FREEZE_COMPLETE before the test receives its freeze round
+        timeManager()
+                .waitForCondition(
+                        () -> allNodesDeliveredFreezeRound(freezeTime),
+                        timeout,
+                        "Timeout while waiting for the freeze round of all nodes.");
+
         transactionGenerator().stop();
 
         log.info("Network frozen.");
+    }
+
+    /**
+     * Checks whether the test received the freeze round of every node.
+     *
+     * @param freezeTime the freeze time sent in the freeze transaction
+     * @return {@code true} if the last round of every node is at or after the freeze time
+     */
+    private boolean allNodesDeliveredFreezeRound(@NonNull final Instant freezeTime) {
+        return nodes().stream()
+                .map(node -> node.newConsensusResult().consensusRounds())
+                .allMatch(rounds -> !rounds.isEmpty()
+                        && !rounds.getLast().getConsensusTimestamp().isBefore(freezeTime));
     }
 
     /**

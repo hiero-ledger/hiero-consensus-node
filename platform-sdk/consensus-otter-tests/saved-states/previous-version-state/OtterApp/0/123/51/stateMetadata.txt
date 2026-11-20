@@ -1,0 +1,15 @@
+ROUND:                               51
+HASH:                                c7a12b255e1ee4d1a63ee66acb7c76ec517b69c67153d376e2b0b08d4af25ead
+HASH_MNEMONIC:                       armor-gorilla-sense-grass
+NUMBER_OF_CONSENSUS_EVENTS:          1728
+CONSENSUS_TIMESTAMP:                 2019-07-06T11:14:05.427004104Z
+LEGACY_RUNNING_EVENT_HASH:           8122236a2f0eabcb66382ce357adcb3761c58a92de1f6e370ac89b95f73392f7db2975cbf5d5ff188f40c8bb89039d91
+LEGACY_RUNNING_EVENT_HASH_MNEMONIC:  swift-hood-tide-mammal
+MINIMUM_BIRTH_ROUND_NON_ANCIENT:     23
+SOFTWARE_VERSION:                    SemanticVersion[major=0, minor=79, patch=0, pre=, build=]
+WALL_CLOCK_TIME:                     2026-11-19T13:56:03.847500Z
+NODE_ID:                             0
+SIGNING_NODES:                       
+SIGNING_WEIGHT_SUM:                  0
+TOTAL_WEIGHT:                        49999993086
+FREEZE_STATE:                        true

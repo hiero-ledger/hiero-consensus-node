@@ -27,6 +27,7 @@ import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 import org.hiero.base.ValueReference;
@@ -237,7 +238,8 @@ class ReconnectStatePeerProtocolTests {
                 fallenBehindManager,
                 () -> ACTIVE,
                 reservedSignedStateResultPromise,
-                mock(StateLifecycleManager.class));
+                mock(StateLifecycleManager.class),
+                new AtomicLong(-1));
         final SignedState signedState = spy(new RandomSignedStateGenerator().build());
         when(signedState.isComplete()).thenReturn(true);
         final VirtualMapState state = mock(VirtualMapState.class);
@@ -258,7 +260,8 @@ class ReconnectStatePeerProtocolTests {
                 fallenBehindManager,
                 () -> ACTIVE,
                 reservedSignedStateResultPromise,
-                mock(StateLifecycleManager.class));
+                mock(StateLifecycleManager.class),
+                new AtomicLong(-1));
 
         // pretend we have fallen behind
         when(fallenBehindManager.hasFallenBehind()).thenReturn(true);

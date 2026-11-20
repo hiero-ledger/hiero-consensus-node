@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.handlers;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.AUTHORIZATION_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_DECODE_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INTERNAL_STATE_CORRUPTION;
@@ -10,14 +11,17 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BOD
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_SERVICE_ACCOUNT_ID;
+import static com.hedera.node.app.service.clpr.impl.ClprBundleValidator.hasNewerManifestProof;
 import static com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator.MIN_PROOF_OVERHEAD_BYTES;
 import static com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator.VERIFIABLE_SYNC_BYTES;
 import static com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator.senderPayloadBudget;
+import static com.hedera.node.app.spi.authorization.SystemPrivilege.AUTHORIZED;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.stepDispatch;
 import static com.hedera.node.app.spi.workflows.HandleContext.ConsensusThrottling.ON;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_DISPATCH;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CONTRACT_GAS_USAGE;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.EXPLICIT_WRITE_TRACING;
+import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 import static java.util.Objects.requireNonNull;
@@ -178,14 +182,22 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
 
     @Override
     protected void doHandle(@NonNull final HandleContext context) throws HandleException {
+        final boolean recoveringManifest =
+                context.body().clprSubmitBundleOrThrow().hasExpectedCachedManifestVersion();
+        if (recoveringManifest) {
+            // Node transactions on the allowlist can bypass the ordinary API permission check.
+            validateTrue(context.hasPrivilegedAuthorization() == AUTHORIZED, AUTHORIZATION_FAILED);
+        }
         // Step 1b refreshes the node-local peer endpoint cache. That cache is in-memory, so the full-stack rollback
         // of a later penalizing HandleException would not undo it; the refresh is therefore applied only once the
         // bundle has been handled without an exception.
         final var deferredPeerEndpoints = new DeferredPeerEndpoints();
         final var gasAccounting = ClprGasAccounting.forContext(context);
         try {
-            gasAccounting.reserveRollbackFee(
-                    context.configuration().getConfigData(ClprConfig.class).endpointMisbehaviorPenaltyTinybars());
+            if (!recoveringManifest) {
+                gasAccounting.reserveRollbackFee(
+                        context.configuration().getConfigData(ClprConfig.class).endpointMisbehaviorPenaltyTinybars());
+            }
             handleBundle(context, deferredPeerEndpoints, gasAccounting);
             gasAccounting.refundUnusedGas();
             deferredPeerEndpoints.seedInto(channelLifecycle);
@@ -222,6 +234,10 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         // Reject any handling if this channel is CLOSED or PENDING. In any other state, this channel will attempt
         // to handle and respond to transactions to help the remote peer also achieve a CLOSED state.
         var channel = requireNonClosedChannel(channelStore, op.channelId());
+        final var expectedManifestVersion = op.expectedCachedManifestVersion();
+        if (expectedManifestVersion != null) {
+            validateTrue(channel.endpointManifestVersion() == expectedManifestVersion, CLPR_BUNDLE_VERIFICATION_FAILED);
+        }
         final var channelId = channel.channelId();
         log.debug(
                 "[ClprSubmitBundle] loaded channel conn={} status={} nextMsgId={} ackedMsgId={} receivedMsgId={} "
@@ -252,7 +268,13 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
 
         // Complete node validation before any state mutation or application dispatch. The
         // validator is independent of handling so endpoints can reuse it with locally verified content.
-        final var validated = verifyAndValidateBundle(context, channel, ledgerConfig, nodeAccountId, penaltyAmount);
+        final var validated = verifyAndValidateBundle(
+                context,
+                channel,
+                ledgerConfig,
+                nodeAccountId,
+                expectedManifestVersion == null ? penaltyAmount : 0L,
+                expectedManifestVersion != null);
         // An EVM verifier can send DATA in a nested dispatch. Preserve any outbound queue advances.
         channel = requireNonNull(channelStore.getChannel(channelId));
         final var bundleContent = validated.content();
@@ -301,6 +323,12 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                 updatedBuilder = updatedBuilder
                         .endpointManifest(storedManifest)
                         .endpointManifestVersion(storedManifest.version());
+                if (hasNewerManifestProof(channel, bundleContent)) {
+                    updatedBuilder.endpointManifestProofTimestamp(bundleContent.manifestProofTimestamp());
+                }
+                if (expectedManifestVersion != null) {
+                    updatedBuilder.peerManifestRecovered(true);
+                }
                 // Refresh the orchestrator's node-local peer endpoint cache — deferred until the bundle is
                 // handled without an exception (see doHandle).
                 deferredPeerEndpoints.set(channelId, truncatedEndpoints);
@@ -1529,12 +1557,15 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
      *
      * <p>Once the proof and the trust-anchor invariant pass, the peer's proven view of this ledger's
      * endpoint-manifest version (spec §4.5) is recorded, even if a later check rejects the bundle.
+     * An authorized recovery can replace the expected cached version with a strictly lower verified
+     * manifest without queue metadata or messages.
      *
      * @param context the handle context
      * @param channel the channel before this bundle is applied
      * @param ledgerConfig this ledger's configuration
      * @param nodeAccountId the submitting node's account, which pays the penalty
      * @param penaltyAmount the endpoint misbehavior penalty in tinybars; zero disables it
+     * @param recoveringManifest whether the authorized payer requested a manifest version recovery
      * @return the validated bundle
      * @throws HandleException if the proof cannot be verified or a node-level check fails
      */
@@ -1543,7 +1574,8 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
             @NonNull final ClprChannel channel,
             @NonNull final ClprLedgerConfiguration ledgerConfig,
             @NonNull final AccountID nodeAccountId,
-            final long penaltyAmount) {
+            final long penaltyAmount,
+            final boolean recoveringManifest) {
         try {
             final var payload = context.body().clprSubmitBundleOrThrow().bundlePayload();
             bundleValidator.validatePayloadSize(payload, ledgerConfig.throttlesOrThrow());
@@ -1551,6 +1583,19 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
             final var content =
                     verifier.verifyBundle(payload, channel.trustAnchor(), channel.channelContext(), context);
             bundleValidator.validateTrustAnchor(content);
+
+            if (recoveringManifest) {
+                final var manifest = content.newEndpointManifest();
+                validateTrue(
+                        content.metadata() == null
+                                && content.messages().isEmpty()
+                                && manifest != null
+                                && manifest.version() > 0
+                                && Long.compareUnsigned(manifest.version(), channel.endpointManifestVersion()) < 0
+                                && hasNewerManifestProof(channel, content),
+                        CLPR_BUNDLE_VERIFICATION_FAILED);
+                return new ValidatedBundle(content, List.of(), channel.receivedRunningHash(), true, true);
+            }
 
             // Spec §4.5: this node-local signal must survive even a later NoProgress rejection.
             // Idle peers send pure acks containing our manifest version, so recording this only

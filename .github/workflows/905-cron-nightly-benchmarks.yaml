@@ -15,6 +15,13 @@ on:
         type: string
         required: false
         default: ""
+      params:
+        description:
+          "Only the parameter sets with these values, as name=value separated by spaces, e.g. numNodes=10;
+          a benchmark without the parameter runs all its sets (default: all)."
+        type: string
+        required: false
+        default: ""
 
 defaults:
   run:
@@ -93,12 +100,14 @@ jobs:
         env:
           BENCHMARK_REF: ${{ inputs.ref || github.ref }}
           BENCHMARKS: ${{ inputs.benchmarks }}
+          PARAMS: ${{ inputs.params }}
         run: |
           mkdir -p "${RESULTS_DIR}"
           {
             echo "commit=$(git rev-parse HEAD)"
             echo "ref=${BENCHMARK_REF}"
             echo "benchmarks=${BENCHMARKS:-all}"
+            echo "params=${PARAMS:-all}"
             echo "run_id=${GITHUB_RUN_ID}"
             echo "run_attempt=${GITHUB_RUN_ATTEMPT}"
             echo "run_url=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
@@ -118,6 +127,7 @@ jobs:
         id: jmh
         env:
           BENCHMARKS: ${{ inputs.benchmarks }}
+          PARAMS: ${{ inputs.params }}
         run: |
           shopt -s nullglob
           manifests=(platform-sdk/*/build/jmh/tracked.properties)
@@ -125,8 +135,13 @@ jobs:
             echo "::error::no module tracks benchmarks (no build/jmh/tracked.properties written by jmhTracked)"
             exit 1
           fi
+          read -r -a entries <<< "${PARAMS}"
+          params=()
+          for entry in "${entries[@]}"; do
+            params+=(--param "${entry}")
+          done
           python3 .github/workflows/support/scripts/benchmarks/run_benchmarks.py \
-            --manifest "${manifests[@]}" --only "${BENCHMARKS}" --out "${RESULTS_DIR}"
+            --manifest "${manifests[@]}" --only "${BENCHMARKS}" "${params[@]}" --out "${RESULTS_DIR}"
 
       - name: Record Environment After
         if: ${{ always() && steps.jmh.outcome != 'skipped' }}

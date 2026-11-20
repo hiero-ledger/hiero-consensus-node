@@ -197,9 +197,21 @@ message ClprChannel {
     uint64 endpoint_manifest_version = 20;
 
     /**
+     * Greatest authenticated source block timestamp of an installed peer manifest.
+     * Optional for channels whose verifier does not supply a timestamp.
+     */
+    proto.Timestamp endpoint_manifest_proof_timestamp = 21;
+
+    /**
+     * Once a downgrade has been applied, manifest updates require proof from a
+     * strictly later source block.
+     */
+    bool peer_manifest_recovered = 22;
+
+    /**
      * Next outbound message ID to discard after administrative force-close.
      * Zero until force-close starts. Cleanup is complete when this cursor
      * reaches next_message_id (or 1 if no IDs were ever assigned).
      */
-    uint64 queue_purge_cursor = 21;
+    uint64 queue_purge_cursor = 23;
 }

@@ -18,7 +18,9 @@ import com.hedera.hapi.node.state.clpr.ClprMessageKey;
 import com.hedera.hapi.node.state.clpr.ClprSyncPayload;
 import com.hedera.hapi.node.state.clpr.ClprThrottles;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
+import com.hedera.node.app.hapi.utils.blocks.StateProofVerifier;
 import com.hedera.node.app.hapi.utils.blocks.TssVerifier;
+import com.hedera.node.app.service.clpr.impl.ClprProofTimestamp;
 import com.hedera.node.app.service.clpr.impl.ClprStateProofManager;
 import com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator;
 import com.hedera.node.app.spi.state.BlockProvenSnapshot;
@@ -142,6 +144,21 @@ class ClprStateProofManagerTest {
     }
 
     @Test
+    void recoveryProofAuthenticatesTheSnapshotTimestamp() throws Exception {
+        givenProvableSnapshot();
+        given(binaryState.getSingleton(ENDPOINT_MANIFEST_STATE_ID)).willReturn(null);
+
+        final var result = subject.buildManifestStateProofWithValue(true);
+        assertThat(result).isNotNull();
+        final var proof = StateProof.PROTOBUF.parseStrict(result.proof());
+        assertThat(proof.paths()).hasSize(2);
+        final var digest = StateProofVerifier.inferDigestType(proof).buildDigest();
+        final var root =
+                StateProofVerifier.computeBlockRootHashFromPath(proof.paths().getFirst(), digest);
+        assertThat(ClprProofTimestamp.verifiedTimestamp(proof, root, digest)).isEqualTo(new Timestamp(1L, 0));
+    }
+
+    @Test
     @DisplayName("blockStream.digestType=SHA_256 -> proof still built correctly, hashing with SHA-256 end-to-end")
     void sha256ConfiguredBuildsValidProof() throws Exception {
         subject = new ClprStateProofManager(
@@ -212,10 +229,11 @@ class ClprStateProofManagerTest {
     @ParameterizedTest
     @CsvSource({
         "512,512,false,true,1,channel message,false",
-        "2048,512,false,true,1,channel manifest message,false",
-        "512,160,false,true,0,manifest,false",
-        "512,160,true,true,0,manifest,false",
-        "512,260,false,true,0,manifest,false",
+        "2048,512,false,true,1,channel manifest timestamp message,false",
+        "512,160,false,true,0,manifest timestamp,false",
+        "512,160,true,true,0,manifest timestamp,false",
+        "512,260,false,true,0,manifest timestamp,false",
+        "512,320,false,true,1,channel message,false",
         "512,160,false,false,1,channel message,false",
         "320,512,true,true,0,none,false",
         "320,512,false,true,0,none,false",
@@ -298,8 +316,18 @@ class ClprStateProofManagerTest {
         final var proof = StateProof.PROTOBUF.parse(bundle.payload().toReadableSequentialData());
         final var leafNames = Map.of(channelLeaf, "channel", manifestLeaf, "manifest", messageLeaf, "message");
         assertThat(proof.paths())
-                .extracting(path -> leafNames.get(path.stateItemLeaf()))
+                .extracting(path -> path.hasTimestampLeaf() ? "timestamp" : leafNames.get(path.stateItemLeaf()))
                 .containsExactly(expectedPaths.split(" "));
+        if (expectedPaths.contains("timestamp")) {
+            final var manifestPath = proof.paths().stream()
+                    .filter(path -> manifestLeaf.equals(path.stateItemLeaf()))
+                    .findFirst()
+                    .orElseThrow();
+            final var digest = StateProofVerifier.inferDigestType(proof).buildDigest();
+            final var root = StateProofVerifier.computeBlockRootHashFromPath(manifestPath, digest);
+            assertThat(ClprProofTimestamp.verifiedTimestamp(proof, root, digest))
+                    .isEqualTo(snapshot.blockTimestamp());
+        }
         assertThat(proof.protobufSize() + compactOverhead)
                 .isLessThanOrEqualTo(subject.maxBundlePayloadBytes(throttles));
         final var envelope = ClprSyncPayload.newBuilder()

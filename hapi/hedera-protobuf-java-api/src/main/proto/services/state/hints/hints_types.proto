@@ -176,6 +176,13 @@ message HintsConstruction {
   uint64 crs_id = 7;
   /** The effective party capacity, which MUST NOT decrease across roster transitions. */
   uint32 num_parties = 8;
+
+  /**
+   * The complete target roster weight committed in the verification key.
+   * Frozen at the preprocessing cutoff for history-backed constructions. If
+   * absent, preprocessing commits only the weight of parties with valid hints.
+   */
+  google.protobuf.UInt64Value preprocessing_roster_weight = 9;
 }
 
 /**

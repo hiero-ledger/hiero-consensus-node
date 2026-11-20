@@ -833,7 +833,11 @@ public class WrapsHistoryProver implements HistoryProver {
             final boolean folds, @NonNull final AddressBook book, @NonNull final Map<Long, Long> authority) {
         try {
             return new SourceSigning(
-                    folds, book, new WrapsSigningQuorum(book, authority, provenanceBinding != null), null);
+                    folds,
+                    book,
+                    new WrapsSigningQuorum(
+                            book, authority, provenanceSigner == null ? 0 : provenanceSigner.verificationKeyWeight()),
+                    null);
         } catch (IllegalArgumentException e) {
             return SourceSigning.failed(folds, requireNonNullElse(e.getMessage(), "malformed signing quorum"));
         }

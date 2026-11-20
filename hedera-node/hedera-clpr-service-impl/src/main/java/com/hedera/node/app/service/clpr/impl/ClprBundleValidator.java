@@ -263,7 +263,20 @@ public class ClprBundleValidator {
     private static boolean advancesManifest(
             @NonNull final ClprChannel channel, @NonNull final ClprBundleContent content) {
         final var newManifest = content.newEndpointManifest();
-        return newManifest != null && newManifest.version() > channel.endpointManifestVersion();
+        return newManifest != null
+                && newManifest.version() > channel.endpointManifestVersion()
+                && (!channel.peerManifestRecovered() || hasNewerManifestProof(channel, content));
+    }
+
+    /** Whether the manifest is proven against a valid source block newer than the recorded one. */
+    public static boolean hasNewerManifestProof(
+            @NonNull final ClprChannel channel, @NonNull final ClprBundleContent content) {
+        final var timestamp = content.manifestProofTimestamp();
+        return timestamp != null
+                && timestamp.seconds() >= 0
+                && timestamp.nanos() >= 0
+                && timestamp.nanos() < 1_000_000_000
+                && isTimestampBefore(channel.endpointManifestProofTimestamp(), timestamp);
     }
 
     /**
