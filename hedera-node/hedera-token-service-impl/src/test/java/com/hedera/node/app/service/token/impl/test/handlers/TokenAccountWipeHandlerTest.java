@@ -28,6 +28,7 @@ import static org.mockito.ArgumentMatchers.notNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
@@ -43,6 +44,7 @@ import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.hapi.node.token.TokenBurnTransactionBody;
 import com.hedera.hapi.node.token.TokenWipeAccountTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableNftStore;
 import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
@@ -53,11 +55,13 @@ import com.hedera.node.app.service.token.impl.handlers.TokenAccountWipeHandler;
 import com.hedera.node.app.service.token.impl.test.handlers.util.ParityTestBase;
 import com.hedera.node.app.service.token.impl.validators.TokenSupplyChangeOpsValidator;
 import com.hedera.node.app.service.token.records.TokenAccountWipeStreamBuilder;
+import com.hedera.node.app.spi.key.KeyRequirement.TokenRoleKey;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
@@ -93,6 +97,23 @@ class TokenAccountWipeHandlerTest extends ParityTestBase {
         configuration = HederaTestConfigBuilder.create()
                 .withValue("tokens.nfts.maxBatchSizeWipe", 100)
                 .getOrCreateConfig();
+    }
+
+    @Test
+    void requiresTheTargetTokensWipeKey() throws PreCheckException {
+        final var wipeKey = TOKEN_WIPE_KT.asPbjKey();
+        final var tokenStore = newWritableStoreWithTokens(Token.newBuilder()
+                .tokenId(TOKEN_531)
+                .wipeKey(wipeKey)
+                .treasuryAccountId(TREASURY_ACCOUNT_9876)
+                .build());
+        final var context = mock(PreHandleContext.class);
+        given(context.body()).willReturn(newWipeTxn(ACCOUNT_4680, TOKEN_531, 1));
+        given(context.createStore(ReadableTokenStore.class)).willReturn(tokenStore);
+
+        subject.preHandle(context);
+
+        verify(context).requireKeyRequirement(new TokenRoleKey(TOKEN_531, wipeKey));
     }
 
     @Nested

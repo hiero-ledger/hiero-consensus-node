@@ -17,6 +17,7 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
 import com.hedera.node.app.service.token.impl.util.TokenHandlerHelper;
+import com.hedera.node.app.spi.key.KeyRequirement.TokenRoleKey;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -66,10 +67,11 @@ public class TokenFreezeAccountHandler implements TransactionHandler {
 
         final var op = context.body().tokenFreezeOrThrow();
         final var tokenStore = context.createStore(ReadableTokenStore.class);
-        final var tokenMeta = tokenStore.getTokenMeta(op.tokenOrElse(TokenID.DEFAULT));
+        final var tokenId = op.tokenOrElse(TokenID.DEFAULT);
+        final var tokenMeta = tokenStore.getTokenMeta(tokenId);
         if (tokenMeta == null) throw new PreCheckException(INVALID_TOKEN_ID);
         if (tokenMeta.hasFreezeKey()) {
-            context.requireKey(tokenMeta.freezeKey());
+            context.requireKeyRequirement(new TokenRoleKey(tokenId, tokenMeta.freezeKey()));
         } else {
             throw new PreCheckException(TOKEN_HAS_NO_FREEZE_KEY);
         }

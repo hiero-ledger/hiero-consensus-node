@@ -22,6 +22,8 @@ import com.hedera.node.app.service.token.ReadableNftStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.WritableNftStore;
 import com.hedera.node.app.service.token.impl.validators.TokenAttributesValidator;
+import com.hedera.node.app.spi.key.KeyRequirement;
+import com.hedera.node.app.spi.key.KeyRequirement.TokenRoleKey;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -69,7 +71,8 @@ public class TokenUpdateNftsHandler implements TransactionHandler {
         final var txn = context.body();
         final var op = txn.tokenUpdateNftsOrThrow();
         final var tokenStore = context.createStore(ReadableTokenStore.class);
-        final var token = tokenStore.get(op.tokenOrElse(TokenID.DEFAULT));
+        final var tokenId = op.tokenOrElse(TokenID.DEFAULT);
+        final var token = tokenStore.get(tokenId);
         validateTruePreCheck(token != null, INVALID_TOKEN_ID);
 
         final var nftStore = context.createStore(ReadableNftStore.class);
@@ -82,15 +85,17 @@ public class TokenUpdateNftsHandler implements TransactionHandler {
             validateTruePreCheck(hasMetadataKey || hasSupplyKey, TOKEN_HAS_NO_METADATA_OR_SUPPLY_KEY);
 
             if (hasMetadataKey && hasSupplyKey) {
-                context.requireKey(TokenUpdateHandler.oneOf(token.metadataKeyOrThrow(), token.supplyKeyOrThrow()));
+                context.requireKeyRequirement(KeyRequirement.anyOf(List.of(
+                        new TokenRoleKey(tokenId, token.metadataKeyOrThrow()),
+                        new TokenRoleKey(tokenId, token.supplyKeyOrThrow()))));
             } else if (hasMetadataKey) {
-                context.requireKey(token.metadataKeyOrThrow());
+                context.requireKeyRequirement(new TokenRoleKey(tokenId, token.metadataKeyOrThrow()));
             } else if (hasSupplyKey) {
-                context.requireKey(token.supplyKeyOrThrow());
+                context.requireKeyRequirement(new TokenRoleKey(tokenId, token.supplyKeyOrThrow()));
             }
         } else {
             validateTruePreCheck(hasMetadataKey, TOKEN_HAS_NO_METADATA_KEY);
-            context.requireKey(token.metadataKeyOrThrow());
+            context.requireKeyRequirement(new TokenRoleKey(tokenId, token.metadataKeyOrThrow()));
         }
     }
 

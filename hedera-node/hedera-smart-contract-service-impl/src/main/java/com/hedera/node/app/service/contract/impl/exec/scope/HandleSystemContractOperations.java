@@ -23,6 +23,7 @@ import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.annotations.TransactionScope;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
+import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.key.RequirementVerifier;
 import com.hedera.node.app.spi.workflows.DispatchOptions.PropagateFeeChargingStrategy;
 import com.hedera.node.app.spi.workflows.DispatchOptions.StakingRewards;
@@ -30,6 +31,7 @@ import com.hedera.node.app.spi.workflows.DispatchOptions.UsePresetTxnId;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.data.BlockStreamConfig;
+import com.hedera.node.config.data.ContractsConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Set;
@@ -79,7 +81,7 @@ public class HandleSystemContractOperations implements SystemContractOperations 
         return context.dispatch(subDispatchWithRequirements(
                 syntheticPayerId,
                 syntheticBody,
-                requirementTestWith(strategy),
+                verifierForDispatch(syntheticBody, strategy),
                 authorizingKeys,
                 streamBuilderType,
                 StakingRewards.OFF,
@@ -90,6 +92,46 @@ public class HandleSystemContractOperations implements SystemContractOperations 
                 // the manual precomputation upstream from here
                 DISPATCH_ONLY_NOOP_FEE_CHARGING,
                 PropagateFeeChargingStrategy.YES));
+    }
+
+    private RequirementVerifier verifierForDispatch(
+            @NonNull final TransactionBody body, @NonNull final VerificationStrategy strategy) {
+        final var standard = requirementTestWith(strategy);
+        if (!(strategy instanceof AccountAuthorizingVerificationStrategy scoped)
+                || !(scoped.primitiveStrategy() instanceof ActiveContractVerificationStrategy active)
+                || !active.requiresDelegatePermission()) {
+            return standard;
+        }
+        final var target =
+                switch (body.data().kind()) {
+                    case TOKEN_MINT -> body.tokenMintOrThrow().token();
+                    case TOKEN_BURN -> body.tokenBurnOrThrow().token();
+                    case TOKEN_WIPE -> body.tokenWipeOrThrow().token();
+                    case TOKEN_FREEZE -> body.tokenFreezeOrThrow().token();
+                    case TOKEN_UNFREEZE -> body.tokenUnfreezeOrThrow().token();
+                    case TOKEN_PAUSE -> body.tokenPauseOrThrow().token();
+                    case TOKEN_UNPAUSE -> body.tokenUnpauseOrThrow().token();
+                    case TOKEN_GRANT_KYC -> body.tokenGrantKycOrThrow().token();
+                    case TOKEN_REVOKE_KYC -> body.tokenRevokeKycOrThrow().token();
+                    case TOKEN_FEE_SCHEDULE_UPDATE ->
+                        body.tokenFeeScheduleUpdateOrThrow().tokenId();
+                    case TOKEN_DELETION -> body.tokenDeletionOrThrow().token();
+                    case TOKEN_UPDATE -> body.tokenUpdateOrThrow().token();
+                    case TOKEN_UPDATE_NFTS -> body.tokenUpdateNftsOrThrow().token();
+                    default -> null;
+                };
+        if (target == null
+                || target.tokenNum() <= 0
+                || target.tokenNum()
+                        >= context.configuration()
+                                .getConfigData(ContractsConfig.class)
+                                .grandfatherTokenNum()) {
+            return standard;
+        }
+        final var caller =
+                context.storeFactory().readableStore(ReadableAccountStore.class).getAccountById(scoped.accountId());
+        return active.withLegacyTokenRoleKeyFor(
+                target, scoped.accountId(), caller == null ? null : caller.key(), standard);
     }
 
     @Override

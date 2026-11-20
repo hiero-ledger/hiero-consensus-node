@@ -16,6 +16,7 @@ import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.service.token.impl.util.TokenHandlerHelper;
 import com.hedera.node.app.service.token.records.TokenBaseStreamBuilder;
+import com.hedera.node.app.spi.key.KeyRequirement.TokenRoleKey;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -50,7 +51,7 @@ public class TokenDeleteHandler implements TransactionHandler {
         if (tokenMetadata == null) throw new PreCheckException(INVALID_TOKEN_ID);
         // we will fail in handle() if token has no admin key (no need to fail here)
         if (tokenMetadata.hasAdminKey()) {
-            context.requireKey(tokenMetadata.adminKey());
+            context.requireKeyRequirement(new TokenRoleKey(tokenId, tokenMetadata.adminKey()));
         }
     }
 

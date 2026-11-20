@@ -22,6 +22,7 @@ import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.service.token.impl.util.TokenHandlerHelper;
 import com.hedera.node.app.service.token.impl.validators.CustomFeesValidator;
 import com.hedera.node.app.service.token.records.TokenBaseStreamBuilder;
+import com.hedera.node.app.spi.key.KeyRequirement.TokenRoleKey;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -76,7 +77,7 @@ public class TokenFeeScheduleUpdateHandler implements TransactionHandler {
         final var tokenMetadata = tokenStore.getTokenMeta(tokenId);
         if (tokenMetadata == null) throw new PreCheckException(INVALID_TOKEN_ID);
         if (tokenMetadata.hasFeeScheduleKey()) {
-            context.requireKey(tokenMetadata.feeScheduleKey());
+            context.requireKeyRequirement(new TokenRoleKey(tokenId, tokenMetadata.feeScheduleKey()));
             for (final var customFee : op.customFees()) {
                 final var collector = customFee.feeCollectorAccountIdOrElse(AccountID.DEFAULT);
                 context.requireKeyIfReceiverSigRequired(collector, INVALID_CUSTOM_FEE_COLLECTOR);

@@ -29,6 +29,7 @@ import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.service.token.impl.util.TokenHandlerHelper;
 import com.hedera.node.app.service.token.impl.validators.TokenSupplyChangeOpsValidator;
 import com.hedera.node.app.service.token.records.TokenBurnStreamBuilder;
+import com.hedera.node.app.spi.key.KeyRequirement.TokenRoleKey;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -79,7 +80,7 @@ public final class TokenBurnHandler extends BaseTokenHandler implements Transact
         if (tokenMetadata == null) throw new PreCheckException(INVALID_TOKEN_ID);
         // we will fail in handle() if token has no supply key
         if (tokenMetadata.hasSupplyKey()) {
-            context.requireKey(tokenMetadata.supplyKey());
+            context.requireKeyRequirement(new TokenRoleKey(tokenId, tokenMetadata.supplyKey()));
         }
     }
 

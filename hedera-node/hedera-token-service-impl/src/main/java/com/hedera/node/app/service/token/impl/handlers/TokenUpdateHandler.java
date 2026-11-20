@@ -24,8 +24,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
-import com.hedera.hapi.node.base.KeyList;
-import com.hedera.hapi.node.base.ThresholdKey;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
@@ -37,6 +35,8 @@ import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.service.token.impl.util.TokenKey;
 import com.hedera.node.app.service.token.impl.validators.TokenUpdateValidator;
 import com.hedera.node.app.service.token.records.TokenUpdateStreamBuilder;
+import com.hedera.node.app.spi.key.KeyRequirement;
+import com.hedera.node.app.spi.key.KeyRequirement.TokenRoleKey;
 import com.hedera.node.app.spi.validation.ExpiryMeta;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -46,7 +46,7 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.Arrays;
+import java.util.List;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -488,12 +488,16 @@ public class TokenUpdateHandler extends BaseTokenHandler implements TransactionH
         final var hasAdminKey = !isEmpty(token.adminKey());
         // Prioritize TOKEN_IS_IMMUTABLE for completely immutable tokens
         validateTruePreCheck(!isEmpty(maybeRoleKey), hasAdminKey ? roleKey.tokenHasNoKeyStatus() : TOKEN_IS_IMMUTABLE);
+        final var tokenId = token.tokenIdOrThrow();
+        final var existingRole = new TokenRoleKey(tokenId, maybeRoleKey);
         if (hasAdminKey) {
-            context.requireKey(oneOf(
-                    replacementKey == null ? maybeRoleKey : allOf(maybeRoleKey, replacementKey),
-                    token.adminKeyOrThrow()));
+            final var roleConsent = replacementKey == null
+                    ? existingRole
+                    : new KeyRequirement.AllOf(List.of(existingRole, KeyRequirement.forKey(replacementKey)));
+            context.requireKeyRequirement(
+                    KeyRequirement.anyOf(List.of(roleConsent, new TokenRoleKey(tokenId, token.adminKeyOrThrow()))));
         } else {
-            context.requireKey(maybeRoleKey);
+            context.requireKeyRequirement(existingRole);
             if (replacementKey != null) {
                 context.requireKey(replacementKey);
             }
@@ -511,7 +515,8 @@ public class TokenUpdateHandler extends BaseTokenHandler implements TransactionH
             throws PreCheckException {
         // An empty key list (the HIP-540 removal sentinel) means the token is effectively immutable.
         validateTruePreCheck(!isEmpty(originalToken.adminKey()), TOKEN_IS_IMMUTABLE);
-        context.requireKey(originalToken.adminKeyOrThrow());
+        context.requireKeyRequirement(
+                new TokenRoleKey(originalToken.tokenIdOrThrow(), originalToken.adminKeyOrThrow()));
     }
 
     /**
@@ -527,31 +532,6 @@ public class TokenUpdateHandler extends BaseTokenHandler implements TransactionH
             }
         }
         return false;
-    }
-
-    /**
-     * Creates a threshold key with threshold 1 with the given keys.
-     * @param keysRequired keys required
-     * @return threshold key with threshold 1
-     */
-    public static Key oneOf(@NonNull final Key... keysRequired) {
-        return Key.newBuilder()
-                .thresholdKey(ThresholdKey.newBuilder()
-                        .keys(new KeyList(Arrays.asList(keysRequired)))
-                        .threshold(1)
-                        .build())
-                .build();
-    }
-
-    /**
-     * Creates a key list with the given keys.
-     * @param keysRequired keys required
-     * @return key list
-     */
-    private Key allOf(@NonNull final Key... keysRequired) {
-        return Key.newBuilder()
-                .keyList(new KeyList(Arrays.asList(keysRequired)))
-                .build();
     }
 
     /**

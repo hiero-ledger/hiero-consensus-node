@@ -33,6 +33,7 @@ import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.service.token.impl.util.TokenHandlerHelper;
 import com.hedera.node.app.service.token.impl.validators.TokenSupplyChangeOpsValidator;
 import com.hedera.node.app.service.token.records.TokenAccountWipeStreamBuilder;
+import com.hedera.node.app.spi.key.KeyRequirement.TokenRoleKey;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -72,10 +73,11 @@ public final class TokenAccountWipeHandler implements TransactionHandler {
         requireNonNull(context);
         final var op = context.body().tokenWipeOrThrow();
         final var tokenStore = context.createStore(ReadableTokenStore.class);
-        final var tokenMeta = tokenStore.getTokenMeta(op.tokenOrElse(TokenID.DEFAULT));
+        final var tokenId = op.tokenOrElse(TokenID.DEFAULT);
+        final var tokenMeta = tokenStore.getTokenMeta(tokenId);
         if (tokenMeta == null) throw new PreCheckException(INVALID_TOKEN_ID);
         if (tokenMeta.hasWipeKey()) {
-            context.requireKey(tokenMeta.wipeKey());
+            context.requireKeyRequirement(new TokenRoleKey(tokenId, tokenMeta.wipeKey()));
         }
     }
 

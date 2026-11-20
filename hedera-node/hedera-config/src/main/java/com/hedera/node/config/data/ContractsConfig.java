@@ -15,6 +15,13 @@ public record ContractsConfig(
         @ConfigProperty(value = "keys.legacyActivations", defaultValue = "1058134by[1062784]")
         String keysLegacyActivations,
 
+        // Exclusive token-number cutoff for existing contract-ID token role keys when delegated code
+        // calls HTS (DELEGATECALL or CALLCODE).
+        // The default is the first entity number created on mainnet after its upgrade to 0.79.
+        // Set to zero to disable the exception on a network.
+        @ConfigProperty(defaultValue = "10961496") @Min(0) @NetworkProperty
+        long grandfatherTokenNum,
+
         @ConfigProperty(value = "localCall.estRetBytes", defaultValue = "4096") @NetworkProperty
         int localCallEstRetBytes,
 

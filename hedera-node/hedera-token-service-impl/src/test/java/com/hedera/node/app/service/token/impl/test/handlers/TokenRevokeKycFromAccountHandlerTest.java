@@ -39,6 +39,7 @@ import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
 import com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler;
 import com.hedera.node.app.service.token.impl.handlers.TokenRevokeKycFromAccountHandler;
+import com.hedera.node.app.spi.key.KeyRequirement.TokenRoleKey;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -147,7 +148,7 @@ class TokenRevokeKycFromAccountHandlerTest {
 
             subject.preHandle(context);
 
-            verify(context).requireKey(A_COMPLEX_KEY);
+            verify(context).requireKeyRequirement(new TokenRoleKey(TOKEN_10, A_COMPLEX_KEY));
         }
     }
 

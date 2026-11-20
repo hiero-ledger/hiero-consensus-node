@@ -16,6 +16,7 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
 import com.hedera.node.app.service.token.impl.util.TokenHandlerHelper;
+import com.hedera.node.app.spi.key.KeyRequirement.TokenRoleKey;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -54,12 +55,13 @@ public class TokenRevokeKycFromAccountHandler implements TransactionHandler {
 
         final var op = context.body().tokenRevokeKycOrThrow();
         final var tokenStore = context.createStore(ReadableTokenStore.class);
-        final var tokenMeta = tokenStore.getTokenMeta(op.tokenOrElse(TokenID.DEFAULT));
+        final var tokenId = op.tokenOrElse(TokenID.DEFAULT);
+        final var tokenMeta = tokenStore.getTokenMeta(tokenId);
         if (tokenMeta == null) throw new PreCheckException(INVALID_TOKEN_ID);
         // An empty key list (the HIP-540 removal sentinel) means the KYC function is disabled; it
         // must be treated as "no KYC key" rather than a key that requires no signature.
         if (!isEmpty(tokenMeta.kycKey())) {
-            context.requireKey(tokenMeta.kycKey());
+            context.requireKeyRequirement(new TokenRoleKey(tokenId, tokenMeta.kycKey()));
         } else {
             throw new PreCheckException(TOKEN_HAS_NO_KYC_KEY);
         }

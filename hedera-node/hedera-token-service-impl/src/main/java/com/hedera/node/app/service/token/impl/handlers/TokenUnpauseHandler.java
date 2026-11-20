@@ -14,6 +14,7 @@ import com.hedera.hapi.node.base.TokenID;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.service.token.records.TokenBaseStreamBuilder;
+import com.hedera.node.app.spi.key.KeyRequirement.TokenRoleKey;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
@@ -53,12 +54,13 @@ public class TokenUnpauseHandler implements TransactionHandler {
 
         final var op = context.body().tokenUnpause();
         final var tokenStore = context.createStore(ReadableTokenStore.class);
-        final var tokenMeta = tokenStore.getTokenMeta(op.tokenOrElse(TokenID.DEFAULT));
+        final var tokenId = op.tokenOrElse(TokenID.DEFAULT);
+        final var tokenMeta = tokenStore.getTokenMeta(tokenId);
         if (tokenMeta == null) {
             throw new PreCheckException(INVALID_TOKEN_ID);
         }
         if (tokenMeta.hasPauseKey()) {
-            context.requireKey(tokenMeta.pauseKey());
+            context.requireKeyRequirement(new TokenRoleKey(tokenId, tokenMeta.pauseKey()));
         }
     }
 

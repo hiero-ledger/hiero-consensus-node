@@ -71,6 +71,8 @@ import com.hedera.node.app.service.token.impl.test.handlers.util.CryptoTokenHand
 import com.hedera.node.app.service.token.impl.validators.TokenAttributesValidator;
 import com.hedera.node.app.service.token.impl.validators.TokenUpdateValidator;
 import com.hedera.node.app.service.token.records.TokenUpdateStreamBuilder;
+import com.hedera.node.app.spi.key.KeyRequirement;
+import com.hedera.node.app.spi.key.KeyRequirement.TokenRoleKey;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.validation.ExpiryMeta;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
@@ -83,6 +85,7 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import java.util.List;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -307,6 +310,28 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
         assertThatThrownBy(() -> subject.preHandle(preHandleContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(TOKEN_IS_IMMUTABLE));
+    }
+
+    @Test
+    void fullRoleRotationKeepsTheProposedKeyIndependentOfBothStoredKeys() throws PreCheckException {
+        final var token = writableTokenStore.get(fungibleTokenId);
+        final var sameWipeKey = token.wipeKeyOrThrow();
+        given(preHandleContext.createStore(ReadableTokenStore.class)).willReturn(writableTokenStore);
+        given(preHandleContext.body())
+                .willReturn(TransactionBody.newBuilder()
+                        .tokenUpdate(TokenUpdateTransactionBody.newBuilder()
+                                .token(fungibleTokenId)
+                                .wipeKey(sameWipeKey)
+                                .keyVerificationMode(TokenKeyValidation.FULL_VALIDATION))
+                        .build());
+
+        subject.preHandle(preHandleContext);
+
+        verify(preHandleContext)
+                .requireKeyRequirement(KeyRequirement.anyOf(List.of(
+                        new KeyRequirement.AllOf(List.of(
+                                new TokenRoleKey(fungibleTokenId, sameWipeKey), KeyRequirement.forKey(sameWipeKey))),
+                        new TokenRoleKey(fungibleTokenId, token.adminKeyOrThrow()))));
     }
 
     @Test

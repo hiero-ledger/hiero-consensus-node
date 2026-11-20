@@ -100,8 +100,8 @@ public interface VerificationStrategy {
             @Override
             public boolean test(@NonNull final KeyRequirement requirement) {
                 requireNonNull(requirement);
-                if (requirement instanceof KeyRequirement.AnyOf anyOf) {
-                    return anyOf.alternatives().stream().anyMatch(this::test);
+                if (requirement instanceof KeyRequirement.Group group) {
+                    return group.testChildren(this);
                 }
                 if (requirement instanceof KeyRequirement.AccountKey accountKey
                         && authorizesAccount(accountKey.accountId())) {

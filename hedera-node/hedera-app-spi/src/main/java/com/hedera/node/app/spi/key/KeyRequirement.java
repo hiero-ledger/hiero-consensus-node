@@ -7,6 +7,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.ThresholdKey;
+import com.hedera.hapi.node.base.TokenID;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 
@@ -63,8 +64,44 @@ public sealed interface KeyRequirement {
         }
     }
 
+    /** An existing role key read from the target token's state. Never use for proposed keys or account signers. */
+    record TokenRoleKey(@NonNull TokenID tokenId, @NonNull Key key) implements KeyRequirement {
+        public TokenRoleKey {
+            requireNonNull(tokenId);
+            requireNonNull(key);
+        }
+    }
+
+    /** A logical group of requirements, retaining each child's originating authority. */
+    sealed interface Group extends KeyRequirement {
+        boolean testChildren(@NonNull RequirementVerifier verifier);
+    }
+
+    /** Requires every child, including independent consent to a replacement key. */
+    record AllOf(@NonNull List<KeyRequirement> requirements) implements Group {
+        public AllOf {
+            requirements = List.copyOf(requirements);
+            if (requirements.isEmpty()) {
+                throw new IllegalArgumentException("At least one requirement is required");
+            }
+        }
+
+        @Override
+        public Key key() {
+            return Key.newBuilder()
+                    .keyList(new KeyList(
+                            requirements.stream().map(KeyRequirement::key).toList()))
+                    .build();
+        }
+
+        @Override
+        public boolean testChildren(@NonNull final RequirementVerifier verifier) {
+            return requirements.stream().allMatch(verifier::test);
+        }
+    }
+
     /** Authorization by at least one alternative, retaining each alternative's own identity. */
-    final class AnyOf implements KeyRequirement {
+    final class AnyOf implements Group {
         private final List<KeyRequirement> alternatives;
         private final Key key;
 
@@ -80,6 +117,11 @@ public sealed interface KeyRequirement {
                                     .map(KeyRequirement::key)
                                     .toList())))
                     .build();
+        }
+
+        @Override
+        public boolean testChildren(@NonNull final RequirementVerifier verifier) {
+            return alternatives.stream().anyMatch(verifier::test);
         }
 
         public @NonNull List<KeyRequirement> alternatives() {

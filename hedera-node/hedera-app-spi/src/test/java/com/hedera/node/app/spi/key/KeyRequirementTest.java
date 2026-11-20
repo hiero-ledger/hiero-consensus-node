@@ -58,6 +58,21 @@ class KeyRequirementTest {
     }
 
     @Test
+    void conjunctionProjectsTheOriginalKeyListAndRetainsBothAuthorities() {
+        final var owner = KeyRequirement.forAccount(A, SHARED_KEY);
+        final var replacement = KeyRequirement.forKey(SHARED_KEY);
+        final var inputs = new ArrayList<>(List.of(owner, replacement));
+        final var group = new KeyRequirement.AllOf(inputs);
+        inputs.clear();
+
+        assertThat(group.key().keyListOrThrow().keys()).containsExactly(SHARED_KEY, SHARED_KEY);
+        assertThat(group.testChildren(owner::equals)).isFalse();
+        assertThat(group.testChildren(replacement::equals)).isFalse();
+        assertThat(group.testChildren(Set.of(owner, replacement)::contains)).isTrue();
+        assertThatThrownBy(() -> new KeyRequirement.AllOf(List.of())).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
     void repeatedKeyCallsReturnTheSameProjection() {
         final var requirement = KeyRequirement.anyOf(
                 List.of(KeyRequirement.forAccount(A, SHARED_KEY), KeyRequirement.forKey(SHARED_KEY)));

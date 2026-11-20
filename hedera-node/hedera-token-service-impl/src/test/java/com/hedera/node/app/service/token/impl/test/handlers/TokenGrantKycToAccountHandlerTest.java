@@ -38,6 +38,7 @@ import com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler;
 import com.hedera.node.app.service.token.impl.handlers.BaseTokenHandler;
 import com.hedera.node.app.service.token.impl.handlers.TokenGrantKycToAccountHandler;
 import com.hedera.node.app.service.token.impl.test.handlers.util.TokenHandlerTestBase;
+import com.hedera.node.app.spi.key.KeyRequirement.TokenRoleKey;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -132,7 +133,7 @@ class TokenGrantKycToAccountHandlerTest extends TokenHandlerTestBase {
 
         subject.preHandle(context);
 
-        verify(context).requireKey(A_COMPLEX_KEY);
+        verify(context).requireKeyRequirement(new TokenRoleKey(tokenId, A_COMPLEX_KEY));
     }
 
     private static final AccountID TREASURY_ACCOUNT_9876 = BaseCryptoHandler.asAccount(0L, 0L, 9876);

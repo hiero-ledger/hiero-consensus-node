@@ -40,10 +40,11 @@ import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableNftStore;
 import com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler;
 import com.hedera.node.app.service.token.impl.handlers.BaseTokenHandler;
-import com.hedera.node.app.service.token.impl.handlers.TokenUpdateHandler;
 import com.hedera.node.app.service.token.impl.handlers.TokenUpdateNftsHandler;
 import com.hedera.node.app.service.token.impl.test.handlers.util.CryptoTokenHandlerTestBase;
 import com.hedera.node.app.service.token.impl.validators.TokenAttributesValidator;
+import com.hedera.node.app.spi.key.KeyRequirement;
+import com.hedera.node.app.spi.key.KeyRequirement.TokenRoleKey;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -258,7 +259,7 @@ class TokenUpdateNftsHandlerTest extends CryptoTokenHandlerTestBase {
         when(token.metadataKey()).thenReturn(metadataKey);
 
         assertThatCode(() -> subject.preHandle(preHandleContext)).doesNotThrowAnyException();
-        verify(preHandleContext).requireKey(metadataKey);
+        verify(preHandleContext).requireKeyRequirement(new TokenRoleKey(nonFungibleTokenId, metadataKey));
     }
 
     @Test
@@ -318,7 +319,9 @@ class TokenUpdateNftsHandlerTest extends CryptoTokenHandlerTestBase {
 
         assertThatCode(() -> subject.preHandle(preHandleContext)).doesNotThrowAnyException();
         verify(preHandleContext)
-                .requireKey(TokenUpdateHandler.oneOf(token.metadataKeyOrThrow(), token.supplyKeyOrThrow()));
+                .requireKeyRequirement(KeyRequirement.anyOf(List.of(
+                        new TokenRoleKey(nonFungibleTokenId, metadataKey),
+                        new TokenRoleKey(nonFungibleTokenId, supplyKey))));
     }
 
     @Test
@@ -332,7 +335,7 @@ class TokenUpdateNftsHandlerTest extends CryptoTokenHandlerTestBase {
         when(token.metadataKeyOrThrow()).thenReturn(metadataKey);
 
         assertThatCode(() -> subject.preHandle(preHandleContext)).doesNotThrowAnyException();
-        verify(preHandleContext).requireKey(metadataKey);
+        verify(preHandleContext).requireKeyRequirement(new TokenRoleKey(nonFungibleTokenId, metadataKey));
     }
 
     @Test
@@ -346,7 +349,7 @@ class TokenUpdateNftsHandlerTest extends CryptoTokenHandlerTestBase {
         when(token.supplyKeyOrThrow()).thenReturn(supplyKey);
 
         assertThatCode(() -> subject.preHandle(preHandleContext)).doesNotThrowAnyException();
-        verify(preHandleContext).requireKey(supplyKey);
+        verify(preHandleContext).requireKeyRequirement(new TokenRoleKey(nonFungibleTokenId, supplyKey));
     }
 
     @Test

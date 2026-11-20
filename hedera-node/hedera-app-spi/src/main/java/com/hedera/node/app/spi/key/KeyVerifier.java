@@ -64,10 +64,9 @@ public interface KeyVerifier {
     @NonNull
     default SignatureVerification verificationFor(@NonNull final KeyRequirement requirement) {
         requireNonNull(requirement);
-        if (requirement instanceof KeyRequirement.AnyOf anyOf) {
+        if (requirement instanceof KeyRequirement.Group group) {
             return requirementVerification(
-                    requirement, anyOf.alternatives().stream().anyMatch(r -> verificationFor(r)
-                            .passed()));
+                    requirement, group.testChildren(r -> verificationFor(r).passed()));
         }
         return verificationFor(requirement.key());
     }

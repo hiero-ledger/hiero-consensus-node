@@ -1,10 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.scope;
 
+import static com.hedera.node.app.hapi.utils.contracts.HookUtils.asAccountId;
+
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.TokenID;
+import com.hedera.node.app.spi.key.KeyRequirement;
+import com.hedera.node.app.spi.key.KeyRequirement.TokenRoleKey;
+import com.hedera.node.app.spi.key.RequirementVerifier;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Objects;
 
 /**
@@ -88,6 +96,31 @@ public class ActiveContractVerificationStrategy implements VerificationStrategy 
      */
     public boolean requiresDelegatePermission() {
         return requiresDelegatePermission;
+    }
+
+    /**
+     * Allows the target token's complete existing role key to name the executing contract by numeric ID,
+     * when that key is also the contract's own account key and the role key is a whole requirement.
+     * As before 0.79, a role key inside a {@link KeyRequirement.Group} gets only the standard rules, as do
+     * replacement keys and account signers, even when their key bytes are identical.
+     */
+    RequirementVerifier withLegacyTokenRoleKeyFor(
+            @NonNull final TokenID target,
+            @NonNull final AccountID caller,
+            @Nullable final Key callerKey,
+            @NonNull final RequirementVerifier standard) {
+        // Qualified delegates can activate keys for a different contract than the caller of the HTS method.
+        if (!activeContractID.hasContractNum() || !caller.equals(asAccountId(activeContractID))) {
+            return standard;
+        }
+        final var selfKey = Key.newBuilder().contractID(activeContractID).build();
+        if (!selfKey.equals(callerKey)) {
+            return standard;
+        }
+        return requirement -> (requirement instanceof TokenRoleKey(var tokenId, var key)
+                        && target.equals(tokenId)
+                        && selfKey.equals(key))
+                || standard.test(requirement);
     }
 
     private Decision decisionFor(@NonNull final ContractID authorizedId) {

@@ -14,13 +14,17 @@ import static com.hedera.services.bdd.spec.keys.SigControl.ON;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenNftInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.accountEvmHookStore;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCallWithFunctionAbi;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoApproveAllowance;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
@@ -30,6 +34,7 @@ import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeTests.fixedHbarFeeInSchedule;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
+import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.accountAmount;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
@@ -39,21 +44,35 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.transferList;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.captureOneChildCreate2MetaFor;
+import static com.hedera.services.bdd.suites.contract.Utils.contractIdFromHexedMirrorAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
+import static com.hedera.services.bdd.suites.contract.Utils.getInitcodeOf;
 import static com.hedera.services.bdd.suites.contract.Utils.idAsHeadlongAddress;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SPENDER_DOES_NOT_HAVE_ALLOWANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
+import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
 import com.esaulpaugh.headlong.abi.Address;
+import com.esaulpaugh.headlong.abi.Function;
 import com.esaulpaugh.headlong.abi.Tuple;
+import com.google.protobuf.ByteString;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hederahashgraph.api.proto.java.AccountID;
+import com.hederahashgraph.api.proto.java.Key;
 import java.math.BigInteger;
+import java.util.Arrays;
+import java.util.HexFormat;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -459,6 +478,52 @@ public class IdentityScopedSignatureRequirementsTest {
     }
 
     @HapiTest
+    final Stream<DynamicTest> delegatedFeeScheduleUpdatePreservesCollectorConsent() {
+        final var caller = "MixedMintToken";
+        final var implementation = "UpdateTokenFeeSchedules";
+        return hapiTest(
+                cryptoCreate("relayer").balance(ONE_HUNDRED_HBARS),
+                cryptoCreate("collector").receiverSigRequired(true),
+                uploadInitCode(caller, implementation),
+                contractCreate(caller).omitAdminKey(),
+                contractCreate(implementation).gas(4_000_000),
+                newKeyNamed("feeKey").shape(CONTRACT.signedWith(caller)),
+                tokenCreate("token").treasury("relayer").feeScheduleKey("feeKey"),
+                withOpContext((spec, log) -> {
+                    final var target =
+                            asHeadlongAddress(asAddress(spec.registry().getContractId(implementation)));
+                    final var update = Function.fromJson(
+                                    getABIFor(FUNCTION, "updateFungibleFixedHbarFee", implementation))
+                            .encodeCallWithArgs(
+                                    idAsHeadlongAddress(spec.registry().getTokenID("token")),
+                                    1L,
+                                    idAsHeadlongAddress(spec.registry().getAccountID("collector")))
+                            .array();
+                    allRunFor(
+                            spec,
+                            contractCall(caller, "callCodeToContractWithoutAmount", target, update)
+                                    .payingWith("relayer")
+                                    .refusingEthConversion()
+                                    .gas(1_000_000)
+                                    .via("collectorSignatureRequired")
+                                    .hasKnownStatus(INSUFFICIENT_GAS),
+                            // The CALLCODE fixture runs out of gas constructing its outer revert.
+                            // The HTS child carries the actual authorization result.
+                            childRecordsCheck(
+                                    "collectorSignatureRequired",
+                                    INSUFFICIENT_GAS,
+                                    recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)),
+                            getTokenInfo("token").hasEmptyCustom(),
+                            cryptoUpdate("collector").receiverSigRequired(false),
+                            contractCall(caller, "callCodeToContractWithoutAmount", target, update)
+                                    .payingWith("relayer")
+                                    .refusingEthConversion()
+                                    .gas(1_000_000),
+                            getTokenInfo("token").hasCustom(fixedHbarFeeInSchedule(1L, "collector")));
+                }));
+    }
+
+    @HapiTest
     final Stream<DynamicTest> sharedAdminKeyDoesNotAuthorizeScheduleDeletion() {
         final var contract = "HIP1215Contract";
         return hapiTest(
@@ -506,10 +571,10 @@ public class IdentityScopedSignatureRequirementsTest {
                 }));
     }
 
-    @HapiTest
-    final Stream<DynamicTest> explicitSelfContractKeyStillRequiresDelegatePermission() {
+    @LeakyHapiTest(overrides = {"contracts.grandfatherTokenNum"})
+    final Stream<DynamicTest> delegatedSupplyChangesRespectTokenCutoff() {
         return hapiTest(
-                cryptoCreate("attacker").balance(ONE_HUNDRED_HBARS),
+                cryptoCreate("relayer").balance(ONE_HUNDRED_HBARS),
                 cryptoCreate("treasury"),
                 uploadInitCode("ServiceContract", "DelegateContract"),
                 contractCreate("ServiceContract"),
@@ -522,6 +587,10 @@ public class IdentityScopedSignatureRequirementsTest {
                                 .omitAdminKey())),
                 newKeyNamed("plainContractKey").shape(CONTRACT.signedWith("DelegateContract")),
                 newKeyNamed("delegatableKey").shape(DELEGATE_CONTRACT.signedWith("DelegateContract")),
+                tokenCreate("legacyToken")
+                        .treasury("treasury")
+                        .initialSupply(10)
+                        .supplyKey("plainContractKey"),
                 tokenCreate("plainToken").treasury("treasury").initialSupply(10).supplyKey("plainContractKey"),
                 tokenCreate("delegatableToken")
                         .treasury("treasury")
@@ -529,13 +598,42 @@ public class IdentityScopedSignatureRequirementsTest {
                         .supplyKey("delegatableKey"),
                 withOpContext((spec, log) -> allRunFor(
                         spec,
+                        overriding(
+                                "contracts.grandfatherTokenNum",
+                                Long.toString(
+                                        spec.registry().getTokenID("plainToken").getTokenNum())),
+                        contractCall(
+                                        "DelegateContract",
+                                        "mintDelegateCall",
+                                        idAsHeadlongAddress(spec.registry().getTokenID("legacyToken")),
+                                        BigInteger.ONE)
+                                .payingWith("relayer")
+                                .signedBy("relayer")
+                                .refusingEthConversion()
+                                .gas(1_000_000)
+                                .via("legacyMint"),
+                        childRecordsCheck("legacyMint", SUCCESS, recordWith().status(SUCCESS)),
+                        getTokenInfo("legacyToken").hasTotalSupply(11),
+                        contractCall(
+                                        "DelegateContract",
+                                        "burnDelegateCall",
+                                        idAsHeadlongAddress(spec.registry().getTokenID("legacyToken")),
+                                        BigInteger.ONE,
+                                        new long[0])
+                                .payingWith("relayer")
+                                .signedBy("relayer")
+                                .refusingEthConversion()
+                                .gas(1_000_000)
+                                .via("legacyBurn"),
+                        childRecordsCheck("legacyBurn", SUCCESS, recordWith().status(SUCCESS)),
+                        getTokenInfo("legacyToken").hasTotalSupply(10),
                         contractCall(
                                         "DelegateContract",
                                         "mintDelegateCall",
                                         idAsHeadlongAddress(spec.registry().getTokenID("plainToken")),
                                         BigInteger.ONE)
-                                .payingWith("attacker")
-                                .signedBy("attacker")
+                                .payingWith("relayer")
+                                .signedBy("relayer")
                                 .refusingEthConversion()
                                 .gas(1_000_000)
                                 .via("plainDelegate")
@@ -550,13 +648,193 @@ public class IdentityScopedSignatureRequirementsTest {
                                         "mintDelegateCall",
                                         idAsHeadlongAddress(spec.registry().getTokenID("delegatableToken")),
                                         BigInteger.ONE)
-                                .payingWith("attacker")
-                                .signedBy("attacker")
+                                .payingWith("relayer")
+                                .signedBy("relayer")
                                 .refusingEthConversion()
                                 .gas(1_000_000)
                                 .via("permittedDelegate"),
                         childRecordsCheck(
                                 "permittedDelegate", SUCCESS, recordWith().status(SUCCESS)),
                         getTokenInfo("delegatableToken").hasTotalSupply(11))));
+    }
+
+    @LeakyHapiTest(overrides = {"contracts.grandfatherTokenNum"})
+    final Stream<DynamicTest> delegatedSupplyChangesRequireSelfManagedContract() {
+        return hapiTest(
+                cryptoCreate("relayer").balance(ONE_HUNDRED_HBARS),
+                cryptoCreate("treasury"),
+                uploadInitCode("ServiceContract", "DelegateContract"),
+                contractCreate("ServiceContract"),
+                // With an admin key, the contract's account key is not its own contract ID
+                withOpContext((spec, log) -> allRunFor(
+                        spec,
+                        contractCreate(
+                                "DelegateContract",
+                                asHeadlongAddress(asAddress(spec.registry().getContractId("ServiceContract")))))),
+                newKeyNamed("plainContractKey").shape(CONTRACT.signedWith("DelegateContract")),
+                tokenCreate("legacyToken")
+                        .treasury("treasury")
+                        .initialSupply(10)
+                        .supplyKey("plainContractKey"),
+                withOpContext((spec, log) -> allRunFor(
+                        spec,
+                        overriding(
+                                "contracts.grandfatherTokenNum",
+                                Long.toString(spec.registry()
+                                                .getTokenID("legacyToken")
+                                                .getTokenNum()
+                                        + 1)),
+                        contractCall(
+                                        "DelegateContract",
+                                        "mintDelegateCall",
+                                        idAsHeadlongAddress(spec.registry().getTokenID("legacyToken")),
+                                        BigInteger.ONE)
+                                .payingWith("relayer")
+                                .signedBy("relayer")
+                                .refusingEthConversion()
+                                .gas(1_000_000)
+                                .via("adminKeyedMint")
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED),
+                        childRecordsCheck(
+                                "adminKeyedMint",
+                                CONTRACT_REVERT_EXECUTED,
+                                recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)),
+                        getTokenInfo("legacyToken").hasTotalSupply(10))));
+    }
+
+    @LeakyHapiTest(overrides = {"contracts.grandfatherTokenNum"})
+    final Stream<DynamicTest> delegatedSupplyChangesResolveCreate2Address() {
+        final AtomicReference<String> mirrorAddr = new AtomicReference<>();
+        final AtomicReference<String> create2Addr = new AtomicReference<>();
+        return hapiTest(
+                cryptoCreate("relayer").balance(ONE_HUNDRED_HBARS),
+                cryptoCreate("treasury"),
+                uploadInitCode("ServiceContract", "Create2Factory"),
+                contractCreate("ServiceContract"),
+                // A self-managed factory gives its CREATE2 children their own contract IDs as keys
+                contractCreate("Create2Factory").omitAdminKey().refusingEthConversion(),
+                withOpContext((spec, log) -> {
+                    final var bin = HexFormat.of()
+                            .parseHex(getInitcodeOf("DelegateContract", "")
+                                    .toStringUtf8()
+                                    .strip());
+                    // Append the ServiceContract address as the ABI-encoded constructor argument
+                    final var initcode = Arrays.copyOf(bin, bin.length + 32);
+                    System.arraycopy(
+                            asAddress(spec.registry().getContractId("ServiceContract")),
+                            0,
+                            initcode,
+                            bin.length + 12,
+                            20);
+                    allRunFor(
+                            spec,
+                            contractCall("Create2Factory", "deploy", initcode, BigInteger.ONE)
+                                    .refusingEthConversion()
+                                    .gas(4_000_000)
+                                    .via("create2Deploy"));
+                }),
+                captureOneChildCreate2MetaFor("Delegator", "create2Deploy", mirrorAddr, create2Addr),
+                withOpContext((spec, log) -> spec.registry()
+                        .saveKey(
+                                "create2ContractKey",
+                                Key.newBuilder()
+                                        .setContractID(contractIdFromHexedMirrorAddress(spec, mirrorAddr.get()))
+                                        .build())),
+                tokenCreate("legacyToken")
+                        .treasury("treasury")
+                        .initialSupply(10)
+                        .supplyKey("create2ContractKey"),
+                withOpContext((spec, log) -> allRunFor(
+                        spec,
+                        overriding(
+                                "contracts.grandfatherTokenNum",
+                                Long.toString(spec.registry()
+                                                .getTokenID("legacyToken")
+                                                .getTokenNum()
+                                        + 1)),
+                        // The delegator runs at its CREATE2 address, which must resolve to its numeric ID
+                        contractCallWithFunctionAbi(
+                                        create2Addr.get(),
+                                        getABIFor(FUNCTION, "mintDelegateCall", "DelegateContract"),
+                                        idAsHeadlongAddress(spec.registry().getTokenID("legacyToken")),
+                                        BigInteger.ONE)
+                                .payingWith("relayer")
+                                .signedBy("relayer")
+                                .refusingEthConversion()
+                                .gas(1_000_000)
+                                .via("create2Mint"),
+                        childRecordsCheck("create2Mint", SUCCESS, recordWith().status(SUCCESS)),
+                        getTokenInfo("legacyToken").hasTotalSupply(11))));
+    }
+
+    @LeakyHapiTest(overrides = {"contracts.grandfatherTokenNum"})
+    final Stream<DynamicTest> delegatedCompoundRoleRequirementsKeepStandardRules() {
+        final var caller = "MixedMintToken";
+        final var implementation = "MakeCalls";
+        return hapiTest(
+                cryptoCreate("relayer").balance(ONE_HUNDRED_HBARS),
+                cryptoCreate("holder").maxAutomaticTokenAssociations(1),
+                uploadInitCode(caller, implementation),
+                contractCreate(caller).omitAdminKey(),
+                contractCreate(implementation),
+                newKeyNamed("supplyKey"),
+                newKeyNamed("selfMetadataKey").shape(CONTRACT.signedWith(caller)),
+                tokenCreate("nft")
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .treasury("relayer")
+                        .initialSupply(0)
+                        .supplyKey("supplyKey")
+                        .metadataKey("selfMetadataKey"),
+                mintToken("nft", List.of(ByteString.copyFromUtf8("first"), ByteString.copyFromUtf8("second"))),
+                cryptoTransfer(movingUnique("nft", 2L).between("relayer", "holder"))
+                        .payingWith("relayer"),
+                withOpContext((spec, log) -> {
+                    final var target =
+                            asHeadlongAddress(asAddress(spec.registry().getContractId(implementation)));
+                    final var nft = idAsHeadlongAddress(spec.registry().getTokenID("nft"));
+                    final var updateNfts = new Function("updateNFTsMetadata(address,int64[],bytes)");
+                    final var makeCall =
+                            Function.fromJson(getABIFor(FUNCTION, "makeCallWithoutAmount", implementation));
+                    final var updateTreasurySerial = makeCall.encodeCallWithArgs(
+                                    asHeadlongAddress("0x000000000000000000000000000000000000016c"),
+                                    updateNfts
+                                            .encodeCallWithArgs(nft, new long[] {1L}, "updated".getBytes())
+                                            .array())
+                            .array();
+                    final var updateHeldSerial = makeCall.encodeCallWithArgs(
+                                    asHeadlongAddress("0x000000000000000000000000000000000000016c"),
+                                    updateNfts
+                                            .encodeCallWithArgs(nft, new long[] {2L}, "updated".getBytes())
+                                            .array())
+                            .array();
+                    allRunFor(
+                            spec,
+                            overriding(
+                                    "contracts.grandfatherTokenNum",
+                                    Long.toString(
+                                            spec.registry().getTokenID("nft").getTokenNum() + 1)),
+                            // A treasury-owned serial accepts either the metadata or the supply key. As before
+                            // 0.79, the stored self key inside that compound requirement gets the standard rules.
+                            contractCall(caller, "callCodeToContractWithoutAmount", target, updateTreasurySerial)
+                                    .payingWith("relayer")
+                                    .refusingEthConversion()
+                                    .gas(1_000_000)
+                                    .via("compoundRequirement"),
+                            childRecordsCheck(
+                                    "compoundRequirement",
+                                    SUCCESS,
+                                    recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)),
+                            getTokenNftInfo("nft", 1L).hasMetadata(ByteString.copyFromUtf8("first")),
+                            // A serial held outside the treasury requires only the metadata key, as a whole
+                            // requirement.
+                            contractCall(caller, "callCodeToContractWithoutAmount", target, updateHeldSerial)
+                                    .payingWith("relayer")
+                                    .refusingEthConversion()
+                                    .gas(1_000_000)
+                                    .via("wholeRequirement"),
+                            childRecordsCheck(
+                                    "wholeRequirement", SUCCESS, recordWith().status(SUCCESS)),
+                            getTokenNftInfo("nft", 2L).hasMetadata(ByteString.copyFromUtf8("updated")));
+                }));
     }
 }
