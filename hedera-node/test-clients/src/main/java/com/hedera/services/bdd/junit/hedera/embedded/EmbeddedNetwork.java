@@ -237,10 +237,7 @@ public class EmbeddedNetwork extends AbstractNetwork {
         effectiveOverrides.put("tss.forceMockSignatures", "true");
         effectiveOverrides.put("staking.periodMins", "1");
         if (mode == REPEATABLE) {
-            // With CLPR enabled, the endpoint-manifest reconciler gossips this node's ClprEndpointPublication
-            // asynchronously; repeatable mode handles only the first buffered transaction per round, so that
-            // priority publication would displace (and drop) the next user transaction and break determinism.
-            // No repeatable suite exercises CLPR; its embedded coverage runs in CONCURRENT mode.
+            // Keep asynchronous CLPR endpoint publications out of repeatable tests that don't opt in to CLPR.
             effectiveOverrides.putIfAbsent("clpr.enabled", "false");
         }
         updateBootstrapProperties(embeddedNode.getExternalPath(APPLICATION_PROPERTIES), effectiveOverrides);
