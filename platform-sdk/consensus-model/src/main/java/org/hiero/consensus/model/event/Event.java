@@ -8,7 +8,7 @@ import java.time.Instant;
 import java.util.List;
 import org.hiero.consensus.main.model.EventDescriptorWrapper;
 import org.hiero.consensus.main.model.NodeId;
-import org.hiero.consensus.model.transaction.Transaction;
+import org.hiero.consensus.main.model.Transaction;
 
 /**
  * An event created by a node with zero or more transactions.

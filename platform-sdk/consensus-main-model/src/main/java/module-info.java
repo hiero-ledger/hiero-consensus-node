@@ -4,5 +4,6 @@ module org.hiero.consensus.main.model {
 
     requires transitive com.hedera.node.hapi;
     requires transitive org.hiero.base.crypto;
+    requires transitive com.hedera.pbj.runtime;
     requires static transitive com.github.spotbugs.annotations;
 }

@@ -26,8 +26,8 @@ import javax.inject.Named;
 import javax.inject.Singleton;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.hashgraph.Round;
-import org.hiero.consensus.model.transaction.ConsensusTransaction;
-import org.hiero.consensus.model.transaction.Transaction;
+import org.hiero.consensus.main.model.ConsensusTransaction;
+import org.hiero.consensus.main.model.Transaction;
 
 /**
  * This class is used to warm up the cache. It is called at the beginning of a round with the current state

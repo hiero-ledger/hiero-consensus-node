@@ -20,8 +20,8 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.model.transaction.ConsensusTransaction;
-import org.hiero.consensus.model.transaction.Transaction;
+import org.hiero.consensus.main.model.ConsensusTransaction;
+import org.hiero.consensus.main.model.Transaction;
 
 /**
  * Tracks all the information needed to determine if the system is quiescent or not. This class is thread-safe, it is

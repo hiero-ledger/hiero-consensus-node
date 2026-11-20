@@ -21,7 +21,7 @@ import org.hiero.consensus.main.model.EventDescriptorWrapper;
 import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.stream.StreamAligned;
 import org.hiero.consensus.model.stream.Timestamped;
-import org.hiero.consensus.model.transaction.ConsensusTransaction;
+import org.hiero.consensus.main.model.ConsensusTransaction;
 
 /**
  * A wrapper around a {@link PlatformEvent} that holds additional information required by the
