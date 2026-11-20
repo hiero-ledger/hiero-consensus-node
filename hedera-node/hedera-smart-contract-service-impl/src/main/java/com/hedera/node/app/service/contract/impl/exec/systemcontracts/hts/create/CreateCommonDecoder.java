@@ -1,26 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create;
 
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asNumericContractId;
-
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Duration;
-import com.hedera.hapi.node.token.TokenCreateTransactionBody;
-import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
-import com.hedera.node.app.service.contract.impl.exec.utils.KeyValueWrapper;
+import com.hedera.node.app.service.contract.impl.exec.utils.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.utils.TokenCreateWrapper;
 import com.hedera.node.app.service.contract.impl.exec.utils.TokenCreateWrapper.FixedFeeWrapper;
 import com.hedera.node.app.service.contract.impl.exec.utils.TokenCreateWrapper.FractionalFeeWrapper;
 import com.hedera.node.app.service.contract.impl.exec.utils.TokenCreateWrapper.RoyaltyFeeWrapper;
 import com.hedera.node.app.service.contract.impl.exec.utils.TokenExpiryWrapper;
-import com.hedera.node.app.service.contract.impl.exec.utils.TokenKeyWrapper;
+import com.hedera.node.app.service.contract.impl.exec.utils.TokenKeyUtils;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -65,7 +59,7 @@ public class CreateCommonDecoder {
                     tokenId.tokenNum() != 0 ? tokenId : null,
                     useHbarsForPayment,
                     useCurrentTokenForPayment,
-                    feeCollector.accountNum() != 0 ? feeCollector : null));
+                    feeCollector.accountNumOrThrow() != 0 ? feeCollector : null));
         }
         return fixedFees;
     }
@@ -100,7 +94,7 @@ public class CreateCommonDecoder {
                     minimumAmount,
                     maximumAmount,
                     netOfTransfers,
-                    feeCollector.accountNum() != 0 ? feeCollector : null));
+                    feeCollector.accountNumOrThrow() != 0 ? feeCollector : null));
         }
         return fractionalFees;
     }
@@ -145,7 +139,7 @@ public class CreateCommonDecoder {
 
             final var feeCollector = addressIdConverter.convert(royaltyFeeTuple.get(5));
             decodedRoyaltyFees.add(new RoyaltyFeeWrapper(
-                    numerator, denominator, fixedFee, feeCollector.accountNum() != 0 ? feeCollector : null));
+                    numerator, denominator, fixedFee, feeCollector.accountNumOrThrow() != 0 ? feeCollector : null));
         }
         return decodedRoyaltyFees;
     }
@@ -176,7 +170,8 @@ public class CreateCommonDecoder {
         final var isSupplyTypeFinite = (Boolean) tokenCreateStruct.get(SUPPLY_TYPE);
         final var maxSupply = (long) tokenCreateStruct.get(MAX_SUPPLY);
         final var isFreezeDefault = (Boolean) tokenCreateStruct.get(FREEZE_DEFAULT);
-        final var tokenKeys = decodeTokenKeys(tokenCreateStruct.get(TOKEN_KEYS), addressIdConverter, nativeOperations);
+        final var tokenKeys =
+                TokenKeyUtils.decodeTokenKeys(tokenCreateStruct.get(TOKEN_KEYS), addressIdConverter, nativeOperations);
         final var tokenExpiry = decodeTokenExpiry(tokenCreateStruct.get(TOKEN_EXPIRY), addressIdConverter);
 
         final var tokenCreateWrapper = new TokenCreateWrapper(
@@ -196,47 +191,6 @@ public class CreateCommonDecoder {
         return tokenCreateWrapper;
     }
 
-    protected List<TokenKeyWrapper> decodeTokenKeys(
-            @NonNull final Tuple[] tokenKeysTuples,
-            @NonNull final AddressIdConverter addressIdConverter,
-            @NonNull final HederaNativeOperations nativeOperations) {
-
-        // TokenKey
-        final int KEY_TYPE = 0;
-        final int KEY_VALUE_TYPE = 1;
-        // KeyValue
-        final int INHERIT_ACCOUNT_KEY = 0;
-        final int CONTRACT_ID = 1;
-        final int ED25519 = 2;
-        final int ECDSA_SECP_256K1 = 3;
-        final int DELEGATABLE_CONTRACT_ID = 4;
-
-        final List<TokenKeyWrapper> tokenKeys = new ArrayList<>(tokenKeysTuples.length);
-        for (final var tokenKeyTuple : tokenKeysTuples) {
-            final var keyType = ((BigInteger) tokenKeyTuple.get(KEY_TYPE)).intValue();
-            final Tuple keyValueTuple = tokenKeyTuple.get(KEY_VALUE_TYPE);
-            final var inheritAccountKey = (Boolean) keyValueTuple.get(INHERIT_ACCOUNT_KEY);
-            final var contractId = asNumericContractId(
-                    nativeOperations.entityIdFactory(), addressIdConverter.convert(keyValueTuple.get(CONTRACT_ID)));
-            final var ed25519 = (byte[]) keyValueTuple.get(ED25519);
-            final var ecdsaSecp256K1 = (byte[]) keyValueTuple.get(ECDSA_SECP_256K1);
-            final var delegatableContractId = asNumericContractId(
-                    nativeOperations.entityIdFactory(),
-                    addressIdConverter.convert(keyValueTuple.get(DELEGATABLE_CONTRACT_ID)));
-
-            tokenKeys.add(new TokenKeyWrapper(
-                    keyType,
-                    new KeyValueWrapper(
-                            inheritAccountKey,
-                            contractId.contractNum() != 0 ? contractId : null,
-                            ed25519,
-                            ecdsaSecp256K1,
-                            delegatableContractId.contractNum() != 0 ? delegatableContractId : null)));
-        }
-
-        return tokenKeys;
-    }
-
     protected TokenExpiryWrapper decodeTokenExpiry(
             @NonNull final Tuple expiryTuple, @NonNull final AddressIdConverter addressIdConverter) {
 
@@ -251,10 +205,6 @@ public class CreateCommonDecoder {
                 .seconds(expiryTuple.get(AUTO_RENEW_PERIOD))
                 .build();
         return new TokenExpiryWrapper(
-                second, autoRenewAccount.accountNum() == 0 ? null : autoRenewAccount, autoRenewPeriod);
-    }
-
-    protected TransactionBody bodyOf(@NonNull final TokenCreateTransactionBody.Builder tokenCreate) {
-        return TransactionBody.newBuilder().tokenCreation(tokenCreate).build();
+                second, autoRenewAccount.accountNumOrThrow() == 0 ? null : autoRenewAccount, autoRenewPeriod);
     }
 }

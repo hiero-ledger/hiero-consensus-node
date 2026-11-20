@@ -3,6 +3,7 @@ package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.updat
 
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateCommonDecoder.FAILURE_CUSTOMIZER;
 
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCallTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call;
@@ -26,7 +27,13 @@ public abstract class UpdateKeysCommonTranslator extends AbstractCallTranslator<
 
     @Override
     public Call callFrom(@NonNull final HtsCallAttempt attempt) {
+        final var keyUpdate = decoder.decodeTokenUpdateKeys(attempt);
         return new DispatchForResponseCodeHtsCall(
-                attempt, decoder.decodeTokenUpdateKeys(attempt), UpdateCommons::gasRequirement, FAILURE_CUSTOMIZER);
+                attempt,
+                keyUpdate.body(),
+                UpdateCommons::gasRequirement,
+                FAILURE_CUSTOMIZER,
+                keyUpdate.preemptingStatus(),
+                HederaFunctionality.TOKEN_UPDATE);
     }
 }

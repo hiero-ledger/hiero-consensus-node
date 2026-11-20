@@ -1,0 +1,443 @@
+[
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "keyType",
+            "type": "uint256"
+          },
+          {
+            "components": [
+              {
+                "internalType": "bool",
+                "name": "inheritAccountKey",
+                "type": "bool"
+              },
+              {
+                "internalType": "address",
+                "name": "contractId",
+                "type": "address"
+              },
+              {
+                "internalType": "bytes",
+                "name": "ed25519",
+                "type": "bytes"
+              },
+              {
+                "internalType": "bytes",
+                "name": "ECDSA_secp256k1",
+                "type": "bytes"
+              },
+              {
+                "internalType": "address",
+                "name": "delegatableContractId",
+                "type": "address"
+              }
+            ],
+            "internalType": "struct TokenKeysContract.KeyValue",
+            "name": "key",
+            "type": "tuple"
+          }
+        ],
+        "internalType": "struct TokenKeysContract.TokenKey[]",
+        "name": "keys",
+        "type": "tuple[]"
+      }
+    ],
+    "name": "createFungibleToken",
+    "outputs": [
+      {
+        "internalType": "int64",
+        "name": "",
+        "type": "int64"
+      },
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "keyType",
+            "type": "uint256"
+          },
+          {
+            "components": [
+              {
+                "internalType": "bool",
+                "name": "inheritAccountKey",
+                "type": "bool"
+              },
+              {
+                "internalType": "address",
+                "name": "contractId",
+                "type": "address"
+              },
+              {
+                "internalType": "bytes",
+                "name": "ed25519",
+                "type": "bytes"
+              },
+              {
+                "internalType": "bytes",
+                "name": "ECDSA_secp256k1",
+                "type": "bytes"
+              },
+              {
+                "internalType": "address",
+                "name": "delegatableContractId",
+                "type": "address"
+              }
+            ],
+            "internalType": "struct TokenKeysContract.KeyValue",
+            "name": "key",
+            "type": "tuple"
+          }
+        ],
+        "internalType": "struct TokenKeysContract.TokenKey[]",
+        "name": "keys",
+        "type": "tuple[]"
+      }
+    ],
+    "name": "createFungibleTokenWithMetadata",
+    "outputs": [
+      {
+        "internalType": "int64",
+        "name": "",
+        "type": "int64"
+      },
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "keyType",
+            "type": "uint256"
+          },
+          {
+            "components": [
+              {
+                "internalType": "bool",
+                "name": "inheritAccountKey",
+                "type": "bool"
+              },
+              {
+                "internalType": "address",
+                "name": "contractId",
+                "type": "address"
+              },
+              {
+                "internalType": "bytes",
+                "name": "ed25519",
+                "type": "bytes"
+              },
+              {
+                "internalType": "bytes",
+                "name": "ECDSA_secp256k1",
+                "type": "bytes"
+              },
+              {
+                "internalType": "address",
+                "name": "delegatableContractId",
+                "type": "address"
+              }
+            ],
+            "internalType": "struct TokenKeysContract.KeyValue",
+            "name": "key",
+            "type": "tuple"
+          }
+        ],
+        "internalType": "struct TokenKeysContract.TokenKey[]",
+        "name": "keys",
+        "type": "tuple[]"
+      }
+    ],
+    "name": "createNonFungibleToken",
+    "outputs": [
+      {
+        "internalType": "int64",
+        "name": "",
+        "type": "int64"
+      },
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "keyType",
+            "type": "uint256"
+          },
+          {
+            "components": [
+              {
+                "internalType": "bool",
+                "name": "inheritAccountKey",
+                "type": "bool"
+              },
+              {
+                "internalType": "address",
+                "name": "contractId",
+                "type": "address"
+              },
+              {
+                "internalType": "bytes",
+                "name": "ed25519",
+                "type": "bytes"
+              },
+              {
+                "internalType": "bytes",
+                "name": "ECDSA_secp256k1",
+                "type": "bytes"
+              },
+              {
+                "internalType": "address",
+                "name": "delegatableContractId",
+                "type": "address"
+              }
+            ],
+            "internalType": "struct TokenKeysContract.KeyValue",
+            "name": "key",
+            "type": "tuple"
+          }
+        ],
+        "internalType": "struct TokenKeysContract.TokenKey[]",
+        "name": "keys",
+        "type": "tuple[]"
+      }
+    ],
+    "name": "updateTokenInfo",
+    "outputs": [
+      {
+        "internalType": "int64",
+        "name": "",
+        "type": "int64"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "keyType",
+            "type": "uint256"
+          },
+          {
+            "components": [
+              {
+                "internalType": "bool",
+                "name": "inheritAccountKey",
+                "type": "bool"
+              },
+              {
+                "internalType": "address",
+                "name": "contractId",
+                "type": "address"
+              },
+              {
+                "internalType": "bytes",
+                "name": "ed25519",
+                "type": "bytes"
+              },
+              {
+                "internalType": "bytes",
+                "name": "ECDSA_secp256k1",
+                "type": "bytes"
+              },
+              {
+                "internalType": "address",
+                "name": "delegatableContractId",
+                "type": "address"
+              }
+            ],
+            "internalType": "struct TokenKeysContract.KeyValue",
+            "name": "key",
+            "type": "tuple"
+          }
+        ],
+        "internalType": "struct TokenKeysContract.TokenKey[]",
+        "name": "keys",
+        "type": "tuple[]"
+      }
+    ],
+    "name": "updateTokenInfoWithMetadata",
+    "outputs": [
+      {
+        "internalType": "int64",
+        "name": "",
+        "type": "int64"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "keyType",
+            "type": "uint256"
+          },
+          {
+            "components": [
+              {
+                "internalType": "bool",
+                "name": "inheritAccountKey",
+                "type": "bool"
+              },
+              {
+                "internalType": "address",
+                "name": "contractId",
+                "type": "address"
+              },
+              {
+                "internalType": "bytes",
+                "name": "ed25519",
+                "type": "bytes"
+              },
+              {
+                "internalType": "bytes",
+                "name": "ECDSA_secp256k1",
+                "type": "bytes"
+              },
+              {
+                "internalType": "address",
+                "name": "delegatableContractId",
+                "type": "address"
+              }
+            ],
+            "internalType": "struct TokenKeysContract.KeyValue",
+            "name": "key",
+            "type": "tuple"
+          }
+        ],
+        "internalType": "struct TokenKeysContract.TokenKey[]",
+        "name": "keys",
+        "type": "tuple[]"
+      }
+    ],
+    "name": "updateTokenKeys",
+    "outputs": [
+      {
+        "internalType": "int64",
+        "name": "",
+        "type": "int64"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "keyType",
+            "type": "uint256"
+          },
+          {
+            "components": [
+              {
+                "internalType": "bool",
+                "name": "inheritAccountKey",
+                "type": "bool"
+              },
+              {
+                "internalType": "address",
+                "name": "contractId",
+                "type": "address"
+              },
+              {
+                "internalType": "bytes",
+                "name": "ed25519",
+                "type": "bytes"
+              },
+              {
+                "internalType": "bytes",
+                "name": "ECDSA_secp256k1",
+                "type": "bytes"
+              },
+              {
+                "internalType": "address",
+                "name": "delegatableContractId",
+                "type": "address"
+              }
+            ],
+            "internalType": "struct TokenKeysContract.KeyValue",
+            "name": "key",
+            "type": "tuple"
+          }
+        ],
+        "internalType": "struct TokenKeysContract.TokenKey[]",
+        "name": "keys",
+        "type": "tuple[]"
+      }
+    ],
+    "name": "updateTokenKeysWithMetadata",
+    "outputs": [
+      {
+        "internalType": "int64",
+        "name": "",
+        "type": "int64"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
+]
