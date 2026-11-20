@@ -32,7 +32,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.model.transaction.TimestampedTransaction;
+import org.hiero.consensus.main.model.TimestampedTransaction;
 import org.hiero.otter.fixtures.falcon.recording.FalconRecorder;
 import org.hiero.otter.fixtures.falcon.recording.NodeRecording;
 import org.hiero.otter.fixtures.falcon.recording.Recording;
