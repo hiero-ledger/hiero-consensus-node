@@ -2190,10 +2190,10 @@ class HandleWorkflowTest {
     void scheduledTxnFailingBeforeItsDispatchDoesNotAbortTheInterval() {
         final var creatorId = NodeId.of(0);
         given(event.getCreatorId()).willReturn(creatorId);
-        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
-        given(event.allParentsIterator()).willReturn(emptyIterator());
+        given(event.getTransactions()).willReturn(emptyList());
+        given(event.getAllParents()).willReturn(emptyList());
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(creatorInfo);
-        given(round.iterator()).willAnswer(ignore -> List.of(event).iterator());
+        given(round.getConsensusEvents()).willAnswer(ignore -> List.of(event));
         // The interval starts further back than scheduling.maxExpirySecsToCheckPerUserTxn (30s), so the
         // checked interval ends before consensusNow and the two possible end markers are distinguishable
         final var executionStart = NOW.minusSeconds(100);
