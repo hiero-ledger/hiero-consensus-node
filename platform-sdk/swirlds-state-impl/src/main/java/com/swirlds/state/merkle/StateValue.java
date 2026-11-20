@@ -119,9 +119,22 @@ public record StateValue<V>(int stateId, @NonNull V value) {
 
         @Override
         protected long writeImpl(
-                @NonNull final StateValue<V> item, @NonNull final RandomAccessData output, final long offset)
+                @NonNull final StateValue<V> value, @NonNull final RandomAccessData out, final long offset)
                 throws IOException {
-            return output.putBytes(offset, toBytes(item));
+            long bytesWritten = 0;
+            final int stateId = value.stateId();
+            bytesWritten += out.putVarInt(
+                    offset + bytesWritten,
+                    (stateId << ProtoParserTools.TAG_FIELD_OFFSET) | ProtoConstants.WIRE_TYPE_DELIMITED.ordinal(),
+                    false);
+            // Write size
+            final int valueSize = valueCodec.measureRecord(value.value());
+            bytesWritten += out.putVarInt(offset + bytesWritten, valueSize, false);
+            // Write value
+            if (valueSize > 0) {
+                bytesWritten += valueCodec.write(value.value(), out, offset + bytesWritten);
+            }
+            return bytesWritten;
         }
 
         /**
