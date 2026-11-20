@@ -53,6 +53,8 @@ public class ClprEndpointClientCache implements AutoCloseable {
     private static final Logger logger = LogManager.getLogger(ClprEndpointClientCache.class);
 
     private final Map<InetSocketAddress, CachedClient> clients = new HashMap<>();
+    // Keep eviction history only while a DNS caller can still hold an answer from before the eviction.
+    private final Map<InetSocketAddress, PendingDnsLookups> pendingDnsLookups = new HashMap<>();
     private final ConfigProvider configProvider;
     private final HostResolver resolver;
     private final ExecutorService dnsLookups;
@@ -108,6 +110,8 @@ public class ClprEndpointClientCache implements AutoCloseable {
         final Policy policy;
         final InetSocketAddress key;
         CachedClient previous;
+        final PendingDnsLookups pending;
+        long observedEvictions;
         final boolean dns = isDnsHostname(host);
         synchronized (this) {
             policy = applyPolicy();
@@ -116,36 +120,54 @@ public class ClprEndpointClientCache implements AutoCloseable {
                 requireDnsAllowed(policy, host, port);
                 ClprEndpointAddressPolicy.checkPort(host, port);
                 key = InetSocketAddress.createUnresolved(NodeIdentity.dnsKey(host), port);
+                pending = pendingDnsLookups.computeIfAbsent(key, ignored -> new PendingDnsLookups());
+                pending.callers++;
+                observedEvictions = pending.evictions;
             } else {
                 key = policy.addresses().addressFor(host, port);
+                pending = null;
+                observedEvictions = 0;
             }
             previous = clients.get(key);
         }
 
         final CachedClient replaced;
         final ClprEndpointClientImpl client;
-        while (true) {
-            final var candidates = dns ? lookupCandidates(host, key, policy, previous, deadline) : List.of(key);
-            synchronized (this) {
-                if (applyPolicy() != policy) {
-                    throw new ClientException("CLPR endpoint policy changed during lookup of " + host, null);
+        try {
+            while (true) {
+                final var candidates = dns ? lookupCandidates(host, key, policy, previous, deadline) : List.of(key);
+                synchronized (this) {
+                    if (applyPolicy() != policy) {
+                        throw new ClientException("CLPR endpoint policy changed during lookup of " + host, null);
+                    }
+                    checkDeadline(deadline);
+                    final var current = clients.get(key);
+                    final boolean pinStillPermitted = current != null && candidates.contains(current.address());
+                    if (pending != null
+                            && !pinStillPermitted
+                            && (current != previous || pending.evictions != observedEvictions)) {
+                        // The pin may have been installed and evicted while this lookup saw an empty cache.
+                        previous = current;
+                        observedEvictions = pending.evictions;
+                        continue;
+                    }
+                    if (pinStillPermitted && current.useTls() == useTls) {
+                        return current.client();
+                    }
+                    final var address = pinStillPermitted ? current.address() : candidates.getFirst();
+                    client = new ClprEndpointClientImpl(address, useTls);
+                    clients.put(key, new CachedClient(client, address, useTls));
+                    replaced = current;
+                    break;
                 }
-                checkDeadline(deadline);
-                final var current = clients.get(key);
-                final boolean pinStillPermitted = current != null && candidates.contains(current.address());
-                if (dns && current != previous && !pinStillPermitted) {
-                    // Another lookup replaced or evicted the pin. Confirm the answer within the same sync deadline.
-                    previous = current;
-                    continue;
+            }
+        } finally {
+            if (pending != null) {
+                synchronized (this) {
+                    if (--pending.callers == 0) {
+                        pendingDnsLookups.remove(key);
+                    }
                 }
-                if (pinStillPermitted && current.useTls() == useTls) {
-                    return current.client();
-                }
-                final var address = pinStillPermitted ? current.address() : candidates.getFirst();
-                client = new ClprEndpointClientImpl(address, useTls);
-                clients.put(key, new CachedClient(client, address, useTls));
-                replaced = current;
-                break;
             }
         }
         if (replaced != null) {
@@ -250,6 +272,7 @@ public class ClprEndpointClientCache implements AutoCloseable {
             if (previous == null || !clients.remove(key, previous)) {
                 return;
             }
+            pendingDnsLookups.get(key).evictions++;
         }
         previous.client().retireChannel();
     }
@@ -261,6 +284,12 @@ public class ClprEndpointClientCache implements AutoCloseable {
                             + " is a DNS name; set clpr.allowDnsPeerEndpoints=true on this node to dial it",
                     null);
         }
+    }
+
+    /** Guarded by the cache lock and shared by overlapping lookups for one DNS peer. */
+    private static final class PendingDnsLookups {
+        private int callers;
+        private long evictions;
     }
 
     /** This node's destination policy: whether DNS peers may be dialed, and the permitted address ranges. */

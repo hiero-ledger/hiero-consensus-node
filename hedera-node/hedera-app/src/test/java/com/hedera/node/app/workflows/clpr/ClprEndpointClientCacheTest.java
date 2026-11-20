@@ -362,6 +362,39 @@ class ClprEndpointClientCacheTest {
     }
 
     @Test
+    void lookupThatStartedWithoutAPinRechecksDnsAfterAnInterveningInstallAndEviction() throws Exception {
+        when(clprConfig.allowDnsPeerEndpoints()).thenReturn(true);
+        final var newerAddress = ClprEndpointAddressPolicy.addressFor("8.8.4.4", PORT, Set.of());
+        final var channel = mock(ManagedChannel.class);
+        when(resolver.resolve(SOLO_HOST))
+                .thenAnswer(invocation -> {
+                    // Complete two other syncs while the original resolver still holds its answer.
+                    try (var transport = mockStatic(ClprEndpointClientImpl.class)) {
+                        transport
+                                .when(() -> ClprEndpointClientImpl.newChannel(newerAddress, false))
+                                .thenReturn(channel);
+                        clientFor(SOLO_HOST, PORT, false);
+                        assertThatThrownBy(() -> clientFor(SOLO_HOST, PORT, false))
+                                .hasCauseInstanceOf(UnknownHostException.class);
+                        verify(channel).shutdown();
+                    }
+                    return answers(ADDRESS);
+                })
+                .thenReturn(answers(newerAddress))
+                .thenThrow(new UnknownHostException(SOLO_HOST));
+        final var deadline = mock(Deadline.class);
+        when(deadline.timeRemaining(TimeUnit.NANOSECONDS)).thenReturn(TimeUnit.SECONDS.toNanos(10));
+
+        try (var transport = mockStatic(ClprEndpointClientImpl.class)) {
+            assertThatThrownBy(() -> cache.clientFor(SOLO_HOST, PORT, false, deadline))
+                    .hasCauseInstanceOf(UnknownHostException.class);
+            verify(resolver, times(4)).resolve(SOLO_HOST);
+            verify(deadline, times(2)).timeRemaining(TimeUnit.NANOSECONDS);
+            transport.verifyNoInteractions();
+        }
+    }
+
+    @Test
     void blockedDnsLeavesNumericClientsAvailableAndLateAnswerCannotReopenClosedCache() throws Exception {
         when(clprConfig.allowDnsPeerEndpoints()).thenReturn(true);
         final int dnsSlots = clprConfig.maxConcurrentSyncs() - 1;

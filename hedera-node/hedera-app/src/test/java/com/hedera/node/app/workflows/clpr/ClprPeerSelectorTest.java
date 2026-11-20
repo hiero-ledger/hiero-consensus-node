@@ -6,12 +6,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.data.Offset.offset;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 
+import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.clpr.ClprChannel;
 import com.hedera.hapi.node.state.clpr.ClprChannelStatus;
 import com.hedera.hapi.node.state.clpr.ClprEndpoint;
 import com.hedera.hapi.node.state.clpr.ClprServiceEndpoint;
 import com.hedera.node.app.spi.info.NetworkInfo;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfiguration;
 import com.hedera.node.config.data.ClprConfig;
@@ -174,6 +177,24 @@ class ClprPeerSelectorTest {
             assertThat(subject.selectEndpoint(channel(), List.of(self, PEER_2)).peerId())
                     .isEqualTo(PEER_2_ID);
             assertThat(subject.selectEndpoint(channel(), List.of(self))).isNull();
+        }
+
+        @Test
+        void absoluteSelfHostnameLeavesSearchRelativePeerEligible() {
+            final var self = mock(NodeInfo.class);
+            given(networkInfo.selfNodeInfo()).willReturn(self);
+            given(self.hapiEndpoints())
+                    .willReturn(List.of(ServiceEndpoint.newBuilder()
+                            .domainName("Api.Example.")
+                            .port(PEER_PORT)
+                            .build()));
+            final var relative = endpoint("api.example");
+
+            assertThat(subject.selectEndpoint(channel(), List.of(endpoint("API.EXAMPLE."))))
+                    .isNull();
+            assertThat(requireNonNull(subject.selectEndpoint(channel(), List.of(relative)))
+                            .endpoint())
+                    .isEqualTo(relative);
         }
 
         @Test
