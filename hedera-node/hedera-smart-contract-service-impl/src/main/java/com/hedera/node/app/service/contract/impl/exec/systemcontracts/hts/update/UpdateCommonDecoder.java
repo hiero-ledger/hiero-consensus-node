@@ -133,6 +133,7 @@ public abstract class UpdateCommonDecoder {
             @NonNull final Tuple[] tokenKeysTuples,
             @NonNull final AddressIdConverter addressIdConverter,
             @NonNull final HederaNativeOperations nativeOperation) {
+        rejectInheritedKeys(tokenKeysTuples);
         final List<TokenKeyWrapper> tokenKeys = new ArrayList<>(tokenKeysTuples.length);
         for (final var tokenKeyTuple : tokenKeysTuples) {
             final var keyType = ((BigInteger) tokenKeyTuple.get(KEY_TYPE)).intValue();
@@ -157,6 +158,23 @@ public abstract class UpdateCommonDecoder {
         }
 
         return tokenKeys;
+    }
+
+    /**
+     * The inherited account key is only resolved when creating a token; on update it would otherwise be
+     * dropped silently. Rejects the whole update if any key asks for it, before any other key is converted
+     * or validated, so the outcome does not depend on the order or validity of the other keys.
+     *
+     * @param tokenKeysTuples the token keys from the call data
+     * @throws InheritedKeyOnUpdateException if any key sets {@code inheritAccountKey}
+     */
+    private static void rejectInheritedKeys(@NonNull final Tuple[] tokenKeysTuples) {
+        for (final var tokenKeyTuple : tokenKeysTuples) {
+            final Tuple keyValueTuple = tokenKeyTuple.get(KEY_VALUE);
+            if (Boolean.TRUE.equals(keyValueTuple.get(INHERIT_ACCOUNT_KEY))) {
+                throw new InheritedKeyOnUpdateException();
+            }
+        }
     }
 
     @Nullable

@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_KEY_ENCODING;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateCommonDecoder.FAILURE_CUSTOMIZER;
 
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCallTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call;
@@ -26,7 +28,12 @@ public abstract class UpdateKeysCommonTranslator extends AbstractCallTranslator<
 
     @Override
     public Call callFrom(@NonNull final HtsCallAttempt attempt) {
-        return new DispatchForResponseCodeHtsCall(
-                attempt, decoder.decodeTokenUpdateKeys(attempt), UpdateCommons::gasRequirement, FAILURE_CUSTOMIZER);
+        final TransactionBody body;
+        try {
+            body = decoder.decodeTokenUpdateKeys(attempt);
+        } catch (final InheritedKeyOnUpdateException e) {
+            return new RejectedUpdateCall(attempt, INVALID_KEY_ENCODING);
+        }
+        return new DispatchForResponseCodeHtsCall(attempt, body, UpdateCommons::gasRequirement, FAILURE_CUSTOMIZER);
     }
 }

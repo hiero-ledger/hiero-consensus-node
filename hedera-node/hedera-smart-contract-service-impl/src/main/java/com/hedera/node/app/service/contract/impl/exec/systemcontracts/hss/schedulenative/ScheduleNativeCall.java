@@ -20,6 +20,7 @@ import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.DispatchForResponseCodeHssCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallFactory;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.RejectedUpdateCall;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.spi.workflows.DispatchOptions.UsePresetTxnId;
@@ -71,6 +72,10 @@ public class ScheduleNativeCall extends AbstractCall {
         final var nativeAttempt =
                 htsCallFactory.createCallAttemptFrom(contractID, innerCallData, DIRECT_OR_PROXY_REDIRECT, frame);
         final var call = requireNonNull(nativeAttempt.asExecutableCall());
+        if (call instanceof RejectedUpdateCall) {
+            // An update rejected while decoding is never scheduled; revert exactly as a direct call would
+            return call.execute(frame);
+        }
         final var scheduleTransactionBody = call.asSchedulableDispatchIn();
         final var scheduleCreateTransactionBody = bodyForScheduleCreate(scheduleTransactionBody);
         final var gasRequirement = dispatchGasCalculator.gasRequirement(
