@@ -13,6 +13,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.blocks.BlockItemsTranslator.BLOCK_ITEMS_TRANSLATOR;
 import static com.hedera.node.app.service.token.HookDispatchUtils.HTS_HOOKS_CONTRACT_NUM;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.PRECEDING;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
@@ -814,5 +815,37 @@ public class BlockStreamBuilderTest {
         final Map<AccountID, AccountID> visited = new HashMap<>();
         builder.forEachDeletedAccountBeneficiary(visited::put);
         assertThat(visited).hasSize(2).containsEntry(deletedA, beneficiaryA).containsEntry(deletedB, beneficiaryB);
+    }
+
+    @Test
+    void nullOutSideEffectFieldsClearsAccountCreationFields() {
+        final var builder = new BlockStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, PRECEDING)
+                .signedTx(signedTx)
+                .serializedSignedTx(signedTxBytes)
+                .functionality(CRYPTO_CREATE)
+                .status(SUCCESS)
+                .accountID(AccountID.newBuilder().accountNum(1234L).build())
+                .evmAddress(Bytes.wrap(new byte[20]))
+                .transferList(TransferList.newBuilder()
+                        .accountAmounts(AccountAmount.newBuilder()
+                                .accountID(
+                                        AccountID.newBuilder().accountNum(98L).build())
+                                .amount(100L)
+                                .build())
+                        .build())
+                .transactionFee(100L);
+
+        builder.nullOutSideEffectFields();
+
+        final var blockItems = builder.build(false, null).blockItems();
+        assertThat(blockItems).noneMatch(BlockItem::hasTransactionOutput);
+        final var result = blockItems.stream()
+                .filter(BlockItem::hasTransactionResult)
+                .findFirst()
+                .orElseThrow()
+                .transactionResultOrThrow();
+        assertThat(result.transferListOrElse(TransferList.DEFAULT).accountAmounts())
+                .isEmpty();
+        assertThat(result.transactionFeeCharged()).isZero();
     }
 }
