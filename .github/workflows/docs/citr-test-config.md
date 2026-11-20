@@ -339,7 +339,7 @@ Dispatching 223 with `mock=true` runs the same workflow against the `nightly/sdc
 ### Chewie Reporting
 
 Only the full `sdct` test reports to Chewie, with
-[report-suite-result.sh](/.github/workflows/support/chewie/report-suite-result.sh), from two jobs on the
+[report-suite-status.sh](/.github/workflows/support/chewie/report-suite-status.sh), from two jobs on the
 `hl-cn-chewie-lin-sm` runner (the SDCT runner may not reach Chewie):
 
 - `Chewie Report Running`: after `canonical-test`, when the Jenkins build has started

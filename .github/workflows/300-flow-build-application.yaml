@@ -37,7 +37,7 @@ jobs:
     needs:
       - extract-jdk-version
     if: ${{ vars.CHEWIE_MATS_REPORTING_ENABLED == 'true' }}
-    uses: ./.github/workflows/864-call-report-suite-result.yaml
+    uses: ./.github/workflows/864-call-report-suite-status.yaml
     with:
       suite-type: mats
       commit: ${{ github.sha }}
@@ -81,7 +81,7 @@ jobs:
       - report-mats-running # keeps the terminal report after the running one, so it is the latest
       - mats-tests
     if: ${{ always() && vars.CHEWIE_MATS_REPORTING_ENABLED == 'true' }}
-    uses: ./.github/workflows/864-call-report-suite-result.yaml
+    uses: ./.github/workflows/864-call-report-suite-status.yaml
     with:
       suite-type: mats
       commit: ${{ github.sha }}

@@ -203,7 +203,7 @@ jobs:
       - verify-tag
       - run-multi-day-longevity-test
     if: ${{ always() && needs.verify-tag.outputs.build-number != '' }}
-    uses: ./.github/workflows/864-call-report-suite-result.yaml
+    uses: ./.github/workflows/864-call-report-suite-status.yaml
     with:
       suite-type: mdlt
       build-number: ${{ needs.verify-tag.outputs.build-number }}
