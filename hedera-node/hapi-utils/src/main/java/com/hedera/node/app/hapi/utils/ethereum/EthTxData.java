@@ -299,12 +299,15 @@ public record EthTxData(
      * <p>Clearly the latter value would always be un-payable, since the transaction would cost more
      * than the entire hbar supply. We just do this to avoid integral overflow.
      *
-     * @param weibarGasPrice the current gas price in weibars
+     * <p>The offered price in the transaction itself is in weibars, and is converted to tinybars here.
+     *
+     * @param tinybarGasPrice the current network gas price in tinybars (only used to scale the offered price of the
+     * deterministic deployer transaction)
      * @return the effective offered gas price in tinybars
      */
-    public long effectiveOfferedGasPriceInTinybars(final long weibarGasPrice) {
+    public long effectiveOfferedGasPriceInTinybars(final long tinybarGasPrice) {
         return BigInteger.valueOf(Long.MAX_VALUE)
-                .min(getMaxGasAsBigInteger(weibarGasPrice).divide(WEIBARS_IN_A_TINYBAR))
+                .min(getMaxGasAsBigInteger(tinybarGasPrice).divide(WEIBARS_IN_A_TINYBAR))
                 .longValueExact();
     }
 

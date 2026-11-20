@@ -7,8 +7,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mockConstruction;
+import static org.mockito.Mockito.verify;
 
 import com.esaulpaugh.headlong.abi.Tuple;
+import com.hedera.hapi.node.state.clpr.ClprEndpoint;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.clpr.ClprThrottles;
@@ -20,12 +22,14 @@ import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.commo
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.math.BigInteger;
 import org.hyperledger.besu.evm.frame.MessageFrame;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedConstruction;
 
 class EthereumVerifyConfigCallTest extends CallTestBase {
     private static final String VERIFIER_NAME = "EthereumSyncCommitteeProofVerifier";
     private static final byte[] CONFIG_PAYLOAD = {1, 2, 3};
+    private static final byte[] MANIFEST_PROOF = {4, 5, 6};
 
     /** ABI index of the manifest struct in the manifest-aware output tuple. */
     private static final int MANIFEST_INDEX = 7;
@@ -46,7 +50,7 @@ class EthereumVerifyConfigCallTest extends CallTestBase {
                 .initialTrustAnchorId(Bytes.wrap(new byte[] {9}))
                 .build();
 
-        try (final var ignored = mockVerifier(new VerifiedConfig(config, 7L))) {
+        try (final var ignored = mockVerifier(new VerifiedConfig(config, 7L, uninitializedManifest()))) {
             final var result = subject().execute(frame);
 
             assertThat(result.responseCode()).isEqualTo(SUCCESS);
@@ -62,7 +66,7 @@ class EthereumVerifyConfigCallTest extends CallTestBase {
                     .isEqualTo(config.initialTrustAnchor().toByteArray());
             assertThat((byte[]) decoded.get(6))
                     .isEqualTo(config.initialTrustAnchorId().toByteArray());
-            // manifest struct at index 7: empty manifest bytes → uninitialized (version 0).
+            // manifest struct at index 7: the verifier's uninitialized manifest (version 0).
             final Tuple manifestStruct = decoded.get(MANIFEST_INDEX);
             assertThat(((BigInteger) manifestStruct.get(0)).longValue()).isZero();
         }
@@ -89,7 +93,7 @@ class EthereumVerifyConfigCallTest extends CallTestBase {
                 .serviceAddress(Bytes.wrap(new byte[20]))
                 .build();
 
-        try (final var ignored = mockVerifier(new VerifiedConfig(config, 7L))) {
+        try (final var ignored = mockVerifier(new VerifiedConfig(config, 7L, uninitializedManifest()))) {
             assertFailed(subject().execute(frame));
         }
     }
@@ -106,7 +110,7 @@ class EthereumVerifyConfigCallTest extends CallTestBase {
                 .throttles(ClprThrottles.newBuilder().maxMessagesPerBundle(42).build())
                 .build();
 
-        try (final var ignored = mockVerifier(new VerifiedConfig(config, 7L))) {
+        try (final var ignored = mockVerifier(new VerifiedConfig(config, 7L, uninitializedManifest()))) {
             final var result = new EthereumVerifyConfigCall(
                             mockEnhancement(), gasCalculator, CONFIG_PAYLOAD, channelId32, new byte[0])
                     .execute(frame);
@@ -131,67 +135,35 @@ class EthereumVerifyConfigCallTest extends CallTestBase {
     }
 
     @Test
+    @DisplayName("given a verified manifest proof, then the call returns the manifest the verifier proved")
     void returnsConfigFieldsAndManifest() {
-        final var config = configWithAnchor();
         final var manifest = ClprEndpointManifest.newBuilder()
                 .version(2L)
                 .serviceAddress(Bytes.wrap(new byte[20]))
+                .endpoints(ClprEndpoint.newBuilder()
+                        .tlsCertificate(Bytes.wrap(new byte[] {1}))
+                        .build())
                 .build();
 
-        try (final var ignored = mockVerifier(new VerifiedConfig(config, 7L))) {
-            final var result = subjectWithManifest(serializeManifest(manifest)).execute(frame);
+        try (final var ignored = mockVerifier(new VerifiedConfig(configWithAnchor(), 7L, manifest))) {
+            final var result = subjectWithManifestProof(MANIFEST_PROOF).execute(frame);
 
             assertThat(result.responseCode()).isEqualTo(SUCCESS);
             final Tuple manifestStruct =
                     manifestStructOf(result.fullResult().output().toArray());
             assertThat(((BigInteger) manifestStruct.get(0)).longValue()).isEqualTo(2L);
-            assertThat(((byte[]) manifestStruct.get(1)).length).isEqualTo(20);
+            assertThat((byte[]) manifestStruct.get(1)).isEqualTo(new byte[20]);
+            assertThat((Tuple[]) manifestStruct.get(2)).hasSize(1);
         }
     }
 
     @Test
-    void emptyManifestYieldsUninitializedManifest() {
-        final var config = configWithAnchor();
+    @DisplayName("given a manifest proof, then the call hands it to the verifier with the config payload")
+    void givenManifestProof_thenPassesItToVerifier() {
+        try (final var verifiers = mockVerifier(new VerifiedConfig(configWithAnchor(), 7L, uninitializedManifest()))) {
+            subjectWithManifestProof(MANIFEST_PROOF).execute(frame);
 
-        try (final var ignored = mockVerifier(new VerifiedConfig(config, 7L))) {
-            final var result = subjectWithManifest(new byte[0]).execute(frame);
-
-            assertThat(result.responseCode()).isEqualTo(SUCCESS);
-            final Tuple manifestStruct =
-                    manifestStructOf(result.fullResult().output().toArray());
-            // Empty manifest bytes → uninitialized manifest bound to the config: version 0, config's
-            // serviceAddress, no endpoints (matches the Solidity verifiers).
-            assertThat(((BigInteger) manifestStruct.get(0)).longValue()).isZero();
-            assertThat(((byte[]) manifestStruct.get(1)).length).isEqualTo(20);
-            assertThat((Tuple[]) manifestStruct.get(2)).isEmpty();
-        }
-    }
-
-    @Test
-    void manifestVersionZeroFails() {
-        final var config = configWithAnchor();
-        final var manifest = ClprEndpointManifest.newBuilder()
-                .version(0L)
-                .serviceAddress(Bytes.wrap(new byte[20]))
-                .build();
-
-        try (final var ignored = mockVerifier(new VerifiedConfig(config, 7L))) {
-            assertFailed(subjectWithManifest(serializeManifest(manifest)).execute(frame));
-        }
-    }
-
-    @Test
-    void manifestServiceAddressMismatchFails() {
-        final var config = configWithAnchor();
-        final byte[] otherAddr = new byte[20];
-        otherAddr[0] = 0x7;
-        final var manifest = ClprEndpointManifest.newBuilder()
-                .version(1L)
-                .serviceAddress(Bytes.wrap(otherAddr))
-                .build();
-
-        try (final var ignored = mockVerifier(new VerifiedConfig(config, 7L))) {
-            assertFailed(subjectWithManifest(serializeManifest(manifest)).execute(frame));
+            verify(verifiers.constructed().getFirst()).verifyConfigPayload(CONFIG_PAYLOAD, MANIFEST_PROOF);
         }
     }
 
@@ -200,10 +172,9 @@ class EthereumVerifyConfigCallTest extends CallTestBase {
                 mockEnhancement(), gasCalculator, CONFIG_PAYLOAD, new byte[32], new byte[0]);
     }
 
-    /** Manifest-aware (flag on): channel context + raw manifest bytes. */
-    private EthereumVerifyConfigCall subjectWithManifest(final byte[] manifestBytes) {
+    private EthereumVerifyConfigCall subjectWithManifestProof(final byte[] manifestProofBytes) {
         return new EthereumVerifyConfigCall(
-                mockEnhancement(), gasCalculator, CONFIG_PAYLOAD, new byte[32], manifestBytes);
+                mockEnhancement(), gasCalculator, CONFIG_PAYLOAD, new byte[32], manifestProofBytes);
     }
 
     private static ClprLedgerConfiguration configWithAnchor() {
@@ -215,8 +186,13 @@ class EthereumVerifyConfigCallTest extends CallTestBase {
                 .build();
     }
 
-    private static byte[] serializeManifest(final ClprEndpointManifest manifest) {
-        return ClprEndpointManifest.PROTOBUF.toBytes(manifest).toByteArray();
+    /**
+     * The manifest the verifier returns when no proof is given: version 0, no endpoints.
+     */
+    private static ClprEndpointManifest uninitializedManifest() {
+        return ClprEndpointManifest.newBuilder()
+                .serviceAddress(Bytes.wrap(new byte[20]))
+                .build();
     }
 
     /** Decodes the manifest-aware output tuple and returns the manifest struct {@code (version, serviceAddress, endpoints[])}. */
@@ -229,14 +205,14 @@ class EthereumVerifyConfigCallTest extends CallTestBase {
     private static MockedConstruction<EthereumSyncCommitteeProofVerifier> mockVerifier(final VerifiedConfig verified) {
         return mockConstruction(
                 EthereumSyncCommitteeProofVerifier.class,
-                (mock, ctx) -> given(mock.verifyConfigPayload(any())).willReturn(verified));
+                (mock, ctx) -> given(mock.verifyConfigPayload(any(), any())).willReturn(verified));
     }
 
     private static MockedConstruction<EthereumSyncCommitteeProofVerifier> mockVerifierThrowing(
             final RuntimeException toThrow) {
         return mockConstruction(
                 EthereumSyncCommitteeProofVerifier.class,
-                (mock, ctx) -> given(mock.verifyConfigPayload(any())).willThrow(toThrow));
+                (mock, ctx) -> given(mock.verifyConfigPayload(any(), any())).willThrow(toThrow));
     }
 
     private static void assertFailed(final PricedResult result) {

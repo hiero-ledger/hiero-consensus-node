@@ -20,8 +20,6 @@ import com.hedera.node.app.service.clpr.impl.verifier.ethereum.VerifiedConfig;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCall;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
-import com.hedera.pbj.runtime.ParseException;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.math.BigInteger;
@@ -34,16 +32,17 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
  * {@code 0x171}), mirroring the Hiero TSS verifier (spec §4.8):
  * <ul>
  *   <li><b>Endpoint manifest</b> {@code verifyConfig(bytes,bytes32,bytes)} — config fields plus a {@link ClprEndpointManifest}. For
- *       Ethereum the third argument is the manifest <b>raw bytes</b> (self-described at bootstrap), not a
- *       state proof, so it is strict-parsed and checked against the §4.8 invariants directly rather than
- *       re-derived from a proven state root.</li>
+ *       Ethereum the third argument is a sync-committee proof of the manifest commitment in the peer's CLPR service
+ *       storage, signed by a committee of the initial trust anchor. An empty proof yields the uninitialized manifest
+ *       (version 0).</li>
  * </ul>
  *
  * <p>The {@code configPayload} is the protobuf {@code EthereumPosLedgerConfigurationPayload} carrying the initial sync
  * committee, the chain-pinning {@code genesisValidatorsRoot}/{@code forkVersion}, and the advertised
- * {@link ClprLedgerConfiguration}. Decoding is delegated to
- * {@link EthereumSyncCommitteeProofVerifier#verifyConfigPayload(byte[])}, which derives the initial trust
- * anchor and attaches it as {@code initial_trust_anchor} / {@code initial_trust_anchor_id}.
+ * {@link ClprLedgerConfiguration}. Decoding and verification are delegated to
+ * {@link EthereumSyncCommitteeProofVerifier#verifyConfigPayload(byte[], byte[])}, which derives the initial trust
+ * anchor, attaches it as {@code initial_trust_anchor} / {@code initial_trust_anchor_id}, and proves the manifest
+ * under it.
  */
 public class EthereumVerifyConfigCall extends AbstractCall {
     private static final Logger log = LogManager.getLogger(EthereumVerifyConfigCall.class);
@@ -55,18 +54,18 @@ public class EthereumVerifyConfigCall extends AbstractCall {
     private final byte[] channelId32;
 
     @NonNull
-    private final byte[] manifestBytes;
+    private final byte[] manifestProofBytes;
 
     public EthereumVerifyConfigCall(
             @NonNull final HederaWorldUpdater.Enhancement enhancement,
             @NonNull final SystemContractGasCalculator gasCalculator,
             @NonNull final byte[] configPayload,
             @NonNull final byte[] channelId32,
-            @NonNull final byte[] manifestBytes) {
+            @NonNull final byte[] manifestProofBytes) {
         super(gasCalculator, enhancement, true);
         this.configPayload = requireNonNull(configPayload);
         this.channelId32 = requireNonNull(channelId32);
-        this.manifestBytes = requireNonNull(manifestBytes);
+        this.manifestProofBytes = requireNonNull(manifestProofBytes);
     }
 
     @Override
@@ -91,25 +90,21 @@ public class EthereumVerifyConfigCall extends AbstractCall {
             return fail();
         }
 
-        final ClprEndpointManifest manifest = manifestFor(parsed);
-        if (manifest == null) {
-            return fail();
-        }
-        return manifestSuccess(parsed, manifest);
+        return manifestSuccess(parsed, verified.endpointManifest());
     }
 
     /**
-     * Runs the config-payload verifier. Returns the verified config, or {@code null} when the payload is rejected or
-     * the verifier errors unexpectedly.
+     * Runs the config-payload verifier over the payload and the endpoint-manifest proof. Returns the verified config,
+     * or {@code null} when either is rejected or the verifier errors unexpectedly.
      */
     @Nullable
     private VerifiedConfig runVerifier() {
         final var verifier = new EthereumSyncCommitteeProofVerifier(NativeBlsSignatureVerifier.INSTANCE);
         final VerifiedConfig verified;
         try {
-            verified = verifier.verifyConfigPayload(configPayload);
+            verified = verifier.verifyConfigPayload(configPayload, manifestProofBytes);
         } catch (final ProofException e) {
-            log.info("[EthereumVerifier] verifyConfig: payload rejected: {}", e.getMessage());
+            log.info("[EthereumVerifier] verifyConfig: config rejected: {}", e.getMessage());
             return null;
         } catch (final Exception e) {
             log.warn("[EthereumVerifier] verifyConfig: unexpected error", e);
@@ -170,48 +165,6 @@ public class EthereumVerifyConfigCall extends AbstractCall {
                         GAS_REQUIREMENT),
                 SUCCESS,
                 false);
-    }
-
-    /**
-     * Resolves the endpoint manifest for the manifest-aware return. For Ethereum the manifest travels as <b>raw bytes</b> — trusted
-     * like the self-described config at bootstrap (there is no state root to verify it against at config time). When
-     * present the bytes are strict-parsed and checked for the spec §4.8 invariants; when empty (bring-up) the
-     * UNINITIALIZED manifest (version 0, bound to the config's service address, no endpoints) is returned, matching
-     * the Solidity verifiers, so the first proven manifest (version >= 1) applies via Step 1b. Returns {@code null}
-     * on an invalid or §4.8-violating manifest (caller reverts).
-     */
-    @Nullable
-    private ClprEndpointManifest manifestFor(@NonNull final ClprLedgerConfiguration parsed) {
-        final byte[] bytes = requireNonNull(manifestBytes);
-        if (bytes.length == 0) {
-            return ClprEndpointManifest.newBuilder()
-                    .serviceAddress(parsed.serviceAddress())
-                    .build();
-        }
-        final ClprEndpointManifest manifest;
-        try {
-            // Spec §1: reject a manifest carrying unrecognized fields.
-            manifest =
-                    ClprEndpointManifest.PROTOBUF.parseStrict(Bytes.wrap(bytes).toReadableSequentialData());
-        } catch (final ParseException | RuntimeException e) {
-            log.info(
-                    "[EthereumVerifier] verifyConfig: manifest bytes are not a valid ClprEndpointManifest: {}",
-                    e.getMessage());
-            return null;
-        }
-        if (manifest.version() == 0L) {
-            log.info("[EthereumVerifier] verifyConfig: manifest version is 0 (must be >= 1)");
-            return null;
-        }
-        if (!manifest.serviceAddress().equals(parsed.serviceAddress())) {
-            log.info(
-                    "[EthereumVerifier] verifyConfig: manifest service_address {} does not match config"
-                            + " service_address {}",
-                    manifest.serviceAddress(),
-                    parsed.serviceAddress());
-            return null;
-        }
-        return manifest;
     }
 
     @NonNull

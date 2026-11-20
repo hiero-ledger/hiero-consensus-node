@@ -87,8 +87,8 @@ tracked benchmark on the benchmark machine and publishes the results.
 
 - **The build finds the benchmarks, and finding none is an error.** The workflow names no module or benchmark. It
   looks for the manifests and fails if there are none, instead of reporting a night without results.
-- **Only the scheduled run publishes to Grafana.** A manual start can limit the benchmarks to run and another ref; its
-  results stay in the artifact.
+- **Only the scheduled run publishes to Grafana.** A manual start can limit the benchmarks and parameter sets to run,
+  and pick another ref; its results stay in the artifact.
 - **The benchmarks run in the order they are found:** modules alphabetically, then each module's includes in order.
   The order matters only when the job runs out of time.
 - **Benchmarks never run at the same time as each other or as the build.** The jars are built in a separate Gradle

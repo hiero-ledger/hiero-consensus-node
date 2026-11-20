@@ -13,6 +13,7 @@ import com.hedera.node.app.service.clpr.impl.verifier.ethereum.BundlePayload.Fin
 import com.hedera.node.app.service.clpr.impl.verifier.ethereum.BundlePayload.MessageDelivery;
 import com.hedera.node.app.service.clpr.impl.verifier.ethereum.BundlePayload.NextCommittee;
 import com.hedera.node.app.service.clpr.impl.verifier.ethereum.BundlePayload.NonSignerProof;
+import com.hedera.node.app.service.clpr.impl.verifier.ethereum.BundlePayload.ServiceAccountProof;
 import com.hedera.node.app.service.clpr.impl.verifier.ethereum.BundlePayload.SignedHeader;
 import com.hedera.node.app.service.clpr.impl.verifier.ethereum.PeerLedgerConfigPayload.CommitteeKeys;
 import com.hedera.node.app.service.clpr.impl.verifier.evm.ClprContractStorage;
@@ -25,8 +26,9 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * Decodes the bundle payload (RLP) and the config payload (protobuf) into the typed object graphs
- * ({@link BundlePayload}, {@link PeerLedgerConfigPayload}) the verifier reads from.
+ * Decodes the bundle payload (RLP), the config payload (protobuf) and the config's endpoint-manifest proof (RLP) into
+ * the typed object graphs ({@link BundlePayload}, {@link PeerLedgerConfigPayload}, {@link ConfigManifestProof}) the
+ * verifier reads from.
  *
  * <p>This class performs <em>structural</em> validation only — RLP shapes, field counts, and byte
  * lengths. It makes no trust decision: a successfully decoded payload is not a verified one. All
@@ -77,6 +79,16 @@ final class PayloadDecoder {
     private static final int DELIVERY_INDEX_BUNDLE_CONTENT = 8;
     private static final int DELIVERY_INDEX_MANIFEST_PROOF = 9;
     private static final int DELIVERY_INDEX_MANIFEST_PREIMAGE = 10;
+
+    /**
+     * A config's endpoint-manifest proof is {@code [attestedHeader, signatureSlot, syncAggregate, nonSignerProofs,
+     * finalizedExecution, finalityBranch, accountProof, manifestProof, manifestPreimage]}. Its first seven items sit at
+     * a delivery's positions, so they are read with the {@code DELIVERY_INDEX_*} constants.
+     */
+    private static final int CONFIG_MANIFEST_PROOF_FIELDS = 9;
+
+    private static final int CONFIG_MANIFEST_PROOF_INDEX_MANIFEST_PROOF = 7;
+    private static final int CONFIG_MANIFEST_PROOF_INDEX_MANIFEST_PREIMAGE = 8;
 
     /**
      * A beacon header is {@code [slot, proposerIndex, parentRoot, stateRoot, bodyRoot]}, its SSZ field order.
@@ -208,6 +220,35 @@ final class PayloadDecoder {
                 ledgerConfiguration);
     }
 
+    /**
+     * Decodes a config's endpoint-manifest proof whose committee sizes follow {@code preset}. Unlike a delivery's, its
+     * manifest storage proof must hold exactly one entry.
+     *
+     * @throws ProofException if the proof is not well-formed
+     */
+    @NonNull
+    static ConfigManifestProof decodeConfigManifestProof(
+            @NonNull final byte[] manifestProof, @NonNull final SyncCommitteePreset preset) {
+        final Rlp.Item top;
+        try {
+            top = Rlp.decodeOne(manifestProof);
+        } catch (final RuntimeException e) {
+            throw EthProofs.fail("endpointManifestProof is not a valid RLP item", e);
+        }
+        final String name = "endpointManifestProof";
+        final List<Rlp.Item> fields = list(top, CONFIG_MANIFEST_PROOF_FIELDS, name);
+        final List<StorageProofEntry> manifestStorageProof =
+                decodeStorageProofList(fields.get(CONFIG_MANIFEST_PROOF_INDEX_MANIFEST_PROOF), name + ".manifestProof");
+        if (manifestStorageProof.size() != 1) {
+            throw EthProofs.fail(
+                    name + ".manifestProof must hold exactly one entry, got " + manifestStorageProof.size());
+        }
+        return new ConfigManifestProof(
+                decodeServiceAccountProof(fields, preset, name),
+                manifestStorageProof.getFirst(),
+                bytes(fields.get(CONFIG_MANIFEST_PROOF_INDEX_MANIFEST_PREIMAGE), name + ".manifestPreimage"));
+    }
+
     // -----------------------------------------------------------------------------------
     // Bundle items
     // -----------------------------------------------------------------------------------
@@ -239,18 +280,7 @@ final class PayloadDecoder {
     private static MessageDelivery decodeDelivery(
             @NonNull final Rlp.Item item, @NonNull final SyncCommitteePreset preset) {
         final List<Rlp.Item> fields = list(item, DELIVERY_FIELDS, "delivery");
-        final SignedHeader signedHeader = decodeSignedHeader(
-                fields.get(DELIVERY_INDEX_ATTESTED_HEADER),
-                fields.get(DELIVERY_INDEX_SYNC_AGGREGATE),
-                fields.get(DELIVERY_INDEX_NON_SIGNER_PROOFS),
-                preset,
-                "delivery");
-        final long signatureSlot = decodeUint64(fields.get(DELIVERY_INDEX_SIGNATURE_SLOT), "delivery.signatureSlot");
-        final FinalizedExecution finalizedExecution =
-                decodeFinalizedExecution(fields.get(DELIVERY_INDEX_FINALIZED_EXECUTION));
-        final byte[][] finalityBranch = decodeBranch(
-                fields.get(DELIVERY_INDEX_FINALITY_BRANCH), Gloas.FINALIZED_ROOT.depth(), "delivery.finalityBranch");
-        final byte[][] accountProof = decodeNodeList(fields.get(DELIVERY_INDEX_ACCOUNT_PROOF), "delivery.accountProof");
+        final ServiceAccountProof serviceAccount = decodeServiceAccountProof(fields, preset, "delivery");
 
         // Optional queue storage proof: the five Channel slots, plus the last-message running-hash slot for a
         // message-bearing bundle, or EMPTY for a manifest-only recovery bundle (spec §8.1.4) — a normal-shaped
@@ -285,15 +315,36 @@ final class PayloadDecoder {
         }
 
         return new MessageDelivery(
-                signedHeader,
-                signatureSlot,
-                finalizedExecution,
-                finalityBranch,
-                accountProof,
+                serviceAccount,
                 storageProof,
                 bundleContent,
                 hasManifestProof ? manifestProof.getFirst() : null,
                 hasManifestProof ? manifestPreimage : null);
+    }
+
+    /**
+     * Decodes the seven items a delivery and a config's endpoint-manifest proof share, at the {@code DELIVERY_INDEX_*}
+     * positions of {@code fields}.
+     */
+    @NonNull
+    private static ServiceAccountProof decodeServiceAccountProof(
+            @NonNull final List<Rlp.Item> fields,
+            @NonNull final SyncCommitteePreset preset,
+            @NonNull final String name) {
+        return new ServiceAccountProof(
+                decodeSignedHeader(
+                        fields.get(DELIVERY_INDEX_ATTESTED_HEADER),
+                        fields.get(DELIVERY_INDEX_SYNC_AGGREGATE),
+                        fields.get(DELIVERY_INDEX_NON_SIGNER_PROOFS),
+                        preset,
+                        name),
+                decodeUint64(fields.get(DELIVERY_INDEX_SIGNATURE_SLOT), name + ".signatureSlot"),
+                decodeFinalizedExecution(fields.get(DELIVERY_INDEX_FINALIZED_EXECUTION), name + ".finalizedExecution"),
+                decodeBranch(
+                        fields.get(DELIVERY_INDEX_FINALITY_BRANCH),
+                        Gloas.FINALIZED_ROOT.depth(),
+                        name + ".finalityBranch"),
+                decodeNodeList(fields.get(DELIVERY_INDEX_ACCOUNT_PROOF), name + ".accountProof"));
     }
 
     /**
@@ -385,8 +436,8 @@ final class PayloadDecoder {
      * Finalized execution schema {@code [finalizedHeader, executionBranch, blockHeaderRlp]}.
      */
     @NonNull
-    private static FinalizedExecution decodeFinalizedExecution(@NonNull final Rlp.Item item) {
-        final String name = "delivery.finalizedExecution";
+    private static FinalizedExecution decodeFinalizedExecution(
+            @NonNull final Rlp.Item item, @NonNull final String name) {
         final List<Rlp.Item> fields =
                 list(item, FINALIZED_EXECUTION_FIELDS, name + " [finalizedHeader, executionBranch, blockHeaderRlp]");
         return new FinalizedExecution(
