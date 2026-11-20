@@ -175,7 +175,7 @@ public class StartFromStateTest {
     private static void initializeEventHashFactory(@NonNull final TestEnvironment env, final long savedStateRound) {
         if (env.capabilities().contains(Capability.SINGLE_NODE_JVM_SHUTDOWN)) {
             // Only required for the container environment
-            EventHashFactory.initialize(savedStateRound + 1);
+            EventHashFactory.initialize(1);
         }
     }
 }
