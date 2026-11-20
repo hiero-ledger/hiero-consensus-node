@@ -51,7 +51,7 @@ class InternalEventValidatorTests {
 
         exitedIntakePipelineCount = new AtomicLong(0);
         final IntakeEventCounter intakeEventCounter = mock(IntakeEventCounter.class);
-        doAnswer(invocation -> {
+        doAnswer(_ -> {
                     exitedIntakePipelineCount.incrementAndGet();
                     return null;
                 })
@@ -136,7 +136,7 @@ class InternalEventValidatorTests {
                 .signature(validEvent.signature())
                 .transactions(validEvent.transactions())
                 .parents(EventDescriptor.newBuilder()
-                        .hash(validEvent.parents().getFirst().hash().getBytes(1, DigestType.SHA_384.digestLength() - 2))
+                        .hash(validEvent.parents().getFirst().hash().getBytes(1, DigestType.SHA_256.digestLength() - 2))
                         .build())
                 .build();
         when(platformEvent.getGossipEvent()).thenReturn(shortDescriptorHash);
