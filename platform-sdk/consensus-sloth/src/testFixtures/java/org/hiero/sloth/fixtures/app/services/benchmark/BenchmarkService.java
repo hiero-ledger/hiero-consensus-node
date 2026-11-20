@@ -110,8 +110,8 @@ public class BenchmarkService implements SlothService {
         // Capture handle time immediately before any other operations
         final Instant handleTime = Instant.now();
 
-        final BenchmarkTransaction benchmarkTx = transaction.getBenchmarkTransaction();
-        final Instant submissionTime = InstantUtils.microsToInstant(benchmarkTx.getSubmissionTimeMicros());
+        final BenchmarkTransaction benchmarkTx = transaction.benchmarkTransactionOrThrow();
+        final Instant submissionTime = InstantUtils.microsToInstant(benchmarkTx.submissionTimeMicros());
         final long latencyMicros = ChronoUnit.MICROS.between(submissionTime, handleTime);
 
         // Log the measurement data in a parseable format
@@ -120,7 +120,7 @@ public class BenchmarkService implements SlothService {
                 DEMO_INFO.getMarker(),
                 "{} nonce={}, latency={}μs, submissionTime={}, handleTime={}",
                 BENCHMARK_LOG_PREFIX,
-                transaction.getNonce(),
+                transaction.nonce(),
                 latencyMicros,
                 InstantUtils.instantToMicros(submissionTime),
                 InstantUtils.instantToMicros(handleTime));

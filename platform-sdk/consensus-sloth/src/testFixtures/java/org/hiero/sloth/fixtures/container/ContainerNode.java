@@ -17,13 +17,10 @@ import static org.hiero.sloth.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
 import static org.hiero.sloth.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
 import static org.junit.jupiter.api.Assertions.fail;
 
-import com.google.protobuf.Empty;
+import com.hedera.pbj.runtime.grpc.GrpcException;
+import com.hedera.pbj.runtime.grpc.GrpcStatus;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import io.grpc.ManagedChannel;
-import io.grpc.ManagedChannelBuilder;
-import io.grpc.Status.Code;
-import io.grpc.StatusRuntimeException;
-import io.grpc.stub.StreamObserver;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -48,12 +45,12 @@ import org.hiero.sloth.fixtures.ProfilerEvent;
 import org.hiero.sloth.fixtures.SlothTransactionType;
 import org.hiero.sloth.fixtures.TimeManager;
 import org.hiero.sloth.fixtures.app.SlothApp;
-import org.hiero.sloth.fixtures.container.proto.ContainerControlServiceGrpc;
+import org.hiero.sloth.fixtures.container.proto.ContainerControlServiceInterface.ContainerControlServiceClient;
+import org.hiero.sloth.fixtures.container.proto.Empty;
 import org.hiero.sloth.fixtures.container.proto.EventMessage;
 import org.hiero.sloth.fixtures.container.proto.InitRequest;
 import org.hiero.sloth.fixtures.container.proto.KillImmediatelyRequest;
-import org.hiero.sloth.fixtures.container.proto.NodeCommunicationServiceGrpc;
-import org.hiero.sloth.fixtures.container.proto.NodeCommunicationServiceGrpc.NodeCommunicationServiceStub;
+import org.hiero.sloth.fixtures.container.proto.NodeCommunicationServiceInterface.NodeCommunicationServiceClient;
 import org.hiero.sloth.fixtures.container.proto.PingResponse;
 import org.hiero.sloth.fixtures.container.proto.PlatformStatusChange;
 import org.hiero.sloth.fixtures.container.proto.QuiescenceRequest;
@@ -66,6 +63,7 @@ import org.hiero.sloth.fixtures.container.proto.TransactionType;
 import org.hiero.sloth.fixtures.container.utils.ContainerUtils;
 import org.hiero.sloth.fixtures.internal.AbstractNode;
 import org.hiero.sloth.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
+import org.hiero.sloth.fixtures.internal.GrpcConnection;
 import org.hiero.sloth.fixtures.internal.KeysAndCertsConverter;
 import org.hiero.sloth.fixtures.internal.NetworkConfiguration;
 import org.hiero.sloth.fixtures.internal.ProtobufConverter;
@@ -93,17 +91,11 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     /** The local base directory where artifacts copied from the container will be stored. */
     private final Path localOutputDirectory;
 
-    /** The channel used for the {@link ContainerControlServiceGrpc} */
-    private final ManagedChannel containerControlChannel;
+    /** The connection to the gRPC service used to initialize and stop the consensus node */
+    private final GrpcConnection<ContainerControlServiceClient> containerControlConnection;
 
-    /** The channel used for the {@link NodeCommunicationServiceGrpc} */
-    private final ManagedChannel nodeCommChannel;
-
-    /** The gRPC service used to initialize and stop the consensus node */
-    private final ContainerControlServiceGrpc.ContainerControlServiceBlockingStub containerControlBlockingStub;
-
-    /** The gRPC service used to communicate with the consensus node */
-    private NodeCommunicationServiceGrpc.NodeCommunicationServiceBlockingStub nodeCommBlockingStub;
+    /** The connection to the gRPC service used to communicate with the consensus node */
+    private final GrpcConnection<NodeCommunicationServiceClient> nodeCommConnection;
 
     /** The configuration of this node */
     private final ContainerNodeConfiguration nodeConfiguration;
@@ -164,19 +156,14 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         container = new ContainerImage(dockerImage, network, selfId);
         container.start();
 
-        containerControlChannel = ManagedChannelBuilder.forAddress(
-                        container.getHost(), container.getMappedPort(CONTAINER_CONTROL_PORT))
-                .maxInboundMessageSize(32 * 1024 * 1024)
-                .usePlaintext()
-                .build();
-        nodeCommChannel = ManagedChannelBuilder.forAddress(
-                        container.getHost(), container.getMappedPort(NODE_COMMUNICATION_PORT))
-                .maxInboundMessageSize(32 * 1024 * 1024)
-                .usePlaintext()
-                .build();
-
-        // Blocking stub for initializing and killing the consensus node
-        containerControlBlockingStub = ContainerControlServiceGrpc.newBlockingStub(containerControlChannel);
+        containerControlConnection = new GrpcConnection<>(
+                container.getHost(),
+                container.getMappedPort(CONTAINER_CONTROL_PORT),
+                ContainerControlServiceClient::new);
+        nodeCommConnection = new GrpcConnection<>(
+                container.getHost(),
+                container.getMappedPort(NODE_COMMUNICATION_PORT),
+                NodeCommunicationServiceClient::new);
 
         profiler = new ContainerProfiler(selfId, container, localOutputDirectory);
     }
@@ -197,67 +184,65 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         }
 
         final InitRequest initRequest = InitRequest.newBuilder()
-                .setSelfId(ProtobufConverter.toLegacy(selfId))
-                .setGcLoggingEnabled(gcLoggingEnabled)
-                .addAllJvmArgs(jvmArgs)
+                .selfId(com.hedera.hapi.platform.state.NodeId.newBuilder()
+                        .id(selfId.id())
+                        .build())
+                .gcLoggingEnabled(gcLoggingEnabled)
+                .jvmArgs(jvmArgs)
                 .build();
-        //noinspection ResultOfMethodCallIgnored
-        containerControlBlockingStub.init(initRequest);
+        containerControlConnection.call(client -> client.init(initRequest));
 
         final StartRequest startRequest = StartRequest.newBuilder()
-                .setRoster(ProtobufConverter.fromPbj(roster()))
-                .setKeysAndCerts(KeysAndCertsConverter.toProto(keysAndCerts))
-                .setVersion(ProtobufConverter.fromPbj(version))
-                .putAllOverriddenProperties(nodeConfiguration.overrideProperties())
+                .roster(roster())
+                .keysAndCerts(KeysAndCertsConverter.toProto(keysAndCerts))
+                .version(version)
+                .overriddenProperties(nodeConfiguration.overrideProperties())
                 .build();
 
-        // Blocking stub for communicating with the consensus node
-        nodeCommBlockingStub = NodeCommunicationServiceGrpc.newBlockingStub(nodeCommChannel);
-
-        final NodeCommunicationServiceStub stub = NodeCommunicationServiceGrpc.newStub(nodeCommChannel);
-        stub.start(startRequest, new StreamObserver<>() {
-            @Override
-            public void onNext(final EventMessage value) {
-                receivedEvents.add(value);
-            }
-
-            @Override
-            public void onError(@NonNull final Throwable error) {
-                /*
-                 * After a call to killImmediately() the server forcibly closes the stream and the
-                 * client receives an INTERNAL error. This is expected and must *not* fail the test.
-                 * Only report unexpected errors that occur while the node is still running.
-                 */
-                if ((lifeCycle == RUNNING) && !isExpectedError(error)) {
-                    final String message = String.format("gRPC error from node %s", selfId);
-                    fail(message, error);
-                }
-            }
-
-            private static boolean isExpectedError(final @NonNull Throwable error) {
-                if (error instanceof final StatusRuntimeException sre) {
-                    final Code code = sre.getStatus().getCode();
-                    return code == Code.UNAVAILABLE || code == Code.CANCELLED || code == Code.INTERNAL;
-                }
-                return false;
-            }
-
-            @Override
-            public void onCompleted() {
-                if (lifeCycle != DESTROYED && lifeCycle != SHUTDOWN) {
-                    fail("Node " + selfId + " has closed the connection while running the test");
-                }
-            }
-        });
+        nodeCommConnection.callStreaming(
+                (client, replies) -> client.start(startRequest, replies),
+                receivedEvents::add,
+                this::handleEventStreamError,
+                this::handleEventStreamCompletion);
 
         lifeCycle = RUNNING;
+    }
+
+    /**
+     * Handles an error that ended the stream of event messages.
+     *
+     * @param error the error that ended the stream
+     */
+    private void handleEventStreamError(@NonNull final GrpcException error) {
+        /*
+         * After a call to killImmediately() the server forcibly closes the stream and the
+         * client receives an error. This is expected and must *not* fail the test.
+         * Only report unexpected errors that occur while the node is still running.
+         */
+        if ((lifeCycle == RUNNING) && !isExpectedError(error)) {
+            final String message = String.format("gRPC error from node %s", selfId);
+            fail(message, error);
+        }
+    }
+
+    private static boolean isExpectedError(@NonNull final GrpcException error) {
+        final GrpcStatus status = error.status();
+        return status == GrpcStatus.UNAVAILABLE || status == GrpcStatus.CANCELLED || status == GrpcStatus.INTERNAL;
+    }
+
+    /**
+     * Handles the node ending the stream of event messages without an error.
+     */
+    private void handleEventStreamCompletion() {
+        if (lifeCycle != DESTROYED && lifeCycle != SHUTDOWN) {
+            fail("Node " + selfId + " has closed the connection while running the test");
+        }
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    @SuppressWarnings("ResultOfMethodCallIgnored")
     protected void doKillImmediately(@NonNull final Duration timeout) {
         log.info("Killing node {} immediately...", selfId);
         try {
@@ -266,10 +251,12 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
             lifeCycle = SHUTDOWN;
 
             final KillImmediatelyRequest request = KillImmediatelyRequest.newBuilder()
-                    .setTimeoutSeconds((int) timeout.getSeconds())
+                    .timeoutSeconds((int) timeout.getSeconds())
                     .build();
             // Unary call – will throw if server returns an error.
-            containerControlBlockingStub.withDeadlineAfter(timeout).killImmediately(request);
+            containerControlConnection.call(client -> client.killImmediately(request), timeout);
+            // The connection ended with the node process. A new one is established when the node is started again.
+            nodeCommConnection.close();
             platformStatus = null;
 
             log.info("Node {} has been killed", selfId);
@@ -281,21 +268,17 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     /**
      * {@inheritDoc}
      */
-    @SuppressWarnings("ResultOfMethodCallIgnored")
     @Override
     protected void doSendQuiescenceCommand(@NonNull final QuiescenceCommand command, @NonNull final Duration timeout) {
         log.info("Sending quiescence command {} on node {}", command, selfId);
-        final org.hiero.sloth.fixtures.container.proto.QuiescenceCommand dto =
-                switch (command) {
-                    case QUIESCE -> org.hiero.sloth.fixtures.container.proto.QuiescenceCommand.QUIESCE;
-                    case BREAK_QUIESCENCE ->
-                        org.hiero.sloth.fixtures.container.proto.QuiescenceCommand.BREAK_QUIESCENCE;
-                    case DONT_QUIESCE -> org.hiero.sloth.fixtures.container.proto.QuiescenceCommand.DONT_QUIESCE;
-                };
-        nodeCommBlockingStub
-                .withDeadlineAfter(timeout)
-                .quiescenceCommandUpdate(
-                        QuiescenceRequest.newBuilder().setCommand(dto).build());
+        final org.hiero.sloth.fixtures.container.proto.QuiescenceCommand dto = switch (command) {
+            case QUIESCE -> org.hiero.sloth.fixtures.container.proto.QuiescenceCommand.QUIESCE;
+            case BREAK_QUIESCENCE -> org.hiero.sloth.fixtures.container.proto.QuiescenceCommand.BREAK_QUIESCENCE;
+            case DONT_QUIESCE -> org.hiero.sloth.fixtures.container.proto.QuiescenceCommand.DONT_QUIESCE;
+        };
+        final QuiescenceRequest request =
+                QuiescenceRequest.newBuilder().command(dto).build();
+        nodeCommConnection.call(client -> client.quiescenceCommandUpdate(request), timeout);
     }
 
     /**
@@ -308,12 +291,16 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         throwIfInLifecycle(DESTROYED, "Node has been destroyed.");
 
         try {
-            final TransactionRequest.Builder builder = TransactionRequest.newBuilder();
-            transactions.forEach(t -> builder.addPayload(t.toByteString()));
-            final TransactionRequestAnswer answer = nodeCommBlockingStub.submitTransaction(builder.build());
-            if (answer.getNumFailed() > 0) {
+            final List<Bytes> payload = transactions.stream()
+                    .map(SlothTransaction.PROTOBUF::toBytes)
+                    .toList();
+            final TransactionRequest request =
+                    TransactionRequest.newBuilder().payload(payload).build();
+            final TransactionRequestAnswer answer =
+                    nodeCommConnection.call(client -> client.submitTransaction(request));
+            if (answer.numFailed() > 0) {
                 fail("%d out of %d transaction(s) failed to submit for node %d."
-                        .formatted(answer.getNumFailed(), transactions.size(), selfId.id()));
+                        .formatted(answer.numFailed(), transactions.size(), selfId.id()));
             }
         } catch (final Exception e) {
             fail("Failed to submit transaction(s) to node %d".formatted(selfId.id()), e);
@@ -326,18 +313,17 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
                 ? TransactionType.BENCHMARK_TRANSACTION
                 : TransactionType.EMPTY_TRANSACTION;
         final StartTransactionGenerationRequest request = StartTransactionGenerationRequest.newBuilder()
-                .setTps(tps)
-                .setType(protoType)
+                .tps(tps)
+                .type(protoType)
                 .build();
-        //noinspection ResultOfMethodCallIgnored
-        nodeCommBlockingStub.startTransactionGeneration(request);
+        nodeCommConnection.call(client -> client.startTransactionGeneration(request));
     }
 
     @Override
     public long stopTransactionGeneration() {
-        final StopTransactionGenerationResponse response = nodeCommBlockingStub.stopTransactionGeneration(
-                Empty.newBuilder().build());
-        return response.getGeneratedCount();
+        final StopTransactionGenerationResponse response =
+                nodeCommConnection.call(client -> client.stopTransactionGeneration(Empty.DEFAULT));
+        return response.generatedCount();
     }
 
     /**
@@ -345,13 +331,12 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
      */
     @Override
     public boolean isAlive() {
-        final PingResponse response =
-                containerControlBlockingStub.nodePing(Empty.newBuilder().build());
-        if (!response.getAlive()) {
+        final PingResponse response = containerControlConnection.call(client -> client.nodePing(Empty.DEFAULT));
+        if (!response.alive()) {
             lifeCycle = SHUTDOWN;
             platformStatus = null;
         }
-        return response.getAlive();
+        return response.alive();
     }
 
     /**
@@ -426,8 +411,8 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         }
 
         log.info("Destroying container of node {}...", selfId);
-        containerControlChannel.shutdownNow();
-        nodeCommChannel.shutdownNow();
+        containerControlConnection.close();
+        nodeCommConnection.close();
         if (container.isRunning()) {
             container.stop();
         }
@@ -534,8 +519,8 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     public void tick(@NonNull final Instant now) {
         EventMessage event;
         while ((event = receivedEvents.poll()) != null) {
-            switch (event.getEventCase()) {
-                case LOG_ENTRY -> resultsCollector.addLogEntry(ProtobufConverter.toPlatform(event.getLogEntry()));
+            switch (event.event().kind()) {
+                case LOG_ENTRY -> resultsCollector.addLogEntry(ProtobufConverter.toPlatform(event.logEntryOrThrow()));
                 case PLATFORM_STATUS_CHANGE -> handlePlatformChange(event);
                 default -> log.warn("Received unexpected event: {}", event);
             }
@@ -543,8 +528,8 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     }
 
     private void handlePlatformChange(@NonNull final EventMessage value) {
-        final PlatformStatusChange change = value.getPlatformStatusChange();
-        final String statusName = change.getNewStatus();
+        final PlatformStatusChange change = value.platformStatusChangeOrThrow();
+        final String statusName = change.newStatus();
         log.info("Received platform status change from node {}: {}", selfId, statusName);
         try {
             final PlatformStatus newStatus = PlatformStatus.valueOf(statusName);

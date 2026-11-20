@@ -5,52 +5,45 @@ import static org.hiero.sloth.fixtures.container.utils.ContainerConstants.CONTAI
 import static org.hiero.sloth.fixtures.container.utils.ContainerConstants.CONTAINER_CONTROL_PORT;
 import static org.hiero.sloth.fixtures.container.utils.ContainerConstants.ENV_SLOTH_WORKDIR;
 
-import io.grpc.Server;
-import io.grpc.ServerBuilder;
-import java.io.IOException;
+import io.helidon.webserver.WebServer;
 import java.nio.file.Path;
 import org.hiero.sloth.fixtures.container.docker.logging.ControlProcessLogConfigBuilder;
 
 /**
  * Main entry point for the Docker container application.
  * <p>
- * This class initializes and starts a gRPC {@link Server} that provides services via the {@link DockerManager}.
+ * This class initializes and starts a gRPC server that provides services via the {@link DockerManager}.
  * </p>
  */
 public final class DockerMain {
 
-    /** The underlying gRPC server instance. */
-    private final Server grpcServer;
+    /** The web server that serves the gRPC service. */
+    private final WebServer grpcServer;
 
     /**
      * Constructs a {@link DockerMain} instance.
      */
     public DockerMain() {
         final int port = Integer.getInteger("sloth.control.port", CONTAINER_CONTROL_PORT);
-        grpcServer = ServerBuilder.forPort(port).addService(new DockerManager()).build();
+        grpcServer = GrpcServerFactory.create(port, new DockerManager());
     }
 
     /**
-     * Main method to start the gRPC server.
+     * Main method to start the gRPC server. The server keeps the process alive after this method has returned.
      *
      * @param args command-line arguments (not used)
-     * @throws IOException if an I/O error occurs while starting the server
-     * @throws InterruptedException if the server is interrupted while waiting for termination
      */
-    public static void main(final String[] args) throws IOException, InterruptedException {
+    public static void main(final String[] args) {
         final String workDir = System.getProperty(ENV_SLOTH_WORKDIR, CONTAINER_APP_WORKING_DIR);
         ControlProcessLogConfigBuilder.configure(Path.of(workDir));
         new DockerMain().startGrpcServer();
     }
 
     /**
-     * Starts the gRPC server and waits for its termination.
-     *
-     * @throws IOException if an I/O error occurs while starting the server
-     * @throws InterruptedException if the server is interrupted while waiting for termination
+     * Starts the gRPC server. This method returns once the server accepts connections. The server runs on its own
+     * threads, which keep the process alive.
      */
-    private void startGrpcServer() throws IOException, InterruptedException {
+    private void startGrpcServer() {
         grpcServer.start();
-        grpcServer.awaitTermination();
     }
 }

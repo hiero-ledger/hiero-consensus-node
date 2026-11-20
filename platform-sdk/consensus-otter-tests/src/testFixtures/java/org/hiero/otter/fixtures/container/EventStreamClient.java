@@ -4,24 +4,27 @@ package org.hiero.otter.fixtures.container;
 import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.fail;
 
+import com.hedera.pbj.runtime.grpc.Pipeline;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import io.grpc.stub.StreamObserver;
 import java.time.Duration;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Flow;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.container.proto.EventMessage;
-import org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceGrpc.NodeCommunicationServiceStub;
+import org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceInterface.NodeCommunicationServiceClient;
 import org.hiero.otter.fixtures.container.proto.SubscribeRequest;
 import org.hiero.otter.fixtures.container.proto.SyncPoint;
 
@@ -51,8 +54,8 @@ final class EventStreamClient {
     /** The ID of the node this client subscribes to, used only for logging. */
     private final NodeId selfId;
 
-    /** The asynchronous stub used to open the subscription. */
-    private final NodeCommunicationServiceStub stub;
+    /** Opens the connection for a subscription. Every subscription uses a connection of its own. */
+    private final Supplier<NodeCommunicationServiceClient> connector;
 
     /** The queue into which received messages are placed for consumption by the fixture. */
     private final BlockingQueue<EventMessage> sink;
@@ -66,7 +69,7 @@ final class EventStreamClient {
     /** The sequence number of the last ordered message received, used to resume after a reconnect. */
     private final AtomicLong lastSequence = new AtomicLong(0);
 
-    /** Scheduler running the re-subscribe attempts. */
+    /** Scheduler running the subscriptions. Its single thread is blocked for as long as a subscription is open. */
     private final ScheduledExecutorService scheduler;
 
     /** Whether this client has been closed. */
@@ -82,19 +85,19 @@ final class EventStreamClient {
      * Creates a new {@link EventStreamClient}. Call {@link #start()} to open the subscription.
      *
      * @param selfId the ID of the node this client subscribes to
-     * @param stub the asynchronous stub used to open the subscription
+     * @param connector opens the connection for a subscription
      * @param sink the queue into which received messages are placed
      * @param nodeIsRunning supplies whether the node is still supposed to be running
      * @param nodeIsAlive supplies whether the node process is still alive
      */
     EventStreamClient(
             @NonNull final NodeId selfId,
-            @NonNull final NodeCommunicationServiceStub stub,
+            @NonNull final Supplier<NodeCommunicationServiceClient> connector,
             @NonNull final BlockingQueue<EventMessage> sink,
             @NonNull final BooleanSupplier nodeIsRunning,
             @NonNull final BooleanSupplier nodeIsAlive) {
         this.selfId = requireNonNull(selfId);
-        this.stub = requireNonNull(stub);
+        this.connector = requireNonNull(connector);
         this.sink = requireNonNull(sink);
         this.nodeIsRunning = requireNonNull(nodeIsRunning);
         this.nodeIsAlive = requireNonNull(nodeIsAlive);
@@ -110,35 +113,48 @@ final class EventStreamClient {
      * Opens the initial subscription.
      */
     void start() {
-        subscribe();
+        scheduleResubscribe(0);
     }
 
     /**
-     * Opens (or re-opens) the subscription, resuming after the last sequence number seen.
+     * Opens (or re-opens) the subscription, resuming after the last sequence number seen, and handles its end. This
+     * method blocks until the stream has ended.
      */
     private void subscribe() {
         if (closed.get()) {
             return;
         }
-        final SubscribeRequest request = SubscribeRequest.newBuilder()
-                .setAfterSequence(lastSequence.get())
-                .build();
-        stub.subscribe(request, new StreamObserver<>() {
-            @Override
-            public void onNext(final EventMessage message) {
-                onMessage(message);
-            }
+        final SubscribeRequest request =
+                SubscribeRequest.newBuilder().afterSequence(lastSequence.get()).build();
+        final AtomicReference<Throwable> streamError = new AtomicReference<>();
+        // Closing the client closes the connection, which also ends a stream that is abandoned on interruption.
+        try (final NodeCommunicationServiceClient client = connector.get()) {
+            client.subscribe(request, new Pipeline<>() {
+                @Override
+                public void onSubscribe(final Flow.Subscription subscription) {
+                    subscription.request(Long.MAX_VALUE);
+                }
 
-            @Override
-            public void onError(final Throwable error) {
-                handleStreamEnd(error);
-            }
+                @Override
+                public void onNext(final EventMessage message) {
+                    onMessage(message);
+                }
 
-            @Override
-            public void onCompleted() {
-                handleStreamEnd(null);
-            }
-        });
+                @Override
+                public void onError(final Throwable error) {
+                    streamError.set(error);
+                }
+
+                @Override
+                public void onComplete() {
+                    // The end of the stream is handled when the subscribe call returns
+                }
+            });
+        } catch (final RuntimeException e) {
+            // The connection could not be opened, or waiting for the end of the stream was interrupted by close()
+            streamError.compareAndSet(null, e);
+        }
+        handleStreamEnd(streamError.get());
     }
 
     /**
@@ -154,9 +170,9 @@ final class EventStreamClient {
         downSinceNanos = 0;
 
         if (message.hasSyncPoint()) {
-            checkForGap(message.getSyncPoint());
+            checkForGap(message.syncPointOrThrow());
         }
-        final long sequence = message.getSequence();
+        final long sequence = message.sequence();
         if (sequence > 0) {
             lastSequence.accumulateAndGet(sequence, Math::max);
         }
@@ -168,7 +184,7 @@ final class EventStreamClient {
      * which means messages were evicted before we could re-subscribe and results may be incomplete.
      */
     private void checkForGap(@NonNull final SyncPoint syncPoint) {
-        final long oldestBuffered = syncPoint.getOldestBuffered();
+        final long oldestBuffered = syncPoint.oldestBuffered();
         final long expectedNext = lastSequence.get() + 1;
         if (oldestBuffered > expectedNext) {
             log.warn(
@@ -208,11 +224,12 @@ final class EventStreamClient {
         }
 
         if (downFor.compareTo(MAX_DOWNTIME) > 0) {
-            fail(
-                    String.format(
-                            "Event stream for node %s stayed down for %s (nodeIsAlive=%s)",
-                            selfId, downFor, nodeIsAlive.getAsBoolean()),
-                    error);
+            final String message = String.format(
+                    "Event stream for node %s stayed down for %s (nodeIsAlive=%s)",
+                    selfId, downFor, nodeIsAlive.getAsBoolean());
+            // The failure is thrown on the thread of the scheduler, which does not report it
+            log.error(message, error);
+            fail(message, error);
         } else {
             final long delay = backoffMillis.getAndUpdate(current -> Math.min(current * 2, MAX_BACKOFF_MILLIS));
             scheduleResubscribe(delay);
@@ -234,8 +251,8 @@ final class EventStreamClient {
     }
 
     /**
-     * Stops this client. Idempotent: after the first call the scheduler is stopped and all later stream
-     * callbacks are ignored.
+     * Stops this client. Idempotent: after the first call the scheduler is stopped, which ends an open
+     * subscription, and all later stream callbacks are ignored.
      */
     void close() {
         if (closed.compareAndSet(false, true)) {

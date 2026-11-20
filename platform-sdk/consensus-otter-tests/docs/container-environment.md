@@ -278,16 +278,24 @@ sequenceDiagram
 ## 📡 gRPC Protocol
 
 Container nodes use two gRPC APIs for interacting with the container. One for creating and stopping the consensus node,
-and one for interacting with the consensus node itself:
+and one for interacting with the consensus node itself. Both APIs are defined in `src/testFixtures/proto` and compiled
+with PBJ. The services run on a Helidon web server inside the container, and the test framework calls them with the
+PBJ gRPC client:
 
 ```protobuf
-// Service definition for controlling tests.
+// Service definition for controlling the lifecycle of the consensus node.
 service ContainerControlService {
   // RPC to initialize the container with the node ID.
-  rpc Init(InitRequest) returns (google.protobuf.Empty);
+  rpc init(InitRequest) returns (Empty);
 
-  // RCP to signal a kill of the app
-  rpc KillImmediately(KillImmediatelyRequest) returns (google.protobuf.Empty);
+  // RPC to kill the consensus node app, but not shutdown the container.
+  rpc killImmediately(KillImmediatelyRequest) returns (Empty);
+
+  // RPC to check if the consensus node process is alive
+  rpc nodePing(Empty) returns (PingResponse);
+
+  // RPC to capture a JVM thread dump of the consensus node process for diagnostics.
+  rpc dumpThreads(Empty) returns (ThreadDumpResponse);
 }
 
 // Request to initialize the container.
@@ -301,15 +309,24 @@ message KillImmediatelyRequest {...}
 // Service definition for communicating with the consensus node.
 service NodeCommunicationService {
 
-  // RPC to start the platform and stream event messages.
-  rpc Start(StartRequest) returns (stream EventMessage);
+  // RPC to start the platform. Returns once the platform has been started.
+  rpc start(StartRequest) returns (Empty);
+
+  // RPC to subscribe to the stream of event messages produced by the platform.
+  rpc subscribe(SubscribeRequest) returns (stream EventMessage);
 
   // RPC used by the test harness to submit a transaction to the running
   // platform. Returns an TransactionRequestAnswer weather the platform accepted the transaction or not.
-  rpc SubmitTransaction(TransactionRequest) returns (TransactionRequestAnswer);
+  rpc submitTransaction(TransactionRequest) returns (TransactionRequestAnswer);
 
   // RPC to change the synthetic bottleneck of the handle thread.
-  rpc SyntheticBottleneckUpdate(SyntheticBottleneckRequest) returns (google.protobuf.Empty);
+  rpc syntheticBottleneckUpdate(SyntheticBottleneckRequest) returns (Empty);
+
+  // RPC to control quiescence of the node.
+  rpc quiescenceCommandUpdate(QuiescenceRequest) returns (Empty);
+
+  // RPC to send a ping message to the instrumented modules of the node.
+  rpc instrumentationPing(InstrumentationPingRequest) returns (Empty);
 }
 
 // Wrapper for different types of event messages.

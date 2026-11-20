@@ -18,13 +18,11 @@ import static org.hiero.otter.fixtures.internal.AbstractMiniNode.LifeCycle.RUNNI
 import static org.hiero.otter.fixtures.internal.AbstractMiniNode.LifeCycle.SHUTDOWN;
 import static org.junit.jupiter.api.Assertions.fail;
 
-import com.google.protobuf.Empty;
+import com.hedera.pbj.runtime.grpc.GrpcException;
+import com.hedera.pbj.runtime.grpc.GrpcStatus;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import io.grpc.ManagedChannel;
-import io.grpc.ManagedChannelBuilder;
-import io.grpc.Status.Code;
-import io.grpc.StatusRuntimeException;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -37,7 +35,6 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.file.FileSystemManager;
@@ -56,12 +53,14 @@ import org.hiero.otter.fixtures.app.OtterApp;
 import org.hiero.otter.fixtures.app.OtterAppConfig;
 import org.hiero.otter.fixtures.app.services.consistency.ConsistencyService;
 import org.hiero.otter.fixtures.app.services.consistency.ConsistencyServiceConfig;
-import org.hiero.otter.fixtures.container.proto.ContainerControlServiceGrpc;
+import org.hiero.otter.fixtures.container.proto.ContainerControlServiceInterface;
+import org.hiero.otter.fixtures.container.proto.ContainerControlServiceInterface.ContainerControlServiceClient;
+import org.hiero.otter.fixtures.container.proto.Empty;
 import org.hiero.otter.fixtures.container.proto.EventMessage;
 import org.hiero.otter.fixtures.container.proto.InitRequest;
 import org.hiero.otter.fixtures.container.proto.KillImmediatelyRequest;
-import org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceGrpc;
-import org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceGrpc.NodeCommunicationServiceStub;
+import org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceInterface;
+import org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceInterface.NodeCommunicationServiceClient;
 import org.hiero.otter.fixtures.container.proto.PingResponse;
 import org.hiero.otter.fixtures.container.proto.PlatformStatusChange;
 import org.hiero.otter.fixtures.container.proto.QuiescenceRequest;
@@ -101,7 +100,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
 
     private static final Logger log = LogManager.getLogger();
 
-    /** Backoff between retries of the unary {@code start} RPC while the channel reconnects. */
+    /** Backoff between retries of the unary {@code start} RPC while the connection is re-established. */
     private static final Duration START_RETRY_BACKOFF = Duration.ofMillis(250);
 
     /** The time manager to use for this node */
@@ -113,17 +112,11 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     /** The local base directory where artifacts copied from the container will be stored. */
     private final Path localOutputDirectory;
 
-    /** The channel used for the {@link ContainerControlServiceGrpc} */
-    private final ManagedChannel containerControlChannel;
+    /** The connection to the {@link ContainerControlServiceInterface}, used to initialize and stop the consensus node */
+    private final GrpcConnection<ContainerControlServiceClient> containerControlConnection;
 
-    /** The channel used for the {@link NodeCommunicationServiceGrpc} */
-    private final ManagedChannel nodeCommChannel;
-
-    /** The gRPC service used to initialize and stop the consensus node */
-    private final ContainerControlServiceGrpc.ContainerControlServiceBlockingStub containerControlBlockingStub;
-
-    /** The gRPC service used to communicate with the consensus node */
-    protected NodeCommunicationServiceGrpc.NodeCommunicationServiceBlockingStub nodeCommBlockingStub;
+    /** The connection to the {@link NodeCommunicationServiceInterface}, used to communicate with the consensus node */
+    final GrpcConnection<NodeCommunicationServiceClient> nodeCommConnection;
 
     /** The configuration of this node */
     private final ContainerNodeConfiguration nodeConfiguration;
@@ -194,22 +187,14 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         container = new ContainerImage(dockerImage, network, selfId);
         container.start();
 
-        containerControlChannel = ManagedChannelBuilder.forAddress(
-                        container.getHost(), container.getMappedPort(CONTAINER_CONTROL_PORT))
-                .maxInboundMessageSize(32 * 1024 * 1024)
-                .usePlaintext()
-                .build();
-        nodeCommChannel = ManagedChannelBuilder.forAddress(
-                        container.getHost(), container.getMappedPort(NODE_COMMUNICATION_PORT))
-                .maxInboundMessageSize(32 * 1024 * 1024)
-                .keepAliveTime(20, TimeUnit.SECONDS)
-                .keepAliveTimeout(10, TimeUnit.SECONDS)
-                .keepAliveWithoutCalls(true)
-                .usePlaintext()
-                .build();
-
-        // Blocking stub for initializing and killing the consensus node
-        containerControlBlockingStub = ContainerControlServiceGrpc.newBlockingStub(containerControlChannel);
+        containerControlConnection = new GrpcConnection<>(
+                container.getHost(),
+                container.getMappedPort(CONTAINER_CONTROL_PORT),
+                ContainerControlServiceClient::new);
+        nodeCommConnection = new GrpcConnection<>(
+                container.getHost(),
+                container.getMappedPort(NODE_COMMUNICATION_PORT),
+                NodeCommunicationServiceClient::new);
 
         profiler = new ContainerProfiler(selfId, container, localOutputDirectory);
     }
@@ -242,58 +227,63 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         }
 
         final InitRequest initRequest = InitRequest.newBuilder()
-                .setSelfId(ProtobufConverter.toLegacy(selfId))
-                .setGcLoggingEnabled(gcLoggingEnabled)
-                .addAllJvmArgs(jvmArgs)
+                .selfId(com.hedera.hapi.platform.state.NodeId.newBuilder()
+                        .id(selfId.id())
+                        .build())
+                .gcLoggingEnabled(gcLoggingEnabled)
+                .jvmArgs(jvmArgs)
                 .build();
-        //noinspection ResultOfMethodCallIgnored
-        containerControlBlockingStub.init(initRequest);
+        containerControlConnection.call(client -> client.init(initRequest));
 
         final StartRequest startRequest = StartRequest.newBuilder()
-                .setRoster(ProtobufConverter.fromPbj(roster()))
-                .setKeysAndCerts(KeysAndCertsConverter.toProto(keysAndCerts))
-                .setVersion(ProtobufConverter.fromPbj(version))
-                .putAllOverriddenProperties(nodeConfiguration.overrideProperties())
+                .roster(roster())
+                .keysAndCerts(KeysAndCertsConverter.toProto(keysAndCerts))
+                .version(version)
+                .overriddenProperties(nodeConfiguration.overrideProperties())
                 .build();
-
-        // Blocking stub for communicating with the consensus node
-        nodeCommBlockingStub = NodeCommunicationServiceGrpc.newBlockingStub(nodeCommChannel);
 
         // Start the platform. This is a unary call and throws if the server returns an error.
         startPlatform(startRequest, timeout);
 
         lifeCycle = RUNNING;
 
-        // Subscribe to the event stream on a self-healing client.
-        final NodeCommunicationServiceStub asyncStub = NodeCommunicationServiceGrpc.newStub(nodeCommChannel);
-        eventStreamClient =
-                new EventStreamClient(selfId, asyncStub, receivedEvents, () -> lifeCycle == RUNNING, this::isAlive);
+        // Subscribe to the event stream on a self-healing client. Every subscription uses a connection of its own,
+        // because closing the connection is the only way to end the stream from this side.
+        eventStreamClient = new EventStreamClient(
+                selfId,
+                () -> GrpcConnection.connect(
+                        container.getHost(),
+                        container.getMappedPort(NODE_COMMUNICATION_PORT),
+                        NodeCommunicationServiceClient::new),
+                receivedEvents,
+                () -> lifeCycle == RUNNING,
+                this::isAlive);
         eventStreamClient.start();
     }
 
     /**
      * Invokes the unary {@code start} RPC, retrying while the response is {@code UNAVAILABLE} and the start budget has
-     * not been exhausted. This tolerates the shared channel needing to reconnect to a freshly (re)started node process;
+     * not been exhausted. This tolerates the connection to a freshly (re)started node process not being available yet;
      * any other status, or exhausting the budget, propagates the error.
      *
      * @param startRequest the request to send
      * @param timeout      the overall budget for starting the platform
      */
-    @SuppressWarnings("ResultOfMethodCallIgnored")
     private void startPlatform(@NonNull final StartRequest startRequest, @NonNull final Duration timeout) {
         final Instant deadline = timeManager.now().plus(timeout);
         while (true) {
             try {
-                nodeCommBlockingStub.start(startRequest);
+                nodeCommConnection.call(client -> client.start(startRequest));
                 return;
-            } catch (final StatusRuntimeException e) {
-                if (e.getStatus().getCode() != Code.UNAVAILABLE
-                        || !timeManager.now().isBefore(deadline)) {
+            } catch (final GrpcException e) {
+                if (e.status() != GrpcStatus.UNAVAILABLE || !timeManager.now().isBefore(deadline)) {
                     throw e;
                 }
-                log.warn("Start of node {} returned UNAVAILABLE; retrying while the channel reconnects", selfId);
+                log.warn(
+                        "Start of node {} returned UNAVAILABLE; retrying while the connection is re-established",
+                        selfId);
             }
-            // Back off before retrying to give the channel time to reconnect to the new node process.
+            // Back off before retrying to give the new node process time to accept connections.
             timeManager.waitFor(START_RETRY_BACKOFF);
         }
     }
@@ -302,7 +292,6 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
      * {@inheritDoc}
      */
     @Override
-    @SuppressWarnings("ResultOfMethodCallIgnored")
     protected void doKillImmediately(@NonNull final Duration timeout) {
         log.info("Killing node {} immediately...", selfId);
         try {
@@ -317,10 +306,12 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
             }
 
             final KillImmediatelyRequest request = KillImmediatelyRequest.newBuilder()
-                    .setTimeoutSeconds((int) timeout.getSeconds())
+                    .timeoutSeconds((int) timeout.getSeconds())
                     .build();
             // Unary call – will throw if server returns an error.
-            containerControlBlockingStub.withDeadlineAfter(timeout).killImmediately(request);
+            containerControlConnection.call(client -> client.killImmediately(request), timeout);
+            // The connection ended with the node process. A new one is established when the node is started again.
+            nodeCommConnection.close();
             platformStatus = null;
 
             log.info("Node {} has been killed", selfId);
@@ -333,34 +324,28 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
      * {@inheritDoc}
      */
     @Override
-    @SuppressWarnings("ResultOfMethodCallIgnored")
     protected void doStartSyntheticBottleneck(@NonNull final Duration delayPerRound, @NonNull final Duration timeout) {
         log.info("Starting synthetic bottleneck on node {}", selfId);
-        nodeCommBlockingStub
-                .withDeadlineAfter(timeout)
-                .syntheticBottleneckUpdate(SyntheticBottleneckRequest.newBuilder()
-                        .setSleepMillisPerRound(delayPerRound.toMillis())
-                        .build());
+        final SyntheticBottleneckRequest request = SyntheticBottleneckRequest.newBuilder()
+                .sleepMillisPerRound(delayPerRound.toMillis())
+                .build();
+        nodeCommConnection.call(client -> client.syntheticBottleneckUpdate(request), timeout);
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    @SuppressWarnings("ResultOfMethodCallIgnored")
     protected void doStopSyntheticBottleneck(@NonNull final Duration timeout) {
         log.info("Stopping synthetic bottleneck on node {}", selfId);
-        nodeCommBlockingStub
-                .withDeadlineAfter(timeout)
-                .syntheticBottleneckUpdate(SyntheticBottleneckRequest.newBuilder()
-                        .setSleepMillisPerRound(0)
-                        .build());
+        final SyntheticBottleneckRequest request =
+                SyntheticBottleneckRequest.newBuilder().sleepMillisPerRound(0).build();
+        nodeCommConnection.call(client -> client.syntheticBottleneckUpdate(request), timeout);
     }
 
     /**
      * {@inheritDoc}
      */
-    @SuppressWarnings("ResultOfMethodCallIgnored")
     @Override
     protected void doSendQuiescenceCommand(@NonNull final QuiescenceCommand command, @NonNull final Duration timeout) {
         log.info("Sending quiescence command {} on node {}", command, selfId);
@@ -369,10 +354,9 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
             case BREAK_QUIESCENCE -> org.hiero.otter.fixtures.container.proto.QuiescenceCommand.BREAK_QUIESCENCE;
             case DONT_QUIESCE -> org.hiero.otter.fixtures.container.proto.QuiescenceCommand.DONT_QUIESCE;
         };
-        nodeCommBlockingStub
-                .withDeadlineAfter(timeout)
-                .quiescenceCommandUpdate(
-                        QuiescenceRequest.newBuilder().setCommand(dto).build());
+        final QuiescenceRequest request =
+                QuiescenceRequest.newBuilder().command(dto).build();
+        nodeCommConnection.call(client -> client.quiescenceCommandUpdate(request), timeout);
     }
 
     /**
@@ -385,12 +369,16 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         throwIfInLifecycle(DESTROYED, "Node has been destroyed.");
 
         try {
-            final TransactionRequest.Builder builder = TransactionRequest.newBuilder();
-            transactions.forEach(t -> builder.addPayload(t.toByteString()));
-            final TransactionRequestAnswer answer = nodeCommBlockingStub.submitTransaction(builder.build());
-            if (answer.getNumFailed() > 0) {
+            final List<Bytes> payload = transactions.stream()
+                    .map(OtterTransaction.PROTOBUF::toBytes)
+                    .toList();
+            final TransactionRequest request =
+                    TransactionRequest.newBuilder().payload(payload).build();
+            final TransactionRequestAnswer answer =
+                    nodeCommConnection.call(client -> client.submitTransaction(request));
+            if (answer.numFailed() > 0) {
                 fail("%d out of %d transaction(s) failed to submit for node %d."
-                        .formatted(answer.getNumFailed(), transactions.size(), selfId.id()));
+                        .formatted(answer.numFailed(), transactions.size(), selfId.id()));
             }
         } catch (final Exception e) {
             fail("Failed to submit transaction(s) to node %d".formatted(selfId.id()), e);
@@ -402,16 +390,15 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
      */
     @Override
     public boolean isAlive() {
-        final PingResponse response =
-                containerControlBlockingStub.nodePing(Empty.newBuilder().build());
-        if (!response.getAlive()) {
+        final PingResponse response = containerControlConnection.call(client -> client.nodePing(Empty.DEFAULT));
+        if (!response.alive()) {
             lifeCycle = SHUTDOWN;
             platformStatus = null;
             if (eventStreamClient != null) {
                 eventStreamClient.close();
             }
         }
-        return response.getAlive();
+        return response.alive();
     }
 
     /**
@@ -434,12 +421,11 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     @NonNull
     public String dumpThreads() {
         try {
-            final ThreadDumpResponse response = containerControlBlockingStub
-                    .withDeadlineAfter(Duration.ofSeconds(40))
-                    .dumpThreads(Empty.newBuilder().build());
-            return response.getThreadDump();
-        } catch (final StatusRuntimeException e) {
-            return "(thread dump RPC failed for node " + selfId + ": " + e.getStatus() + ")";
+            final ThreadDumpResponse response = containerControlConnection.call(
+                    client -> client.dumpThreads(Empty.DEFAULT), Duration.ofSeconds(40));
+            return response.threadDump();
+        } catch (final GrpcException e) {
+            return "(thread dump RPC failed for node " + selfId + ": " + e.getMessage() + ")";
         }
     }
 
@@ -589,8 +575,8 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         if (eventStreamClient != null) {
             eventStreamClient.close();
         }
-        containerControlChannel.shutdownNow();
-        nodeCommChannel.shutdownNow();
+        containerControlConnection.close();
+        nodeCommConnection.close();
         if (container.isRunning()) {
             container.stop();
         }
@@ -723,11 +709,11 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     public void tick(@NonNull final Instant now) {
         EventMessage event;
         while ((event = receivedEvents.poll()) != null) {
-            switch (event.getEventCase()) {
-                case LOG_ENTRY -> resultsCollector.addLogEntry(ProtobufConverter.toPlatform(event.getLogEntry()));
+            switch (event.event().kind()) {
+                case LOG_ENTRY -> resultsCollector.addLogEntry(ProtobufConverter.toPlatform(event.logEntryOrThrow()));
                 case PLATFORM_STATUS_CHANGE -> handlePlatformChange(event);
                 case CONSENSUS_ROUND ->
-                    resultsCollector.addConsensusRound(ProtobufConverter.toPlatform(event.getConsensusRound()));
+                    resultsCollector.addConsensusRound(ProtobufConverter.toPlatform(event.consensusRoundOrThrow()));
                 case SYNC_POINT -> handleSyncPoint(event);
                 default -> log.warn("Received unexpected event: {}", event);
             }
@@ -735,8 +721,8 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     }
 
     private void handlePlatformChange(@NonNull final EventMessage value) {
-        final PlatformStatusChange change = value.getPlatformStatusChange();
-        final String statusName = change.getNewStatus();
+        final PlatformStatusChange change = value.platformStatusChangeOrThrow();
+        final String statusName = change.newStatus();
         log.info("Received platform status change from node {}: {}", selfId, statusName);
         try {
             final PlatformStatus newStatus = PlatformStatus.valueOf(statusName);
@@ -754,8 +740,8 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
      * reconnect.
      */
     private void handleSyncPoint(@NonNull final EventMessage value) {
-        final SyncPoint syncPoint = value.getSyncPoint();
-        final String statusName = syncPoint.getCurrentStatus();
+        final SyncPoint syncPoint = value.syncPointOrThrow();
+        final String statusName = syncPoint.currentStatus();
         if (statusName.isEmpty()) {
             return;
         }

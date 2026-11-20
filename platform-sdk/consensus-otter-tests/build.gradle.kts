@@ -5,7 +5,7 @@ plugins {
     id("org.hiero.gradle.module.library")
     id("org.hiero.gradle.feature.test-fixtures")
     id("org.hiero.gradle.feature.test-integration")
-    id("org.hiero.gradle.feature.protobuf")
+    id("com.hedera.pbj.pbj-compiler")
 }
 
 description = "Consensus Otter Test Framework"
@@ -87,17 +87,8 @@ testModuleInfo {
     runtimeOnly("org.hiero.consensus.event.intake.concurrent")
 }
 
-testIntegrationModuleInfo { //
-    runtimeOnly("io.grpc.netty.shaded")
-}
-
 extensions.getByName<GradleOnlyDirectives>("testOtterModuleInfo").apply {
     runtimeOnly("org.hiero.consensus.event.intake.concurrent")
-    runtimeOnly("io.grpc.netty.shaded")
-}
-
-extensions.getByName<GradleOnlyDirectives>("testChaosModuleInfo").apply {
-    runtimeOnly("io.grpc.netty.shaded")
 }
 
 // This is applied to all Test tasks to work across all execution methods (local, CI, etc.)

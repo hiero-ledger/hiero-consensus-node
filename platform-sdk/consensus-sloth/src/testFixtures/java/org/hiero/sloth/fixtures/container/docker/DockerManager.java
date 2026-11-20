@@ -9,9 +9,9 @@ import static org.hiero.sloth.fixtures.container.utils.ContainerConstants.ENV_SL
 import static org.hiero.sloth.fixtures.container.utils.ContainerConstants.ENV_SLOTH_WORKDIR;
 import static org.hiero.sloth.fixtures.container.utils.ContainerConstants.getNodeCommunicationDebugPort;
 
-import com.google.protobuf.Empty;
+import com.hedera.pbj.runtime.grpc.GrpcException;
+import com.hedera.pbj.runtime.grpc.GrpcStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
@@ -28,7 +28,8 @@ import java.util.regex.Pattern;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.sloth.fixtures.container.proto.ContainerControlServiceGrpc;
+import org.hiero.sloth.fixtures.container.proto.ContainerControlServiceInterface;
+import org.hiero.sloth.fixtures.container.proto.Empty;
 import org.hiero.sloth.fixtures.container.proto.InitRequest;
 import org.hiero.sloth.fixtures.container.proto.KillImmediatelyRequest;
 import org.hiero.sloth.fixtures.container.proto.PingResponse;
@@ -37,7 +38,7 @@ import org.hiero.sloth.fixtures.container.proto.PingResponse;
  * gRPC service implementation for communication between the test framework and the container to start and stop the
  * consensus node.
  */
-public final class DockerManager extends ContainerControlServiceGrpc.ContainerControlServiceImplBase {
+public final class DockerManager implements ContainerControlServiceInterface {
 
     /** Logger */
     private static final Logger log = LogManager.getLogger(DockerManager.class);
@@ -54,7 +55,7 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
 
     /**
      * The main class in the docker application jar that starts the
-     * {@link org.hiero.sloth.fixtures.container.proto.NodeCommunicationServiceGrpc}
+     * {@link org.hiero.sloth.fixtures.container.proto.NodeCommunicationServiceInterface}
      */
     private static final String CONSENSUS_NODE_MAIN_CLASS =
             "org.hiero.sloth.fixtures.container.docker.ConsensusNodeMain";
@@ -76,27 +77,28 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
      */
     private NodeId selfId;
 
-    /** The process running the {@link org.hiero.sloth.fixtures.container.proto.NodeCommunicationServiceGrpc} */
+    /** The process running the {@link org.hiero.sloth.fixtures.container.proto.NodeCommunicationServiceInterface} */
     private Process process;
 
     /**
      * Initializes the consensus node manager and starts its gRPC server.
      *
      * @param request the initialization request containing the self node ID
-     * @param responseObserver The observer used to confirm termination.
+     * @return an empty response confirming that the consensus node manager gRPC service is available
+     * @throws GrpcException if the request is invalid, or if the consensus node process could not be started
      */
     @Override
-    public synchronized void init(
-            @NonNull final InitRequest request, @NonNull final StreamObserver<Empty> responseObserver) {
+    @NonNull
+    public synchronized Empty init(@NonNull final InitRequest request) {
         log.info("Init request received");
-        final NodeId requestSelfId = NodeId.of(request.getSelfId().getId());
+        final NodeId requestSelfId = NodeId.of(request.selfIdOrElse(com.hedera.hapi.platform.state.NodeId.DEFAULT)
+                .id());
         if (attemptingToChangeSelfId(requestSelfId)) {
             log.error(
                     "Node ID cannot be changed after initialization. Current ID: {}, requested ID: {}",
                     selfId.id(),
                     requestSelfId.id());
-            responseObserver.onError(new IllegalStateException("Node ID cannot be changed after initialization."));
-            return;
+            throw new GrpcException(GrpcStatus.FAILED_PRECONDITION, "Node ID cannot be changed after initialization.");
         }
 
         this.selfId = requestSelfId;
@@ -114,14 +116,13 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
         final int commPort = Integer.getInteger("sloth.comm.port", 8081);
         command.add("-Dsloth.comm.port=" + commPort);
 
-        if (request.getGcLoggingEnabled()) {
+        if (request.gcLoggingEnabled()) {
             command.add("-Xlog:gc*:file=" + WORK_DIR + "output/gc.log:time");
         }
-        for (final String jvmArg : request.getJvmArgsList()) {
+        for (final String jvmArg : request.jvmArgs()) {
             if (!VALID_JVM_ARG_PATTERN.matcher(jvmArg).matches()) {
                 log.error("Invalid JVM argument rejected: {}", jvmArg);
-                responseObserver.onError(new IllegalArgumentException("Invalid JVM argument: " + jvmArg));
-                return;
+                throw new GrpcException(GrpcStatus.INVALID_ARGUMENT, "Invalid JVM argument: " + jvmArg);
             }
             command.add(jvmArg);
         }
@@ -138,35 +139,33 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
             process = processBuilder.start();
         } catch (final IOException e) {
             log.error("Failed to start the consensus node process", e);
-            responseObserver.onError(e);
-            return;
+            throw new GrpcException(GrpcStatus.INTERNAL, "Failed to start the consensus node process", e);
         }
         log.info("NodeCommunicationService started. Waiting for gRPC service to initialize...");
 
         try {
             if (waitForStartedMarkerFile()) {
                 log.info("NodeCommunicationService initialized");
-                responseObserver.onNext(Empty.getDefaultInstance());
-                responseObserver.onCompleted();
-            } else {
-                if (!process.isAlive()) {
-                    log.error("Consensus node stopped prematurely. Errorcode: {}", process.exitValue());
-                } else {
-                    log.error("Consensus node process started, but marker file was not detected in the allowed time");
-                }
-                responseObserver.onError(new IllegalStateException(
-                        "Consensus node process started, but marker file was not detected in the allowed time"));
+                return Empty.DEFAULT;
             }
+            if (!process.isAlive()) {
+                log.error("Consensus node stopped prematurely. Errorcode: {}", process.exitValue());
+            } else {
+                log.error("Consensus node process started, but marker file was not detected in the allowed time");
+            }
+            throw new GrpcException(
+                    GrpcStatus.INTERNAL,
+                    "Consensus node process started, but marker file was not detected in the allowed time");
         } catch (final IOException e) {
             log.error("Failed to delete the started marker file", e);
-            responseObserver.onError(e);
+            throw new GrpcException(GrpcStatus.INTERNAL, "Failed to delete the started marker file", e);
         } catch (final InterruptedException e) {
             log.warn("Interrupted while waiting for the started marker file", e);
             Thread.currentThread().interrupt();
-            responseObserver.onError(e);
+            throw new GrpcException(GrpcStatus.INTERNAL, "Interrupted while waiting for the started marker file", e);
+        } finally {
+            log.info("Init request completed.");
         }
-
-        log.info("Init request completed.");
     }
 
     private boolean waitForStartedMarkerFile() throws IOException, InterruptedException {
@@ -207,49 +206,48 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
      * Immediately terminates the platform.
      *
      * @param request The request to terminate the platform.
-     * @param responseObserver The observer used to confirm termination.
+     * @return an empty response confirming termination
+     * @throws GrpcException if the consensus node process did not terminate within the requested timeout
      */
     @Override
-    public synchronized void killImmediately(
-            @NonNull final KillImmediatelyRequest request, @NonNull final StreamObserver<Empty> responseObserver) {
+    @NonNull
+    public synchronized Empty killImmediately(@NonNull final KillImmediatelyRequest request) {
         log.info("Received kill request: {}", request);
-        if (process != null) {
-            process.destroyForcibly();
-            try {
-                if (process.waitFor(request.getTimeoutSeconds(), TimeUnit.SECONDS)) {
-                    responseObserver.onNext(Empty.getDefaultInstance());
-                    responseObserver.onCompleted();
-                } else {
+        try {
+            if (process != null) {
+                process.destroyForcibly();
+                if (!process.waitFor(request.timeoutSeconds(), TimeUnit.SECONDS)) {
                     log.error("Failed to terminate the consensus node process within the timeout period.");
-                    responseObserver.onError(new IllegalStateException(
-                            "Failed to terminate the consensus node process within the timeout period."));
+                    throw new GrpcException(
+                            GrpcStatus.INTERNAL,
+                            "Failed to terminate the consensus node process within the timeout period.");
                 }
-            } catch (final InterruptedException e) {
-                log.error("Interrupted while waiting for the consensus node process to terminate.", e);
-                Thread.currentThread().interrupt();
-                responseObserver.onError(new InterruptedException(
-                        "Interrupted while waiting for the consensus node process to terminate."));
             }
-        } else {
-            responseObserver.onNext(Empty.getDefaultInstance());
-            responseObserver.onCompleted();
+            return Empty.DEFAULT;
+        } catch (final InterruptedException e) {
+            log.error("Interrupted while waiting for the consensus node process to terminate.", e);
+            Thread.currentThread().interrupt();
+            throw new GrpcException(
+                    GrpcStatus.INTERNAL, "Interrupted while waiting for the consensus node process to terminate.", e);
+        } finally {
+            log.info("Kill request completed.");
         }
-        log.info("Kill request completed.");
     }
 
     /**
      * Pings the node communication service to check if it is alive.
      *
      * @param request An empty request.
-     * @param responseObserver The observer used to receive the ping response.
+     * @return the ping response
      */
     @Override
-    public void nodePing(@NonNull final Empty request, @NonNull final StreamObserver<PingResponse> responseObserver) {
+    @NonNull
+    public PingResponse nodePing(@NonNull final Empty request) {
         log.info("Received ping request");
-        responseObserver.onNext(PingResponse.newBuilder()
-                .setAlive(process != null && process.isAlive())
-                .build());
-        responseObserver.onCompleted();
-        log.debug("Ping response sent");
+        final PingResponse response = PingResponse.newBuilder()
+                .alive(process != null && process.isAlive())
+                .build();
+        log.debug("Ping request completed");
+        return response;
     }
 }

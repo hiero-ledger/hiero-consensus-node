@@ -4,9 +4,12 @@ package org.hiero.otter.fixtures.container.proto;
 
 // SPDX-License-Identifier: Apache-2.0
 import "platform/state/platform_state.proto";
-import "google/protobuf/empty.proto";
 
 option java_multiple_files = true;
+
+// An empty message, used by RPCs that carry no request or no response data.
+message Empty {
+}
 
 // Request to initialize the container.
 message InitRequest {
@@ -36,14 +39,14 @@ message ThreadDumpResponse {
 // Service definition for controlling the lifecycle of the consensus node.
 service ContainerControlService {
   // RPC to initialize the container with the node ID.
-  rpc Init(InitRequest) returns (google.protobuf.Empty);
+  rpc init(InitRequest) returns (Empty);
 
   // RPC to kill the consensus node app, but not shutdown the container. The dispatcher will still operate for remote calls
-  rpc KillImmediately(KillImmediatelyRequest) returns (google.protobuf.Empty);
+  rpc killImmediately(KillImmediatelyRequest) returns (Empty);
 
   // RPC to check if the consensus node process is alive
-  rpc NodePing(google.protobuf.Empty) returns (PingResponse);
+  rpc nodePing(Empty) returns (PingResponse);
 
   // RPC to capture a JVM thread dump of the consensus node process for diagnostics. Best-effort: never fails.
-  rpc DumpThreads(google.protobuf.Empty) returns (ThreadDumpResponse);
+  rpc dumpThreads(Empty) returns (ThreadDumpResponse);
 }

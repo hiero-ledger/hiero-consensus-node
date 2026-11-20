@@ -53,32 +53,32 @@ public class ContainerConstants {
 
     /**
      * The port to open to allow connections to the
-     * {@link org.hiero.otter.fixtures.container.proto.ContainerControlServiceGrpc}
+     * {@link org.hiero.otter.fixtures.container.proto.ContainerControlServiceInterface}
      */
     public static final int CONTAINER_CONTROL_PORT = 8080;
 
     /**
      * The port to open to allow connections to the
-     * {@link org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceGrpc}
+     * {@link org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceInterface}
      */
     public static final int NODE_COMMUNICATION_PORT = 8081;
 
     /**
      * The base debug port used to debug the
-     * {@link org.hiero.otter.fixtures.container.proto.ContainerControlServiceGrpc}. The specific debug port for each
+     * {@link org.hiero.otter.fixtures.container.proto.ContainerControlServiceInterface}. The specific debug port for each
      * node is this value plus the node id.
      */
     private static final int CONTAINER_CONTROL_BASE_DEBUG_PORT = 5005;
 
     /**
      * The base debug port used to debug the
-     * {@link org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceGrpc}. The specific debug port for each
+     * {@link org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceInterface}. The specific debug port for each
      * node is this value plus the node id.
      */
     private static final int NODE_COMMUNICATION_BASE_DEBUG_PORT = 6005;
 
     /**
-     * Returns the debug port for the {@link org.hiero.otter.fixtures.container.proto.ContainerControlServiceGrpc} based
+     * Returns the debug port for the {@link org.hiero.otter.fixtures.container.proto.ContainerControlServiceInterface} based
      * on the node id.
      *
      * @param nodeId the id of the node to get the debug port for
@@ -89,7 +89,7 @@ public class ContainerConstants {
     }
 
     /**
-     * Returns the debug port for the {@link org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceGrpc}
+     * Returns the debug port for the {@link org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceInterface}
      * based on the node id.
      *
      * @param nodeId the id of the node to get the debug port for
