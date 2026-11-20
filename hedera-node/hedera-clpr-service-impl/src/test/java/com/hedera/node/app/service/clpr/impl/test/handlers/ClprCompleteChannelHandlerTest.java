@@ -68,7 +68,6 @@ import com.hedera.node.app.spi.workflows.RollbackAwareException;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.sun.jna.ptr.IntByReference;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableStates;
@@ -81,8 +80,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
+import org.hiero.base.crypto.ECDSASecp256k1;
 import org.hiero.base.crypto.Ed25519;
-import org.hyperledger.besu.nativelib.secp256k1.LibSecp256k1;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -127,7 +126,7 @@ class ClprCompleteChannelHandlerTest {
         0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42
     });
 
-    private static final byte[] ECDSA_PUBLIC_KEY = CryptoTestHelpers.deriveEcdsaPublicKey(SECRET_KEY);
+    private static final byte[] ECDSA_PUBLIC_KEY = ECDSASecp256k1.derivePublicKey(SECRET_KEY);
     private static final Bytes ECDSA_COMMITMENT = computeCommitment(CHANNEL_ID, Bytes.wrap(ECDSA_PUBLIC_KEY));
 
     @Mock
@@ -1109,16 +1108,6 @@ class ClprCompleteChannelHandlerTest {
 
     private static byte[] signChannelId(final byte[] secKey, final Bytes connId) {
         final var messageHash = MiscCryptoUtils.keccak256DigestOf(connId.toByteArray());
-        final var recoverableSig = new LibSecp256k1.secp256k1_ecdsa_recoverable_signature();
-        final var signResult = LibSecp256k1.secp256k1_ecdsa_sign_recoverable(
-                LibSecp256k1.CONTEXT, recoverableSig, messageHash, secKey, null, null);
-        if (signResult != 1) {
-            throw new IllegalStateException("Failed to sign message");
-        }
-        final var compactSigBuffer = ByteBuffer.allocate(64);
-        final var recId = new IntByReference(0);
-        LibSecp256k1.secp256k1_ecdsa_recoverable_signature_serialize_compact(
-                LibSecp256k1.CONTEXT, compactSigBuffer, recId, recoverableSig);
-        return compactSigBuffer.array();
+        return ECDSASecp256k1.signDigestWithEcdsaSecp256k1(secKey, messageHash);
     }
 }
