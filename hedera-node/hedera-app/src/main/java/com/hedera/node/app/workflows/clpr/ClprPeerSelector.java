@@ -17,7 +17,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
@@ -127,8 +126,8 @@ public final class ClprPeerSelector {
         try {
             return InetAddresses.toAddrString(InetAddresses.forString(host));
         } catch (final IllegalArgumentException e) {
-            // DNS labels are case-insensitive. Preserve a trailing dot because it affects resolver search domains.
-            return host.toLowerCase(Locale.ROOT);
+            // The selected endpoint retains the original spelling for the resolver.
+            return NodeIdentity.dnsKey(host);
         }
     }
 

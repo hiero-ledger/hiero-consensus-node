@@ -186,13 +186,17 @@ outbound (i.e. our inbound) messages.
 Outbound gRPC client. Netty + grpc-java `ClientCalls` for the bidirectional-streaming
 `proto.ClprEndpointService/sync` RPC. Marshallers are byte-array based — payloads
 are pre-serialised `ClprStreamingSyncPayload` bytes — so the client does not need the protobuf service stub
-generated. `sync(timeout)` returns a `ClprStreamingSyncCall`; the deadline covers the whole multi-bundle exchange,
-not a single message.
+generated. `sync(deadline)` returns a `ClprStreamingSyncCall` with the deadline set at the start of peer lookup.
 
-Peer destinations use numeric IPv4 or IPv6 by default, with a port in `1..65535`. For Solo, set
-`clpr.requireNumericPeerEndpoints=false` on every node of each CLPR network using Kubernetes service names.
-The client resolves the name locally, applies the same address policy to the selected IP, and dials that IP
-directly. A changed DNS answer replaces the cached transport on the next lookup. Scoped IPv6 is unsupported. By default, outbound sync uses ordinary public unicast addresses. The default IPv6 range
+Peer destinations use numeric IPv4 or IPv6 by default, with a port in `1..65535`. DNS publication is a
+Hiero-local extension for test networks such as Solo. Set `clpr.allowDnsPeerEndpoints=true` on each node that
+dials these names. A ledger that publishes them also sets `clpr.publishDnsEndpoints=true` through its network
+properties file (`0.0.121`).
+
+DNS lookup and streaming sync share the `clpr.syncTimeoutSeconds` deadline. The client applies its address
+policy to each returned IP and dials a permitted one directly. It keeps the current IP while the answer still
+contains it. If the name stops resolving or has no permitted addresses, the client retires the cached transport.
+Scoped IPv6 is unsupported. By default, outbound sync uses ordinary public unicast addresses. The default IPv6 range
 is `2000::/3`, excluding IETF special-purpose `2001::/23`, documentation `2001:db8::/32` and `3fff::/20`, and
 6to4 `2002::/16`. A node that intentionally syncs over other unicast ranges, including local or private networks,
 lists those ranges in the node-local `clpr.additionalPeerEndpointCidrs` setting. In Solo, use the Service or Pod

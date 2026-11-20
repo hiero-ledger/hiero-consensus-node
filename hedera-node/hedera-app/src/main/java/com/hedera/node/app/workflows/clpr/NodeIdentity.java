@@ -6,6 +6,7 @@ import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.config.data.GrpcConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.Locale;
 
 /**
  * Represents the identity of a node in the network, containing configuration details
@@ -69,10 +70,12 @@ record NodeIdentity(
         if (domain == null || domain.isEmpty()) {
             return false;
         }
-        return stripTrailingDot(domain).equalsIgnoreCase(stripTrailingDot(host));
+        return dnsKey(domain).equals(dnsKey(host));
     }
 
-    private static String stripTrailingDot(@NonNull final String s) {
-        return s.endsWith(".") ? s.substring(0, s.length() - 1) : s;
+    /** DNS comparison key. Pass the original name to the resolver to preserve search-domain semantics. */
+    static String dnsKey(@NonNull final String host) {
+        final var name = host.endsWith(".") ? host.substring(0, host.length() - 1) : host;
+        return name.toLowerCase(Locale.ROOT);
     }
 }

@@ -4,6 +4,8 @@ package com.hedera.node.app.service.clpr.impl.roster;
 import static com.hedera.hapi.util.HapiUtils.asReadableIp;
 import static java.util.Objects.requireNonNull;
 
+import com.google.common.base.CharMatcher;
+import com.google.common.net.InternetDomainName;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.addressbook.Node;
@@ -17,7 +19,8 @@ import java.nio.charset.StandardCharsets;
 
 /**
  * Builds a single node's {@link ClprEndpoint} from a mix of the platform's authoritative
- * address book (the node's IP) and this node's <em>local</em> HAPI TLS configuration (the
+ * address book (the node's IP address or, when {@code clpr.publishDnsEndpoints} is set, its domain name) and
+ * this node's <em>local</em> HAPI TLS configuration (the
  * HAPI TLS port and certificate). Used by the reconciler's self-publication path
  * ({@code openConstructionIfSelfChanged} / {@code contributeSelfToConstruction}): each node derives
  * <b>its own</b> CLPR endpoint and publishes it via {@code ClprEndpointPublication}.
@@ -30,8 +33,8 @@ import java.nio.charset.StandardCharsets;
  *
  * <p>CLPR {@code sync} is served on the HAPI ports. Fields:
  * <ul>
- *   <li>{@code service_endpoint.ip_address} comes from the first eligible HAPI endpoint in address-book order.
- *       A domain name is eligible when the network permits DNS endpoints.</li>
+ *   <li>{@code service_endpoint.ip_address} holds the host: the first eligible HAPI endpoint in address-book
+ *       order. A domain name is eligible only when {@code clpr.publishDnsEndpoints} is set.</li>
  *   <li>{@code service_endpoint.port} — when the node has a HAPI TLS certificate, {@code grpc.tlsPort}
  *       (the HAPI TLS listener); otherwise the node falls back to its address-book HAPI gRPC port, on
  *       which plaintext {@code sync} runs.</li>
@@ -46,28 +49,18 @@ public final class ClprEndpointBuilder {
 
     private ClprEndpointBuilder() {}
 
-    /** Builds a self-publication using the default numeric-only policy. */
-    @Nullable
-    public static ClprEndpoint buildFor(
-            final long nodeId,
-            @NonNull final ReadableNodeStore nodeStore,
-            final int tlsPort,
-            @NonNull final Bytes tlsCertificateDer) {
-        return buildFor(nodeId, nodeStore, tlsPort, tlsCertificateDer, true);
-    }
-
     /**
      * Build the {@link ClprEndpoint} for the given (self) node, or return {@code null} if the
      * node is missing / deleted / lacks an eligible HAPI service endpoint. A {@code null} result
      * means the reconciler should not attempt to publish for this node.
      *
      * @param nodeId the node whose endpoint to build (expected to be the running node)
-     * @param nodeStore address book (source of the node's IP and HAPI-port fallback)
+     * @param nodeStore address book (source of the node's host and HAPI-port fallback)
      * @param tlsPort the {@code grpc.tlsPort} to advertise as the CLPR sync port when
      *     {@code tlsCertificateDer} is non-empty
      * @param tlsCertificateDer the DER-encoded HAPI TLS certificate to advertise, or empty when this
      *     node has none; the endpoint then falls back to plaintext on the address-book HAPI gRPC port
-     * @param requireNumericPeerEndpoints whether to skip domain-name endpoints
+     * @param publishDnsEndpoints whether a domain-name endpoint is eligible
      */
     @Nullable
     public static ClprEndpoint buildFor(
@@ -75,14 +68,14 @@ public final class ClprEndpointBuilder {
             @NonNull final ReadableNodeStore nodeStore,
             final int tlsPort,
             @NonNull final Bytes tlsCertificateDer,
-            final boolean requireNumericPeerEndpoints) {
+            final boolean publishDnsEndpoints) {
         requireNonNull(nodeStore);
         requireNonNull(tlsCertificateDer);
         final var node = nodeStore.get(nodeId);
         if (node == null || node.deleted()) {
             return null;
         }
-        final var hapiEndpoint = firstEndpoint(node, requireNumericPeerEndpoints);
+        final var hapiEndpoint = firstEndpoint(node, publishDnsEndpoints);
         if (hapiEndpoint == null) {
             return null;
         }
@@ -99,12 +92,6 @@ public final class ClprEndpointBuilder {
                 .build();
     }
 
-    /** Returns the advertised host under the default numeric-only policy. */
-    @Nullable
-    public static String ipAddressOf(final long nodeId, @NonNull final ReadableNodeStore nodeStore) {
-        return hostOf(nodeId, nodeStore, true);
-    }
-
     /**
      * The host string this builder would advertise for {@code nodeId}, derived from the
      * address book exactly as {@link #buildFor} does, or {@code null} if the node is missing /
@@ -114,25 +101,32 @@ public final class ClprEndpointBuilder {
      */
     @Nullable
     public static String hostOf(
-            final long nodeId, @NonNull final ReadableNodeStore nodeStore, final boolean requireNumericPeerEndpoints) {
+            final long nodeId, @NonNull final ReadableNodeStore nodeStore, final boolean publishDnsEndpoints) {
         requireNonNull(nodeStore);
         final var node = nodeStore.get(nodeId);
         if (node == null || node.deleted()) {
             return null;
         }
-        final var hapiEndpoint = firstEndpoint(node, requireNumericPeerEndpoints);
+        final var hapiEndpoint = firstEndpoint(node, publishDnsEndpoints);
         return hapiEndpoint == null ? null : hostOf(hapiEndpoint);
     }
 
     @Nullable
-    private static ServiceEndpoint firstEndpoint(@NonNull final Node node, final boolean requireNumericPeerEndpoints) {
+    private static ServiceEndpoint firstEndpoint(@NonNull final Node node, final boolean publishDnsEndpoints) {
         for (final var endpoint : node.serviceEndpoint()) {
-            if (endpoint.ipAddressV4().length() == 4
-                    || (!requireNumericPeerEndpoints && !endpoint.domainName().isBlank())) {
+            if (endpoint.ipAddressV4().length() == 4 || (publishDnsEndpoints && isDnsHostname(endpoint.domainName()))) {
                 return endpoint;
             }
         }
         return null;
+    }
+
+    /** Shared syntax check for address-book publication and outbound DNS lookup. */
+    public static boolean isDnsHostname(@NonNull final String host) {
+        return host.length() <= 253
+                && CharMatcher.ascii().matchesAllOf(host)
+                && host.indexOf('_') < 0
+                && InternetDomainName.isValid(host);
     }
 
     private static String hostOf(final ServiceEndpoint endpoint) {
@@ -140,7 +134,7 @@ public final class ClprEndpointBuilder {
     }
 
     /**
-     * Ledger-neutral identity of an endpoint: the IP address when present, otherwise the TLS
+     * Ledger-neutral identity of an endpoint: the host (IP address or domain name) when present, otherwise the TLS
      * certificate. Used for deterministic sorting of manifest entries — <b>not</b> for change
      * detection (that must compare the full endpoint, since a cert- or port-only change keeps the
      * same identity). Account-id-free.

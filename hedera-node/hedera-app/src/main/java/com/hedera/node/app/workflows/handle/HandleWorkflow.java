@@ -1361,6 +1361,7 @@ public class HandleWorkflow {
                 before,
                 states -> reconciler.reconcile(
                         now,
+                        ctx.activeRoster(),
                         new WritableEndpointManifestStore(states),
                         new WritableEndpointManifestConstructionStore(states),
                         ctx.clprConfig()),

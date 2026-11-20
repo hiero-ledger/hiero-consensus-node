@@ -16,6 +16,7 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.UnknownFieldException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import io.grpc.Deadline;
 import io.grpc.MethodDescriptor;
 import io.grpc.Server;
 import io.grpc.ServerServiceDefinition;
@@ -29,7 +30,6 @@ import io.netty.handler.ssl.SslContextBuilder;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
-import java.time.Duration;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -52,9 +52,11 @@ import org.junit.jupiter.params.provider.ValueSource;
  */
 class ClprEndpointClientTest {
 
-    private static final Duration TIMEOUT = Duration.ofSeconds(10);
+    private static Deadline deadline() {
+        return Deadline.after(10, TimeUnit.SECONDS);
+    }
 
-    /** How long to wait for the peer to observe a cancellation — well under {@link #TIMEOUT}, so a call left
+    /** How long to wait for the peer to observe a cancellation — well under the RPC deadline, so a call left
      * pinned until its deadline fails this wait rather than satisfying it. */
     private static final long CANCEL_TIMEOUT_SECONDS = 5;
 
@@ -102,18 +104,20 @@ class ClprEndpointClientTest {
         @Test
         void dnsEnabledCacheSyncsWithLocalhostOverTls() throws Exception {
             final var config = HederaTestConfigBuilder.create()
-                    .withValue("clpr.requireNumericPeerEndpoints", "false")
+                    .withValue("clpr.allowDnsPeerEndpoints", "true")
                     .withValue("clpr.additionalPeerEndpointCidrs", "127.0.0.1/32,::1/128")
                     .getOrCreateConfig();
             final var cache = new ClprEndpointClientCache(() -> new VersionedConfigImpl(config, 1));
             final var reply = buildStreamingSyncPayload(null, null);
             final int port = startStreamingServer(new ClprStreamingSyncPayload[] {reply}, new CopyOnWriteArrayList<>());
-            try (final var call = cache.clientFor("localhost", port, true).sync(TIMEOUT)) {
+            final var deadline = deadline();
+            try (final var call =
+                    cache.clientFor("localhost", port, true, deadline).sync(deadline)) {
                 call.write(buildStreamingSyncPayload(8, null));
                 call.halfClose();
                 assertThat(call.read()).isEqualTo(reply);
             } finally {
-                cache.shutdownAll();
+                cache.close();
             }
         }
 
@@ -138,7 +142,7 @@ class ClprEndpointClientTest {
             });
 
             final var client = newTlsClient(port);
-            try (final var call = client.sync(TIMEOUT)) {
+            try (final var call = client.sync(deadline())) {
                 call.write(buildStreamingSyncPayload(0, null));
                 call.halfClose();
                 assertThatThrownBy(call::read)
@@ -160,7 +164,7 @@ class ClprEndpointClientTest {
             final int port = startStreamingServer(mockedResponseMessages, received);
 
             final var client = newTlsClient(port);
-            try (final var call = client.sync(TIMEOUT)) {
+            try (final var call = client.sync(deadline())) {
                 // Msg 1: this ledger sends a bundle request to the peer ledger.
                 call.write(buildStreamingSyncPayload(8, null));
 
@@ -211,7 +215,7 @@ class ClprEndpointClientTest {
             final int port = startStreamingServer(mockedResponseMessages, new CopyOnWriteArrayList<>());
 
             final var client = newTlsClient(port);
-            try (final var call = client.sync(TIMEOUT)) {
+            try (final var call = client.sync(deadline())) {
                 call.write(buildStreamingSyncPayload(8, null));
 
                 // Drain until the peer's clean close is observed, so the next write is provably a no-op at the grpc
@@ -235,7 +239,7 @@ class ClprEndpointClientTest {
             final int port = startStreamingServer(mockedResponseMessages, new CopyOnWriteArrayList<>());
 
             final var client = new ClprEndpointClientImpl(localAddress(port), false);
-            try (final var call = client.sync(TIMEOUT)) {
+            try (final var call = client.sync(deadline())) {
                 // The failure may surface on the write or on the read, depending on timing.
                 assertThatThrownBy(() -> {
                             call.write(buildStreamingSyncPayload(8, null));
@@ -270,7 +274,7 @@ class ClprEndpointClientTest {
             });
 
             final var client = newTlsClient(port);
-            try (final var call = client.sync(TIMEOUT)) {
+            try (final var call = client.sync(deadline())) {
                 call.write(buildStreamingSyncPayload(8, null));
 
                 assertThatThrownBy(call::read)
@@ -289,7 +293,7 @@ class ClprEndpointClientTest {
 
             final var client = newTlsClient(port);
             try {
-                final var call = client.sync(TIMEOUT);
+                final var call = client.sync(deadline());
                 call.write(buildStreamingSyncPayload(8, null));
 
                 // grpc's BlockingClientCall throws IllegalStateException on a repeated halfClose; the wrapper must not.
@@ -334,7 +338,7 @@ class ClprEndpointClientTest {
             final var client = newTlsClient(port);
             try {
                 final ClprStreamingSyncCall abandonedCall;
-                try (final var call = client.sync(TIMEOUT)) {
+                try (final var call = client.sync(deadline())) {
                     abandonedCall = call;
                     call.write(buildStreamingSyncPayload(8, null));
                     // Walk out mid-exchange without half-closing.

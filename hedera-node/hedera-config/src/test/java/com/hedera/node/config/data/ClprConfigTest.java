@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 class ClprConfigTest {
 
@@ -16,16 +18,22 @@ class ClprConfigTest {
     }
 
     @Test
-    void numericPeerEndpointsAreRequiredUnlessExplicitlyDisabled() {
-        assertThat(HederaTestConfigBuilder.createConfig()
-                        .getConfigData(ClprConfig.class)
-                        .requireNumericPeerEndpoints())
-                .isTrue();
-        final var solo = HederaTestConfigBuilder.create()
-                .withValue("clpr.requireNumericPeerEndpoints", "false")
+    void dnsEndpointsAreDisabledUnlessExplicitlyEnabled() {
+        final var defaults = HederaTestConfigBuilder.createConfig().getConfigData(ClprConfig.class);
+        assertThat(defaults.publishDnsEndpoints()).isFalse();
+        assertThat(defaults.allowDnsPeerEndpoints()).isFalse();
+    }
+
+    @ParameterizedTest
+    @CsvSource({"true,false", "false,true"})
+    void dnsPublicationAndDialingCanBeEnabledIndependently(final boolean publish, final boolean dial) {
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("clpr.publishDnsEndpoints", Boolean.toString(publish))
+                .withValue("clpr.allowDnsPeerEndpoints", Boolean.toString(dial))
                 .getOrCreateConfig()
                 .getConfigData(ClprConfig.class);
-        assertThat(solo.requireNumericPeerEndpoints()).isFalse();
+        assertThat(config.publishDnsEndpoints()).isEqualTo(publish);
+        assertThat(config.allowDnsPeerEndpoints()).isEqualTo(dial);
     }
 
     @Test

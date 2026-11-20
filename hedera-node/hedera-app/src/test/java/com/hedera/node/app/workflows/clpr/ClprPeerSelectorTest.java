@@ -135,11 +135,11 @@ class ClprPeerSelectorTest {
         }
 
         @Test
-        void dnsNameCaseVariantsShareRetryState() {
+        void dnsCaseAndTrailingDotVariantsShareRetryState() {
             final var selected =
                     requireNonNull(subject.selectEndpoint(channel(), List.of(endpoint("Peer.svc.cluster.local"))));
             subject.recordFailure(selected.peerId());
-            assertThat(subject.selectEndpoint(channel(), List.of(endpoint("PEER.svc.cluster.local"))))
+            assertThat(subject.selectEndpoint(channel(), List.of(endpoint("PEER.svc.cluster.local."))))
                     .isNull();
         }
 
