@@ -88,6 +88,10 @@ public class UpdateDecoder extends UpdateCommonDecoder {
     public TransactionBody decodeTokenUpdateKeys(@NonNull final HtsCallAttempt attempt) {
 
         final var call = decodeCall(attempt);
+        // This override bypasses the 0x167 decoder, so it must apply the same guard (GHSA-q776-f4m7-g642)
+        if (!isMeaningfulKeyUpdate(call.get(TOKEN_KEYS), UPDATE_KEYS_SUPPORTED_MASK_16C)) {
+            return null;
+        }
 
         final var tokenId =
                 ConversionUtils.asTokenId(attempt.nativeOperations().entityIdFactory(), call.get(TOKEN_ADDRESS));
