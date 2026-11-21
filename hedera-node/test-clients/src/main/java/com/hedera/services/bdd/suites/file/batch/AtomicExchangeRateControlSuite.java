@@ -17,8 +17,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SYSTEM_ADMIN;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AUTHORIZATION_FAILED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.EXCHANGE_RATE_CHANGE_LIMIT_EXCEEDED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
@@ -58,9 +56,8 @@ class AtomicExchangeRateControlSuite {
                                 })
                                 .payingWith(EXCHANGE_RATE_CONTROL)
                                 .batchKey(BATCH_OPERATOR))
-                        .payingWith(BATCH_OPERATOR),
-                getFileContents(EXCHANGE_RATES)
-                        .hasContents(spec -> spec.registry().getBytes("newRates")),
+                        .payingWith(BATCH_OPERATOR)
+                        .hasPrecheck(AUTHORIZATION_FAILED),
                 resetRatesOp);
     }
 
@@ -83,45 +80,9 @@ class AtomicExchangeRateControlSuite {
                                 })
                                 .payingWith(EXCHANGE_RATE_CONTROL)
                                 .fee(1_000_000_000)
-                                .hasKnownStatus(EXCHANGE_RATE_CHANGE_LIMIT_EXCEEDED)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
-                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                atomicBatch(
-                                fileUpdate(EXCHANGE_RATES)
-                                        .contents(spec -> {
-                                            ByteString newRates = spec.ratesProvider()
-                                                    .rateSetWith(1, 25)
-                                                    .toByteString();
-                                            spec.registry().saveBytes("newRates", newRates);
-                                            return newRates;
-                                        })
-                                        .payingWith(SYSTEM_ADMIN)
-                                        .fee(1_000_000_000)
-                                        .batchKey(BATCH_OPERATOR),
-                                fileUpdate(EXCHANGE_RATES)
-                                        .contents(spec -> {
-                                            ByteString newRates = spec.ratesProvider()
-                                                    .rateSetWith(10, 254)
-                                                    .toByteString();
-                                            spec.registry().saveBytes("newRates", newRates);
-                                            return newRates;
-                                        })
-                                        .payingWith(EXCHANGE_RATE_CONTROL)
-                                        .fee(1_000_000_000)
-                                        .batchKey(BATCH_OPERATOR),
-                                fileUpdate(EXCHANGE_RATES)
-                                        .contents(spec -> {
-                                            ByteString newRates = spec.ratesProvider()
-                                                    .rateSetWith(1, 12, 1, 15)
-                                                    .toByteString();
-                                            spec.registry().saveBytes("newRates", newRates);
-                                            return newRates;
-                                        })
-                                        .payingWith(SYSTEM_ADMIN)
-                                        .fee(1_000_000_000)
-                                        .batchKey(BATCH_OPERATOR))
-                        .payingWith(BATCH_OPERATOR));
+                        .hasPrecheck(AUTHORIZATION_FAILED));
     }
 
     @HapiTest
@@ -150,9 +111,8 @@ class AtomicExchangeRateControlSuite {
                                 .contents(spec ->
                                         spec.ratesProvider().rateSetWith(1, 25).toByteString())
                                 .payingWith(EXCHANGE_RATE_CONTROL)
-                                .hasKnownStatus(EXCHANGE_RATE_CHANGE_LIMIT_EXCEEDED)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
-                        .hasKnownStatus(INNER_TRANSACTION_FAILED));
+                        .hasPrecheck(AUTHORIZATION_FAILED));
     }
 }

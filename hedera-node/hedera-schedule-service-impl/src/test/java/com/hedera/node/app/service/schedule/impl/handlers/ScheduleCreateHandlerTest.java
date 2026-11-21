@@ -24,6 +24,7 @@ import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.HookCall;
 import com.hedera.hapi.node.base.Key;
@@ -31,6 +32,9 @@ import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransferList;
+import com.hedera.hapi.node.file.FileAppendTransactionBody;
+import com.hedera.hapi.node.file.FileDeleteTransactionBody;
+import com.hedera.hapi.node.file.FileUpdateTransactionBody;
 import com.hedera.hapi.node.scheduled.SchedulableTransactionBody;
 import com.hedera.hapi.node.scheduled.SchedulableTransactionBody.DataOneOfType;
 import com.hedera.hapi.node.scheduled.ScheduleCreateTransactionBody;
@@ -52,6 +56,7 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.workflows.prehandle.PreHandleContextImpl;
+import com.swirlds.config.api.Configuration;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.security.InvalidKeyException;
 import java.time.InstantSource;
@@ -423,5 +428,81 @@ class ScheduleCreateHandlerTest extends ScheduleHandlerTestBase {
         // This is how you get side effects replicated, by having the "Answer" called in place of the real method.
         given(keyVerifier.verificationFor(any(Key.class), any(VerificationAssistant.class)))
                 .will(new VerificationForAnswer(testChildKeys));
+    }
+
+    @Test
+    void preHandleAndHandleRejectPrivilegedFileUpdateEvenIfWhitelisted() throws PreCheckException {
+        final FileID privilegedFileId = FileID.newBuilder().fileNum(112L).build();
+        final SchedulableTransactionBody schedulableBody = SchedulableTransactionBody.newBuilder()
+                .fileUpdate(FileUpdateTransactionBody.newBuilder().fileID(privilegedFileId).build())
+                .build();
+        final TransactionBody txBody = ScheduledTransactionFactory.scheduleCreateTransactionWith(
+                schedulableBody, adminKey, "test", payer, scheduler, Timestamp.newBuilder().seconds(1_234_567L).build(), null, null);
+
+        realPreContext = new PreHandleContextImpl(
+                mockStoreFactory, txBody, testConfig, mockDispatcher, mockTransactionChecker, creatorInfo);
+        Assertions.assertThrowsPreCheck(
+                () -> subject.preHandle(realPreContext), SCHEDULED_TRANSACTION_NOT_IN_WHITELIST);
+
+        prepareContext(txBody, 1000L);
+        given(mockContext.configuration()).willReturn(testConfig);
+        throwsHandleException(() -> subject.handle(mockContext), SCHEDULED_TRANSACTION_NOT_IN_WHITELIST);
+    }
+
+    @Test
+    void preHandleAndHandleRejectUpgradeFileUpdateEvenIfWhitelisted() throws PreCheckException {
+        final FileID upgradeFileId = FileID.newBuilder().fileNum(150L).build();
+        final SchedulableTransactionBody schedulableBody = SchedulableTransactionBody.newBuilder()
+                .fileUpdate(FileUpdateTransactionBody.newBuilder().fileID(upgradeFileId).build())
+                .build();
+        final TransactionBody txBody = ScheduledTransactionFactory.scheduleCreateTransactionWith(
+                schedulableBody, adminKey, "test", payer, scheduler, Timestamp.newBuilder().seconds(1_234_567L).build(), null, null);
+
+        realPreContext = new PreHandleContextImpl(
+                mockStoreFactory, txBody, testConfig, mockDispatcher, mockTransactionChecker, creatorInfo);
+        Assertions.assertThrowsPreCheck(
+                () -> subject.preHandle(realPreContext), SCHEDULED_TRANSACTION_NOT_IN_WHITELIST);
+
+        prepareContext(txBody, 1000L);
+        given(mockContext.configuration()).willReturn(testConfig);
+        throwsHandleException(() -> subject.handle(mockContext), SCHEDULED_TRANSACTION_NOT_IN_WHITELIST);
+    }
+
+    @Test
+    void preHandleAndHandleRejectPrivilegedFileAppendEvenIfWhitelisted() throws PreCheckException {
+        final FileID privilegedFileId = FileID.newBuilder().fileNum(112L).build();
+        final SchedulableTransactionBody schedulableBody = SchedulableTransactionBody.newBuilder()
+                .fileAppend(FileAppendTransactionBody.newBuilder().fileID(privilegedFileId).build())
+                .build();
+        final TransactionBody txBody = ScheduledTransactionFactory.scheduleCreateTransactionWith(
+                schedulableBody, adminKey, "test", payer, scheduler, Timestamp.newBuilder().seconds(1_234_567L).build(), null, null);
+
+        realPreContext = new PreHandleContextImpl(
+                mockStoreFactory, txBody, testConfig, mockDispatcher, mockTransactionChecker, creatorInfo);
+        Assertions.assertThrowsPreCheck(
+                () -> subject.preHandle(realPreContext), SCHEDULED_TRANSACTION_NOT_IN_WHITELIST);
+
+        prepareContext(txBody, 1000L);
+        given(mockContext.configuration()).willReturn(testConfig);
+        throwsHandleException(() -> subject.handle(mockContext), SCHEDULED_TRANSACTION_NOT_IN_WHITELIST);
+    }
+
+    @Test
+    void preHandleAndHandleRejectPrivilegedFileDeleteEvenIfWhitelisted() throws PreCheckException {
+        final FileID privilegedFileId = FileID.newBuilder().fileNum(112L).build();
+        final SchedulableTransactionBody schedulableBody = SchedulableTransactionBody.newBuilder()
+                .fileDelete(FileDeleteTransactionBody.newBuilder().fileID(privilegedFileId).build())
+                .build();
+        final TransactionBody txBody = ScheduledTransactionFactory.scheduleCreateTransactionWith(
+                schedulableBody, adminKey, "test", payer, scheduler, Timestamp.newBuilder().seconds(1_234_567L).build(), null, null);
+
+        realPreContext = new PreHandleContextImpl(
+                mockStoreFactory, txBody, testConfig, mockDispatcher, mockTransactionChecker, creatorInfo);
+        Assertions.assertThrowsPreCheck(
+                () -> subject.preHandle(realPreContext), SCHEDULED_TRANSACTION_NOT_IN_WHITELIST);
+
+        prepareContext(txBody, 1000L);
+        given(mockContext.configuration()).willReturn(testConfig);
+        throwsHandleException(() -> subject.handle(mockContext), SCHEDULED_TRANSACTION_NOT_IN_WHITELIST);
     }
 }
