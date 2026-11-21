@@ -454,12 +454,14 @@ public final class SignedStateFileWriter {
                             reservedSignedState,
                             stateLifecycleManager));
 
-            logger.info(STATE_TO_DISK.getMarker(), () -> new StateSavedToDiskPayload(
-                            round,
-                            signedState.isFreezeState(),
-                            stateToDiskReason == null ? "UNKNOWN" : stateToDiskReason.toString(),
-                            savedStateDirectory)
-                    .toString());
+            logger.info(
+                    STATE_TO_DISK.getMarker(),
+                    () -> new StateSavedToDiskPayload(
+                                    round,
+                                    signedState.isFreezeState(),
+                                    stateToDiskReason == null ? "UNKNOWN" : stateToDiskReason.toString(),
+                                    savedStateDirectory)
+                            .toString());
         } catch (final Throwable e) {
             logger.error(
                     EXCEPTION.getMarker(), "Exception when writing the signed state for round {} to disk:", round, e);

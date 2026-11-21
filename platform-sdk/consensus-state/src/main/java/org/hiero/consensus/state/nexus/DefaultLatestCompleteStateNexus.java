@@ -63,14 +63,6 @@ public class DefaultLatestCompleteStateNexus implements LatestCompleteStateNexus
      */
     @Override
     public synchronized void setStateIfNewer(@NonNull final ReservedSignedState reservedSignedState) {
-        if (stateConfig.saveStateAsync()
-                && reservedSignedState.isNotNull()
-                && reservedSignedState.get().isFreezeState()) {
-            enterFreezePeriod();
-            reservedSignedState.close();
-            return;
-        }
-
         if (reservedSignedState.isNotNull()
                 && getRound() < reservedSignedState.get().getRound()) {
             setState(reservedSignedState);

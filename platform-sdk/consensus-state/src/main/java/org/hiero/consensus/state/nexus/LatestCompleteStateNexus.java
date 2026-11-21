@@ -20,9 +20,7 @@ public interface LatestCompleteStateNexus extends SignedStateNexus {
     void updateEventWindow(@NonNull EventWindow eventWindow);
 
     /**
-     * Replace the current state with the given state if the given state is newer than the current state. When
-     * asynchronous snapshots are enabled, a freeze state instead releases the current state and prevents this nexus
-     * from retaining any subsequent state.
+     * Replace the current state with the given state if the given state is newer than the current state.
      *
      * @param reservedSignedState the new state
      */
