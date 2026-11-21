@@ -6,9 +6,8 @@ import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADD
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.hapi.utils.keys.Ed25519Utils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import java.nio.ByteBuffer;
+import org.hiero.base.crypto.ECDSASecp256k1;
 import org.hiero.base.crypto.Ed25519;
-import org.hyperledger.besu.nativelib.secp256k1.LibSecp256k1;
 
 final class CryptoTestHelpers {
     static final byte[] CLPR_SERVICE_ADDRESS = CLPR_EVM_ADDRESS_BYTES.toByteArray();
@@ -35,34 +34,7 @@ final class CryptoTestHelpers {
         System.arraycopy(CLPR_SERVICE_ADDRESS, 0, msgPreimage, connectorId.length, CLPR_SERVICE_ADDRESS.length);
         final byte[] msgHash =
                 MiscCryptoUtils.keccak256DigestOf(Bytes.wrap(msgPreimage)).toByteArray();
-
-        final var recoverableSig = new LibSecp256k1.secp256k1_ecdsa_recoverable_signature();
-        final var signResult = LibSecp256k1.secp256k1_ecdsa_sign_recoverable(
-                LibSecp256k1.CONTEXT, recoverableSig, msgHash, secretKey, null, null);
-        if (signResult != 1) {
-            throw new IllegalStateException("Failed to sign message");
-        }
-        final var compactSigBuffer = ByteBuffer.allocate(64);
-        final var recId = new com.sun.jna.ptr.IntByReference(0);
-        LibSecp256k1.secp256k1_ecdsa_recoverable_signature_serialize_compact(
-                LibSecp256k1.CONTEXT, compactSigBuffer, recId, recoverableSig);
-        return Bytes.wrap(compactSigBuffer.array());
-    }
-
-    public static byte[] deriveEcdsaPublicKey(final byte[] secKey) {
-        final var nativePubKey = new LibSecp256k1.secp256k1_pubkey();
-        final var result = LibSecp256k1.secp256k1_ec_pubkey_create(LibSecp256k1.CONTEXT, nativePubKey, secKey);
-        if (result != 1) {
-            throw new IllegalStateException("Failed to derive public key");
-        }
-        final var outputBuffer = ByteBuffer.allocate(65);
-        final var outputLength = new com.sun.jna.ptr.LongByReference(65);
-        LibSecp256k1.secp256k1_ec_pubkey_serialize(
-                LibSecp256k1.CONTEXT, outputBuffer, outputLength, nativePubKey, LibSecp256k1.SECP256K1_EC_UNCOMPRESSED);
-        final var rawKey = new byte[64];
-        outputBuffer.position(1);
-        outputBuffer.get(rawKey);
-        return rawKey;
+        return Bytes.wrap(ECDSASecp256k1.signDigestWithEcdsaSecp256k1(secretKey, msgHash));
     }
 
     public static byte[] deriveEd25519PublicKey(final byte[] seed) {

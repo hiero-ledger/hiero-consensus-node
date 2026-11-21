@@ -15,7 +15,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
 class CantonProofExceptionTest {
-    private static final int ERROR_COUNT = 39;
+    private static final int ERROR_COUNT = 42;
 
     @Test
     void hasExactlyTheExpectedFactories() {
