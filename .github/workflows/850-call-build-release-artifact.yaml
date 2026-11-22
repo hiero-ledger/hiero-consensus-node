@@ -121,7 +121,10 @@ jobs:
     # Repository-pinning holds regardless of the caller's trigger (pull_request,
     # pull_request_target, workflow_run, push) and of a fork being renamed — unlike
     # github.event.repository.fork, which is `false` when a fork PR targets upstream.
-    if: ${{ github.repository == 'hiero-ledger/hiero-consensus-node' }}
+    # The private release mirror is pinned too, so its builds still reach the DevOps bucket; every
+    # public destination below is guarded by repository visibility.
+    if: ${{ github.repository == 'hiero-ledger/hiero-consensus-node' ||
+      github.repository == 'hashgraph/private-hedera-services' }}
     outputs:
       branch-name: ${{ steps.parameters.outputs.branch-name }}
       branch-name-lower: ${{ steps.parameters.outputs.branch-name-lower }}
@@ -589,7 +592,13 @@ jobs:
       - gcp-production-image
       - jfr-production-image
       - validate
-    if: ${{ inputs.dry-run-enabled != true && !cancelled() && !failure() }}
+    # The `!cancelled() && !failure()` status checks override the default "skip when a
+    # needed job was skipped" behavior, so the publish jobs must be checked explicitly;
+    # otherwise this job runs with empty registry outputs where no image was published.
+    if: >-
+      ${{ github.event.repository.visibility == 'public' && inputs.dry-run-enabled != true &&
+      needs.gcp-production-image.result != 'skipped' && needs.jfr-production-image.result != 'skipped' &&
+      !cancelled() && !failure() }}
     steps:
       - name: Prepare Runner
         id: prepare-runner
@@ -705,7 +714,8 @@ jobs:
       create-release: ${{ steps.set-gh-release-flag.outputs.create-release }}
     needs:
       - validate
-    if: ${{ inputs.release-profile != 'none' }}
+    # Publishing (registries, Maven Central, the SDK archive bucket) runs only from the public repository.
+    if: ${{ github.event.repository.visibility == 'public' && inputs.release-profile != 'none' }}
     steps:
       - name: Prepare Runner
         id: prepare-runner
