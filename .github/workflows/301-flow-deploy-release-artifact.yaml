@@ -136,6 +136,8 @@ jobs:
     runs-on: hl-cn-default-lin-sm
     needs:
       - release-branch
+    # Starts a workflow in the public repository, so it runs only there: never in a private repository or a fork.
+    if: ${{ github.event.repository.visibility == 'public' && !github.event.repository.fork }}
     steps:
       - name: Prepare Runner
         id: prepare-runner
@@ -175,6 +177,8 @@ jobs:
     runs-on: hl-cn-default-lin-sm
     needs:
       - release-branch
+    # Starts a workflow in the public repository, so it runs only there: never in a private repository or a fork.
+    if: ${{ github.event.repository.visibility == 'public' && !github.event.repository.fork }}
     steps:
       - name: Prepare Runner
         id: prepare-runner
@@ -219,7 +223,7 @@ jobs:
       - deploy-xts-ci-trigger
     if:
       ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-enabled == false &&
-      (needs.release-branch.result != 'success' || needs.deploy-xts-ci-trigger.result != 'success') &&
+      (needs.release-branch.result != 'success' || needs.deploy-xts-ci-trigger.result == 'failure') &&
       !cancelled() }}
     steps:
       - name: Prepare Runner
