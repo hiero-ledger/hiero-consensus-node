@@ -33,6 +33,7 @@ import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
+import com.hedera.node.app.hapi.utils.keys.Ed25519Utils;
 import com.hedera.node.app.service.clpr.impl.ReadableChannelStoreImpl;
 import com.hedera.node.app.service.clpr.impl.WritableConnectorRegistrationStore;
 import com.hedera.node.app.service.clpr.impl.WritableConnectorStore;
@@ -52,6 +53,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.spi.WritableStates;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
+import org.hiero.base.crypto.ECDSASecp256k1;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -126,7 +128,7 @@ class ClprRegisterConnectorHandlerTest {
         final EntityIdFactory idFactory = new AppEntityIdFactory(config);
         subject = new ClprRegisterConnectorHandler(idFactory);
 
-        final var ecdsaPublicKey64 = CryptoTestHelpers.deriveEcdsaPublicKey(SECRET_KEY);
+        final var ecdsaPublicKey64 = ECDSASecp256k1.derivePublicKey(SECRET_KEY);
         identityKey = Key.newBuilder()
                 .ecdsaSecp256k1(Bytes.wrap(MiscCryptoUtils.compressSecp256k1(ecdsaPublicKey64)))
                 .build();
@@ -419,7 +421,7 @@ class ClprRegisterConnectorHandlerTest {
     @Test
     @DisplayName("should register connector with ED25519 signature scheme on success")
     void registersConnectorWithEd25519Successfully() throws PreCheckException {
-        final var ed25519PublicKey = CryptoTestHelpers.deriveEd25519PublicKey(SECRET_KEY);
+        final var ed25519PublicKey = Ed25519Utils.extractEd25519PublicKey(Ed25519Utils.keyFrom(SECRET_KEY));
         setupSmartContractMock();
         final var op = validOpBuilder()
                 .connectorId(ED25519_CONNECTOR_ID)

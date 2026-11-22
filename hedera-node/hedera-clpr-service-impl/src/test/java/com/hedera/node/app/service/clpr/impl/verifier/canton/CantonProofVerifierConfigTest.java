@@ -62,6 +62,7 @@ class CantonProofVerifierConfigTest {
     private static final byte[] SERVICE_ADDRESS = CantonBytes.concat(PACKAGE_ID, OPERATOR);
     private static final String APP = "app::1220" + "cd".repeat(32);
     private static final String OTHER = "other::1220" + "ef".repeat(32);
+    private static final String ENDPOINTS = "endpoints::1220" + "ee".repeat(32);
     private static final byte[] CHANNEL_ID = repeat((byte) 0x11, 32);
     private static final byte[] SUBMITTER = sha("submitter-metadata");
     private static final byte[] PARTICIPANT = sha("participant-metadata");
@@ -112,6 +113,7 @@ class CantonProofVerifierConfigTest {
             assertThat(a.upgradeTime()).isZero();
             assertThat(a.lsuSerial()).isZero();
             assertThat(a.app()).isEqualTo(APP);
+            assertThat(a.endpoints()).isEqualTo(ENDPOINTS);
             assertThat(c.initialTrustAnchorId().toByteArray()).isEqualTo(uint64(VERDICT.requestId()));
         }
 
@@ -165,6 +167,18 @@ class CantonProofVerifierConfigTest {
             final String operator = new String(OPERATOR, StandardCharsets.UTF_8);
             // The operator signs it too, so only the operator check can reject it.
             assertRejects("WrongContract", new Cfg().contractApp(operator).signatory(operator));
+        }
+
+        @Test
+        void endpointPartyMustBePresentAndDistinctFromTheAppAndTheOperator() {
+            assertRejects("WrongContract", new Cfg().contractEndpoints(""));
+            assertRejects("WrongContract", new Cfg().contractEndpoints(APP));
+            assertRejects("WrongContract", new Cfg().contractEndpoints(new String(OPERATOR, StandardCharsets.UTF_8)));
+        }
+
+        @Test
+        void channelConfigWithoutAnEndpointPartyFieldIsWrongContract() {
+            assertRejects("WrongContract", new Cfg().contractFieldCount(7));
         }
 
         @Test
@@ -387,6 +401,15 @@ class CantonProofVerifierConfigTest {
         }
 
         @Test
+        void manifestProofMustReachTheSameEndpointParty() {
+            // A ChannelConfig of this channel and app, but naming another CLPR endpoint party.
+            assertRejectsManifest(
+                    "WrongContract",
+                    new Cfg(),
+                    new Cfg().contractEndpoints(OTHER).contractManifestHash(MANIFEST_HASH));
+        }
+
+        @Test
         void manifestProofMustHaveFourItems() {
             final var cfg = new Cfg();
             assertThatThrownBy(() -> CantonProofVerifier.verifyConfig(
@@ -468,6 +491,8 @@ class CantonProofVerifierConfigTest {
         private long[] contractThrottles = THROTTLES;
         private String contractManifestHash = "";
         private String contractApp = APP;
+        private String contractEndpoints = ENDPOINTS;
+        private int contractFieldCount = 8;
         private String signatory = APP;
 
         Cfg() {
@@ -597,6 +622,16 @@ class CantonProofVerifierConfigTest {
             return this;
         }
 
+        Cfg contractEndpoints(final String e) {
+            contractEndpoints = e;
+            return this;
+        }
+
+        Cfg contractFieldCount(final int n) {
+            contractFieldCount = n;
+            return this;
+        }
+
         Cfg signatory(final String s) {
             signatory = s;
             return this;
@@ -639,7 +674,10 @@ class CantonProofVerifierConfigTest {
             return pb.build();
         }
 
-        /** The {@code ChannelConfig [operator, channelId, peerChainId, configTimeNanos, throttles, manifestHash, app]}. */
+        /**
+         * The {@code ChannelConfig [operator, channelId, peerChainId, configTimeNanos, throttles, manifestHash, app,
+         * endpoints]}.
+         */
         private byte[] channelConfig() {
             final Pb throttles = new Pb();
             for (final long t : contractThrottles) {
@@ -653,10 +691,11 @@ class CantonProofVerifierConfigTest {
                 Pb.lenField(13, throttles.build()),
                 text(contractManifestHash),
                 Pb.lenField(7, utf8(contractApp)),
+                Pb.lenField(7, utf8(contractEndpoints)),
             };
             final Pb record = new Pb();
-            for (final byte[] v : values) {
-                record.field(1, Pb.lenField(1, v));
+            for (int i = 0; i < contractFieldCount; ++i) {
+                record.field(1, Pb.lenField(1, values[i]));
             }
             final byte[] templateId = CantonProto.encodeIdentifier(
                     utf8(HEX.formatHex(PACKAGE_ID)), utf8("Clpr"), utf8("Service"), utf8("ChannelConfig"));

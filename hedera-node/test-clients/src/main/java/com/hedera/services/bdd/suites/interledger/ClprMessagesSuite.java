@@ -29,7 +29,6 @@ import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.CONNECT
 import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.CONNECTOR_SECRET_KEY;
 import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.computeCommitment;
 import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.deriveConnectorId;
-import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.deriveEcdsaPublicKey;
 import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.signChannelId;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -51,6 +50,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
+import org.hiero.base.crypto.ECDSASecp256k1;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -136,13 +136,13 @@ public class ClprMessagesSuite {
     @DisplayName("Multi-message CLPR: 3×7 messages with EchoApplication auto-sync round-trip")
     Stream<DynamicTest> multiMessageRoundTrip(final SubProcessNetwork netA, final SubProcessNetwork netB) {
         // ── Channel keypair ────────────────────────────────────────────────────────────────────
-        final var connPubKey64 = deriveEcdsaPublicKey(CHANNEL_SECRET_KEY);
+        final var connPubKey64 = ECDSASecp256k1.derivePublicKey(CHANNEL_SECRET_KEY);
         final var connPubKeyBytes = Bytes.wrap(connPubKey64);
         final var channelCommitment = computeCommitment(CHANNEL_ID, connPubKeyBytes);
         final var channelSig = signChannelId(CHANNEL_SECRET_KEY, CHANNEL_ID);
 
         // ── Connector keypair ─────────────────────────────────────────────────────────────────────
-        final var connectorPubKey64 = deriveEcdsaPublicKey(CONNECTOR_SECRET_KEY);
+        final var connectorPubKey64 = ECDSASecp256k1.derivePublicKey(CONNECTOR_SECRET_KEY);
         final var connectorPubKeyBytes = Bytes.wrap(connectorPubKey64);
         final var connectorId = deriveConnectorId(connectorPubKeyBytes, CONNECTOR_SALT);
 
