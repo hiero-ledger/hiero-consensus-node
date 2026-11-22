@@ -167,7 +167,7 @@ these workflows already says, in its header, that Chewie is expected to dispatch
 ### Suite results
 
 Every suite reports to `POST /api/v1/suites/results` through one reusable workflow,
-`864-call-report-suite-result.yaml`. Each caller names its suite explicitly and maps its own job results to a
+`864-call-report-suite-status.yaml`. Each caller names its suite explicitly and maps its own job results to a
 disposition. The terminal report job runs with `if: always()`, so cancelled runs are reported too.
 
 | Workflow | Suite        | Reports against               | Disposition                                                                                                                                               |

@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CLPR_CONFIGURAT
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator.areValidThrottles;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CLPR_SERVICE_ADDRESS;
+import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
@@ -17,6 +18,7 @@ import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
@@ -29,7 +31,9 @@ import javax.inject.Singleton;
  * The handler preserves the immutable chain_id and
  * protocol_version (set at genesis) and auto-sets the timestamp. The service_address
  * must be the CLPR system contract's EVM address ({@code 0x16e}, the value this ledger's
- * endpoint manifest carries) and defaults to it when omitted.
+ * endpoint manifest carries) and defaults to it when omitted. The max_gas_per_message throttle
+ * must not exceed {@code contracts.maxGasPerTransaction} (network property defined in
+ * {@link ContractsConfig#maxGasPerTransaction()}).
  */
 @Singleton
 public class ClprUpdateLedgerConfigurationHandler extends AbstractClprHandler {
@@ -72,6 +76,14 @@ public class ClprUpdateLedgerConfigurationHandler extends AbstractClprHandler {
     protected void doHandle(@NonNull final HandleContext context) throws HandleException {
         final var op = context.body().clprUpdateLedgerConfigurationOrThrow();
         final var supplied = op.configurationOrThrow();
+
+        // Inbound messages are dispatched as contract calls with up to max_gas_per_message gas, and a
+        // call above contracts.maxGasPerTransaction is refused. Reject such a value instead of storing
+        // and advertising a per-message budget this ledger can never grant.
+        final var maxGasPerTransaction =
+                context.configuration().getConfigData(ContractsConfig.class).maxGasPerTransaction();
+        validateTrue(
+                supplied.throttlesOrThrow().maxGasPerMessage() <= maxGasPerTransaction, INVALID_CLPR_CONFIGURATION);
 
         final var storeFactory = context.storeFactory();
         final var configStore = storeFactory.writableStore(WritableLedgerConfigurationStore.class);

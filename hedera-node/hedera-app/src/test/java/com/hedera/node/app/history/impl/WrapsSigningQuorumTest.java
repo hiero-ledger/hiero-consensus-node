@@ -74,6 +74,20 @@ class WrapsSigningQuorumTest {
     }
 
     @Test
+    void freezesAndRetriesAgainstFullWeightWhenTheSourceHintsKeyCommitsIt() {
+        final var weights = equalWeights(7);
+        final var book =
+                AddressBook.from(weights, nodeId -> nodeId < 3 ? new byte[] {1} : MISSING_SCHNORR_KEY.toByteArray());
+        final var hintsWeights = equalWeights(5);
+        final var legacy = new WrapsSigningQuorum(book, hintsWeights, 5);
+        final var full = new WrapsSigningQuorum(book, hintsWeights, 7);
+        assertTrue(legacy.isSatisfiedBy(Set.of(0L, 1L)));
+        assertFalse(full.isSatisfiedBy(Set.of(0L, 1L)));
+        assertFalse(full.canCompleteWithout(Set.of(2L)));
+        assertTrue(full.isSatisfiedBy(Set.of(0L, 1L, 2L)));
+    }
+
+    @Test
     void exclusionsDoNotReduceEitherQuorumDenominator() {
         final var subject = new WrapsSigningQuorum(realKeysBook(equalWeights(7)), equalWeights(5), true);
 

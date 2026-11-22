@@ -68,7 +68,6 @@ import com.hedera.node.app.spi.workflows.RollbackAwareException;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.sun.jna.ptr.IntByReference;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableStates;
@@ -81,8 +80,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
+import org.hiero.base.crypto.ECDSASecp256k1;
 import org.hiero.base.crypto.Ed25519;
-import org.hyperledger.besu.nativelib.secp256k1.LibSecp256k1;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -127,7 +126,7 @@ class ClprCompleteChannelHandlerTest {
         0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42
     });
 
-    private static final byte[] ECDSA_PUBLIC_KEY = CryptoTestHelpers.deriveEcdsaPublicKey(SECRET_KEY);
+    private static final byte[] ECDSA_PUBLIC_KEY = ECDSASecp256k1.derivePublicKey(SECRET_KEY);
     private static final Bytes ECDSA_COMMITMENT = computeCommitment(CHANNEL_ID, Bytes.wrap(ECDSA_PUBLIC_KEY));
 
     @Mock
@@ -481,7 +480,8 @@ class ClprCompleteChannelHandlerTest {
         return Map.of(
                         0x16eL, "9a0239cbc7be7e16347b8bfe6ab37f7a55d4eb688a0c8b6b141cc5035acac51e",
                         0x16fL, "9bb5a67f672529e6928db26e11d0a93f56f2f3581fda619f737e3e1615c3e909",
-                        0x171L, "962abc985d9e3cd97cc8598b2399f85e948187d8e56cbb988b4dad04e60c398c")
+                        0x171L, "962abc985d9e3cd97cc8598b2399f85e948187d8e56cbb988b4dad04e60c398c",
+                        0x173L, "8779a561b39aa363dda50c36f7df7e7e11262d62a1c3114752f5691271d984a9")
                 .entrySet()
                 .stream()
                 .flatMap(entry -> Stream.of(
@@ -975,6 +975,28 @@ class ClprCompleteChannelHandlerTest {
                 .has(responseCode(CLPR_VERIFIER_CONFIG_FAILED));
     }
 
+    @Test
+    void completeChannelAcceptsCantonBuiltInVerifier() {
+        final var cantonCid = ContractID.newBuilder().contractNum(0x173L).build();
+        commitmentStore.put(ECDSA_COMMITMENT);
+        final var op = validEcdsaTxn()
+                .clprCompleteChannelOrThrow()
+                .copyBuilder()
+                .verifierContract(cantonCid)
+                .build();
+        setupHandleContext(txnWith(op));
+
+        subject.handle(handleContext);
+
+        final var stored = channelStore.getChannel(CHANNEL_ID);
+        assertThat(stored).isNotNull();
+        assertThat(stored.verifierContract()).isEqualTo(cantonCid);
+        assertThat(stored.verifierFingerprint())
+                .isEqualTo(Bytes.fromHex("8779a561b39aa363dda50c36f7df7e7e11262d62a1c3114752f5691271d984a9"));
+        then(accountStore).shouldHaveNoInteractions();
+        then(smartContractServiceApi).shouldHaveNoInteractions();
+    }
+
     private void setupHandleContext(final TransactionBody txn) {
         setupHandleContext(txn, enabledConfig());
     }
@@ -1086,16 +1108,6 @@ class ClprCompleteChannelHandlerTest {
 
     private static byte[] signChannelId(final byte[] secKey, final Bytes connId) {
         final var messageHash = MiscCryptoUtils.keccak256DigestOf(connId.toByteArray());
-        final var recoverableSig = new LibSecp256k1.secp256k1_ecdsa_recoverable_signature();
-        final var signResult = LibSecp256k1.secp256k1_ecdsa_sign_recoverable(
-                LibSecp256k1.CONTEXT, recoverableSig, messageHash, secKey, null, null);
-        if (signResult != 1) {
-            throw new IllegalStateException("Failed to sign message");
-        }
-        final var compactSigBuffer = ByteBuffer.allocate(64);
-        final var recId = new IntByReference(0);
-        LibSecp256k1.secp256k1_ecdsa_recoverable_signature_serialize_compact(
-                LibSecp256k1.CONTEXT, compactSigBuffer, recId, recoverableSig);
-        return compactSigBuffer.array();
+        return ECDSASecp256k1.signDigestWithEcdsaSecp256k1(secKey, messageHash);
     }
 }
