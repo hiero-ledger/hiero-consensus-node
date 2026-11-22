@@ -159,7 +159,7 @@ to emit the RLP trust-anchor envelope wrapped in a protobuf
 4. `open-channel` uses the shared ID and salt, the EVM verifier address, and the peer config proof.
 
 6. Connector identity bundle via `sign-clpr-connector-identity.py` using
-`CONNECTOR_PK=0xc044ec` + `salt=0` (matches `CreateConnector.s.sol`).
+   `CONNECTOR_PK=0xc044ec` + `salt=0` (matches `CreateConnector.s.sol`).
 7. `register-connector`.
 8. `contracts create` for `PassThroughAuth` (the connector contract).
 9. `complete-connector`.
@@ -287,8 +287,8 @@ tail -f hedera-node/hedera-app/build/node/output/hgcaa.log \
 
 ## Scripts in this directory
 
-|          Script           |                                                                                          What it does                                                                                           |
-|---------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `bridge-from-besu.sh`     | Bridge a Besu-deployed channel onto Hiero via yahcli. Auto-pulls state from `clpr-smart-contracts/deployments/`.                                                                                |
-| `start-besu-qbft.sh`      | Spin up a single-node Besu QBFT chain in Docker Compose with a pre-funded dev account. Not currently used by the bridge flow (`clpr-smart-contracts/script/demo.sh` uses its own compose file). |
-| `start-hiero-local.sh`    | Start or stop one local Hiero node with `./gradlew :app:run` by default, cleaning up stale HAPI port listeners on `down`.                                                                       |
+|         Script         |                                                                                          What it does                                                                                           |
+|------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `bridge-from-besu.sh`  | Bridge a Besu-deployed channel onto Hiero via yahcli. Auto-pulls state from `clpr-smart-contracts/deployments/`.                                                                                |
+| `start-besu-qbft.sh`   | Spin up a single-node Besu QBFT chain in Docker Compose with a pre-funded dev account. Not currently used by the bridge flow (`clpr-smart-contracts/script/demo.sh` uses its own compose file). |
+| `start-hiero-local.sh` | Start or stop one local Hiero node with `./gradlew :app:run` by default, cleaning up stale HAPI port listeners on `down`.                                                                       |

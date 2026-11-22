@@ -1195,14 +1195,14 @@ protected by the reentrancy guard, so they cannot be called in the same transact
 
 ## 10.1 Operation Gas Costs
 
-|          Operation           |     Estimated Gas      |              Who Pays               |                           Notes                           |
-|------------------------------|------------------------|-------------------------------------|-----------------------------------------------------------|
-| `openChannel` | Depends on the verifier and proof | Caller (permissionless) | Verifies the peer configuration and stores the channel. |
-| `registerConnector`          | 150,000                | Connector admin                     |                                                           |
-| `registerEndpoint`           | 80,000                 | Endpoint operator                   |                                                           |
-| `sendMessage` (enqueue)      | 80,000 - 175,000       | Message sender                      | +~25K if lazy ConfigUpdate is enqueued                    |
-| `submitBundle` (10 messages) | 2,000,000 - 25,000,000 | Endpoint (reimbursed by Connectors) | +~25K if lazy ConfigUpdate is enqueued                    |
-| `redactMessage`              | 30,000                 | CLPR admin                          |                                                           |
+|          Operation           |           Estimated Gas           |              Who Pays               |                          Notes                          |
+|------------------------------|-----------------------------------|-------------------------------------|---------------------------------------------------------|
+| `openChannel`                | Depends on the verifier and proof | Caller (permissionless)             | Verifies the peer configuration and stores the channel. |
+| `registerConnector`          | 150,000                           | Connector admin                     |                                                         |
+| `registerEndpoint`           | 80,000                            | Endpoint operator                   |                                                         |
+| `sendMessage` (enqueue)      | 80,000 - 175,000                  | Message sender                      | +~25K if lazy ConfigUpdate is enqueued                  |
+| `submitBundle` (10 messages) | 2,000,000 - 25,000,000            | Endpoint (reimbursed by Connectors) | +~25K if lazy ConfigUpdate is enqueued                  |
+| `redactMessage`              | 30,000                            | CLPR admin                          |                                                         |
 
 ## 10.2 Fee Model
 

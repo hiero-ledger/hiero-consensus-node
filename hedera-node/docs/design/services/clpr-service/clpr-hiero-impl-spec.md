@@ -41,17 +41,17 @@ that goes through consensus) or a HAPI query (read-only operation). All transact
 
 The following new `oneof` variants are added to `TransactionBody`:
 
-| Pseudo-API (spec section 6) |      HAPI Transaction Type      |   TransactionBody oneof field   |                            Authority                             |
-|-----------------------------|---------------------------------|---------------------------------|------------------------------------------------------------------|
-| `updateLedgerConfiguration` | `ClprUpdateLedgerConfiguration` | `clprUpdateLedgerConfiguration` | CLPR admin (council key)                                         |
-| `openChannel` | `ClprOpenChannel` | `clprOpenChannel` | Any payer with a valid peer proof |
-| `closeChannel`              | `ClprCloseChannel`              | `clprCloseChannel`              | CLPR admin (ACTIVE/PAUSED → CLOSING → DRAINED → CLOSED)          |
-| `registerConnector`         | `ClprRegisterConnector`         | `clprRegisterConnector`         | Any (requires initial funds)                                     |
-| `topUpConnector`            | `ClprTopUpConnector`            | `clprTopUpConnector`            | Connector admin                                                  |
-| `withdrawConnectorBalance`  | `ClprWithdrawConnectorBalance`  | `clprWithdrawConnectorBalance`  | Connector admin                                                  |
-| `deregisterConnector`       | `ClprDeregisterConnector`       | `clprDeregisterConnector`       | Connector admin                                                  |
-| `submitBundle`              | `ClprSubmitBundle`              | `clprSubmitBundle`              | Any (typically endpoint)                                         |
-| `redactMessage`             | `ClprRedactMessage`             | `clprRedactMessage`             | CLPR admin                                                       |
+| Pseudo-API (spec section 6) |      HAPI Transaction Type      |   TransactionBody oneof field   |                        Authority                        |
+|-----------------------------|---------------------------------|---------------------------------|---------------------------------------------------------|
+| `updateLedgerConfiguration` | `ClprUpdateLedgerConfiguration` | `clprUpdateLedgerConfiguration` | CLPR admin (council key)                                |
+| `openChannel`               | `ClprOpenChannel`               | `clprOpenChannel`               | Any payer with a valid peer proof                       |
+| `closeChannel`              | `ClprCloseChannel`              | `clprCloseChannel`              | CLPR admin (ACTIVE/PAUSED → CLOSING → DRAINED → CLOSED) |
+| `registerConnector`         | `ClprRegisterConnector`         | `clprRegisterConnector`         | Any (requires initial funds)                            |
+| `topUpConnector`            | `ClprTopUpConnector`            | `clprTopUpConnector`            | Connector admin                                         |
+| `withdrawConnectorBalance`  | `ClprWithdrawConnectorBalance`  | `clprWithdrawConnectorBalance`  | Connector admin                                         |
+| `deregisterConnector`       | `ClprDeregisterConnector`       | `clprDeregisterConnector`       | Connector admin                                         |
+| `submitBundle`              | `ClprSubmitBundle`              | `clprSubmitBundle`              | Any (typically endpoint)                                |
+| `redactMessage`             | `ClprRedactMessage`             | `clprRedactMessage`             | CLPR admin                                              |
 
 **Note:** There is no `reportMisbehavior` transaction. Misbehavior detection and enforcement are strictly
 local (see cross-platform spec §1.6).
@@ -258,7 +258,7 @@ These remain as they are in the prototype, served by the `ClprEndpointService` g
 |           Transaction           |                               Required Signers                               |
 |---------------------------------|------------------------------------------------------------------------------|
 | `ClprUpdateLedgerConfiguration` | CLPR admin key (Hedera council key, file `0.0.150` or equivalent system key) |
-| `ClprOpenChannel` | Transaction payer only |
+| `ClprOpenChannel`               | Transaction payer only                                                       |
 | `ClprCloseChannel`              | CLPR admin key                                                               |
 | `ClprRegisterConnector`         | Transaction payer + Connector admin key                                      |
 | `ClprTopUpConnector`            | Connector admin key                                                          |
@@ -372,7 +372,7 @@ fingerprints are not rewritten.
 
 |   From    |    To     |                                                         Trigger                                                          |
 |-----------|-----------|--------------------------------------------------------------------------------------------------------------------------|
-| (new) | `ACTIVE` | `ClprOpenChannel` verifies the peer and the channel ID. |
+| (new)     | `ACTIVE`  | `ClprOpenChannel` verifies the peer and the channel ID.                                                                  |
 | `PENDING` | (deleted) | Admin: `ClprCloseChannel` on a PENDING Channel (immediate deletion)                                                      |
 | `ACTIVE`  | `PAUSED`  | Auto: response ordering violation during `ClprSubmitBundle`                                                              |
 | `ACTIVE`  | `CLOSING` | Admin: `ClprCloseChannel`, or peer's `ClprQueueMetadata.status` is `CLOSING`/`DRAINED`/`CLOSED`                          |
@@ -476,17 +476,17 @@ public final class ClprServiceImpl implements ClprService {
 Each HAPI transaction type maps to a `TransactionHandler` implementation. Handlers follow the standard
 `preHandle(PreHandleContext)` / `handle(HandleContext)` pattern.
 
-|             Handler Class              |        Transaction Type         |                                                                                                                                                 Complexity                                                                                                                                                 |
-|----------------------------------------|---------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `ClprUpdateLedgerConfigurationHandler` | `ClprUpdateLedgerConfiguration` | Medium (admin key check, store config). The handler preserves immutable fields (`chain_id`, `protocol_version`) from the genesis configuration and updates only mutable fields (throttles, endpoints); `service_address` is fixed. Timestamp is set to the consensus time of the transaction.              |
-| `ClprOpenChannelHandler` | `ClprOpenChannel` | Verify the peer proofs, check the derived ID, and store an ACTIVE channel. |
-| `ClprCloseChannelHandler`              | `ClprCloseChannel`              | Low (PENDING → immediate deletion; ACTIVE/PAUSED → graceful drain through CLOSING/DRAINED; DRAINED → CLOSED admin recovery; peer status and acknowledgements complete automatic closure per §2.1.1)                                                                                                        |
-| `ClprRegisterConnectorHandler`         | `ClprRegisterConnector`         | Medium (fund transfer, mapping setup). Records the `admin` field on the Connector state (defaults to the transaction payer if not specified in the body). The signing requirement includes the admin key if an explicit admin is provided; otherwise the payer key suffices.                               |
-| `ClprTopUpConnectorHandler`            | `ClprTopUpConnector`            | Low (balance update)                                                                                                                                                                                                                                                                                       |
-| `ClprWithdrawConnectorBalanceHandler`  | `ClprWithdrawConnectorBalance`  | Low (balance check + transfer)                                                                                                                                                                                                                                                                             |
-| `ClprDeregisterConnectorHandler`       | `ClprDeregisterConnector`       | Medium (in-flight check, fund return)                                                                                                                                                                                                                                                                      |
-| `ClprSubmitBundleHandler`              | `ClprSubmitBundle`              | **High** (per-endpoint throttle check, verifier call, replay defense, hash chain verify, per-message dispatch, response generation, slashing)                                                                                                                                                              |
-| `ClprRedactMessageHandler`             | `ClprRedactMessage`             | Low (payload removal, slot retention)                                                                                                                                                                                                                                                                      |
+|             Handler Class              |        Transaction Type         |                                                                                                                                          Complexity                                                                                                                                           |
+|----------------------------------------|---------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ClprUpdateLedgerConfigurationHandler` | `ClprUpdateLedgerConfiguration` | Medium (admin key check, store config). The handler preserves immutable fields (`chain_id`, `protocol_version`) from the genesis configuration and updates only mutable fields (throttles, endpoints); `service_address` is fixed. Timestamp is set to the consensus time of the transaction. |
+| `ClprOpenChannelHandler`               | `ClprOpenChannel`               | Verify the peer proofs, check the derived ID, and store an ACTIVE channel.                                                                                                                                                                                                                    |
+| `ClprCloseChannelHandler`              | `ClprCloseChannel`              | Low (PENDING → immediate deletion; ACTIVE/PAUSED → graceful drain through CLOSING/DRAINED; DRAINED → CLOSED admin recovery; peer status and acknowledgements complete automatic closure per §2.1.1)                                                                                           |
+| `ClprRegisterConnectorHandler`         | `ClprRegisterConnector`         | Medium (fund transfer, mapping setup). Records the `admin` field on the Connector state (defaults to the transaction payer if not specified in the body). The signing requirement includes the admin key if an explicit admin is provided; otherwise the payer key suffices.                  |
+| `ClprTopUpConnectorHandler`            | `ClprTopUpConnector`            | Low (balance update)                                                                                                                                                                                                                                                                          |
+| `ClprWithdrawConnectorBalanceHandler`  | `ClprWithdrawConnectorBalance`  | Low (balance check + transfer)                                                                                                                                                                                                                                                                |
+| `ClprDeregisterConnectorHandler`       | `ClprDeregisterConnector`       | Medium (in-flight check, fund return)                                                                                                                                                                                                                                                         |
+| `ClprSubmitBundleHandler`              | `ClprSubmitBundle`              | **High** (per-endpoint throttle check, verifier call, replay defense, hash chain verify, per-message dispatch, response generation, slashing)                                                                                                                                                 |
+| `ClprRedactMessageHandler`             | `ClprRedactMessage`             | Low (payload removal, slot retention)                                                                                                                                                                                                                                                         |
 
 ### 3.2.1 Handler Details: ClprSubmitBundleHandler
 
@@ -900,7 +900,7 @@ Each handler registers a `ServiceFeeCalculator`:
 |           Transaction           |                          Fee Basis                          |                                                  Notes                                                  |
 |---------------------------------|-------------------------------------------------------------|---------------------------------------------------------------------------------------------------------|
 | `ClprUpdateLedgerConfiguration` | Fixed base                                                  | Admin operation; relatively rare. Config propagation is lazy, so no per-Channel enqueue at update time. |
-| `ClprOpenChannel` | Base fee, verifier gas and stored channel bytes | Creates an ACTIVE channel |
+| `ClprOpenChannel`               | Base fee, verifier gas and stored channel bytes             | Creates an ACTIVE channel                                                                               |
 | `ClprUpdateEndpointRoster`      | Fixed base + verification cost                              |                                                                                                         |
 | `ClprCloseChannel`              | Fixed base                                                  | Low; transition to CLOSING                                                                              |
 | `ClprRegisterConnector`         | Fixed base                                                  |                                                                                                         |
