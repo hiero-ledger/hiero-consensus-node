@@ -12,7 +12,7 @@ jobs:
   integration-deploy:
     name: Integration / Deploy Artifact
     runs-on: hl-cn-default-lin-sm
-    if: ${{ !github.event.workflow_dispatch.repository.fork }}
+    if: ${{ github.event.repository.visibility == 'public' && !github.event.repository.fork }}
     steps:
       - name: Prepare Runner
         id: prepare-runner

@@ -95,7 +95,7 @@ jobs:
     runs-on: hl-cn-default-lin-sm
     needs:
       - mats-tests
-    if: ${{ needs.mats-tests.result == 'success' && github.event.repository.visibility == 'public' }}
+    if: ${{ needs.mats-tests.result == 'success' && github.event.repository.visibility == 'public' && !github.event.repository.fork }}
     steps:
       - name: Prepare Runner
         id: prepare-runner
