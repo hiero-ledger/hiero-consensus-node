@@ -202,7 +202,7 @@ jobs:
       - workflow-unit-tests
       - ci-complete
       - report-summary
-    if: ${{ always() && github.event.repository.visibility == 'public' && github.event.pull_request.head.repo.full_name == github.repository }}
+    if: ${{ always() && github.event.repository.visibility == 'public' && !github.event.repository.fork && github.event.pull_request.head.repo.full_name == github.repository }}
     uses: ./.github/workflows/865-call-publish-run-metrics.yaml
     with:
       context: >-
