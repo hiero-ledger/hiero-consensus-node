@@ -237,16 +237,22 @@ When initiating a sync for a Channel, the endpoint must select a peer endpoint f
 on node restart. Entries decay over time (exponential decay with a half-life of `clpr.reputationDecaySeconds`,
 default: 300 seconds).
 
-**Outbound destinations.** CLPR endpoint addresses MUST be numeric IPv4 or IPv6 literals, without DNS names or
-IPv6 scope identifiers, and ports MUST be in `1..65535`. Before creating a client, the node validates the destination
-and passes the parsed socket address directly to the transport. Ordinary public unicast destinations are accepted
+**Outbound destinations.** The canonical CLPR protocol requires numeric IPv4 or IPv6 addresses. DNS hostnames
+are a Hiero-local extension for test networks such as Solo. Every channel receives the publishing ledger's
+manifest, so all peers that need to dial a published hostname must support the extension.
+
+Set the node-local `clpr.allowDnsPeerEndpoints=true` on each dialing node. It can continue publishing numeric
+addresses on its own ledger. DNS resolution and the gRPC stream share the `clpr.syncTimeoutSeconds` deadline.
+The client keeps the pinned IP while it appears among the permitted A or AAAA answers. Otherwise it dials the
+first permitted answer and lets any RPCs on the old transport finish under their original deadlines.
+Ports MUST be in `1..65535`, and IPv6 scope identifiers are unsupported. Ordinary public unicast destinations are accepted
 by default. For IPv6, this means `2000::/3`, excluding the IETF special-purpose range `2001::/23`, documentation
 ranges `2001:db8::/32` and `3fff::/20`, and the 6to4 range `2002::/16`.
 Deployments using other unicast ranges, including local or private networks, MUST explicitly list them in the node-local
 `clpr.additionalPeerEndpointCidrs` setting, for example `127.0.0.1/32,10.0.0.0/24`. The default is an empty set.
 Unspecified and multicast destinations remain invalid. These checks apply independently of
 `clpr.syncPeerExclusionEnabled` and do not change the peer manifest stored in consensus state.
-When the client cache observes a changed CIDR setting on its next lookup, it retires existing transports before
+When the client cache observes a change in `clpr.additionalPeerEndpointCidrs` or `clpr.allowDnsPeerEndpoints`, it retires existing transports before
 validating the requested destination and creating a client under the new setting.
 
 ## 3.3 Concurrency Model
@@ -554,17 +560,23 @@ roster change events. Each node's CLPR endpoint identity is derived from:
 | `ecdsa_signing_key` | Node's ECDSA secp256k1 public key (33 bytes compressed, or 64 bytes uncompressed) |
 | `account_id`        | Node's account ID (serialized as bytes, 20 bytes for Hiero)                       |
 
-For CLPR self-publication, configure a reachable IPv4 address in the `ipAddressV4` field of a HAPI service
+For CLPR self-publication with the default settings, configure a reachable IPv4 address in the `ipAddressV4` field of a HAPI service
 endpoint in the node's address book. The publisher selects the first such entry in address-book order. It uses
 that entry's port for plaintext or `grpc.tlsPort` when the node has a HAPI TLS certificate. A node with only
-domain-name entries skips self-publication until a numeric endpoint is available.
+domain-name entries skips self-publication until a numeric endpoint is available. With
+`clpr.publishDnsEndpoints=true`, the publisher selects the first IPv4 address or valid ASCII DNS hostname,
+skipping malformed entries. The manifest stores the name verbatim. Only the dialing node resolves it.
 
-**Migrating existing hostname publications.** Before upgrading peers that dial this ledger, put the reachable
-IPv4 entry first so older publishers also select it. Restart with the updated address book. The reconciler
-publishes the numeric endpoint and the next finalized manifest replaces the hostname entry. Check the address
-and port with `yahcli clpr get-endpoint-manifest` and confirm existing peer channels have received the new
-manifest version while they can still sync. For private addresses, configure the corresponding
-`clpr.additionalPeerEndpointCidrs` on the dialing nodes.
+Set `clpr.publishDnsEndpoints` through the network properties file (`0.0.121`). All nodes use this value when
+deciding whether to rebuild the manifest. A node-local override can cause nodes to write different consensus state.
+
+**Returning to numeric publication.** First put a reachable IPv4 entry ahead of each hostname in the address
+book and restart with the updated book. For private addresses, allow the corresponding
+`clpr.additionalPeerEndpointCidrs` on dialing nodes. Check the published address and port with
+`yahcli clpr get-endpoint-manifest` and let connected peers receive the numeric manifest before disabling DNS dialing.
+Set `clpr.publishDnsEndpoints=false` in file `0.0.121`. If the manifest still lists hostnames, reconciliation
+rebuilds it without waiting for an upgrade. Domain-only nodes drop out when that construction closes. If every
+node is domain-only, the resulting manifest has no dial targets.
 
 The endpoint count from the active roster is used for per-endpoint throttle calculation
 (`max_bundles_per_sec / num_endpoints`).
@@ -583,7 +595,9 @@ Channel record (`Channel.endpoint_manifest` / `endpoint_manifest_version`):
   advances the stored one, applying the same count and byte bounds.
 
 Zero `max_peer_endpoints` disables only the count bound. The byte ceiling always applies, including to
-certificate, account, address, and protobuf-framing bytes. See [Peer manifest storage ceiling](#peer-manifest-storage-ceiling)
+certificate, account, address, and protobuf-framing bytes. An ASCII hostname can use 253 bytes, compared with
+15 for a dotted IPv4 address or 39 for an IPv6 address in hexadecimal notation. Longer names increase the encoded
+input a peer must verify and can reduce the number of endpoints that fit in its retained manifest. See [Peer manifest storage ceiling](#peer-manifest-storage-ceiling)
 for oversized-entry handling and configuration migration.
 
 ## 7.3 Reciprocity-Based Peer Selection
@@ -669,7 +683,7 @@ the standard Hiero configuration system. Parameters prefixed with `clpr.` in pro
 |         Parameter          |    Type     | Default |                          Description                           |
 |----------------------------|-------------|---------|----------------------------------------------------------------|
 | `clpr.maxConcurrentSyncs`  | `int`       | `4`     | Maximum simultaneous outbound sync calls per node.             |
-| `clpr.syncTimeoutSeconds`  | `int`       | `30`    | Timeout for a single sync gRPC call.                           |
+| `clpr.syncTimeoutSeconds`  | `int`       | `30`    | Deadline shared by DNS lookup and streaming sync.              |
 | `clpr.maxPayloadBufferAge` | `long` (ms) | `60000` | Maximum age of a buffered inbound payload before discard.      |
 | `clpr.maxStateAgeSeconds`  | `int`       | `30`    | Maximum acceptable age of signed state for proof construction. |
 
@@ -681,6 +695,8 @@ the standard Hiero configuration system. Parameters prefixed with `clpr.` in pro
 | `clpr.reputationSuccessBonus`      | `double`      | `1.0`   | Reputation score added for a successful sync.                                                    |
 | `clpr.reputationFailurePenalty`    | `double`      | `5.0`   | Reputation score subtracted for a failed sync.                                                   |
 | `clpr.recentPeerPenaltyFactor`     | `double`      | `0.5`   | Weight multiplier for a peer selected on the previous tick.                                      |
+| `clpr.publishDnsEndpoints`         | `boolean`     | `false` | Network-wide; set through `0.0.121`. Publish address-book domain names.                          |
+| `clpr.allowDnsPeerEndpoints`       | `boolean`     | `false` | Node-local. Resolve and dial DNS names that peers publish.                                       |
 | `clpr.additionalPeerEndpointCidrs` | `Set<String>` | empty   | Node-local IPv4/IPv6 CIDRs for additional peer destinations, such as a local or private network. |
 
 ## 9.4 Retry Parameters

@@ -31,6 +31,8 @@ public final class ClprConfigBuilder {
     private long retryMaxDelayMs = 30_000L;
     private int retryMaxAttempts = 5;
     private int circuitBreakerCooldownSeconds = 120;
+    private boolean publishDnsEndpoints = false;
+    private boolean allowDnsPeerEndpoints = false;
     private Set<String> additionalPeerEndpointCidrs = Set.of();
     private boolean syncPeerExclusionEnabled = false;
     private int connectorQueueQuotaPct = 50;
@@ -151,6 +153,16 @@ public final class ClprConfigBuilder {
         return this;
     }
 
+    public ClprConfigBuilder publishDnsEndpoints(final boolean publishDnsEndpoints) {
+        this.publishDnsEndpoints = publishDnsEndpoints;
+        return this;
+    }
+
+    public ClprConfigBuilder allowDnsPeerEndpoints(final boolean allowDnsPeerEndpoints) {
+        this.allowDnsPeerEndpoints = allowDnsPeerEndpoints;
+        return this;
+    }
+
     public ClprConfigBuilder additionalPeerEndpointCidrs(final Set<String> additionalPeerEndpointCidrs) {
         this.additionalPeerEndpointCidrs = Set.copyOf(additionalPeerEndpointCidrs);
         return this;
@@ -238,6 +250,8 @@ public final class ClprConfigBuilder {
                 retryMaxDelayMs,
                 retryMaxAttempts,
                 circuitBreakerCooldownSeconds,
+                publishDnsEndpoints,
+                allowDnsPeerEndpoints,
                 additionalPeerEndpointCidrs,
                 syncPeerExclusionEnabled,
                 connectorQueueQuotaPct,

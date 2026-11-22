@@ -126,8 +126,8 @@ public final class ClprPeerSelector {
         try {
             return InetAddresses.toAddrString(InetAddresses.forString(host));
         } catch (final IllegalArgumentException e) {
-            // The client cache reports malformed destinations; retain their original spelling for retry tracking.
-            return host;
+            // The selected endpoint retains the original spelling for the resolver.
+            return NodeIdentity.dnsKey(host);
         }
     }
 
