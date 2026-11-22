@@ -362,6 +362,29 @@ class ClprEndpointClientCacheTest {
     }
 
     @Test
+    void negativeDnsAnswerOnEmptyCacheForcesPendingLookupToRetry() throws Exception {
+        when(clprConfig.allowDnsPeerEndpoints()).thenReturn(true);
+        when(resolver.resolve(SOLO_HOST))
+                .thenAnswer(invocation -> {
+                    // Finish a second lookup before the first can install its address.
+                    assertThatThrownBy(() -> clientFor(SOLO_HOST, PORT, false))
+                            .hasCauseInstanceOf(UnknownHostException.class);
+                    return answers(ADDRESS);
+                })
+                .thenThrow(new UnknownHostException(SOLO_HOST));
+        final var deadline = mock(Deadline.class);
+        when(deadline.timeRemaining(TimeUnit.NANOSECONDS)).thenReturn(TimeUnit.SECONDS.toNanos(10));
+
+        try (var transport = mockStatic(ClprEndpointClientImpl.class)) {
+            assertThatThrownBy(() -> cache.clientFor(SOLO_HOST, PORT, false, deadline))
+                    .hasCauseInstanceOf(UnknownHostException.class);
+            verify(resolver, times(3)).resolve(SOLO_HOST);
+            verify(deadline, times(2)).timeRemaining(TimeUnit.NANOSECONDS);
+            transport.verifyNoInteractions();
+        }
+    }
+
+    @Test
     void lookupThatStartedWithoutAPinRechecksDnsAfterAnInterveningInstallAndEviction() throws Exception {
         when(clprConfig.allowDnsPeerEndpoints()).thenReturn(true);
         final var newerAddress = ClprEndpointAddressPolicy.addressFor("8.8.4.4", PORT, Set.of());

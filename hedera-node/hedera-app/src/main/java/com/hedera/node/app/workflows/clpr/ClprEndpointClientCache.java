@@ -53,7 +53,7 @@ public class ClprEndpointClientCache implements AutoCloseable {
     private static final Logger logger = LogManager.getLogger(ClprEndpointClientCache.class);
 
     private final Map<InetSocketAddress, CachedClient> clients = new HashMap<>();
-    // Keep eviction history only while a DNS caller can still hold an answer from before the eviction.
+    // Remember negative DNS answers while an overlapping caller could still install an older answer.
     private final Map<InetSocketAddress, PendingDnsLookups> pendingDnsLookups = new HashMap<>();
     private final ConfigProvider configProvider;
     private final HostResolver resolver;
@@ -111,7 +111,7 @@ public class ClprEndpointClientCache implements AutoCloseable {
         final InetSocketAddress key;
         CachedClient previous;
         final PendingDnsLookups pending;
-        long observedEvictions;
+        long observedInvalidations;
         final boolean dns = isDnsHostname(host);
         synchronized (this) {
             policy = applyPolicy();
@@ -122,11 +122,11 @@ public class ClprEndpointClientCache implements AutoCloseable {
                 key = InetSocketAddress.createUnresolved(NodeIdentity.dnsKey(host), port);
                 pending = pendingDnsLookups.computeIfAbsent(key, ignored -> new PendingDnsLookups());
                 pending.callers++;
-                observedEvictions = pending.evictions;
+                observedInvalidations = pending.invalidations;
             } else {
                 key = policy.addresses().addressFor(host, port);
                 pending = null;
-                observedEvictions = 0;
+                observedInvalidations = 0;
             }
             previous = clients.get(key);
         }
@@ -145,10 +145,10 @@ public class ClprEndpointClientCache implements AutoCloseable {
                     final boolean pinStillPermitted = current != null && candidates.contains(current.address());
                     if (pending != null
                             && !pinStillPermitted
-                            && (current != previous || pending.evictions != observedEvictions)) {
-                        // The pin may have been installed and evicted while this lookup saw an empty cache.
+                            && (current != previous || pending.invalidations != observedInvalidations)) {
+                        // Another lookup changed the pin or reported a negative answer, even if the cache is empty.
                         previous = current;
-                        observedEvictions = pending.evictions;
+                        observedInvalidations = pending.invalidations;
                         continue;
                     }
                     if (pinStillPermitted && current.useTls() == useTls) {
@@ -222,10 +222,10 @@ public class ClprEndpointClientCache implements AutoCloseable {
                 return candidates;
             }
         } catch (final UnknownHostException e) {
-            evict(key, previous);
+            invalidateDnsEntry(key, previous);
             throw new ClientException("Cannot resolve CLPR peer endpoint " + host, e);
         }
-        evict(key, previous);
+        invalidateDnsEntry(key, previous);
         throw new ClientException("CLPR peer endpoint " + host + " has no permitted DNS answers", null);
     }
 
@@ -266,15 +266,18 @@ public class ClprEndpointClientCache implements AutoCloseable {
         }
     }
 
-    /** Only evict the client observed before lookup. A concurrent sync may already have installed a replacement. */
-    private void evict(final InetSocketAddress key, @Nullable final CachedClient previous) {
+    /** Record a negative answer only if the entry still matches what this lookup observed. */
+    private void invalidateDnsEntry(final InetSocketAddress key, @Nullable final CachedClient previous) {
         synchronized (this) {
-            if (previous == null || !clients.remove(key, previous)) {
+            if (clients.get(key) != previous) {
                 return;
             }
-            pendingDnsLookups.get(key).evictions++;
+            clients.remove(key);
+            pendingDnsLookups.get(key).invalidations++;
         }
-        previous.client().retireChannel();
+        if (previous != null) {
+            previous.client().retireChannel();
+        }
     }
 
     private static void requireDnsAllowed(final Policy policy, final String host, final int port) {
@@ -289,7 +292,7 @@ public class ClprEndpointClientCache implements AutoCloseable {
     /** Guarded by the cache lock and shared by overlapping lookups for one DNS peer. */
     private static final class PendingDnsLookups {
         private int callers;
-        private long evictions;
+        private long invalidations;
     }
 
     /** This node's destination policy: whether DNS peers may be dialed, and the permitted address ranges. */
