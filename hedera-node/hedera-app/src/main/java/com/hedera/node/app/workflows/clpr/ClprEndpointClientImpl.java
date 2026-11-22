@@ -8,6 +8,7 @@ import com.hedera.node.app.service.clpr.ClprEndpointServiceDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.CallOptions;
 import io.grpc.Channel;
+import io.grpc.Deadline;
 import io.grpc.ManagedChannel;
 import io.grpc.MethodDescriptor;
 import io.grpc.netty.GrpcSslContexts;
@@ -18,7 +19,6 @@ import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
-import java.time.Duration;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import javax.net.ssl.SSLException;
@@ -156,18 +156,28 @@ class ClprEndpointClientImpl implements ClprEndpointClient {
 
     @Override
     @NonNull
-    public ClprStreamingSyncCall sync(@NonNull final Duration timeout) {
-        requireNonNull(timeout);
-        final var callOptions = CallOptions.DEFAULT.withDeadlineAfter(timeout.toMillis(), TimeUnit.MILLISECONDS);
+    public ClprStreamingSyncCall sync(@NonNull final Deadline deadline) {
+        final var callOptions = CallOptions.DEFAULT.withDeadline(requireNonNull(deadline));
         final var call = ClientCalls.blockingBidiStreamingCall(channel, SYNC_METHOD_DESCRIPTOR, callOptions);
         logger.debug("Streaming sync initiated with peer {}", channel.authority());
         return new ClprStreamingSyncCall(call, channel.authority());
     }
 
     /**
+     * Starts a graceful shutdown without waiting: calls already running finish within their own deadline,
+     * and no new call starts. The cache uses this when a newer client replaces this one, so another thread's
+     * sync on this channel is not cut short and the cache lock is not held while the channel drains.
+     */
+    void retireChannel() {
+        if (channel != null) {
+            ((ManagedChannel) channel).shutdown();
+        }
+    }
+
+    /**
      * Shuts down the channel this client owns. Package-private and absent from the
      * {@link ClprEndpointClient} interface: only {@link ClprEndpointClientCache} — the sole holder of a
-     * reference typed to this concrete class — may tear a client down, on a transport change or node stop.
+     * reference typed to this concrete class — may tear a client down, on a destination-policy change or node stop.
      */
     void shutdownChannel() {
         if (channel == null) {
