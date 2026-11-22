@@ -30,15 +30,12 @@ permissions:
   actions: read
 
 jobs:
-  # Never runs in a fork. A tag push releases from a public or a private repository; a dispatch runs
-  # in either too. Every other job needs this one, so anywhere else nothing starts. In a private
+  # Never runs in a fork; every other job needs this one, so in a fork nothing starts. In a private
   # repository only the DevOps bucket upload in 850 runs; every public destination is guarded by
   # repository visibility.
   prepare-tag-release:
     name: Prepare Release [Tag]
-    if: >-
-      ${{ !github.event.repository.fork && (github.event_name != 'push' ||
-      github.event.repository.visibility == 'public' || github.event.repository.visibility == 'private') }}
+    if: ${{ !github.event.repository.fork }}
     runs-on: hl-cn-default-lin-sm
     outputs:
       tag: ${{ steps.resolve.outputs.tag }}
