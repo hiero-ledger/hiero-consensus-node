@@ -36,15 +36,12 @@ jobs:
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
-  # Never runs in a fork: a tag push releases from a public or a private repository. In a private
-  # repository only the DevOps bucket upload in 850 runs; every public destination is guarded by
-  # repository visibility.
+  # Never runs in a fork. In a private repository only the DevOps bucket upload in 850 runs; every
+  # public destination is guarded by repository visibility.
   prepare-tag-release:
     name: Prepare Release [Tag]
     runs-on: hl-cn-default-lin-sm
-    if: >-
-      ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && !github.event.repository.fork &&
-      (github.event.repository.visibility == 'public' || github.event.repository.visibility == 'private') }}
+    if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && !github.event.repository.fork }}
     outputs:
       version: ${{ steps.tag.outputs.version }}
       prerelease: ${{ steps.tag.outputs.prerelease }}

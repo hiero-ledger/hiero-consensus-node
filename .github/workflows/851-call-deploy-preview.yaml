@@ -48,11 +48,8 @@ jobs:
   Deploy-Preview:
     name: ${{ inputs.custom-job-label || 'Deploy Preview' }}
     runs-on: hl-cn-default-lin-md
-    # Runs in a public or a private repository, never in a fork of one. A fork of the public
-    # repository is public too, so visibility alone can't exclude it.
-    if: >-
-      ${{ !github.event.repository.fork && (github.event.repository.visibility == 'public' ||
-      github.event.repository.visibility == 'private') }}
+    # Never runs in a fork.
+    if: ${{ !github.event.repository.fork }}
     outputs:
       version: ${{ steps.effective-version.outputs.number }}
 

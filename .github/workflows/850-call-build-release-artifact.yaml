@@ -113,12 +113,9 @@ jobs:
   validate:
     name: Validate
     runs-on: hl-cn-default-lin-md
-    # Runs in a public or a private repository, never in a fork of one. A fork of the public
-    # repository is public too, so visibility alone can't exclude it. A private repository only
-    # uploads to the DevOps bucket; every public destination below is guarded by visibility.
-    if: >-
-      ${{ !github.event.repository.fork && (github.event.repository.visibility == 'public' ||
-      github.event.repository.visibility == 'private') }}
+    # Never runs in a fork. A private repository only uploads to the DevOps bucket; every public
+    # destination below is guarded by repository visibility.
+    if: ${{ !github.event.repository.fork }}
     outputs:
       branch-name: ${{ steps.parameters.outputs.branch-name }}
       branch-name-lower: ${{ steps.parameters.outputs.branch-name-lower }}
