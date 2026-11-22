@@ -30,14 +30,14 @@ permissions:
   actions: read
 
 jobs:
-  # A tag push releases only from the public repository or the private release mirror
-  # (hashgraph/private-hedera-services). Every other job needs this one, so in any other copy that
-  # isn't public a pushed tag starts nothing. A dispatch runs as before. In the private mirror only
-  # the DevOps bucket upload in 850 runs; every public destination is guarded by repository visibility.
+  # A tag push releases from a public or a private repository. Every other job needs this one, so in
+  # an internal copy a pushed tag starts nothing. A dispatch runs as before. In a private repository
+  # only the DevOps bucket upload in 850 runs; every public destination is guarded by repository
+  # visibility.
   prepare-tag-release:
     name: Prepare Release [Tag]
     if: ${{ github.event_name != 'push' || github.event.repository.visibility == 'public' ||
-      github.repository == 'hashgraph/private-hedera-services' }}
+      github.event.repository.visibility == 'private' }}
     runs-on: hl-cn-default-lin-sm
     outputs:
       tag: ${{ steps.resolve.outputs.tag }}
