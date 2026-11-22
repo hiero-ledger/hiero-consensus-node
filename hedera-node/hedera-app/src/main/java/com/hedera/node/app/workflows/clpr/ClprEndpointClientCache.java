@@ -1,15 +1,30 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.clpr;
 
+import static com.hedera.node.app.service.clpr.impl.roster.ClprEndpointBuilder.isDnsHostname;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.node.app.workflows.clpr.ClprEndpointClientImpl.ClientException;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.ClprConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
+import io.grpc.Deadline;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
@@ -21,78 +36,271 @@ import org.apache.logging.log4j.Logger;
  * every sync. At the CLPR sync cadence this avoids a full TCP + TLS handshake per tick and lets HTTP/2
  * multiplexing and keep-alive amortize the connection cost.
  *
- * <p>Clients are keyed by normalized socket address. A cached client is rebuilt when its transport changes
- * (TLS vs. plaintext), and a change to the node's additional endpoint CIDRs retires all cached clients.
+ * <p>Numeric peers share clients by normalized address. DNS peers, dialed only when
+ * {@code clpr.allowDnsPeerEndpoints} is set, keep their client while DNS still returns its address and the
+ * transport matches. Changing either destination-policy setting retires all cached clients.
  *
- * <p>Thread-safety: {@link #clientFor} and {@link #shutdownAll} serialize changes to the cache and its
- * destination policy. Internally the cache holds each entry as a
- * {@link ClprEndpointClientImpl} so it alone can call the package-private
- * {@link ClprEndpointClientImpl#shutdownChannel()} on a transport change or {@link #shutdownAll()};
- * {@link #clientFor} hands callers back only the {@link ClprEndpointClient} interface, which has no
- * shutdown method at all, so nothing a caller does with the returned client can tear it down out from
- * under other callers.
+ * <p>DNS lookups run outside the cache lock on a separate thread, bounded by {@code clpr.syncTimeoutSeconds}.
+ * Cache mutations are serialized with changes to the destination policy. Internally the cache holds each entry
+ * as a {@link ClprEndpointClientImpl} so it alone can call the package-private
+ * {@link ClprEndpointClientImpl#retireChannel()} on a replacement or {@link ClprEndpointClientImpl#shutdownChannel()}
+ * on a policy change or {@link #shutdownAll()}; {@link #clientFor} hands callers back only the
+ * {@link ClprEndpointClient} interface, which has no shutdown method at all, so nothing a caller does with the
+ * returned client can tear it down out from under other callers.
  */
 @Singleton
-public class ClprEndpointClientCache {
+public class ClprEndpointClientCache implements AutoCloseable {
     private static final Logger logger = LogManager.getLogger(ClprEndpointClientCache.class);
 
     private final Map<InetSocketAddress, CachedClient> clients = new HashMap<>();
+    // Remember negative DNS answers while an overlapping caller could still install an older answer.
+    private final Map<InetSocketAddress, PendingDnsLookups> pendingDnsLookups = new HashMap<>();
     private final ConfigProvider configProvider;
+    private final HostResolver resolver;
+    private final ExecutorService dnsLookups;
     private Set<String> appliedCidrs = Set.of();
+
+    @Nullable
+    private Policy appliedPolicy;
 
     @Inject
     public ClprEndpointClientCache(@NonNull final ConfigProvider configProvider) {
+        this(configProvider, InetAddress::getAllByName);
+    }
+
+    @FunctionalInterface
+    interface HostResolver {
+        InetAddress[] resolve(String host) throws UnknownHostException;
+    }
+
+    ClprEndpointClientCache(@NonNull final ConfigProvider configProvider, @NonNull final HostResolver resolver) {
         this.configProvider = requireNonNull(configProvider);
+        this.resolver = requireNonNull(resolver);
+        // Leave a sync worker available for numeric peers when possible. A native DNS lookup can outlive
+        // cancellation, so bound the number of resolver threads and never queue work behind a stalled lookup.
+        final int syncWorkers = configProvider
+                .getConfiguration()
+                .getConfigData(ClprConfig.class)
+                .maxConcurrentSyncs();
+        dnsLookups = new ThreadPoolExecutor(
+                0,
+                Math.max(1, syncWorkers - 1),
+                60,
+                TimeUnit.SECONDS,
+                new SynchronousQueue<>(),
+                Thread.ofPlatform().daemon().name("clpr-dns-", 0).factory());
     }
 
     /**
      * Returns the cached client for the given peer, creating it on first use and rebuilding it if the
-     * transport (TLS vs. plaintext) has changed since it was built.
+     * transport (TLS vs. plaintext) or a DNS peer's address has changed since it was built.
      *
-     * @param host the peer's IP address
+     * @param host the peer's IP address or DNS name
      * @param port the peer's gRPC port
      * @param useTls whether to encrypt the channel with TLS
+     * @param deadline deadline of the sync requesting the client
      * @return the cached client for this peer
+     * @throws RejectedExecutionException when the local DNS resolver cannot accept another lookup
      */
     @NonNull
-    public synchronized ClprEndpointClient clientFor(@NonNull final String host, final int port, final boolean useTls) {
+    public ClprEndpointClient clientFor(
+            @NonNull final String host, final int port, final boolean useTls, @NonNull final Deadline deadline) {
         requireNonNull(host);
-        final var additionalCidrs = configProvider
-                .getConfiguration()
-                .getConfigData(ClprConfig.class)
-                .additionalPeerEndpointCidrs();
-        if (!appliedCidrs.equals(additionalCidrs)) {
-            // A cached transport can reconnect on its own. Retire it when the node's destination policy changes.
-            shutdownAll();
-            appliedCidrs = Set.copyOf(additionalCidrs);
+        requireNonNull(deadline);
+        final Policy policy;
+        final InetSocketAddress key;
+        CachedClient previous;
+        final PendingDnsLookups pending;
+        long observedInvalidations;
+        final boolean dns = isDnsHostname(host);
+        synchronized (this) {
+            policy = applyPolicy();
+            checkDeadline(deadline);
+            if (dns) {
+                requireDnsAllowed(policy, host, port);
+                ClprEndpointAddressPolicy.checkPort(host, port);
+                key = InetSocketAddress.createUnresolved(NodeIdentity.dnsKey(host), port);
+                pending = pendingDnsLookups.computeIfAbsent(key, ignored -> new PendingDnsLookups());
+                pending.callers++;
+                observedInvalidations = pending.invalidations;
+            } else {
+                key = policy.addresses().addressFor(host, port);
+                pending = null;
+                observedInvalidations = 0;
+            }
+            previous = clients.get(key);
         }
-        // Check the current node-local policy before returning even an existing cached client.
-        final var key = ClprEndpointAddressPolicy.addressFor(host, port, appliedCidrs);
-        final var cached = clients.compute(key, (k, existing) -> {
-            if (existing != null && existing.useTls() == useTls) {
-                return existing;
+
+        final CachedClient replaced;
+        final ClprEndpointClientImpl client;
+        try {
+            while (true) {
+                final var candidates = dns ? lookupCandidates(host, key, policy, previous, deadline) : List.of(key);
+                synchronized (this) {
+                    if (applyPolicy() != policy) {
+                        throw new ClientException("CLPR endpoint policy changed during lookup of " + host, null);
+                    }
+                    checkDeadline(deadline);
+                    final var current = clients.get(key);
+                    final boolean pinStillPermitted = current != null && candidates.contains(current.address());
+                    if (pending != null
+                            && !pinStillPermitted
+                            && (current != previous || pending.invalidations != observedInvalidations)) {
+                        // Another lookup changed the pin or reported a negative answer, even if the cache is empty.
+                        previous = current;
+                        observedInvalidations = pending.invalidations;
+                        continue;
+                    }
+                    if (pinStillPermitted && current.useTls() == useTls) {
+                        return current.client();
+                    }
+                    final var address = pinStillPermitted ? current.address() : candidates.getFirst();
+                    client = new ClprEndpointClientImpl(address, useTls);
+                    clients.put(key, new CachedClient(client, address, useTls));
+                    replaced = current;
+                    break;
+                }
             }
-            if (existing != null) {
-                logger.debug("[CLPR] rebuilding CLPR client for peer {} — transport changed (useTls={})", k, useTls);
-                existing.client().shutdownChannel();
+        } finally {
+            if (pending != null) {
+                synchronized (this) {
+                    if (--pending.callers == 0) {
+                        pendingDnsLookups.remove(key);
+                    }
+                }
             }
-            return new CachedClient(new ClprEndpointClientImpl(key, useTls), useTls);
-        });
-        return cached.client();
+        }
+        if (replaced != null) {
+            logger.debug("[CLPR] rebuilding CLPR client for peer {} (useTls={})", key, useTls);
+            replaced.client().retireChannel();
+        }
+        return client;
     }
 
-    /**
-     * Shuts down all cached clients' channels and clears the cache. Idempotent; safe to call on node stop.
-     */
+    /** Invalidates outstanding lookups and closes every cached channel. */
     public synchronized void shutdownAll() {
+        appliedPolicy = null;
         for (final var cached : clients.values()) {
             cached.client().shutdownChannel();
         }
         clients.clear();
     }
 
+    /** Stops the resolver and prevents any subsequent sync from installing a channel. */
+    @Override
+    public synchronized void close() {
+        dnsLookups.shutdownNow();
+        shutdownAll();
+    }
+
+    /** Called under the cache lock. A change in either destination setting invalidates all cached transports. */
+    private Policy applyPolicy() {
+        if (dnsLookups.isShutdown()) {
+            throw new ClientException("CLPR endpoint client cache is closed", null);
+        }
+        final var config = configProvider.getConfiguration().getConfigData(ClprConfig.class);
+        final var cidrs = config.additionalPeerEndpointCidrs();
+        if (appliedPolicy == null
+                || appliedPolicy.allowDns() != config.allowDnsPeerEndpoints()
+                || !appliedCidrs.equals(cidrs)) {
+            shutdownAll();
+            appliedCidrs = Set.copyOf(cidrs);
+            appliedPolicy = new Policy(config.allowDnsPeerEndpoints(), ClprEndpointAddressPolicy.of(appliedCidrs));
+        }
+        return appliedPolicy;
+    }
+
+    private List<InetSocketAddress> lookupCandidates(
+            final String host,
+            final InetSocketAddress key,
+            final Policy policy,
+            @Nullable final CachedClient previous,
+            final Deadline deadline) {
+        try {
+            final var candidates = permittedAnswers(key.getPort(), policy, resolve(host, deadline));
+            if (!candidates.isEmpty()) {
+                return candidates;
+            }
+        } catch (final UnknownHostException e) {
+            invalidateDnsEntry(key, previous);
+            throw new ClientException("Cannot resolve CLPR peer endpoint " + host, e);
+        }
+        invalidateDnsEntry(key, previous);
+        throw new ClientException("CLPR peer endpoint " + host + " has no permitted DNS answers", null);
+    }
+
+    private InetAddress[] resolve(final String host, final Deadline deadline) throws UnknownHostException {
+        final var lookup = dnsLookups.submit(() -> resolver.resolve(host));
+        try {
+            return lookup.get(deadline.timeRemaining(TimeUnit.NANOSECONDS), TimeUnit.NANOSECONDS);
+        } catch (final ExecutionException e) {
+            if (e.getCause() instanceof UnknownHostException unknown) {
+                throw unknown;
+            }
+            throw new ClientException("Cannot resolve CLPR peer endpoint " + host, e.getCause());
+        } catch (final TimeoutException e) {
+            lookup.cancel(true);
+            throw new ClientException("Timed out resolving CLPR peer endpoint " + host, e);
+        } catch (final InterruptedException e) {
+            lookup.cancel(true);
+            Thread.currentThread().interrupt();
+            throw new ClientException("Interrupted resolving CLPR peer endpoint " + host, e);
+        }
+    }
+
+    private static List<InetSocketAddress> permittedAnswers(
+            final int port, final Policy policy, final InetAddress[] answers) {
+        final List<InetSocketAddress> candidates = new ArrayList<>();
+        for (final var answer : answers) {
+            final var candidate = policy.addresses().permittedAddress(answer, port);
+            if (candidate != null) {
+                candidates.add(candidate);
+            }
+        }
+        return candidates;
+    }
+
+    private static void checkDeadline(final Deadline deadline) {
+        if (deadline.isExpired() || Thread.currentThread().isInterrupted()) {
+            throw new ClientException("CLPR sync expired or interrupted during peer lookup", null);
+        }
+    }
+
+    /** Record a negative answer only if the entry still matches what this lookup observed. */
+    private void invalidateDnsEntry(final InetSocketAddress key, @Nullable final CachedClient previous) {
+        synchronized (this) {
+            if (clients.get(key) != previous) {
+                return;
+            }
+            clients.remove(key);
+            pendingDnsLookups.get(key).invalidations++;
+        }
+        if (previous != null) {
+            previous.client().retireChannel();
+        }
+    }
+
+    private static void requireDnsAllowed(final Policy policy, final String host, final int port) {
+        if (!policy.allowDns()) {
+            throw new ClientException(
+                    "CLPR peer endpoint " + host + ":" + port
+                            + " is a DNS name; set clpr.allowDnsPeerEndpoints=true on this node to dial it",
+                    null);
+        }
+    }
+
+    /** Guarded by the cache lock and shared by overlapping lookups for one DNS peer. */
+    private static final class PendingDnsLookups {
+        private int callers;
+        private long invalidations;
+    }
+
+    /** This node's destination policy: whether DNS peers may be dialed, and the permitted address ranges. */
+    private record Policy(boolean allowDns, @NonNull ClprEndpointAddressPolicy addresses) {}
+
     /**
-     * A cached client paired with the transport it was built for.
+     * A cached client paired with the address and transport it was built for.
      */
-    private record CachedClient(@NonNull ClprEndpointClientImpl client, boolean useTls) {}
+    private record CachedClient(
+            @NonNull ClprEndpointClientImpl client, @NonNull InetSocketAddress address, boolean useTls) {}
 }

@@ -400,7 +400,7 @@ class ClprOpenChannelHandlerTest {
                         0x16eL, "9a0239cbc7be7e16347b8bfe6ab37f7a55d4eb688a0c8b6b141cc5035acac51e",
                         0x16fL, "9bb5a67f672529e6928db26e11d0a93f56f2f3581fda619f737e3e1615c3e909",
                         0x171L, "962abc985d9e3cd97cc8598b2399f85e948187d8e56cbb988b4dad04e60c398c",
-                        0x172L, "8779a561b39aa363dda50c36f7df7e7e11262d62a1c3114752f5691271d984a9")
+                        0x173L, "8779a561b39aa363dda50c36f7df7e7e11262d62a1c3114752f5691271d984a9")
                 .entrySet()
                 .stream()
                 .flatMap(entry -> Stream.of(
@@ -774,7 +774,7 @@ class ClprOpenChannelHandlerTest {
 
     @Test
     void openChannelAcceptsCantonBuiltInVerifier() {
-        final var cantonCid = ContractID.newBuilder().contractNum(0x172L).build();
+        final var cantonCid = ContractID.newBuilder().contractNum(0x173L).build();
         final var op = validOpenTxn()
                 .clprOpenChannelOrThrow()
                 .copyBuilder()

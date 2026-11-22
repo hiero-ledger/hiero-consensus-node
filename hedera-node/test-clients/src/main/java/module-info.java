@@ -154,7 +154,6 @@ open module com.hedera.node.test.clients {
     requires org.hyperledger.besu.evm;
     requires org.hyperledger.besu.internal.crypto;
     requires org.hyperledger.besu.nativelib.gnark;
-    requires org.hyperledger.besu.nativelib.secp256k1;
     requires org.json;
     requires org.junit.jupiter.api;
     requires org.junit.platform.commons;

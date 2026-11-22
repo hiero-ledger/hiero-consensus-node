@@ -2,12 +2,10 @@
 package com.hedera.node.app.service.clpr.impl.verifier;
 
 import com.hedera.node.app.hapi.utils.EthSigsUtils;
-import com.sun.jna.ptr.LongByReference;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Objects;
-import org.hyperledger.besu.nativelib.secp256k1.LibSecp256k1;
+import org.hiero.base.crypto.ECDSASecp256k1;
 
 /**
  * secp256k1 public-key recovery shared by the chain verifiers (Besu QBFT, Canton). The recovered
@@ -89,28 +87,9 @@ public final class Secp256k1Recovery {
         final byte[] compact = new byte[2 * COMPONENT_LENGTH];
         System.arraycopy(r32, 0, compact, 0, COMPONENT_LENGTH);
         System.arraycopy(s32, 0, compact, COMPONENT_LENGTH, COMPONENT_LENGTH);
-        final var recoverableSig = new LibSecp256k1.secp256k1_ecdsa_recoverable_signature();
-        if (LibSecp256k1.secp256k1_ecdsa_recoverable_signature_parse_compact(
-                        LibSecp256k1.CONTEXT, recoverableSig, compact, v)
-                != 1) {
-            throw new IllegalArgumentException("failed to parse recoverable signature");
-        }
-        final var pubKey = new LibSecp256k1.secp256k1_pubkey();
-        if (LibSecp256k1.secp256k1_ecdsa_recover(LibSecp256k1.CONTEXT, pubKey, recoverableSig, digest32) != 1) {
-            throw new IllegalArgumentException("ecRecover failed");
-        }
-        final ByteBuffer serializedPubKey = ByteBuffer.allocate(65);
-        final var serializedPubKeySize = new LongByReference(serializedPubKey.capacity());
-        if (LibSecp256k1.secp256k1_ec_pubkey_serialize(
-                        LibSecp256k1.CONTEXT,
-                        serializedPubKey,
-                        serializedPubKeySize,
-                        pubKey,
-                        LibSecp256k1.SECP256K1_EC_UNCOMPRESSED)
-                != 1) {
-            throw new IllegalArgumentException("failed to serialize recovered public key");
-        }
-        final byte[] addr = EthSigsUtils.recoverAddressFromPubKey(serializedPubKey.array());
+
+        final byte[] pubKey = ECDSASecp256k1.recoverPublicKey(digest32, compact, v);
+        final byte[] addr = EthSigsUtils.recoverAddressFromParsedPubKey(pubKey);
         if (addr == null || addr.length != ADDRESS_LENGTH) {
             throw new IllegalArgumentException("recovered address has wrong length");
         }

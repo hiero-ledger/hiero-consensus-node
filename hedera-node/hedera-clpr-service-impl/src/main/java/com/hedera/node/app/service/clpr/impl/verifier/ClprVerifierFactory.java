@@ -13,7 +13,7 @@ import javax.inject.Singleton;
 /**
  * Resolves the appropriate {@link ClprVerifier} for a Channel's verifier contract.
  *
- * <p>Native built-in verifiers (see {@link VerifiersRegistry}, e.g. Canton at {@code 0x172}) are returned
+ * <p>Native built-in verifiers (see {@link VerifiersRegistry}, e.g. Canton at {@code 0x173}) are returned
  * directly. Every other verifier contract is a deployed EVM smart contract (including the
  * precompile-backed built-ins {@code 0x16e}, {@code 0x16f} and {@code 0x171}), and gets an {@link EvmClprVerifier}
  * that dispatches verification calls to that specific contract. The contract must implement the config ABI with

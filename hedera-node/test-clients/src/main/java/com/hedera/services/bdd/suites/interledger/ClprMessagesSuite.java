@@ -27,7 +27,6 @@ import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.CONNECT
 import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.CONNECTOR_SECRET_KEY;
 import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.computeCommitment;
 import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.deriveConnectorId;
-import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.deriveEcdsaPublicKey;
 import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.signConnectorMessage;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -50,6 +49,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
+import org.hiero.base.crypto.ECDSASecp256k1;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -148,7 +148,7 @@ public class ClprMessagesSuite {
                 Bytes.wrap(channelSalt));
 
         // ── Connector keypair ─────────────────────────────────────────────────────────────────────
-        final var connectorPubKey64 = deriveEcdsaPublicKey(CONNECTOR_SECRET_KEY);
+        final var connectorPubKey64 = ECDSASecp256k1.derivePublicKey(CONNECTOR_SECRET_KEY);
         final var connectorPubKeyBytes = Bytes.wrap(connectorPubKey64);
         final var connectorId = deriveConnectorId(channelId, connectorPubKeyBytes, CONNECTOR_SALT);
         final var connectorCommitment = computeCommitment(connectorId, connectorPubKeyBytes);

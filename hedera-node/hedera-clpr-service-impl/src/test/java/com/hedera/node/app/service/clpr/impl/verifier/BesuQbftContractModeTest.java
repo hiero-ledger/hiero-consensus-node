@@ -12,7 +12,6 @@ import com.hedera.hapi.node.state.clpr.StorageProofEntry;
 import com.hedera.node.app.hapi.utils.EthSigsUtils;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.sun.jna.ptr.IntByReference;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -22,7 +21,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.IntStream;
-import org.hyperledger.besu.nativelib.secp256k1.LibSecp256k1;
+import org.hiero.base.crypto.ECDSASecp256k1;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
@@ -988,17 +987,7 @@ class BesuQbftContractModeTest {
 
     /** Signs {@code hash32} with secp256k1; returns r‖s‖v (65 bytes, v = 0 or 1). */
     private static byte[] sign(final byte[] hash32, final byte[] privKey32) {
-        final var recoverableSig = new LibSecp256k1.secp256k1_ecdsa_recoverable_signature();
-        LibSecp256k1.secp256k1_ecdsa_sign_recoverable(
-                LibSecp256k1.CONTEXT, recoverableSig, hash32, privKey32, null, null);
-        final var compact = ByteBuffer.allocate(64);
-        final var recId = new IntByReference(0);
-        LibSecp256k1.secp256k1_ecdsa_recoverable_signature_serialize_compact(
-                LibSecp256k1.CONTEXT, compact, recId, recoverableSig);
-        final byte[] seal = new byte[65];
-        System.arraycopy(compact.array(), 0, seal, 0, 64);
-        seal[64] = (byte) recId.getValue();
-        return seal;
+        return ECDSASecp256k1.signDigestWithEcdsaSecp256k1AndRecId(privKey32, hash32);
     }
 
     // ── Small helpers ───────────────────────────────────────────────────────────

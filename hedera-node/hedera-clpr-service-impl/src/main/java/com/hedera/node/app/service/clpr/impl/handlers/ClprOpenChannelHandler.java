@@ -68,7 +68,7 @@ public final class ClprOpenChannelHandler extends AbstractClprHandler {
      *   <li>{@code 0x16e} (366) — CLPR system contract precompile.</li>
      *   <li>{@code 0x16f} (367) — Besu QBFT verifier system contract.</li>
      *   <li>{@code 0x171} (369) — Ethereum (sync-committee) verifier system contract.</li>
-     *   <li>{@code 0x172} (370) — Canton (non-EVM, native verifier).</li>
+     *   <li>{@code 0x173} (371) — Canton (non-EVM, native verifier).</li>
      * </ul>
      * Mirrors {@code BesuQBFTVerifierSystemContract.BESU_QBFT_VERIFIER_EVM_ADDRESS} and
      * {@code EthereumVerifierSystemContract.ETHEREUM_VERIFIER_EVM_ADDRESS} in the
@@ -91,7 +91,7 @@ public final class ClprOpenChannelHandler extends AbstractClprHandler {
     private static final Bytes ETHEREUM_VERIFIER_SYSTEM_CONTRACT_EVM_ADDRESS =
             Bytes.wrap(new byte[] {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01, (byte) 0x71});
 
-    /** Canton verifier reserved contract num (0x172); non-EVM, dispatched natively by the {@link VerifiersRegistry}. */
+    /** Canton verifier reserved contract num (0x173); non-EVM, dispatched natively by the {@link VerifiersRegistry}. */
     private static final long CANTON_VERIFIER_SYSTEM_CONTRACT_NUM = VerifiersRegistry.CANTON_CONTRACT_NUM;
 
     /** EVM-address form of {@link #CANTON_VERIFIER_SYSTEM_CONTRACT_NUM}. */
@@ -108,7 +108,7 @@ public final class ClprOpenChannelHandler extends AbstractClprHandler {
     private static final BuiltInVerifier ETHEREUM_VERIFIER =
             new BuiltInVerifier("Ethereum sync committee (0x171)", builtInFingerprint("ethereum-sync-committee"));
     private static final BuiltInVerifier CANTON_VERIFIER =
-            new BuiltInVerifier("Canton (0x172)", builtInFingerprint("canton"));
+            new BuiltInVerifier("Canton (0x173)", builtInFingerprint("canton"));
 
     private static final Map<Long, BuiltInVerifier> BUILT_IN_VERIFIERS_BY_NUM = Map.of(
             CLPR_SERVICE_ACCOUNT_NUM, HIERO_TSS_VERIFIER,

@@ -323,7 +323,7 @@ public class ClprChannelManager implements ClprChannelLifecycle {
         peerEndpointsDirty.set(false);
         if (!configProvider.getConfiguration().getConfigData(ClprConfig.class).enabled()) {
             scheduler.shutdownNow();
-            clientCache.shutdownAll();
+            clientCache.close();
             return;
         }
         writePeerEndpointsToDisk();
@@ -336,7 +336,7 @@ public class ClprChannelManager implements ClprChannelLifecycle {
             Thread.currentThread().interrupt();
             scheduler.shutdownNow();
         }
-        clientCache.shutdownAll();
+        clientCache.close();
         logger.info("CLPR sync orchestrator stopped");
     }
 

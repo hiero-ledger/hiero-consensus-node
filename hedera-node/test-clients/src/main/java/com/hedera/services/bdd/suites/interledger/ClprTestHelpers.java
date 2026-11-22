@@ -18,12 +18,11 @@ import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
-import org.hyperledger.besu.nativelib.secp256k1.LibSecp256k1;
+import org.hiero.base.crypto.ECDSASecp256k1;
 
 /**
  * Static helpers for constructing CLPR smoke-test artifacts.
@@ -307,37 +306,7 @@ public final class ClprTestHelpers {
                 CLPR_SERVICE_ADDRESS_20, 0, preimage, (int) connectorId.length(), CLPR_SERVICE_ADDRESS_20.length);
         final var msgHash =
                 MiscCryptoUtils.keccak256DigestOf(Bytes.wrap(preimage)).toByteArray();
-        final var recoverableSig = new LibSecp256k1.secp256k1_ecdsa_recoverable_signature();
-        final var signResult = LibSecp256k1.secp256k1_ecdsa_sign_recoverable(
-                LibSecp256k1.CONTEXT, recoverableSig, msgHash, secKey, null, null);
-        if (signResult != 1) {
-            throw new IllegalStateException("secp256k1_ecdsa_sign_recoverable failed: " + signResult);
-        }
-        final var compactSigBuffer = ByteBuffer.allocate(64);
-        final var recId = new com.sun.jna.ptr.IntByReference(0);
-        LibSecp256k1.secp256k1_ecdsa_recoverable_signature_serialize_compact(
-                LibSecp256k1.CONTEXT, compactSigBuffer, recId, recoverableSig);
-        return compactSigBuffer.array();
-    }
-
-    /**
-     * Derives an uncompressed secp256k1 public key (64 bytes, without the 0x04 prefix) from a
-     * 32-byte secret key.
-     */
-    public static byte[] deriveEcdsaPublicKey(final byte[] secKey) {
-        final var nativePubKey = new LibSecp256k1.secp256k1_pubkey();
-        final var result = LibSecp256k1.secp256k1_ec_pubkey_create(LibSecp256k1.CONTEXT, nativePubKey, secKey);
-        if (result != 1) {
-            throw new IllegalStateException("secp256k1_ec_pubkey_create failed: " + result);
-        }
-        final var outputBuffer = ByteBuffer.allocate(65);
-        final var outputLength = new com.sun.jna.ptr.LongByReference(65);
-        LibSecp256k1.secp256k1_ec_pubkey_serialize(
-                LibSecp256k1.CONTEXT, outputBuffer, outputLength, nativePubKey, LibSecp256k1.SECP256K1_EC_UNCOMPRESSED);
-        final var rawKey = new byte[64];
-        outputBuffer.position(1); // skip 0x04 prefix
-        outputBuffer.get(rawKey);
-        return rawKey;
+        return ECDSASecp256k1.signDigestWithEcdsaSecp256k1(secKey, msgHash);
     }
 
     /**
@@ -347,16 +316,6 @@ public final class ClprTestHelpers {
      */
     public static byte[] signChannelId(final byte[] secKey, final Bytes channelId) {
         final var messageHash = MiscCryptoUtils.keccak256DigestOf(channelId.toByteArray());
-        final var recoverableSig = new LibSecp256k1.secp256k1_ecdsa_recoverable_signature();
-        final var signResult = LibSecp256k1.secp256k1_ecdsa_sign_recoverable(
-                LibSecp256k1.CONTEXT, recoverableSig, messageHash, secKey, null, null);
-        if (signResult != 1) {
-            throw new IllegalStateException("secp256k1_ecdsa_sign_recoverable failed: " + signResult);
-        }
-        final var compactSigBuffer = ByteBuffer.allocate(64);
-        final var recId = new com.sun.jna.ptr.IntByReference(0);
-        LibSecp256k1.secp256k1_ecdsa_recoverable_signature_serialize_compact(
-                LibSecp256k1.CONTEXT, compactSigBuffer, recId, recoverableSig);
-        return compactSigBuffer.array();
+        return ECDSASecp256k1.signDigestWithEcdsaSecp256k1(secKey, messageHash);
     }
 }

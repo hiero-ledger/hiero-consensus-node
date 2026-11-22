@@ -155,7 +155,10 @@ message ClprEndpoint {
  */
 message ClprServiceEndpoint {
     /**
-     * IPv4 or IPv6 numeric address (no DNS hostnames).
+     * The canonical CLPR protocol requires a numeric IPv4 or IPv6 address.
+     * Hiero test networks such as Solo may opt into a Hiero-local extension that carries a DNS hostname.
+     * The publisher enables `clpr.publishDnsEndpoints` in file 0.0.121. Each dialing node must enable
+     * `clpr.allowDnsPeerEndpoints`. Peers implementing only the canonical protocol require numeric addresses.
      */
     string ip_address = 1;
 

@@ -71,6 +71,17 @@ class CantonWriteTest {
             assertEquals(ClprChannelStatus.ACTIVE, r.metadata().status());
             assertEquals(3, r.metadata().endpointManifestVersion());
             assertEquals(0, r.manifestHash().length);
+            // writeFirstMessageId == nextMessageId: this version wrote no messages of its own.
+            assertEquals(0, r.written());
+        }
+
+        @Test
+        void writtenIsNextMessageIdMinusWriteFirstMessageId() {
+            final byte[] vpd =
+                    vpd(false, exercise(), false, channel().writeFirst(5).build());
+            assertEquals(
+                    2,
+                    CantonProofVerifier.readWrite(vpd, false, 0, SERVICE, APP).written());
         }
 
         @Test
@@ -213,7 +224,14 @@ class CantonWriteTest {
         @Test
         void tooFewFieldsIsWrongContract() {
             final byte[] vpd =
-                    vpd(false, exercise(), false, channel().fieldCount(25).build());
+                    vpd(false, exercise(), false, channel().fieldCount(28).build());
+            assertRejects("WrongContract", () -> CantonProofVerifier.readWrite(vpd, false, 0, SERVICE, APP));
+        }
+
+        @Test
+        void aWriteThatStartsAfterItsEndIsWrongContract() {
+            final byte[] vpd =
+                    vpd(false, exercise(), false, channel().writeFirst(8).build());
             assertRejects("WrongContract", () -> CantonProofVerifier.readWrite(vpd, false, 0, SERVICE, APP));
         }
 
@@ -285,6 +303,44 @@ class CantonWriteTest {
         void dataWith32ByteConnectorIdPasses() {
             final byte[] p = dataWithConnector(repeat((byte) 0x01, 32));
             CantonProofVerifier.checkPayload(p, CHANNEL_ID, APP, neverCalled());
+        }
+
+        @Test
+        void checkPayloadReportsWhetherThePayloadIsAReply() {
+            assertThat(CantonProofVerifier.checkPayload(data(APP, OTHER_PARTY), CHANNEL_ID, APP, neverCalled())
+                            .isReply())
+                    .isFalse();
+            final byte[] r = reply(5, ClprMessageReplyStatus.APPLICATION_ERROR, new byte[0]);
+            assertThat(CantonProofVerifier.checkPayload(r, CHANNEL_ID, APP, neverCalled())
+                            .isReply())
+                    .isTrue();
+        }
+
+        @Test
+        void aReplyMayOnlyBeSuccessOrApplicationError() {
+            // ClprService slashes the answered message's connector on these two, and on Canton the app chooses the
+            // answer to a message sent to it, so it could claim either status.
+            for (final var status : new ClprMessageReplyStatus[] {
+                ClprMessageReplyStatus.CONNECTOR_NOT_FOUND, ClprMessageReplyStatus.CONNECTOR_UNDERFUNDED
+            }) {
+                final byte[] p = reply(5, status, new byte[] {1});
+                assertRejects(
+                        "ReplyStatusNotAllowed",
+                        () -> CantonProofVerifier.checkPayload(p, CHANNEL_ID, APP, neverCalled()));
+            }
+        }
+
+        @Test
+        void aReplyWithAnUnrecognizedStatusIsReplyStatusNotAllowed() throws Exception {
+            // PBJ maps an unknown enum value to UNRECOGNIZED rather than failing the strict parse.
+            final byte[] p = replyWithRawStatus(5, 7);
+            assertThat(ClprMessagePayload.PROTOBUF
+                            .parseStrict(Bytes.wrap(p).toReadableSequentialData())
+                            .messageReply()
+                            .status())
+                    .isEqualTo(ClprMessageReplyStatus.UNRECOGNIZED);
+            assertRejects(
+                    "ReplyStatusNotAllowed", () -> CantonProofVerifier.checkPayload(p, CHANNEL_ID, APP, neverCalled()));
         }
 
         @Test
@@ -393,6 +449,12 @@ class CantonWriteTest {
         }
     }
 
+    /** A REPLY payload whose {@code status} (field 2) carries {@code status} straight on the wire. */
+    private static byte[] replyWithRawStatus(final long id, final int status) {
+        final byte[] inner = new Pb().varint(1, id).varint(2, status).build();
+        return Pb.lenField(2, inner);
+    }
+
     private static OutboundLookup neverCalled() {
         return (c, m) -> fail("outbound lookup must not be called");
     }
@@ -475,7 +537,8 @@ class CantonWriteTest {
         private String recvHash = formatHex(RECV_HASH);
         private String manifestHash = "";
         private String status = "Active";
-        private int fieldCount = 26;
+        private long writeFirst = 7;
+        private int fieldCount = 29;
 
         Chan packageHex(final byte[] v) {
             packageHex = v;
@@ -532,6 +595,11 @@ class CantonWriteTest {
             return this;
         }
 
+        Chan writeFirst(final long v) {
+            writeFirst = v;
+            return this;
+        }
+
         Chan fieldCount(final int v) {
             fieldCount = v;
             return this;
@@ -539,7 +607,7 @@ class CantonWriteTest {
 
         byte[] build() {
             final List<byte[]> values = new ArrayList<>();
-            for (int i = 0; i < 26; ++i) {
+            for (int i = 0; i < 29; ++i) {
                 values.add(text(""));
             }
             values.set(0, party(operator));
@@ -552,6 +620,7 @@ class CantonWriteTest {
             values.set(17, enumValue(status));
             values.set(24, text(utf8(recvHash)));
             values.set(25, text(utf8(manifestHash)));
+            values.set(28, int64(writeFirst));
             final Pb record = new Pb();
             for (int i = 0; i < fieldCount; ++i) {
                 record.field(1, Pb.lenField(1, values.get(i)));
