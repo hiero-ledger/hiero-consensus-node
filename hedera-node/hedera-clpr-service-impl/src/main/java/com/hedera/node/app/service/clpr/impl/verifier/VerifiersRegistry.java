@@ -12,12 +12,12 @@ import java.util.Optional;
  * not found here is an EVM verifier, which {@link ClprVerifierFactory} handles with an {@link EvmClprVerifier}.
  */
 public final class VerifiersRegistry {
-    /** Canton verifier reserved contract num (0x172). */
-    public static final long CANTON_CONTRACT_NUM = 0x172L;
+    /** Canton verifier reserved contract num (0x173). */
+    public static final long CANTON_CONTRACT_NUM = 0x173L;
 
     /** EVM-address form of {@link #CANTON_CONTRACT_NUM}. */
     public static final Bytes CANTON_EVM_ADDRESS =
-            Bytes.wrap(new byte[] {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01, (byte) 0x72});
+            Bytes.wrap(new byte[] {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01, (byte) 0x73});
 
     /** The Canton verifier is stateless, so one instance serves every call. */
     private static final CantonProofVerifier CANTON_VERIFIER = new CantonProofVerifier();

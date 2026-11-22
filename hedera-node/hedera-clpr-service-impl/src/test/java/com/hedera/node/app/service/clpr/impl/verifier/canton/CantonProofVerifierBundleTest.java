@@ -72,6 +72,7 @@ class CantonProofVerifierBundleTest {
     private static final byte[] SERVICE_ADDRESS = CantonBytes.concat(PACKAGE_ID, OPERATOR);
     private static final String APP = "app::1220" + "cd".repeat(32);
     private static final String OTHER = "other::1220" + "ef".repeat(32);
+    private static final String ENDPOINTS = "endpoints::1220" + "ee".repeat(32);
     private static final byte[] CHANNEL_ID = repeat((byte) 0x11, 32);
     private static final byte[] CHANNEL_CONTEXT = CantonBytes.concat(CHANNEL_ID, SERVICE_ADDRESS);
     private static final byte[] SUBMITTER = sha("submitter-metadata");
@@ -128,7 +129,10 @@ class CantonProofVerifierBundleTest {
 
         @Test
         void replyToDataSentToAppIsCheckedAgainstTheOutboundLookup() {
-            final var b = new Bundle().payload(reply(5, ClprMessageReplyStatus.SUCCESS, new byte[] {1}));
+            final var b = new Bundle()
+                    .writeFirst(6)
+                    .payload(reply(5, ClprMessageReplyStatus.SUCCESS, new byte[] {1}))
+                    .alsoConfirmedBy(ENDPOINTS);
             final ClprBundleContent c =
                     CantonProofVerifier.verifyBundle(b.proof(), b.anchor(), CHANNEL_CONTEXT, (channelId, id) -> {
                         assertThat(channelId).isEqualTo(CHANNEL_ID);
@@ -140,6 +144,91 @@ class CantonProofVerifierBundleTest {
                     "ReplyTargetMismatch",
                     () -> CantonProofVerifier.verifyBundle(
                             b.proof(), b.anchor(), CHANNEL_CONTEXT, (cid, id) -> dataPayload(APP, OTHER)));
+        }
+    }
+
+    /**
+     * Only {@code Channel.WriteReplies}, whose controller is the CLPR endpoint party, writes genuine REPLYs: the
+     * app's key alone can create a channel version that folds in a forged one. A bundle that carries a REPLY is
+     * therefore accepted only as the messages of one write that the endpoint party also confirmed.
+     */
+    @Nested
+    class ReplyBundles {
+        @Test
+        void aReplyTheEndpointPartyConfirmedIsAccepted() {
+            final var b = new Bundle().writeFirst(6).payload(errorReply()).alsoConfirmedBy(ENDPOINTS);
+            assertThat(verify(b).messages()).hasSize(1);
+        }
+
+        @Test
+        void repliesThatAreTheWritesOwnMessagesAreAccepted() {
+            final var b = new Bundle()
+                    .writeFirst(5)
+                    .payload(errorReply())
+                    .payload(errorReply())
+                    .alsoConfirmedBy(ENDPOINTS);
+            assertThat(verify(b).messages()).hasSize(2);
+        }
+
+        @Test
+        void aReplyThatOnlyTheAppConfirmedIsRejected() {
+            final var b = new Bundle().writeFirst(6).payload(errorReply());
+            assertRejects("RepliesNotConfirmedByEndpoints", () -> verify(b));
+        }
+
+        @Test
+        void anotherPartyConfirmingDoesNotSatisfyTheEndpointRequirement() {
+            final var b = new Bundle().writeFirst(6).payload(errorReply()).alsoConfirmedBy(OTHER);
+            assertRejects("RepliesNotConfirmedByEndpoints", () -> verify(b));
+        }
+
+        @Test
+        void anEndpointPartyThatIsAnInformeeButNotRequiredIsRejected() {
+            // The endpoint party is named and weighs 1, but the app's weight 2 alone reaches the threshold of 2,
+            // so the endpoint party is not a required confirmer.
+            final var b = new Bundle()
+                    .writeFirst(6)
+                    .payload(errorReply())
+                    .quorum(2, 0, 2)
+                    .alsoInformed(ENDPOINTS, 1, 2);
+            assertRejects("RepliesNotConfirmedByEndpoints", () -> verify(b));
+        }
+
+        @Test
+        void repliesUnderAVersionThatWroteNothingAreRejected() {
+            // writeFirstMessageId == nextMessageId: the write wrote no messages of its own.
+            final var b = new Bundle().payload(errorReply()).alsoConfirmedBy(ENDPOINTS);
+            assertRejects("RepliesFromAnotherWrite", () -> verify(b));
+        }
+
+        @Test
+        void anEarlierReplyUnderALaterSendIsRejected() {
+            // The write wrote two messages, but the bundle delivers one REPLY: it is not that write's own messages.
+            final var b = new Bundle().writeFirst(5).payload(errorReply()).alsoConfirmedBy(ENDPOINTS);
+            assertRejects("RepliesFromAnotherWrite", () -> verify(b));
+        }
+
+        @Test
+        void aForgedReplyBeforeAGenuineAnswerIsRejected() {
+            // One write's own message is the genuine REPLY; a forged one folded in earlier makes two payloads.
+            final var b = new Bundle()
+                    .writeFirst(6)
+                    .payload(errorReply())
+                    .payload(errorReply())
+                    .alsoConfirmedBy(ENDPOINTS);
+            assertRejects("RepliesFromAnotherWrite", () -> verify(b));
+        }
+
+        @Test
+        void dataOnlyBundlesNeedNoEndpointConfirmationAndMaySpanSeveralWrites() {
+            // Two DATA payloads under a write that wrote one message: accepted, and the endpoint party is absent.
+            final var b = new Bundle().writeFirst(6).payload(data(APP, OTHER)).payload(data(APP, OTHER));
+            assertThat(verify(b).messages()).hasSize(2);
+        }
+
+        /** An APPLICATION_ERROR without data: a genuine REPLY that needs no outbound-message lookup. */
+        private static byte[] errorReply() {
+            return reply(5, ClprMessageReplyStatus.APPLICATION_ERROR, new byte[0]);
         }
     }
 
@@ -396,7 +485,10 @@ class CantonProofVerifierBundleTest {
                             .payload(dataPayload(APP, OTHER))
                             .build());
 
-            final var b = new Bundle().payload(reply(5, ClprMessageReplyStatus.SUCCESS, new byte[] {1}));
+            final var b = new Bundle()
+                    .writeFirst(6)
+                    .payload(reply(5, ClprMessageReplyStatus.SUCCESS, new byte[] {1}))
+                    .alsoConfirmedBy(ENDPOINTS);
             // The stored DATA message went to OTHER, but the reply comes from the anchor's app.
             assertThatThrownBy(() -> new CantonProofVerifier()
                             .verifyBundle(
@@ -455,7 +547,10 @@ class CantonProofVerifierBundleTest {
             final var context = mock(HandleContext.class);
             when(context.storeFactory()).thenReturn(storeFactory);
             // Only a REPLY consults the queue.
-            final var b = new Bundle().payload(reply(5, ClprMessageReplyStatus.SUCCESS, new byte[] {1}));
+            final var b = new Bundle()
+                    .writeFirst(6)
+                    .payload(reply(5, ClprMessageReplyStatus.SUCCESS, new byte[] {1}))
+                    .alsoConfirmedBy(ENDPOINTS);
             assertBundleVerificationFailed(b, context);
         }
 
@@ -467,7 +562,10 @@ class CantonProofVerifierBundleTest {
             when(storeFactory.readableStore(ReadableMessageQueueStore.class)).thenReturn(queue);
             final var context = mock(HandleContext.class);
             when(context.storeFactory()).thenReturn(storeFactory);
-            final var b = new Bundle().payload(reply(5, ClprMessageReplyStatus.SUCCESS, new byte[] {1}));
+            final var b = new Bundle()
+                    .writeFirst(6)
+                    .payload(reply(5, ClprMessageReplyStatus.SUCCESS, new byte[] {1}))
+                    .alsoConfirmedBy(ENDPOINTS);
             assertBundleVerificationFailed(b, context);
         }
 
@@ -480,12 +578,51 @@ class CantonProofVerifierBundleTest {
             when(storeFactory.readableStore(ReadableMessageQueueStore.class)).thenReturn(queue);
             final var context = mock(HandleContext.class);
             when(context.storeFactory()).thenReturn(storeFactory);
-            final var b = new Bundle().payload(reply(5, ClprMessageReplyStatus.SUCCESS, new byte[] {1}));
+            final var b = new Bundle()
+                    .writeFirst(6)
+                    .payload(reply(5, ClprMessageReplyStatus.SUCCESS, new byte[] {1}))
+                    .alsoConfirmedBy(ENDPOINTS);
             assertThat(new CantonProofVerifier()
                             .verifyBundle(
                                     Bytes.wrap(b.proof()), Bytes.wrap(b.anchor()), Bytes.wrap(CHANNEL_CONTEXT), context)
                             .messages())
                     .hasSize(1);
+        }
+    }
+
+    /**
+     * The reference's {@code ClprProtobuf.decodeEndpointManifest} rejects a known manifest field carried under the
+     * wrong wire type (its counting pass would otherwise disagree with its decode pass). The Java side parses the
+     * preimage with PBJ's strict parser; these cases pin that it rejects the same inputs. Each bad field follows a
+     * valid version and service address, the shape those two checks would otherwise let through.
+     */
+    @Nested
+    class ManifestWireTypes {
+        @Test
+        void versionUnderALengthDelimitedWireTypeIsRejected() {
+            assertRejectsManifest(new byte[] {0x0a, 0x02, 0x1a, 0x00});
+        }
+
+        @Test
+        void serviceAddressUnderAVarintWireTypeIsRejected() {
+            assertRejectsManifest(new byte[] {0x10, 0x01});
+        }
+
+        @Test
+        void anEndpointUnderAVarintWireTypeIsRejected() {
+            assertRejectsManifest(new byte[] {0x18, 0x01});
+        }
+
+        /** A manifest of a valid version and service address, with {@code badField} appended on the wire. */
+        private static void assertRejectsManifest(final byte[] badField) {
+            final byte[] preimage =
+                    CantonBytes.concat(new Pb().varint(1, 2).build(), Pb.lenField(2, SERVICE_ADDRESS), badField);
+            final var b = new Bundle().commitManifest(preimage).manifest(preimage);
+            // The strict parse is what rejects it: without that, the version and service address check out.
+            assertThatThrownBy(() -> verify(b))
+                    .isInstanceOf(CantonProofException.class)
+                    .hasMessageContaining("ManifestMismatch")
+                    .hasMessageContaining("manifest does not parse");
         }
     }
 
@@ -543,6 +680,36 @@ class CantonProofVerifierBundleTest {
         private String manifestHash = "";
         private byte[] rotations = {(byte) 0x80};
         private byte[] createdIndex = new byte[0];
+        private String anchorEndpoints = ENDPOINTS;
+        private long writeFirst = 7;
+        private String secondConfirmer;
+        private long secondWeight = 1;
+        private long secondThreshold = -1;
+
+        /** Adds {@code party} as a second informee that the quorum also requires (both weigh 1, threshold 2). */
+        Bundle alsoConfirmedBy(final String party) {
+            secondConfirmer = party;
+            return this;
+        }
+
+        /** Adds {@code party} as a second informee of {@code weight}, with {@code thr} as the whole threshold. */
+        Bundle alsoInformed(final String party, final long weight, final long thr) {
+            secondConfirmer = party;
+            secondWeight = weight;
+            secondThreshold = thr;
+            return this;
+        }
+
+        /** The written channel version's {@code writeFirstMessageId}; {@code nextMessageId} is 7. */
+        Bundle writeFirst(final long v) {
+            writeFirst = v;
+            return this;
+        }
+
+        Bundle anchorEndpoints(final String e) {
+            anchorEndpoints = e;
+            return this;
+        }
 
         Bundle vpdVersion(final int v) {
             vpdVersion = v;
@@ -623,7 +790,18 @@ class CantonProofVerifierBundleTest {
             if (otherWeight > 0) {
                 quorum.field(1, new Pb().varint(1, 1).varint(2, otherWeight).build());
             }
-            quorum.varint(2, threshold);
+            long thr = threshold;
+            if (secondConfirmer != null) {
+                pb.field(2, utf8(secondConfirmer));
+                quorum.field(
+                        1,
+                        new Pb()
+                                .varint(1, otherWeight > 0 ? 2 : 1)
+                                .varint(2, secondWeight)
+                                .build());
+                thr = secondThreshold >= 0 ? secondThreshold : threshold + 1;
+            }
+            quorum.varint(2, thr);
             return pb.field(3, quorum.build()).build();
         }
 
@@ -633,7 +811,7 @@ class CantonProofVerifierBundleTest {
                     .field(10, utf8("template"))
                     .build();
             final Pb pb = new Pb();
-            pb.field(3, Pb.lenField(1, Chan.channel(manifestHash)));
+            pb.field(3, Pb.lenField(1, Chan.channel(manifestHash, writeFirst)));
             pb.field(6, Pb.lenField(2, ex));
             return pb.build();
         }
@@ -699,17 +877,18 @@ class CantonProofVerifierBundleTest {
                             successor,
                             upgradeTime,
                             0,
-                            APP)
+                            APP,
+                            anchorEndpoints)
                     .encode();
         }
     }
 
-    /** The {@code Channel} contract of {@link CantonWriteTest}: nine read fields at their positions, rest filler. */
+    /** The {@code Channel} contract of {@link CantonWriteTest}: read fields in their positions, the rest filler. */
     private static final class Chan {
-        static byte[] channel(final String manifestHash) {
+        static byte[] channel(final String manifestHash, final long writeFirst) {
             final byte[] packageHex = formatHex(PACKAGE_ID).getBytes(StandardCharsets.UTF_8);
             final List<byte[]> values = new ArrayList<>();
-            for (int i = 0; i < 26; ++i) {
+            for (int i = 0; i < 29; ++i) {
                 values.add(text(""));
             }
             values.set(0, Pb.lenField(7, OPERATOR));
@@ -722,6 +901,7 @@ class CantonProofVerifierBundleTest {
             values.set(17, Pb.lenField(15, Pb.lenField(1, utf8("Active"))));
             values.set(24, text(utf8("33".repeat(32))));
             values.set(25, text(utf8(manifestHash)));
+            values.set(28, new Pb().varint(3, writeFirst << 1).build());
             final Pb record = new Pb();
             for (final byte[] v : values) {
                 record.field(1, Pb.lenField(1, v));

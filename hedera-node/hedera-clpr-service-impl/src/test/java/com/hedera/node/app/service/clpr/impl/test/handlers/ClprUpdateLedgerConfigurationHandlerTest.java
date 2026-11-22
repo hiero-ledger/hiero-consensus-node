@@ -66,6 +66,7 @@ class ClprUpdateLedgerConfigurationHandlerTest {
     private static final String CHAIN_ID = "hiero:unit";
     private static final int PROTOCOL_VERSION = 1;
     private static final Bytes LEDGER_ID = Bytes.wrap(new byte[] {0x11, 0x22, 0x33, 0x44});
+    private static final long MAX_GAS_PER_TRANSACTION = 15_000_000L;
 
     @BeforeEach
     void setUp() {
@@ -278,6 +279,42 @@ class ClprUpdateLedgerConfigurationHandlerTest {
         assertThat(saved.serviceAddress()).isEqualTo(CLPR_SERVICE_ADDRESS);
         assertThat(saved.timestamp().seconds()).isEqualTo(1_234_567L);
         assertThat(saved.timestamp().nanos()).isEqualTo(890);
+    }
+
+    @Test
+    @DisplayName("should reject max_gas_per_message above contracts.maxGasPerTransaction without storing it")
+    void rejectsMaxGasPerMessageAboveMaxGasPerTransaction() {
+        setupHandleContext(configWithMaxGasPerTransaction());
+        final var newConfig = validConfigBuilder()
+                .throttles(validThrottlesBuilder()
+                        .maxGasPerMessage(MAX_GAS_PER_TRANSACTION + 1)
+                        .build())
+                .build();
+        given(handleContext.body()).willReturn(txnBodyWith(newConfig));
+
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .extracting(e -> ((HandleException) e).getStatus())
+                .isEqualTo(INVALID_CLPR_CONFIGURATION);
+        verify(configStore, never()).put(any());
+    }
+
+    @Test
+    @DisplayName("should store max_gas_per_message equal to contracts.maxGasPerTransaction")
+    void storesMaxGasPerMessageEqualToMaxGasPerTransaction() {
+        setupHandleContext(configWithMaxGasPerTransaction());
+        final var throttles = validThrottlesBuilder()
+                .maxGasPerMessage(MAX_GAS_PER_TRANSACTION)
+                .build();
+        given(handleContext.body())
+                .willReturn(
+                        txnBodyWith(validConfigBuilder().throttles(throttles).build()));
+
+        subject.handle(handleContext);
+
+        final var captor = ArgumentCaptor.forClass(ClprLedgerConfiguration.class);
+        verify(configStore).put(captor.capture());
+        assertThat(captor.getValue().throttles()).isEqualTo(throttles);
     }
 
     @Test
@@ -494,6 +531,12 @@ class ClprUpdateLedgerConfigurationHandlerTest {
                 .willReturn(configStore);
         given(configStore.getConfiguration()).willReturn(existing);
         given(handleContext.consensusNow()).willReturn(CONSENSUS_NOW);
+    }
+
+    private static Configuration configWithMaxGasPerTransaction() {
+        return HederaTestConfigBuilder.create()
+                .withValue("contracts.maxGasPerTransaction", MAX_GAS_PER_TRANSACTION)
+                .getOrCreateConfig();
     }
 
     private static ClprLedgerConfiguration genesisConfig() {

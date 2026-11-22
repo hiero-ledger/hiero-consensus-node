@@ -83,17 +83,17 @@ class ClprVerifierFactoryTest {
     }
 
     @Test
-    @DisplayName("Canton (0x172) built-in resolves to CantonProofVerifier via contract num")
+    @DisplayName("Canton (0x173) built-in resolves to CantonProofVerifier via contract num")
     void cantonResolvesToNativeVerifierByNum() {
-        final var cid = ContractID.newBuilder().contractNum(0x172L).build();
+        final var cid = ContractID.newBuilder().contractNum(0x173L).build();
         assertThat(subject.getVerifier(cid)).isInstanceOf(CantonProofVerifier.class);
     }
 
     @Test
-    @DisplayName("Canton (0x172) built-in resolves to CantonProofVerifier via evm address")
+    @DisplayName("Canton (0x173) built-in resolves to CantonProofVerifier via evm address")
     void cantonResolvesToNativeVerifierByEvmAddress() {
         final var addr =
-                Bytes.wrap(new byte[] {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01, (byte) 0x72});
+                Bytes.wrap(new byte[] {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01, (byte) 0x73});
         final var cid = ContractID.newBuilder().evmAddress(addr).build();
         assertThat(subject.getVerifier(cid)).isInstanceOf(CantonProofVerifier.class);
     }
@@ -101,7 +101,7 @@ class ClprVerifierFactoryTest {
     @Test
     @DisplayName("the factory injects no state into the Canton verifier: config verification matches a direct instance")
     void factoryProducedCantonVerifierVerifiesConfigAndBundle() {
-        final var cid = ContractID.newBuilder().contractNum(0x172L).build();
+        final var cid = ContractID.newBuilder().contractNum(0x173L).build();
         final var viaFactory = subject.getVerifier(cid);
         final var direct = new CantonProofVerifier();
 
@@ -123,7 +123,7 @@ class ClprVerifierFactoryTest {
     @Test
     @DisplayName("the Canton verifier reads the local chain id from the HandleContext at call time")
     void factoryProducedCantonVerifierReadsLocalChainIdFromHandleContext() {
-        final var cid = ContractID.newBuilder().contractNum(0x172L).build();
+        final var cid = ContractID.newBuilder().contractNum(0x173L).build();
         final var viaFactory = subject.getVerifier(cid);
         final var direct = new CantonProofVerifier();
 
