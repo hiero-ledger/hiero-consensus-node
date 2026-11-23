@@ -3,6 +3,7 @@ package com.hedera.node.app.service.clpr.impl.verifier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.withinPercentage;
 
 import com.hedera.hapi.node.state.clpr.BlockHeader;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
@@ -16,14 +17,18 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import org.hiero.base.crypto.ECDSASecp256k1;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 /** Contract-mode validator selection in {@link BesuQbftVerifier}: the validator set is proven from a contract. */
 class BesuQbftContractModeTest {
@@ -551,17 +556,51 @@ class BesuQbftContractModeTest {
         }
 
         @Test
-        void tooManyHopsAreRejected() {
+        void hopsAreBoundedByGasNotByCount() {
+            // 33 rotations of a singleton set: set i takes over at block ANCHOR_BLOCK + i, each change block sealed by
+            // the set before it, and the head is sealed by the last set.
+            final int rotations = 33;
+            final List<byte[]> privateKeys = IntStream.rangeClosed(0, rotations)
+                    .mapToObj(i -> filled(32, i + 1))
+                    .toList();
+            final List<Chain> states = privateKeys.stream()
+                    .map(k ->
+                            chain(new ValidatorArray(1, List.of(EthSigsUtils.recoverAddressFromPrivateKey(k))), false))
+                    .toList();
+            final byte[] initialSet = BesuQbftVerifier.encodeValidatorSet(
+                    List.of(EthSigsUtils.recoverAddressFromPrivateKey(privateKeys.getFirst())));
+            final var initialAnchor = new BesuQbftVerifier.TrustAnchor(
+                    initialSet,
+                    SERVICE_ADDR,
+                    SERVICE_CODE_HASH,
+                    ANCHOR_BLOCK,
+                    new BesuQbftVerifier.ValidatorContract(
+                            VALIDATOR_CONTRACT,
+                            ARRAY_SLOT,
+                            VALIDATOR_CODE_HASH,
+                            states.getFirst().validatorStorageRoot()));
             final List<byte[]> hops = new ArrayList<>();
-            for (int i = 0; i <= BesuQbftVerifier.MAX_CONTRACT_MODE_HOPS; i++) {
-                hops.add(Rlp.encodeList(List.of()));
+            for (int i = 1; i <= rotations; i++) {
+                hops.add(hop(ANCHOR_BLOCK + i, states.get(i), List.of(privateKeys.get(i - 1))));
             }
             final byte[] payload = bundle(
-                    header(CURRENT_BLOCK, anchored.stateRoot(), keys(0, 1, 2)), hops, contractProof(anchored, false));
+                    header(CURRENT_BLOCK, states.get(rotations).stateRoot(), List.of(privateKeys.get(rotations))),
+                    initialSet,
+                    hops,
+                    contractProof(states.get(rotations), false));
 
-            assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(payload, anchor, CHANNEL_ID))
+            final var enough = new VerificationGas(Long.MAX_VALUE);
+            assertThat(VerificationGas.metered(
+                                    enough, () -> BUNDLE_SUBJECT.verifyBundle(payload, initialAnchor, CHANNEL_ID))
+                            .newTrustAnchorId())
+                    .isEqualTo(BesuQbftVerifier.trustAnchorId(CURRENT_BLOCK));
+
+            final var tooLittle = new VerificationGas(enough.used() / 2);
+            assertThatThrownBy(() -> VerificationGas.metered(
+                            tooLittle, () -> BUNDLE_SUBJECT.verifyBundle(payload, initialAnchor, CHANNEL_ID)))
                     .isInstanceOf(ProofException.class)
-                    .hasMessageContaining("at most " + BesuQbftVerifier.MAX_CONTRACT_MODE_HOPS);
+                    .hasMessageContaining("out of gas");
+            assertThat(tooLittle.exhausted()).isTrue();
         }
 
         @Test
@@ -741,6 +780,143 @@ class BesuQbftContractModeTest {
             assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(payload, headerModeAnchor, CHANNEL_ID))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("[trustedSet, hops]");
+        }
+    }
+
+    /** Contract-mode bundles cost about what the Solidity {@code QbftContractModeVerifier} costs. */
+    @Nested
+    class Gas {
+        /** {@code count} deterministic validator keys. */
+        private static List<byte[]> calibrationKeys(final int count) {
+            return IntStream.range(0, count).mapToObj(i -> filled(32, 0x10 + i)).toList();
+        }
+
+        private static List<byte[]> addressesOf(final List<byte[]> keys) {
+            return keys.stream().map(EthSigsUtils::recoverAddressFromPrivateKey).toList();
+        }
+
+        private static BesuQbftVerifier.TrustAnchor anchorFor(final List<byte[]> set, final Chain chain) {
+            return new BesuQbftVerifier.TrustAnchor(
+                    BesuQbftVerifier.encodeValidatorSet(set),
+                    SERVICE_ADDR,
+                    SERVICE_CODE_HASH,
+                    ANCHOR_BLOCK,
+                    new BesuQbftVerifier.ValidatorContract(
+                            VALIDATOR_CONTRACT, ARRAY_SLOT, VALIDATOR_CODE_HASH, chain.validatorStorageRoot()));
+        }
+
+        /** The gas of a bundle whose validator contract holds the first {@code validators} keys, unchanged. */
+        private static long steadyStateGas(final int validators) {
+            final List<byte[]> keys = calibrationKeys(validators);
+            final List<byte[]> set = addressesOf(keys);
+            final Chain state = chain(new ValidatorArray(validators, set), false);
+            final byte[] payload = bundle(
+                    header(CURRENT_BLOCK, state.stateRoot(), keys.subList(0, BesuQbftVerifier.quorum(validators))),
+                    BesuQbftVerifier.encodeValidatorSet(set),
+                    List.of(),
+                    contractProof(state, false));
+            return meteredGas(() -> BUNDLE_SUBJECT.verifyBundle(payload, anchorFor(set, state), CHANNEL_ID));
+        }
+
+        /** The gas of a bundle crossing one hop that adds a member to a {@code validators}-member set. */
+        private static long rotationGas(final int validators) {
+            final List<byte[]> keys = calibrationKeys(validators + 1);
+            final List<byte[]> before = addressesOf(keys.subList(0, validators));
+            final List<byte[]> after = addressesOf(keys);
+            final Chain beforeState = chain(new ValidatorArray(validators, before), false);
+            final Chain afterState = chain(new ValidatorArray(validators + 1, after), false);
+            final byte[] hop = Rlp.encodeList(List.of(
+                    header(
+                            ANCHOR_BLOCK + 1,
+                            afterState.stateRoot(),
+                            keys.subList(0, BesuQbftVerifier.quorum(validators))),
+                    pathContractProof(afterState)));
+            final byte[] payload = bundle(
+                    header(
+                            CURRENT_BLOCK,
+                            afterState.stateRoot(),
+                            keys.subList(0, BesuQbftVerifier.quorum(validators + 1))),
+                    BesuQbftVerifier.encodeValidatorSet(before),
+                    List.of(hop),
+                    contractProof(afterState, false));
+            return meteredGas(() -> BUNDLE_SUBJECT.verifyBundle(payload, anchorFor(before, beforeState), CHANNEL_ID));
+        }
+
+        /**
+         * A contract proof of {@code chain}'s whole array in which each slot carries only the nodes on its own trie
+         * path, as {@code eth_getProof} returns them (the shared fixtures attach every node of the trie to every slot).
+         */
+        private static byte[] pathContractProof(final Chain chain) {
+            final List<byte[]> entries = arraySlots(chain).stream()
+                    .map(slot -> Rlp.encodeList(List.of(
+                            Rlp.encodeBytes(slot),
+                            nodeList(pathNodes(
+                                    chain.validatorStorageRoot(),
+                                    chain.storageNodes(),
+                                    MiscCryptoUtils.keccak256DigestOf(slot))))))
+                    .toList();
+            return Rlp.encodeBytes(Rlp.encodeList(List.of(
+                    Rlp.encodeBytes(VALIDATOR_CONTRACT),
+                    nodeList(chain.stateNodes()),
+                    Rlp.encodeBytes(ARRAY_SLOT),
+                    Rlp.encodeList(entries))));
+        }
+
+        /** The nodes of a trie on the path from {@code root} to {@code key32}, root first. */
+        private static byte[][] pathNodes(final byte[] root, final byte[][] nodes, final byte[] key32) {
+            final Map<BesuQbftVerifier.BytesKey, byte[]> byHash = new HashMap<>();
+            for (final byte[] node : nodes) {
+                byHash.put(new BesuQbftVerifier.BytesKey(MiscCryptoUtils.keccak256DigestOf(node)), node);
+            }
+            final int[] path = new int[64];
+            for (int i = 0; i < 32; i++) {
+                path[2 * i] = (key32[i] >> 4) & 0x0f;
+                path[2 * i + 1] = key32[i] & 0x0f;
+            }
+            final List<byte[]> out = new ArrayList<>();
+            byte[] reference = root;
+            int position = 0;
+            while (reference.length == 32 && byHash.containsKey(new BesuQbftVerifier.BytesKey(reference))) {
+                final byte[] node = byHash.get(new BesuQbftVerifier.BytesKey(reference));
+                out.add(node);
+                final List<Rlp.Item> items = Rlp.decodeOne(node).children();
+                if (items.size() == 17) {
+                    if (position == path.length || items.get(path[position]).isEmptyString()) {
+                        break;
+                    }
+                    reference = items.get(path[position++]).asNodeReference();
+                } else {
+                    final byte[] encodedPath = items.get(0).asBytes();
+                    final int flag = (encodedPath[0] >> 4) & 0x0f;
+                    position += 2 * encodedPath.length - ((flag & 1) == 1 ? 1 : 2);
+                    if (flag >= 2) {
+                        break;
+                    }
+                    reference = items.get(1).asNodeReference();
+                }
+            }
+            return out.toArray(byte[][]::new);
+        }
+
+        private static long meteredGas(final Supplier<?> verification) {
+            final var gas = new VerificationGas(Long.MAX_VALUE);
+            VerificationGas.metered(gas, () -> {
+                VerificationGas.charge(BesuQbftVerifier.GAS_PER_BUNDLE);
+                return verification.get();
+            });
+            return gas.used();
+        }
+
+        @ParameterizedTest(name = "{0} validators")
+        @CsvSource({"3, 160319", "10, 209418", "25, 321496", "52, 547017"})
+        void steadyStateCostsAboutAsMuchAsSolidity(final int validators, final long solidityGas) {
+            assertThat(steadyStateGas(validators)).isCloseTo(solidityGas, withinPercentage(20));
+        }
+
+        @ParameterizedTest(name = "{0} -> {0}+1 validators")
+        @CsvSource({"10, 520579", "51, 2054399"})
+        void oneHopRotationCostsAboutAsMuchAsSolidity(final int validators, final long solidityGas) {
+            assertThat(rotationGas(validators)).isCloseTo(solidityGas, withinPercentage(20));
         }
     }
 

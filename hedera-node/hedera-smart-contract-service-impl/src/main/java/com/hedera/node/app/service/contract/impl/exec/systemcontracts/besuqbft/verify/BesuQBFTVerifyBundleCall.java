@@ -19,6 +19,7 @@ import com.hedera.hapi.node.state.clpr.ClprMessagePayload;
 import com.hedera.hapi.node.state.clpr.ClprQueueMetadata;
 import com.hedera.node.app.service.clpr.impl.verifier.BesuQbftVerifier;
 import com.hedera.node.app.service.clpr.impl.verifier.ProofException;
+import com.hedera.node.app.service.clpr.impl.verifier.VerificationGas;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCall;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
@@ -56,10 +57,14 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
  * the proof: the relayed queue metadata must equal the proven Channel slots, a partial bundle's metadata is
  * scoped to its proven last message, and a new trust anchor is returned only when the verifier proved a
  * rotation. The proven manifest is appended as the fifth tuple member.
+ *
+ * <p>The call charges the gas the verification uses ({@link VerificationGas}): {@link BesuQbftVerifier#GAS_PER_BUNDLE} plus what the
+ * verifier charges for each header's seals, each Merkle proof node and each message id it tries, which costs about
+ * what the Solidity QBFT verifiers cost. The verification may use at most the gas left in the calling frame; when it
+ * runs out, the call fails with insufficient gas.
  */
 public class BesuQBFTVerifyBundleCall extends AbstractCall {
     private static final Logger log = LogManager.getLogger(BesuQBFTVerifyBundleCall.class);
-    private static final long GAS_REQUIREMENT = 100_000L;
 
     private static final int ADDRESS_LENGTH = 20;
     private static final int CHANNEL_ID_LENGTH = 32;
@@ -68,6 +73,9 @@ public class BesuQBFTVerifyBundleCall extends AbstractCall {
     private final byte[] bundlePayload;
     private final byte[] trustAnchor;
     private final byte[] channelContext;
+
+    /** Meters this call's verification; replaced with one limited to the frame's remaining gas in {@link #execute}. */
+    private VerificationGas gas = new VerificationGas(0);
 
     public BesuQBFTVerifyBundleCall(
             @NonNull final HederaWorldUpdater.Enhancement enhancement,
@@ -88,6 +96,20 @@ public class BesuQBFTVerifyBundleCall extends AbstractCall {
 
     @Override
     public @NonNull PricedResult execute(@NonNull final MessageFrame frame) {
+        gas = new VerificationGas(frame.getRemainingGas());
+        try {
+            return VerificationGas.metered(gas, () -> {
+                VerificationGas.charge(BesuQbftVerifier.GAS_PER_BUNDLE);
+                return verify();
+            });
+        } catch (final ProofException e) {
+            log.warn("verifyBundle (QBFT): {}", e.getMessage());
+            return fail();
+        }
+    }
+
+    @NonNull
+    private PricedResult verify() {
         log.info(
                 "verifyBundle (QBFT) ENTER: bundlePayload={} bytes, trustAnchor={} bytes, channelContext={} bytes",
                 bundlePayload.length,
@@ -379,7 +401,7 @@ public class BesuQBFTVerifyBundleCall extends AbstractCall {
                                 newTrustAnchor,
                                 newTrustAnchorId,
                                 manifestStructTuple(manifest))),
-                        GAS_REQUIREMENT),
+                        gas.used()),
                 SUCCESS,
                 true);
     }
@@ -419,15 +441,22 @@ public class BesuQBFTVerifyBundleCall extends AbstractCall {
                                 provenTrustAnchor == null ? new byte[0] : provenTrustAnchor,
                                 provenTrustAnchor == null ? new byte[0] : provenTrustAnchorId,
                                 manifestStructTuple(manifest))),
-                        GAS_REQUIREMENT),
+                        gas.used()),
                 SUCCESS,
                 true);
     }
 
+    /**
+     * Fails the call, charging the gas used. When the verification ran out of gas, that is more than the frame has
+     * left, so the call fails with insufficient gas.
+     */
     @NonNull
     private PricedResult fail() {
+        if (gas.exhausted()) {
+            log.warn("verifyBundle (QBFT): out of gas after {}", gas.used());
+        }
         return gasOnly(
-                ordinalRevertResult(CLPR_BUNDLE_VERIFICATION_FAILED, GAS_REQUIREMENT),
+                ordinalRevertResult(CLPR_BUNDLE_VERIFICATION_FAILED, gas.used()),
                 CLPR_BUNDLE_VERIFICATION_FAILED,
                 true);
     }

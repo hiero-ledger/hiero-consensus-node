@@ -48,6 +48,9 @@ class BesuQBFTVerifyBundleCallTest extends CallTestBase {
     }
 
     private static final long ANCHOR_BLOCK = 100L;
+    /** Gas left in the calling frame: enough for any bundle these tests verify. */
+    private static final long FRAME_GAS = 10_000_000L;
+
     private static final long PROVEN_BLOCK = 200L;
 
     private static byte[] buildTrustAnchorRlp() {
@@ -138,6 +141,40 @@ class BesuQBFTVerifyBundleCallTest extends CallTestBase {
         assertThat((byte[]) metaTuple.get(1)).isEqualTo(filled(32, 0x05));
         assertThat(((BigInteger) metaTuple.get(2)).longValueExact()).isEqualTo(17L);
         assertThat((byte[]) metaTuple.get(3)).isEqualTo(filled(32, 0x03));
+    }
+
+    @Test
+    void chargesTheGasTheVerificationUses() {
+        // The verifier is mocked, so only the per-bundle charge applies.
+        final var result = executeWith(verifiedBundle(contentBytes(relayedMetadata(filled(32, 0x02))), new byte[0]));
+
+        assertThat(result.responseCode()).isEqualTo(SUCCESS);
+        assertThat(result.fullResult().gasRequirement()).isEqualTo(BesuQbftVerifier.GAS_PER_BUNDLE);
+    }
+
+    @Test
+    void partialBundleAlsoPaysForEachMessageIdTried() {
+        // acked = 25 and 3 messages: ids 28, 41 (the latest), 29 and 30 are tried.
+        final var result =
+                executeWith(partialBundle(threeMessages(), messageRunningHashSlot(CHANNEL_ID, 30L), filled(32, 0x05)));
+
+        assertThat(result.responseCode()).isEqualTo(SUCCESS);
+        assertThat(result.fullResult().gasRequirement())
+                .isEqualTo(BesuQbftVerifier.GAS_PER_BUNDLE + 4 * BesuQbftVerifier.GAS_PER_PROBE);
+    }
+
+    @Test
+    void runsOutOfGasWhenTheFrameCannotPayForTheVerification() {
+        final long remainingGas = BesuQbftVerifier.GAS_PER_BUNDLE - 1;
+        final var result = executeWith(
+                verifiedBundle(contentBytes(relayedMetadata(filled(32, 0x02))), new byte[0]),
+                channelContext(CHANNEL_ID, SERVICE_ADDR),
+                buildTrustAnchorRlp(),
+                remainingGas);
+
+        assertThat(result.responseCode()).isEqualTo(CLPR_BUNDLE_VERIFICATION_FAILED);
+        // More than the frame has left, so the system contract halts the call with insufficient gas.
+        assertThat(result.fullResult().gasRequirement()).isGreaterThan(remainingGas);
     }
 
     @Test
@@ -480,6 +517,15 @@ class BesuQBFTVerifyBundleCallTest extends CallTestBase {
 
     private Call.PricedResult executeWith(
             final BesuQbftVerifier.VerifiedBundle verified, final byte[] channelContext, final byte[] trustAnchor) {
+        return executeWith(verified, channelContext, trustAnchor, FRAME_GAS);
+    }
+
+    private Call.PricedResult executeWith(
+            final BesuQbftVerifier.VerifiedBundle verified,
+            final byte[] channelContext,
+            final byte[] trustAnchor,
+            final long remainingGas) {
+        given(frame.getRemainingGas()).willReturn(remainingGas);
         try (final MockedConstruction<BesuQbftVerifier> ignored = mockConstruction(
                 BesuQbftVerifier.class,
                 (mock, ctx) -> given(

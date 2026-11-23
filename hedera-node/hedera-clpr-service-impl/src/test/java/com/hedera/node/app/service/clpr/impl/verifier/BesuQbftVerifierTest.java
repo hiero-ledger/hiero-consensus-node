@@ -4,6 +4,7 @@ package com.hedera.node.app.service.clpr.impl.verifier;
 import static com.hedera.node.app.service.clpr.impl.verifier.PbjTestUtils.appendUnknownField;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.withinPercentage;
 
 import com.hedera.hapi.node.state.clpr.BlockHeader;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
@@ -19,10 +20,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import org.hiero.base.crypto.ECDSASecp256k1;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 class BesuQbftVerifierTest {
 
@@ -1379,15 +1383,39 @@ class BesuQbftVerifierTest {
         }
 
         @Test
-        void searchStopsAfterTheProbeLimit() {
-            // acked = 0 and one message: ids 1..MAX_LAST_MESSAGE_PROBES are tried, the next one is not.
-            final long limit = BesuQbftVerifier.MAX_LAST_MESSAGE_PROBES;
-            assertThat(BesuQbftVerifier.findLastMessageId(
-                            channelId, messageRunningHashSlot(channelId, limit), 0L, 10_000L, 1))
-                    .hasValue(limit);
-            assertThat(BesuQbftVerifier.findLastMessageId(
-                            channelId, messageRunningHashSlot(channelId, limit + 1), 0L, 10_000L, 1))
-                    .isEmpty();
+        void findsAMessageFarAheadOfTheAckedIdAndChargesEachProbe() {
+            // The receiver is at 597 while the sender still shows acked = 0: a bundle of 598..600 ends far from
+            // acked + count. Ids 3 and 1000 are tried first, then 4..600.
+            final var gas = new VerificationGas(Long.MAX_VALUE);
+            assertThat(VerificationGas.metered(
+                            gas,
+                            () -> BesuQbftVerifier.findLastMessageId(
+                                    channelId, messageRunningHashSlot(channelId, 600L), 0L, 1_001L, 3)))
+                    .hasValue(600L);
+            assertThat(gas.used()).isEqualTo((2 + 597) * BesuQbftVerifier.GAS_PER_PROBE);
+        }
+
+        @Test
+        void findsTheLatestMessageWithTheSecondProbe() {
+            final var gas = new VerificationGas(Long.MAX_VALUE);
+            assertThat(VerificationGas.metered(
+                            gas,
+                            () -> BesuQbftVerifier.findLastMessageId(
+                                    channelId, messageRunningHashSlot(channelId, 1_000L), 0L, 1_001L, 3)))
+                    .hasValue(1_000L);
+            assertThat(gas.used()).isEqualTo(2 * BesuQbftVerifier.GAS_PER_PROBE);
+        }
+
+        @Test
+        void searchIsBoundedByGas() {
+            final var gas = new VerificationGas(50 * BesuQbftVerifier.GAS_PER_PROBE);
+            assertThatThrownBy(() -> VerificationGas.metered(
+                            gas,
+                            () -> BesuQbftVerifier.findLastMessageId(
+                                    channelId, messageRunningHashSlot(channelId, 600L), 0L, 1_001L, 3)))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("out of gas");
+            assertThat(gas.exhausted()).isTrue();
         }
 
         @Test
@@ -2296,6 +2324,74 @@ class BesuQbftVerifierTest {
             return Rlp.encodeList(List.of(
                     currentHeader, validatorSourceRlp, accountProofRlp, storageProofRlp, Rlp.encodeBytes(new byte[0])));
         }
+
+        // ── Gas: header-mode bundles cost about what the Solidity QbftHeaderModeVerifier costs ──
+
+        /** {@code count} deterministic validator keys. */
+        private static List<byte[]> calibrationKeys(final int count) {
+            return IntStream.range(0, count)
+                    .mapToObj(i -> {
+                        final byte[] key = new byte[32];
+                        Arrays.fill(key, (byte) (0x10 + i));
+                        return key;
+                    })
+                    .toList();
+        }
+
+        private static List<byte[]> addressesOf(final List<byte[]> keys) {
+            return keys.stream().map(EthSigsUtils::recoverAddressFromPrivateKey).toList();
+        }
+
+        /** The gas of a header-mode bundle whose current header lists the first {@code validators} keys. */
+        private static long steadyStateGas(final int validators) {
+            final List<byte[]> keys = calibrationKeys(validators);
+            final List<byte[]> set = addressesOf(keys);
+            final byte[][] accountProof = buildAccountMptProof(SERVICE_ADDR, EMPTY_TRIE_ROOT, new byte[32]);
+            final byte[] currentHeader = buildSignedHeaderMultiSeal(
+                    set, accountProof[0], keys.subList(0, BesuQbftVerifier.quorum(validators)));
+            final byte[] payload = buildBundlePayloadWithHopsAndCurrentHeader(List.of(), currentHeader, accountProof);
+            return meteredGas(() -> verifyHeaderMode(
+                    BUNDLE_SUBJECT, payload, BesuQbftVerifier.encodeValidatorSet(set), 0L, CHANNEL_ID));
+        }
+
+        /** The gas of a header-mode bundle crossing one hop that adds a member to a {@code validators}-member set. */
+        private static long rotationGas(final int validators) {
+            final List<byte[]> keys = calibrationKeys(validators + 1);
+            final List<byte[]> before = addressesOf(keys.subList(0, validators));
+            final List<byte[]> after = addressesOf(keys);
+            final List<byte[]> signers = keys.subList(0, BesuQbftVerifier.quorum(validators + 1));
+            final byte[] hop = buildHopHeader(after, 1L, new byte[32], signers);
+            final byte[][] accountProof = buildAccountMptProof(SERVICE_ADDR, EMPTY_TRIE_ROOT, new byte[32]);
+            final byte[] currentHeader = buildSignedHeaderMultiSeal(after, accountProof[0], signers);
+            final byte[] payload =
+                    buildBundlePayloadWithHopsAndCurrentHeader(List.of(hop), currentHeader, accountProof);
+            return meteredGas(() -> verifyHeaderMode(
+                    BUNDLE_SUBJECT, payload, BesuQbftVerifier.encodeValidatorSet(before), 0L, CHANNEL_ID));
+        }
+
+        @ParameterizedTest(name = "{0} validators")
+        @CsvSource({"3, 139947", "10, 204703", "25, 354289", "52, 701026"})
+        void steadyStateCostsAboutAsMuchAsSolidity(final int validators, final long solidityGas) {
+            assertThat(steadyStateGas(validators)).isCloseTo(solidityGas, withinPercentage(20));
+        }
+
+        @ParameterizedTest(name = "{0} -> {0}+1 validators")
+        @CsvSource({"10, 365042", "51, 1233199"})
+        void oneHopRotationCostsAboutAsMuchAsSolidity(final int validators, final long solidityGas) {
+            assertThat(rotationGas(validators)).isCloseTo(solidityGas, withinPercentage(20));
+        }
+    }
+
+    /**
+     * The gas {@code verification} uses, including the per-bundle charge, measured with a meter that has no limit.
+     */
+    private static long meteredGas(final Supplier<?> verification) {
+        final var gas = new VerificationGas(Long.MAX_VALUE);
+        VerificationGas.metered(gas, () -> {
+            VerificationGas.charge(BesuQbftVerifier.GAS_PER_BUNDLE);
+            return verification.get();
+        });
+        return gas.used();
     }
 
     @Nested
