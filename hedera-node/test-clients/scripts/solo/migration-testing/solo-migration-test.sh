@@ -54,6 +54,9 @@ KEEP_NETWORK="${KEEP_NETWORK:-true}"
 
 LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH:-${REPO_ROOT}/hedera-node/data}"
 SOLO_UPGRADE_TIMEOUT_SECS="${SOLO_UPGRADE_TIMEOUT_SECS:-1800}"
+# How long to let a TSS-enabled baseline run before upgrading it, so its hinTS/CRS
+# state is past genesis initialization. Set to 0 to skip.
+BASELINE_TSS_SETTLE_SECS="${BASELINE_TSS_SETTLE_SECS:-300}"
 
 # Solo's default mirror node can be too old for the baseline, so use the CITR pin.
 CITR_ENV_FILE="${REPO_ROOT}/.github/workflows/support/citr/.citr-env"
@@ -488,6 +491,19 @@ deploy_baseline() {
   wait "${_web3_patch_pid}" 2>/dev/null || true
 }
 
+# Lets a TSS-enabled baseline run for a while before it is upgraded. Upgrading
+# immediately restarts the nodes on genesis-initialized hinTS state (populated CRS,
+# ceremonyId == 0), which V079HintsSchema.restart() rejects as "legacy" state.
+# Skipped when the baseline runs with TSS off.
+wait_for_baseline_tss_settle() {
+  if [[ -n "${BASELINE_APP_PROPS}" || "${BASELINE_TSS_SETTLE_SECS}" -le 0 ]]; then
+    log "Skipping baseline TSS settle wait"
+    return 0
+  fi
+  log "Letting the baseline run ${BASELINE_TSS_SETTLE_SECS}s before upgrade so its TSS state settles"
+  sleep "${BASELINE_TSS_SETTLE_SECS}"
+}
+
 # === Step 3 ====================================================================
 # Upgrade the running consensus network to the local build (current branch
 # checkout), then verify each CN is actually running the local build's
@@ -643,7 +659,8 @@ create_cluster               # Step 2 (prereq: kind cluster)
 configure_solo               #         solo init + cluster-ref + deployment
 setup_cluster_prereqs        #         MinIO operator
 deploy_baseline              #         CN @ prev_tag + MN with pinger
-upgrade_to_local             # Step 3 (CN upgrade to local build)
+wait_for_baseline_tss_settle #         let baseline TSS state settle
+upgrade_to_local            # Step 3 (CN upgrade to local build)
 step4_crypto_create_smoke    # Step 4 + 4a (CryptoCreate via SDK + MN log scan)
 
 log "PASS: migration ${BASELINE_DESC} -> ${TARGET_VERSION} (local build) + CryptoCreate smoke completed"
