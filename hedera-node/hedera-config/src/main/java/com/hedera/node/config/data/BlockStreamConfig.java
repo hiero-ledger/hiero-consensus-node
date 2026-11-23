@@ -34,6 +34,11 @@ import org.hiero.base.crypto.DigestType;
  * @param blockFileBufferOuterSizeKb block file writer outer buffer size (in kilobytes) (see FileBlockItemWriter#openBlock(long) for details)
  * @param blockFileBufferInnerSizeKb block file writer inner buffer size (in kilobytes) (see FileBlockItemWriter#openBlock(long) for details)
  * @param blockFileBufferGzipSizeKb block file writer GZIP buffer size (in kilobytes) (see FileBlockItemWriter#openBlock(long) for details)
+ * @param enableStateChangePartials whether to emit {@code partial} map and singleton updates (top-level field
+ *                                  replacements and clears) in complete block streams; only effective in
+ *                                  {@code StreamMode.BLOCKS}
+ * @param stateChangePartialMinSaving minimum bytes a partial update must save over the full value, after its
+ *                                    metadata overhead, to be emitted instead of the full value
  * @param digestType the digest algorithm to use for block-root Merkle hashing; {@code SHA_256} (the default) uses
  *                   32-byte SHA-256 hashing, {@code SHA_384} uses 48-byte SHA-384
  */
@@ -98,7 +103,18 @@ public record BlockStreamConfig(
         boolean streamWrappedRecordBlocks,
 
         @ConfigProperty(defaultValue = "false") @NodeProperty
-        boolean enhancedObservabilityEnabled) {
+        boolean enhancedObservabilityEnabled,
+
+        @ConfigProperty(defaultValue = "true") @NetworkProperty
+        boolean enableStateChangePartials,
+
+        @ConfigProperty(defaultValue = "16") @Min(0) @NetworkProperty
+        int stateChangePartialMinSaving) {
+
+    /** Whether this stream can emit canonical partial state updates. */
+    public boolean stateChangePartialsEnabled() {
+        return enableStateChangePartials && streamMode == StreamMode.BLOCKS;
+    }
 
     /**
      * Whether the node should maintain an active stream to block nodes — true when the main

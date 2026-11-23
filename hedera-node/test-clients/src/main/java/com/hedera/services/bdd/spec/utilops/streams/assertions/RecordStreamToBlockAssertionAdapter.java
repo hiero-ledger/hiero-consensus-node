@@ -47,6 +47,11 @@ public class RecordStreamToBlockAssertionAdapter implements BlockStreamAssertion
     }
 
     @Override
+    public boolean wantsFullStateValues() {
+        return true;
+    }
+
+    @Override
     public boolean test(@NonNull final Block block) throws AssertionError {
         requireNonNull(block);
         try {

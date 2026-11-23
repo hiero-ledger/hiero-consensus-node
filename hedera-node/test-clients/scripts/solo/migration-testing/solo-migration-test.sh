@@ -23,6 +23,11 @@
 #     verify each consensus node is actually running the local build's
 #     HederaNode.jar via META-INF/MANIFEST.MF.
 #
+#   Block Node (ENABLE_BLOCK_NODE, default true)
+#     A BN is deployed next to the baseline, the baseline CNs stream blocks to it, the
+#     mirror importer reads from it once records stop, and after the upgrade every CN must
+#     still be streaming to it (the CryptoCreate then has to reach the mirror through it).
+#
 # Steps 4+ (CryptoCreate smoke, runner label, Slack reporting, XTS plumbing)
 # are out of scope here — they belong in the wrapping `zxc-*.yaml` workflow,
 # not in this script.
@@ -59,6 +64,27 @@ SOLO_UPGRADE_TIMEOUT_SECS="${SOLO_UPGRADE_TIMEOUT_SECS:-1800}"
 CITR_ENV_FILE="${REPO_ROOT}/.github/workflows/support/citr/.citr-env"
 MIRROR_NODE_VERSION="${MIRROR_NODE_VERSION:-$({ sed -n 's/^citr-mirror-node-version=//p' "${CITR_ENV_FILE}" 2>/dev/null | head -n 1; } || true)}"
 
+# Block Node. The baseline CN streams blocks to a BN deployed next to it, and the upgraded
+# build must keep streaming to it: once the new build stops writing record files, the mirror
+# importer's only source is the BN. Without one, the importer errors forever on the first
+# post-upgrade block ("No block node can provide block N"). Set ENABLE_BLOCK_NODE=false to skip.
+ENABLE_BLOCK_NODE="${ENABLE_BLOCK_NODE:-true}"
+BLOCK_NODE_ID="${BLOCK_NODE_ID:-1}"
+BLOCK_NODE_VERSION="${BLOCK_NODE_VERSION:-$({ sed -n 's/^block-node-version=//p' "${CITR_ENV_FILE}" 2>/dev/null | head -n 1; } || true)}"
+BLOCK_NODE_GRPC_PORT="${BLOCK_NODE_GRPC_PORT:-40840}"
+BLOCK_NODE_READY_TIMEOUT_SECS="${BLOCK_NODE_READY_TIMEOUT_SECS:-600}"
+BLOCK_NODE_STREAMING_TIMEOUT_SECS="${BLOCK_NODE_STREAMING_TIMEOUT_SECS:-300}"
+BLOCK_NODE_INIT_IMAGE="${BLOCK_NODE_INIT_IMAGE:-docker.io/library/busybox:1.36.1}"
+# The BN snaps its earliest managed block down to the first block the CNs publish; this only has
+# to sit above the CN's current block when the BN is deployed.
+BLOCK_NODE_EARLIEST_MANAGED_BLOCK="${BLOCK_NODE_EARLIEST_MANAGED_BLOCK:-1000}"
+# HAPI version at which the mirror importer switches from record files to the BN (same pin as
+# the three-stage cutover scenario).
+MIRROR_BLOCK_CUTOVER_HAPIVERSION="${MIRROR_BLOCK_CUTOVER_HAPIVERSION:-0.79.0}"
+HAPI_PATH="/opt/hgcapp/services-hedera/HapiApp2.0"
+CN_BLOCK_NODE_COMMS_LOG="${HAPI_PATH}/output/block-node-comms.log"
+CUTOVER_SCRIPT_DIR="${SCRIPT_DIR}/../e2e-block-stream-cutover"
+
 # Step 4 (CryptoCreate smoke) port-forwards + operator credentials.
 # Account 0.0.2 + the well-known genesis Ed25519 dev key is what Solo's local
 # deployments seed by default. Override via env vars in CI if needed.
@@ -94,6 +120,12 @@ BASELINE_DESC=""
 MIN_MIGRATABLE_TSS_LIBRARY_VERSION="3.23.0"
 # Set by step 1 when the baseline needs node property overrides.
 BASELINE_APP_PROPS=""
+# Set by configure_block_stream_props / the upgrade when ENABLE_BLOCK_NODE=true.
+UPGRADE_APP_PROPS=""
+UPGRADE_STARTED_UTC=""
+RSA_BOOTSTRAP_ROSTER_FILE=""
+BLOCK_NODE_VALUES_FILE=""
+MIRROR_VALUES_FILE=""
 
 log() {
   printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"
@@ -269,6 +301,7 @@ compute_versions() {
   fi
 
   configure_baseline_tss
+  configure_block_stream_props
 
   log "Migration source (baseline): ${BASELINE_DESC}"
   log "Migration target           : ${TARGET_VERSION} (local build at ${LOCAL_BUILD_PATH})"
@@ -349,6 +382,252 @@ build_baseline_from_release_branch() {
   BASELINE_DESC="${branch} source build (${baseline_version:-unknown}) via --local-build-path"
 
   log "Built ${branch} baseline: ${baseline_version:-unknown} at ${BASELINE_BUILD_PATH}"
+}
+
+# === Block Node ================================================================
+# Properties that make the baseline CN publish blocks (alongside records) to the BN, and
+# that the upgraded build runs with. Mock block signatures keep the BN's verification on the
+# RSA roster seeded below, so it needs no TSS bootstrap parameters; hinTS/history still run.
+configure_block_stream_props() {
+  [[ "${ENABLE_BLOCK_NODE}" == "true" ]] || return 0
+  [[ -n "${BASELINE_APP_PROPS}" ]] || BASELINE_APP_PROPS="${WORK_DIR}/baseline-application.properties"
+  printf '%s\n' \
+    "blockStream.streamMode=BOTH" \
+    "blockStream.writerMode=FILE_AND_GRPC" \
+    "blockStream.enableCutover=false" \
+    "tss.forceMockSignatures=true" >> "${BASELINE_APP_PROPS}"
+
+  # Solo replaces application.properties on upgrade, so the target's properties are passed
+  # explicitly. The first lines preserve Solo's local-network settings.
+  UPGRADE_APP_PROPS="${WORK_DIR}/upgrade-application.properties"
+  printf '%s\n' \
+    "contracts.chainId=298" \
+    "nodes.gossipFqdnRestricted=false" \
+    "nodes.nodeRewardsEnabled=false" \
+    "blockStream.streamMode=BLOCKS" \
+    "blockStream.writerMode=FILE_AND_GRPC" \
+    "blockStream.enableCutover=false" \
+    "tss.forceMockSignatures=true" > "${UPGRADE_APP_PROPS}"
+}
+
+# Builds the RSA bootstrap roster from each CN's gossip public key so the BN can verify the
+# mock-signed blocks.
+generate_rsa_bootstrap_roster_json() {
+  require_cmd openssl
+  local node node_idx node_id pem hex entries="" nodes=()
+  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
+  for node in "${nodes[@]}"; do
+    node_idx="${node#node}"
+    node_id="$((node_idx - 1))"
+    pem="$(kubectl -n "${SOLO_NAMESPACE}" exec "network-${node}-0" -c root-container -- \
+      cat "${HAPI_PATH}/data/keys/s-public-node${node_idx}.pem" 2>/dev/null || true)"
+    hex="$(printf '%s' "${pem}" | openssl x509 -pubkey -noout 2>/dev/null \
+      | openssl pkey -pubin -outform DER 2>/dev/null | od -An -v -tx1 | tr -d ' \n')"
+    if [[ -z "${hex}" ]]; then
+      echo "Failed to read the gossip public key of ${node}" >&2
+      return 1
+    fi
+    [[ -n "${entries}" ]] && entries+=","
+    if [[ "${node_id}" == "0" ]]; then
+      entries+=$'\n    {"RSAPubKey": "'"${hex}"'"}'
+    else
+      entries+=$'\n    {"nodeId": "'"${node_id}"'", "RSAPubKey": "'"${hex}"'"}'
+    fi
+  done
+  RSA_BOOTSTRAP_ROSTER_FILE="${WORK_DIR}/rsa-bootstrap-roster.json"
+  printf '{\n  "nodeAddress": [%s\n  ]\n}\n' "${entries}" > "${RSA_BOOTSTRAP_ROSTER_FILE}"
+  log "Generated RSA bootstrap roster (${#nodes[@]} entries)"
+}
+
+write_block_node_values() {
+  local roster_indented
+  roster_indented="$(sed 's/^/          /' "${RSA_BOOTSTRAP_ROSTER_FILE}")"
+  BLOCK_NODE_VALUES_FILE="${WORK_DIR}/block-node-values.yaml"
+  cat > "${BLOCK_NODE_VALUES_FILE}" <<EOF
+blockNode:
+  config:
+    BLOCK_NODE_EARLIEST_MANAGED_BLOCK: "${BLOCK_NODE_EARLIEST_MANAGED_BLOCK}"
+    BACKFILL_START_BLOCK: "${BLOCK_NODE_EARLIEST_MANAGED_BLOCK}"
+    APP_STATE_RSA_BOOTSTRAP_FILE_PATH: "/opt/hiero/block-node/data/live/rsa-bootstrap-roster.json"
+  initContainers:
+    - name: init-storage-dirs
+      image: "${BLOCK_NODE_INIT_IMAGE}"
+      imagePullPolicy: IfNotPresent
+      command:
+        - sh
+        - -c
+        - |
+          mkdir -p /live-pvc/live-data && \\
+          chown 2000:2000 /live-pvc/live-data && \\
+          chmod 700 /live-pvc/live-data && \\
+          mkdir -p /archive-pvc/archive-data && \\
+          chown 2000:2000 /archive-pvc/archive-data && \\
+          chmod 700 /archive-pvc/archive-data && \\
+          chown 2000:2000 /application-state-pvc && \\
+          chmod 700 /application-state-pvc
+      volumeMounts:
+        - name: live-storage
+          mountPath: /live-pvc
+        - name: archive-storage
+          mountPath: /archive-pvc
+        - name: application-state-storage
+          mountPath: /application-state-pvc
+    - name: seed-rsa-bootstrap-roster
+      image: "${BLOCK_NODE_INIT_IMAGE}"
+      imagePullPolicy: IfNotPresent
+      command:
+        - sh
+        - -c
+        - |
+          cat > /live-pvc/live-data/rsa-bootstrap-roster.json <<'ROSTER'
+${roster_indented}
+          ROSTER
+          chown 2000:2000 /live-pvc/live-data/rsa-bootstrap-roster.json
+          chmod 644 /live-pvc/live-data/rsa-bootstrap-roster.json
+      volumeMounts:
+        - name: live-storage
+          mountPath: /live-pvc
+EOF
+}
+
+# Importer settings: keep reading record files from the baseline, and switch to the BN once the
+# upgraded build stops writing them.
+write_mirror_values_override() {
+  MIRROR_VALUES_FILE="${WORK_DIR}/mirror-values.yaml"
+  cat > "${MIRROR_VALUES_FILE}" <<EOF
+importer:
+  env:
+    HIERO_MIRROR_IMPORTER_DOWNLOADER_RECORD_ENABLED: 'true'
+    HIERO_MIRROR_IMPORTER_BLOCK_ENABLED: 'false'
+    HIERO_MIRROR_IMPORTER_BLOCK_SOURCETYPE: 'BLOCK_NODE'
+    HIERO_MIRROR_IMPORTER_BLOCK_CUTOVER_ENABLED: 'true'
+    HIERO_MIRROR_IMPORTER_BLOCK_CUTOVER_HAPIVERSION: '${MIRROR_BLOCK_CUTOVER_HAPIVERSION}'
+    HIERO_MIRROR_IMPORTER_BLOCK_NODES_0_ENDPOINTS_0_HOST: 'block-node-${BLOCK_NODE_ID}.${SOLO_NAMESPACE}.svc.cluster.local'
+    HIERO_MIRROR_IMPORTER_BLOCK_NODES_0_ENDPOINTS_0_PORT: '${BLOCK_NODE_GRPC_PORT}'
+EOF
+}
+
+deploy_block_node() {
+  [[ -n "${BLOCK_NODE_VERSION}" ]] || {
+    echo "block-node-version is missing from ${CITR_ENV_FILE}" >&2
+    return 1
+  }
+  generate_rsa_bootstrap_roster_json || return 1
+  write_block_node_values
+
+  local node mapping="" nodes=()
+  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
+  for node in "${nodes[@]}"; do
+    [[ -n "${mapping}" ]] && mapping+=","
+    mapping+="${node}=1"
+  done
+
+  log "Deploying Block Node ${BLOCK_NODE_ID} ${BLOCK_NODE_VERSION} (priority '${mapping}')"
+  solo block node add \
+    --deployment "${SOLO_DEPLOYMENT}" \
+    --cluster-ref "kind-${SOLO_CLUSTER_NAME}" \
+    --quiet-mode \
+    --force-port-forward false \
+    --priority-mapping "${mapping}" \
+    --chart-version "${BLOCK_NODE_VERSION}" \
+    --values-file "${BLOCK_NODE_VALUES_FILE}"
+  kubectl -n "${SOLO_NAMESPACE}" wait --for=condition=ready "pod/block-node-${BLOCK_NODE_ID}-0" \
+    --timeout="${BLOCK_NODE_READY_TIMEOUT_SECS}s"
+}
+
+# Passes once every consensus node has reported the BN as an in-range streaming target in
+# a comms-log line stamped at/after $1 (UTC, CN-log timestamp format; empty = whole log).
+wait_for_cn_streaming_to_block_node() {
+  local since="${1:-}" what="${2:-}" node pod view
+  local nodes=() pending=() deadline=$((SECONDS + BLOCK_NODE_STREAMING_TIMEOUT_SECS))
+  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
+  log "Waiting for every CN to stream to the Block Node ${what} (up to ${BLOCK_NODE_STREAMING_TIMEOUT_SECS}s)"
+  while (( SECONDS < deadline )); do
+    pending=()
+    for node in "${nodes[@]}"; do
+      pod="network-${node}-0"
+      view="$(kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -c \
+        "awk -v ts='${since}' 'ts == \"\" || \$0 >= ts' '${CN_BLOCK_NODE_COMMS_LOG}' 2>/dev/null \
+          | grep -aE 'available for streaming \(wantedBlock|block out of range|No block nodes available for streaming' | tail -1" \
+        2>/dev/null || true)"
+      [[ "${view}" == *"available for streaming (wantedBlock"* ]] || pending+=("${node}")
+    done
+    if (( ${#pending[@]} == 0 )); then
+      log "  all ${#nodes[@]} consensus nodes are streaming to the Block Node ${what}"
+      return 0
+    fi
+    sleep 5
+  done
+  echo "FAIL: ${pending[*]} did not report the Block Node in range ${what} within ${BLOCK_NODE_STREAMING_TIMEOUT_SECS}s" >&2
+  for node in "${pending[@]}"; do
+    kubectl -n "${SOLO_NAMESPACE}" exec "network-${node}-0" -c root-container -- \
+      tail -n 20 "${CN_BLOCK_NODE_COMMS_LOG}" >&2 2>&1 || true
+  done
+  return 1
+}
+
+# Solo creates the per-node data ConfigMaps through the Kubernetes API during `block node add`,
+# without Helm ownership metadata, so the helm upgrade behind `consensus network upgrade` would
+# abort with "invalid ownership metadata". Stamp the adoption keys first (see the same helper in
+# the three-stage cutover script).
+adopt_node_data_config_maps_into_helm() {
+  local helm_release="solo-deployment" node cm helm_version ownership_patch
+  local nodes=() config_maps=(network-node-data-config-cm)
+  helm_version="$(helm version --short)"
+  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
+  for node in "${nodes[@]}"; do
+    config_maps+=("network-${node}-data-config-cm")
+  done
+  log "Adopting consensus ConfigMaps for Helm updates"
+  for cm in "${config_maps[@]}"; do
+    kubectl -n "${SOLO_NAMESPACE}" get configmap "${cm}" >/dev/null 2>&1 || continue
+    kubectl -n "${SOLO_NAMESPACE}" label configmap "${cm}" \
+      "app.kubernetes.io/managed-by=Helm" --overwrite >/dev/null
+    kubectl -n "${SOLO_NAMESPACE}" annotate configmap "${cm}" \
+      "meta.helm.sh/release-name=${helm_release}" \
+      "meta.helm.sh/release-namespace=${SOLO_NAMESPACE}" --overwrite >/dev/null
+    if [[ "${helm_version}" == v4.* ]]; then
+      ownership_patch="$(kubectl -n "${SOLO_NAMESPACE}" get configmap "${cm}" --show-managed-fields -o json \
+        | jq -c -f "${CUTOVER_SCRIPT_DIR}/helm-configmap-ownership.jq")"
+      if [[ "${ownership_patch}" != "[]" ]]; then
+        kubectl -n "${SOLO_NAMESPACE}" patch configmap "${cm}" --type=json \
+          --patch "${ownership_patch}" >/dev/null
+      fi
+    fi
+  done
+}
+
+# Solo's upgrade still rewrites application.properties from its template, so merge the
+# target's properties back in (key by key) while the nodes are stopped.
+reapply_application_property_overrides() {
+  local properties_file="$1" node pod
+  local nodes=()
+  local remote_overrides="/tmp/migration-application-overrides.properties"
+  local app_properties="${HAPI_PATH}/data/config/application.properties"
+  log "Reapplying $(basename "${properties_file}") after Solo-generated property overrides"
+  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
+  for node in "${nodes[@]}"; do
+    pod="network-${node}-0"
+    kubectl -n "${SOLO_NAMESPACE}" cp "${properties_file}" "${pod}:${remote_overrides}" -c root-container
+    kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc "
+      set -eu
+      app='${app_properties}'
+      overrides='${remote_overrides}'
+      merged=\"\${app}.migration-merged\"
+      cp \"\${app}\" \"\${merged}\"
+      while IFS= read -r line || [ -n \"\${line}\" ]; do
+        case \"\${line}\" in
+          ''|'#'*) continue ;;
+        esac
+        key=\${line%%=*}
+        grep -v -F \"\${key}=\" \"\${merged}\" > \"\${merged}.next\" || true
+        mv \"\${merged}.next\" \"\${merged}\"
+        printf '%s\n' \"\${line}\" >> \"\${merged}\"
+      done < \"\${overrides}\"
+      cat \"\${merged}\" > \"\${app}\"
+      rm -f \"\${merged}\" \"\${overrides}\"
+    "
+  done
 }
 
 # === Step 2 ====================================================================
@@ -446,6 +725,11 @@ deploy_baseline() {
   wait_for_consensus_pods_ready 600
   wait_for_haproxy_ready 600
 
+  if [[ "${ENABLE_BLOCK_NODE}" == "true" ]]; then
+    deploy_block_node
+    wait_for_cn_streaming_to_block_node "" "before the upgrade"
+  fi
+
   log "Adding Mirror Node ${MIRROR_NODE_VERSION:-(solo default)} (with Pinger enabled)"
   # Race-fix for Apple Silicon: the mirror-1-web3 Spring Boot JVM cold-starts
   # in ~3-5 min under Rosetta translation, but the chart's default web3 probes
@@ -483,6 +767,10 @@ deploy_baseline() {
   if [[ -n "${MIRROR_NODE_VERSION}" ]]; then
     mirror_cmd+=(--mirror-node-version "${MIRROR_NODE_VERSION}")
   fi
+  if [[ "${ENABLE_BLOCK_NODE}" == "true" ]]; then
+    write_mirror_values_override
+    mirror_cmd+=(--values-file "${MIRROR_VALUES_FILE}")
+  fi
   "${mirror_cmd[@]}"
 
   wait "${_web3_patch_pid}" 2>/dev/null || true
@@ -515,7 +803,22 @@ upgrade_to_local() {
     --force
   )
 
+  if [[ "${ENABLE_BLOCK_NODE}" == "true" ]]; then
+    # Keep the nodes stopped until the target's properties are merged back in, then start them.
+    adopt_node_data_config_maps_into_helm
+    upgrade_cmd+=(--application-properties "${UPGRADE_APP_PROPS}" --skip-node-start)
+  fi
+
   run_command_with_timeout "${SOLO_UPGRADE_TIMEOUT_SECS}" "${upgrade_cmd[@]}"
+
+  if [[ "${ENABLE_BLOCK_NODE}" == "true" ]]; then
+    reapply_application_property_overrides "${UPGRADE_APP_PROPS}"
+    UPGRADE_STARTED_UTC="$(date -u '+%Y-%m-%d %H:%M:%S')"
+    solo consensus node start \
+      --deployment "${SOLO_DEPLOYMENT}" \
+      --node-aliases "${NODE_ALIASES}" \
+      --force-port-forward false
+  fi
 
   log "Waiting for post-upgrade pod readiness"
   wait_for_consensus_pods_ready 600
@@ -523,6 +826,11 @@ upgrade_to_local() {
 
   log "Verifying every consensus node is running the local build"
   verify_local_build_on_consensus_nodes
+
+  if [[ "${ENABLE_BLOCK_NODE}" == "true" ]]; then
+    # Only comms-log lines from after the restart count, so a pre-upgrade line cannot pass this.
+    wait_for_cn_streaming_to_block_node "${UPGRADE_STARTED_UTC}" "after the upgrade"
+  fi
 }
 
 # === Step 4 + 4a ===============================================================
@@ -630,6 +938,11 @@ require_cmd kubectl
 require_cmd solo
 require_cmd git
 require_cmd unzip
+if [[ "${ENABLE_BLOCK_NODE}" == "true" ]]; then
+  require_cmd openssl
+  require_cmd jq
+  require_cmd helm
+fi
 
 validate_local_build_path "${LOCAL_BUILD_PATH}" || {
   echo "Invalid LOCAL_BUILD_PATH: ${LOCAL_BUILD_PATH}" >&2
