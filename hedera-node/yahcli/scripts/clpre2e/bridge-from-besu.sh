@@ -10,7 +10,7 @@
 #   - Connector id                        (← deployments/<chainId>/connector.json)
 #   - Besu QBFT validator address         (← derived from .env PRIVATE_KEY)
 #   - CLPR service code hash              (← cast keccak of cast code, live)
-#   - Peer chain id for the trust anchor  (← channel.json's peerChainId)
+#   - Besu chain ID for the config proof (← Besu's on-chain ledger configuration)
 # Uses the SAME secp256k1 keys as CreateChannel.s.sol / CreateConnector.s.sol
 # so the on-chain commitments match without hand-edits.
 #
@@ -23,7 +23,7 @@
 #   SMART_CONTRACTS_REPO  ../../../../../clpr-smart-contracts  (sibling repo)
 #   CHAIN_ID              auto-detect from $SMART_CONTRACTS_REPO/deployments/
 #   CONNECTOR_PK          0x00…00C044EC  (CreateConnector.s.sol default)
-#   PEER_CHAIN_ID         read from channel.json's peerChainId
+#   PEER_CHAIN_ID         optional assertion for channel.json's Hiero peerChainId
 #   NET                   localhost
 #   PAYER                 2
 #   LOCKED_STAKE          100000000
@@ -218,7 +218,10 @@ CONNECTOR_JSON="${deployments_dir}/${CHAIN_ID}/connector.json"
 
 CLPR_SERVICE="$(jq -r '.clprService'   "${CHANNEL_JSON}")"
 CHANNEL_ID="$(jq -r '.channelId' "${CHANNEL_JSON}")"
-PEER_CHAIN_ID="${PEER_CHAIN_ID:-$(jq -r '.peerChainId' "${CHANNEL_JSON}")}"
+HIERO_PEER_CHAIN_ID="$(jq -er '.peerChainId | strings | select(length > 0)' "${CHANNEL_JSON}")" \
+    || die "missing peerChainId in ${CHANNEL_JSON}"
+[[ "${PEER_CHAIN_ID:-${HIERO_PEER_CHAIN_ID}}" == "${HIERO_PEER_CHAIN_ID}" ]] \
+    || die "PEER_CHAIN_ID differs from the deployment peerChainId (${HIERO_PEER_CHAIN_ID})"
 CONNECTOR_ID="$(jq -r '.connectorId'   "${CONNECTOR_JSON}")"
 
 # `grep ... || true` so pipefail doesn't kill us when a key is absent.
@@ -280,12 +283,20 @@ echo "  CHANNEL_ID  : ${CHANNEL_ID}"
 echo "  CONNECTOR_ID   : ${CONNECTOR_ID}"
 echo "  VALIDATOR      : ${VALIDATOR}"
 echo "  CODE_HASH      : ${CODE_HASH}"
-echo "  PEER_CHAIN_ID  : ${PEER_CHAIN_ID}"
+echo "  HIERO_PEER_CHAIN_ID : ${HIERO_PEER_CHAIN_ID}"
 echo "  CONNECTOR_PK   : (set; not printed)"
 ok "Besu state resolved"
 
 # ─── [1/9] Push local Hiero ledger configuration ──────────────────────────
 header "[1/9] update-ledger-configuration on ${NET}"
+HIERO_CONFIG="${SCRIPT_DIR}/.bridge/hiero-ledger-config.json"
+yh "check Hiero peer chain ID" "${LOG_DIR}/01-get-cfg.log" \
+    -n "${NET}" -p "${PAYER}" clpr get-ledger-configuration --out "${HIERO_CONFIG}"
+HIERO_CHAIN_ID="$(jq -er '.configuration.chain_id | strings | select(length > 0)' "${HIERO_CONFIG}")" \
+    || die "Hiero returned no configured chain ID"
+[[ "${HIERO_CHAIN_ID}" == "${HIERO_PEER_CHAIN_ID}" ]] \
+    || die "EVM channel expects Hiero ${HIERO_PEER_CHAIN_ID}, but ${NET} reports ${HIERO_CHAIN_ID}"
+
 yh "update-ledger-configuration on ${NET}" "${LOG_DIR}/01-update-cfg.log" \
     -n "${NET}" -p "${PAYER}" \
     clpr update-ledger-configuration --config-file "${CONFIG_LOCAL}"
@@ -293,57 +304,29 @@ yh "update-ledger-configuration on ${NET}" "${LOG_DIR}/01-update-cfg.log" \
 # ─── [2/9] Build Besu QBFT config payload → config-proof hex ──────────────
 header "[2/9] build Besu QBFT config proof (with throttles from on-chain)"
 
-# Fetch the live LedgerConfiguration from Besu. cast renders it as a nested
-# tuple, including the throttles 7-tuple. The
-# Python helper below shells the parsing because regex over arbitrarily-nested
-# tuples in pure bash is fragile.
+# Decode the LedgerConfiguration returned by the one-step EVM service.
 step "cast call getLedgerConfiguration() on ${BESU_RPC}"
-LEDGER_CFG_RAW="$(cast call "${CLPR_SERVICE}" \
-    'getLedgerConfiguration()((uint32,string,bytes,uint96,(uint64,uint64,uint64,uint64,uint64,uint64,uint64),(string,uint32,bytes,bytes,bytes)[]))' \
-    --rpc-url "${BESU_RPC}" 2>/dev/null || true)"
-[[ -n "${LEDGER_CFG_RAW}" ]] || die "cast call getLedgerConfiguration() returned nothing — Besu down or wrong address?"
-
+THROTTLES_TYPE='(uint32,uint64,uint64,uint32,uint64,uint32,uint32)'
+LEDGER_CFG_RAW="$(cast call --json "${CLPR_SERVICE}" \
+    "getLedgerConfiguration()((uint32,string,bytes,uint96,${THROTTLES_TYPE},bytes,bytes))" \
+    --rpc-url "${BESU_RPC}")"
 LEDGER_CFG_JSON="${SCRIPT_DIR}/.bridge/besu-ledger-config.json"
 python3 - "${LEDGER_CFG_RAW}" "${LEDGER_CFG_JSON}" <<'PYEOF'
-"""Parse cast's tuple rendering of getLedgerConfiguration() and dump a JSON
-file matching the shape build-besu-qbft-config-payload.py expects under
---config-json.
-"""
-import json, re, sys
+import json
+import sys
 
-raw, out_path = sys.argv[1:3]
-
-# cast wraps numeric values >2**53 with "[1.779e18]" scientific-notation hints;
-# strip them so the rest of the parsing only sees the bare integers.
-cleaned = re.sub(r'\s*\[[^\]]+\]', '', raw)
-
-cfg = re.search(r'^\(\s*\d+\s*,\s*"[^"]*"\s*,\s*(0x[0-9a-fA-F]*)\s*,', cleaned)
-if not cfg:
-    print('ERROR: could not find serviceAddress in cast output', file=sys.stderr)
-    sys.exit(2)
-service_address = cfg.group(1)
-
-# Throttles: first 7-element parenthesized tuple of integers after the timestamp.
-# Matches "(100, 10, 1024, 1000000, 1000, 1048576, 0)" anywhere in the string.
-m = re.search(
-    r'\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)',
-    cleaned)
-if not m:
-    print('ERROR: could not find throttles 7-tuple in cast output', file=sys.stderr)
-    sys.exit(2)
-throttles = {
-    "max_messages_per_bundle":   int(m.group(1)),
-    "max_syncs_per_sec":         int(m.group(2)),
-    "max_message_payload_bytes": int(m.group(3)),
-    "max_gas_per_message":       int(m.group(4)),
-    "max_queue_depth":           int(m.group(5)),
-    "max_sync_bytes":            int(m.group(6)),
-    "max_bundles_per_sec":       int(m.group(7)),
-}
-
-with open(out_path, 'w') as f:
-    json.dump({"service_address": service_address, "throttles": throttles}, f, indent=2)
-print(f'wrote {out_path}', file=sys.stderr)
+(config,) = json.loads(sys.argv[1])
+_, chain_id, service_address, _, throttles, trust_anchor, trust_anchor_id = config
+if not isinstance(chain_id, str) or not chain_id.strip():
+    sys.exit("Besu returned no configured chain ID")
+fields = ("max_messages_per_bundle", "max_message_payload_bytes", "max_gas_per_message",
+          "max_queue_depth", "max_sync_bytes", "max_local_endpoints", "max_peer_endpoints")
+if len(throttles) != len(fields):
+    sys.exit("Unexpected Besu throttles tuple")
+with open(sys.argv[2], "w") as f:
+    json.dump({"chain_id": chain_id, "service_address": service_address,
+               "throttles": dict(zip(fields, map(int, throttles))),
+               "trust_anchor": trust_anchor, "trust_anchor_id": trust_anchor_id}, f)
 PYEOF
 
 note "ledger-config JSON: ${LEDGER_CFG_JSON}"
@@ -352,16 +335,13 @@ ONCHAIN_SERVICE_ADDRESS="$(jq -r '.service_address // "0x"' "${LEDGER_CFG_JSON}"
 ONCHAIN_SERVICE_ADDRESS_LC="$(printf '%s' "${ONCHAIN_SERVICE_ADDRESS}" | tr '[:upper:]' '[:lower:]')"
 CLPR_SERVICE_LC="$(printf '%s' "${CLPR_SERVICE}" | tr '[:upper:]' '[:lower:]')"
 if [[ "${ONCHAIN_SERVICE_ADDRESS_LC}" != "${CLPR_SERVICE_LC}" ]]; then
-    note "Besu config serviceAddress is ${ONCHAIN_SERVICE_ADDRESS}; updating slot 23 to ${CLPR_SERVICE}"
-    THROTTLES_ARG="$(jq -r '.throttles | "(\(.max_messages_per_bundle),\(.max_syncs_per_sec),\(.max_message_payload_bytes),\(.max_gas_per_message),\(.max_queue_depth),\(.max_sync_bytes),\(.max_bundles_per_sec))"' "${LEDGER_CFG_JSON}")"
+    note "Besu config serviceAddress is ${ONCHAIN_SERVICE_ADDRESS}; updating it to ${CLPR_SERVICE}"
+    THROTTLES_ARG="$(python3 -c 'import json, sys; print("(" + ",".join(map(str, json.load(sys.stdin)[0][4])) + ")")' <<<"${LEDGER_CFG_RAW}")"
     step "cast send updateLedgerConfiguration(serviceAddress=${CLPR_SERVICE})"
     cast send "${CLPR_SERVICE}" \
-        'updateLedgerConfiguration(bytes,(uint64,uint64,uint64,uint64,uint64,uint64,uint64),(string,uint32,bytes,bytes,bytes)[],bytes,bytes)' \
-        "${CLPR_SERVICE}" \
-        "${THROTTLES_ARG}" \
-        "[]" \
-        "0x" \
-        "0x" \
+        "updateLedgerConfiguration(bytes,${THROTTLES_TYPE},bytes,bytes)" \
+        "${CLPR_SERVICE}" "${THROTTLES_ARG}" \
+        "$(jq -r '.trust_anchor' "${LEDGER_CFG_JSON}")" "$(jq -r '.trust_anchor_id' "${LEDGER_CFG_JSON}")" \
         "${CAST_SIGNER[@]}" \
         --rpc-url "${BESU_RPC}" \
         | tee "${LOG_DIR}/02a-update-besu-ledger-config.log" >/dev/null
@@ -372,7 +352,6 @@ step "python3 build-besu-qbft-config-payload.py --config-json ${LEDGER_CFG_JSON}
 PAYLOAD_OUT="$(python3 "${CONFIG_PAYLOAD_PY}" \
     --rpc-url "${BESU_RPC}" \
     --service "${CLPR_SERVICE}" \
-    --chain-id "${PEER_CHAIN_ID}" \
     --protocol-version "${PROTOCOL_VERSION}" \
     --config-json "${LEDGER_CFG_JSON}" \
     --block-tag "${CONFIG_BLOCK_TAG}" \

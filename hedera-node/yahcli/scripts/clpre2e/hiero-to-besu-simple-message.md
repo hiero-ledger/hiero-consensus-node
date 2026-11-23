@@ -137,26 +137,24 @@ spammed in `hgcaa.log`.
 
 ## Step 3 — Bridge Besu's channel identity into Hiero
 
+Export `CHANNEL_SALT` and `EVM_VERIFIER_ADDRESS` with the values used to open the Besu channel.
+
 ```bash
 cd hedera-node/yahcli
 VERIFIER_CONTRACT=0.0.367 ./scripts/clpre2e/bridge-from-besu.sh
 ```
 
 What the script does (9 steps; each yahcli call is logged):
-1. `update-ledger-configuration` on `localhost` (Hiero's own throttles/endpoints).
+1. Checks the deployment’s `peerChainId` against Hiero’s live configuration, then updates Hiero’s local configuration.
 2. Builds the Besu QBFT trust anchor:
 - Reads `clprService`, `peerChainId`, `channelId` from
 `clpr-smart-contracts/deployments/<chainId>/channel.json`.
 - Derives the validator address from `.env`'s `PRIVATE_KEY` (single-validator
 dev Besu = the same deployer key).
 - `cast keccak "$(cast code $CLPR_SERVICE)"` for the code hash.
-- Fetches live throttles via `cast call getLedgerConfiguration()`. Dial
-targets are not part of the config; they come from the endpoint manifest.
-- Calls `hedera-node/tools/build-besu-qbft-trust-anchor.py --config-json ...`
-to emit the RLP trust-anchor envelope wrapped in a protobuf
-`ClprLedgerConfiguration`.
-3. Set `CHANNEL_SALT` and `EVM_VERIFIER_ADDRESS` to the values used to open the EVM channel.
-4. `open-channel` uses the shared ID and salt, the EVM verifier address, and the peer config proof.
+- Reads Besu’s chain ID and throttles from the deployed service’s `getLedgerConfiguration()`. For a Besu `eip155:1337` ↔ Hiero `eip155:298` channel, the proof carries `eip155:1337`.
+- Passes that configuration to `hedera-node/tools/build-besu-qbft-config-payload.py` to build the QBFT configuration proof.
+3. `open-channel` uses the shared ID and salt, the EVM verifier address, and the peer config proof.
 
 6. Connector identity bundle via `sign-clpr-connector-identity.py` using
    `CONNECTOR_PK=0xc044ec` + `salt=0` (matches `CreateConnector.s.sol`).

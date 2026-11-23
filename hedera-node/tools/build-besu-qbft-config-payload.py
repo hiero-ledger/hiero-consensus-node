@@ -175,21 +175,30 @@ def encode_storage_proof_entry(entry):
     return b"".join(parts)
 
 
-def load_config_json(path):
-    if not path:
-        return {}, None
-    with open(path) as f:
-        file_cfg = json.load(f)
-    return file_cfg, file_cfg.get("throttles")
+def load_config_json(path, chain_id):
+    config = {}
+    if path:
+        with open(path) as f:
+            config = json.load(f)
+    if "chain_id" in config:
+        configured = config["chain_id"]
+        if not isinstance(configured, str) or not configured.strip():
+            raise ValueError("empty Besu chain_id in --config-json")
+        if chain_id is not None and chain_id != configured:
+            raise ValueError("--chain-id differs from the Besu ledger configuration")
+        chain_id = configured
+    if not chain_id:
+        raise ValueError("provide the Besu chain ID in --config-json or --chain-id")
+    return chain_id, config.get("throttles")
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Build a Besu QBFT ledger-configuration proof payload.")
     parser.add_argument("--rpc-url", required=True, help="Besu JSON-RPC URL")
     parser.add_argument("--service", required=True, help="hex-encoded 20-byte CLPR service contract address")
-    parser.add_argument("--chain-id", default="", help="CAIP-2 chain identifier")
+    parser.add_argument("--chain-id", help="Besu CAIP-2 chain ID (defaults to chain_id in --config-json)")
     parser.add_argument("--protocol-version", type=int, default=1, help="CLPR protocol version")
-    parser.add_argument("--config-json", help="JSON file with throttles")
+    parser.add_argument("--config-json", help="Besu ledger configuration JSON with chain_id and throttles")
     parser.add_argument("--block-tag", default="finalized", help="block tag for current header/proof")
     parser.add_argument("--no-latest-fallback", action="store_true", help="do not fall back to latest")
     parser.add_argument("--out-payload", help="write raw payload bytes to this file")
@@ -200,7 +209,10 @@ def main(argv=None):
 
     service20 = common.parse_hex_fixed(args.service, 20, "--service")
     rpc_service = args.service if args.service.startswith(("0x", "0X")) else "0x" + args.service
-    _, throttles = load_config_json(args.config_json)
+    try:
+        besu_chain_id, throttles = load_config_json(args.config_json, args.chain_id)
+    except ValueError as e:
+        parser.error(str(e))
 
     current_block, resolved_tag = get_block(args.rpc_url, args.block_tag, not args.no_latest_fallback)
     current_block_tag = "0x" + format(hex_to_int(current_block["number"]), "x")
@@ -212,7 +224,7 @@ def main(argv=None):
     if len(storage_proofs) != 1:
         raise RuntimeError(f"eth_getProof returned {len(storage_proofs)} storage proofs, expected 1")
 
-    ledger_config = build_ledger_configuration(args.protocol_version, args.chain_id, service20, throttles)
+    ledger_config = build_ledger_configuration(args.protocol_version, besu_chain_id, service20, throttles)
     genesis_header = encode_block_header_message(encode_block_header_rlp(genesis_block))
     current_header = encode_block_header_message(encode_block_header_rlp(current_block))
 
