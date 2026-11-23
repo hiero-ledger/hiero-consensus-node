@@ -14,6 +14,8 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -33,34 +35,34 @@ class ClprEndpointBuilderTest {
     @Test
     void returnsNullWhenNodeAbsent() {
         given(nodeStore.get(NODE_ID)).willReturn(null);
-        assertThat(ClprEndpointBuilder.buildFor(NODE_ID, nodeStore, HAPI_TLS_PORT, Bytes.EMPTY))
+        assertThat(ClprEndpointBuilder.buildFor(NODE_ID, nodeStore, HAPI_TLS_PORT, Bytes.EMPTY, false))
                 .isNull();
-        assertThat(ClprEndpointBuilder.ipAddressOf(NODE_ID, nodeStore)).isNull();
+        assertThat(ClprEndpointBuilder.hostOf(NODE_ID, nodeStore, false)).isNull();
     }
 
     @Test
     void returnsNullWhenNodeDeleted() {
         given(nodeStore.get(NODE_ID))
                 .willReturn(nodeWithEndpoints(IPV4).copyBuilder().deleted(true).build());
-        assertThat(ClprEndpointBuilder.buildFor(NODE_ID, nodeStore, HAPI_TLS_PORT, Bytes.EMPTY))
+        assertThat(ClprEndpointBuilder.buildFor(NODE_ID, nodeStore, HAPI_TLS_PORT, Bytes.EMPTY, false))
                 .isNull();
-        assertThat(ClprEndpointBuilder.ipAddressOf(NODE_ID, nodeStore)).isNull();
+        assertThat(ClprEndpointBuilder.hostOf(NODE_ID, nodeStore, false)).isNull();
     }
 
     @Test
     void returnsNullWhenNoServiceEndpoint() {
         given(nodeStore.get(NODE_ID)).willReturn(nodeWithEndpoints());
-        assertThat(ClprEndpointBuilder.buildFor(NODE_ID, nodeStore, HAPI_TLS_PORT, HAPI_TLS_CERT_DER))
+        assertThat(ClprEndpointBuilder.buildFor(NODE_ID, nodeStore, HAPI_TLS_PORT, HAPI_TLS_CERT_DER, false))
                 .isNull();
-        assertThat(ClprEndpointBuilder.ipAddressOf(NODE_ID, nodeStore)).isNull();
+        assertThat(ClprEndpointBuilder.hostOf(NODE_ID, nodeStore, false)).isNull();
     }
 
     @Test
     void skipsDomainOnlyNodeForPublicationAndReconciliation() {
         given(nodeStore.get(NODE_ID)).willReturn(nodeWithEndpoints(HOSTNAME));
-        assertThat(ClprEndpointBuilder.buildFor(NODE_ID, nodeStore, HAPI_TLS_PORT, HAPI_TLS_CERT_DER))
+        assertThat(ClprEndpointBuilder.buildFor(NODE_ID, nodeStore, HAPI_TLS_PORT, HAPI_TLS_CERT_DER, false))
                 .isNull();
-        assertThat(ClprEndpointBuilder.ipAddressOf(NODE_ID, nodeStore)).isNull();
+        assertThat(ClprEndpointBuilder.hostOf(NODE_ID, nodeStore, false)).isNull();
     }
 
     @Test
@@ -68,7 +70,7 @@ class ClprEndpointBuilderTest {
     void givenNoHapiTlsCertificate_thenAddressBookHapiPortAndEmptyCertAreAdvertised() {
         given(nodeStore.get(NODE_ID)).willReturn(nodeWithEndpoints(HOSTNAME, IPV4));
 
-        final var endpoint = ClprEndpointBuilder.buildFor(NODE_ID, nodeStore, HAPI_TLS_PORT, Bytes.EMPTY);
+        final var endpoint = ClprEndpointBuilder.buildFor(NODE_ID, nodeStore, HAPI_TLS_PORT, Bytes.EMPTY, false);
 
         assertThat(endpoint).isNotNull();
         assertThat(endpoint.serviceEndpointOrThrow().ipAddress()).isEqualTo("10.0.0.145");
@@ -81,7 +83,7 @@ class ClprEndpointBuilderTest {
     void givenHapiTlsCertificate_thenHapiTlsPortAndCertAreAdvertised() {
         given(nodeStore.get(NODE_ID)).willReturn(nodeWithEndpoints(HOSTNAME, IPV4));
 
-        final var endpoint = ClprEndpointBuilder.buildFor(NODE_ID, nodeStore, HAPI_TLS_PORT, HAPI_TLS_CERT_DER);
+        final var endpoint = ClprEndpointBuilder.buildFor(NODE_ID, nodeStore, HAPI_TLS_PORT, HAPI_TLS_CERT_DER, false);
 
         assertThat(endpoint).isNotNull();
         assertThat(endpoint.serviceEndpointOrThrow().ipAddress()).isEqualTo("10.0.0.145");
@@ -93,17 +95,51 @@ class ClprEndpointBuilderTest {
     void publicationAndReconciliationUseFirstIpv4InAddressBookOrder() {
         given(nodeStore.get(NODE_ID)).willReturn(nodeWithEndpoints(HOSTNAME, IPV4, endpointFor("10.0.0.2", HAPI_PORT)));
 
-        final var endpoint = ClprEndpointBuilder.buildFor(NODE_ID, nodeStore, HAPI_TLS_PORT, Bytes.EMPTY);
+        final var endpoint = ClprEndpointBuilder.buildFor(NODE_ID, nodeStore, HAPI_TLS_PORT, Bytes.EMPTY, false);
 
         assertThat(endpoint).isNotNull();
         assertThat(endpoint.serviceEndpointOrThrow().ipAddress()).isEqualTo("10.0.0.145");
-        assertThat(ClprEndpointBuilder.ipAddressOf(NODE_ID, nodeStore)).isEqualTo("10.0.0.145");
+        assertThat(ClprEndpointBuilder.hostOf(NODE_ID, nodeStore, false)).isEqualTo("10.0.0.145");
+    }
+
+    @Test
+    void dnsModePublishesDomainOnlyNode() {
+        given(nodeStore.get(NODE_ID)).willReturn(nodeWithEndpoints(HOSTNAME));
+
+        final var endpoint = ClprEndpointBuilder.buildFor(NODE_ID, nodeStore, HAPI_TLS_PORT, Bytes.EMPTY, true);
+
+        assertThat(endpoint).isNotNull();
+        assertThat(endpoint.serviceEndpointOrThrow().ipAddress()).isEqualTo("node.example");
+        assertThat(endpoint.serviceEndpointOrThrow().port()).isEqualTo(50000);
+        assertThat(ClprEndpointBuilder.hostOf(NODE_ID, nodeStore, true)).isEqualTo("node.example");
+    }
+
+    @Test
+    void dnsModeUsesFirstEligibleEntryInAddressBookOrder() {
+        given(nodeStore.get(NODE_ID)).willReturn(nodeWithEndpoints(HOSTNAME, IPV4));
+        assertThat(ClprEndpointBuilder.hostOf(NODE_ID, nodeStore, true)).isEqualTo("node.example");
+
+        given(nodeStore.get(NODE_ID)).willReturn(nodeWithEndpoints(IPV4, HOSTNAME));
+        assertThat(ClprEndpointBuilder.hostOf(NODE_ID, nodeStore, true)).isEqualTo("10.0.0.145");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {" ", "peer..svc", "not_a_hostname", "-peer.svc", "192.168.0.1"})
+    void dnsModeSkipsInvalidDomainName(final String host) {
+        final var invalid =
+                ServiceEndpoint.newBuilder().domainName(host).port(HAPI_PORT).build();
+        given(nodeStore.get(NODE_ID)).willReturn(nodeWithEndpoints(invalid, IPV4));
+        assertThat(ClprEndpointBuilder.hostOf(NODE_ID, nodeStore, true)).isEqualTo("10.0.0.145");
+
+        given(nodeStore.get(NODE_ID)).willReturn(nodeWithEndpoints(invalid));
+        assertThat(ClprEndpointBuilder.buildFor(NODE_ID, nodeStore, HAPI_TLS_PORT, Bytes.EMPTY, true))
+                .isNull();
     }
 
     @Test
     void identityOfUsesPublishedIp() {
         given(nodeStore.get(NODE_ID)).willReturn(nodeWithEndpoints(IPV4));
-        final var withIp = ClprEndpointBuilder.buildFor(NODE_ID, nodeStore, HAPI_TLS_PORT, HAPI_TLS_CERT_DER);
+        final var withIp = ClprEndpointBuilder.buildFor(NODE_ID, nodeStore, HAPI_TLS_PORT, HAPI_TLS_CERT_DER, false);
         assertThat(ClprEndpointBuilder.identityOf(withIp)).isEqualTo(Bytes.wrap("10.0.0.145"));
     }
 

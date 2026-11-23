@@ -7,7 +7,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import org.junit.jupiter.api.Test;
 
 /**
- * Checks which passes of a {@link PipelineRecorder} count and which are discarded, that it counts the allocation of
+ * Checks which passes of a {@link PipelineRecorder} are stored and which are discarded, that it counts the allocation of
  * every thread, and that it refuses calls out of order.
  */
 class PipelineRecorderTest {
@@ -20,7 +20,7 @@ class PipelineRecorderTest {
     private static byte[] sink;
 
     @Test
-    void passesThatEndCount() {
+    void passesThatEndAreStored() {
         final PipelineRecorder recorder = new PipelineRecorder();
         pass(recorder, 1_000, 3_000);
         pass(recorder, 5_000);
@@ -49,6 +49,7 @@ class PipelineRecorderTest {
     @Test
     void aSaturatedPassWithAGarbageCollectionCountsInBoth() {
         final PipelineRecorder recorder = new PipelineRecorder();
+        recorder.preparePass();
         recorder.startPass();
         recorder.record(1_000);
         System.gc();
@@ -65,6 +66,7 @@ class PipelineRecorderTest {
     void allocationOnAnotherThreadIsCounted() throws InterruptedException {
         System.gc();
         final PipelineRecorder recorder = new PipelineRecorder();
+        recorder.preparePass();
         recorder.startPass();
         final Thread pipelineThread = new Thread(() -> sink = new byte[ALLOCATION]);
         pipelineThread.start();
@@ -78,9 +80,10 @@ class PipelineRecorderTest {
     }
 
     @Test
-    void theAllocationOfADiscardedPassIsNotCounted() {
+    void theAllocationOfADiscardedPassIsNotStored() {
         System.gc();
         final PipelineRecorder recorder = new PipelineRecorder();
+        recorder.preparePass();
         recorder.startPass();
         sink = new byte[ALLOCATION];
         recorder.endPass();
@@ -92,8 +95,9 @@ class PipelineRecorderTest {
     }
 
     @Test
-    void aPassStillRunningAtTheEndOfTheIterationDoesNotCount() {
+    void aPassStillRunningAtTheEndOfTheIterationIsNotStored() {
         final PipelineRecorder recorder = new PipelineRecorder();
+        recorder.preparePass();
         recorder.startPass();
         recorder.record(1_000);
         recorder.endIteration();
@@ -107,19 +111,36 @@ class PipelineRecorderTest {
         assertThatThrownBy(() -> recorder.record(1_000)).hasMessageContaining("No pass is running");
         assertThatThrownBy(recorder::endPass).hasMessageContaining("No pass is running");
         assertThatThrownBy(recorder::discardSaturatedPass).hasMessageContaining("No pass to discard");
+        assertThatThrownBy(recorder::startPass).hasMessageContaining("No pass is prepared");
 
+        recorder.preparePass();
+        assertThatThrownBy(() -> recorder.record(1_000)).hasMessageContaining("No pass is running");
         recorder.startPass();
-        assertThatThrownBy(recorder::startPass).hasMessageContaining("A pass is running");
+        assertThatThrownBy(recorder::startPass).hasMessageContaining("No pass is prepared");
+        assertThatThrownBy(recorder::preparePass).hasMessageContaining("A pass is running");
         assertThatThrownBy(recorder::discardSaturatedPass).hasMessageContaining("No pass to discard");
 
         recorder.endPass();
         assertThatThrownBy(() -> recorder.record(1_000)).hasMessageContaining("No pass is running");
+        assertThatThrownBy(recorder::startPass).hasMessageContaining("No pass is prepared");
         recorder.discardSaturatedPass();
         assertThatThrownBy(recorder::discardSaturatedPass).hasMessageContaining("No pass to discard");
     }
 
+    @Test
+    void preparingThePassStoresThePreviousOne() {
+        final PipelineRecorder recorder = new PipelineRecorder();
+        pass(recorder, 1_000);
+        assertThat(recorder.histogram().totalCount()).isZero();
+
+        recorder.preparePass();
+
+        assertThat(recorder.histogram().totalCount()).isEqualTo(1);
+    }
+
     /** Runs a pass that records the given latencies. */
     private static void pass(final PipelineRecorder recorder, final long... latencies) {
+        recorder.preparePass();
         recorder.startPass();
         for (final long latency : latencies) {
             recorder.record(latency);
