@@ -45,6 +45,7 @@ import org.hiero.block.api.PublishStreamResponse.BlockAcknowledgement;
 import org.hiero.block.api.PublishStreamResponse.EndOfStream;
 import org.hiero.block.api.PublishStreamResponse.ResendBlock;
 import org.hiero.block.api.PublishStreamResponse.SkipBlock;
+import org.hiero.block.api.ServerStatusDetailRequest;
 import org.hiero.block.api.ServerStatusDetailResponse;
 import org.hiero.block.api.ServerStatusRequest;
 import org.hiero.block.api.ServerStatusResponse;
@@ -512,7 +513,8 @@ public class SimulatedBlockNodeServer {
         }
 
         @Override
-        public @NonNull ServerStatusDetailResponse serverStatusDetail(@NonNull final ServerStatusRequest ignored) {
+        public @NonNull ServerStatusDetailResponse serverStatusDetail(
+                @NonNull final ServerStatusDetailRequest ignored) {
             return ServerStatusDetailResponse.newBuilder().build();
         }
     }
