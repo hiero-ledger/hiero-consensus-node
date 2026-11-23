@@ -33,8 +33,10 @@ import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.block.stream.output.TransactionResult;
+import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.network.BlockAmendment;
 import com.hedera.hapi.node.network.BlockAmendmentOperation;
 import com.hedera.hapi.node.network.InsertBlockItems;
@@ -44,7 +46,9 @@ import com.hedera.hapi.node.network.RemoveStateChange;
 import com.hedera.hapi.node.network.ReplaceBlockItem;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.TestTags;
 import com.hedera.services.bdd.junit.support.amendments.BlockWatcher;
+import com.hedera.services.bdd.junit.support.amendments.BlockWatcher.FoundTransaction;
 import com.hedera.services.bdd.junit.support.amendments.BlockWatcher.StateChangeLocation;
 import com.hedera.services.bdd.spec.HapiSpec;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -55,6 +59,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 /**
  * Tests the {@code BlockAmendment} transaction, which amends the block stream record of a past block.
@@ -64,6 +69,18 @@ public class BlockAmendmentSuite {
     private static final Duration BLOCK_TIMEOUT = Duration.ofMinutes(2);
     private static final String CIVILIAN = "civilian";
     private static final String BATCH_OPERATOR = "batchOperator";
+
+    /** A wrong status for a simulated corruption of a successful transaction's result. */
+    private static final com.hedera.hapi.node.base.ResponseCodeEnum WRONG_STATUS =
+            com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION;
+
+    /** A transfer list unlike any a real transaction result would contain, for a simulated corruption. */
+    private static final TransferList WRONG_TRANSFERS = TransferList.newBuilder()
+            .accountAmounts(AccountAmount.newBuilder()
+                    .accountID(AccountID.newBuilder().accountNum(Long.MAX_VALUE).build())
+                    .amount(Long.MIN_VALUE)
+                    .build())
+            .build();
 
     @HapiTest
     @DisplayName("treasury and system admin may submit amendments")
@@ -366,6 +383,114 @@ public class BlockAmendmentSuite {
     }
 
     /**
+     * Asserts the behaviour block amendments <b>should</b> have, and therefore <b>fails until the composition gap
+     * is fixed</b>.
+     *
+     * <p>A {@code ReplaceBlockItem} carries a complete replacement item, not a delta, and replacements of the same
+     * original item by successive amendments compose by latest-wins. So two separately submitted amendments, each
+     * correcting a different field of the same {@code TransactionResult}, cannot both land today: the later one
+     * silently discards the earlier, and the field the earlier one corrected reverts to the value the later one
+     * still believes. Only an amendment that restates every intended edit at once, over
+     * {@code void_previous_amendments}, can carry both corrections, and neither amendment here sets that flag.
+     *
+     * <p>Nothing reports the loss. Both amendments reach consensus with {@code SUCCESS}, because
+     * {@code BlockAmendmentHandler} rejects two operations on the same original item only within a single
+     * amendment and holds no state across transactions; and no block stream validator is amendment-aware. So the
+     * assertions that establish silence below pass today, and only the final assertion fails.
+     *
+     * <p>The wrong result is <b>simulated</b>: the node did not produce it. A consensus node cannot be made to
+     * write an incorrect {@code TransactionResult}, so, as in
+     * {@link #correctedAmendmentRestoresDroppedStateChangeAtItsExactPosition}, the amendments are replayed against
+     * a deliberately broken in-memory copy of a real block. The real block is untouched.
+     */
+    @HapiTest
+    @Tag(TestTags.SERIAL)
+    @Tag(TestTags.TOKEN)
+    @DisplayName("two amendments each correcting a different field of the same item both land")
+    final Stream<DynamicTest> twoAmendmentsEachCorrectingADifferentFieldOfTheSameItemBothLand() {
+        final var watcher = new AtomicReference<BlockWatcher>();
+        final var corrupted = new AtomicReference<FoundTransaction>();
+        final var broken = new AtomicReference<List<BlockItem>>();
+        return hapiTest(
+                doingContextual(spec -> watcher.set(BlockWatcher.start(spec))),
+                cryptoCreate("compositionTarget").via("targetCreation"),
+                doingContextual(spec -> {
+                    final var found = watcher.get().awaitTransaction(txnId(spec, "targetCreation"), BLOCK_TIMEOUT);
+                    assertEquals(
+                            com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS,
+                            found.result().status());
+                    assertNotEquals(
+                            WRONG_TRANSFERS,
+                            found.result().transferList(),
+                            "The simulated corruption must differ from the real transfer list");
+                    corrupted.set(found);
+                    // Simulate a node that executed correctly but wrote a result wrong in two independent fields
+                    broken.set(withResult(
+                            originalItems(found.block().items()),
+                            found.resultIndex(),
+                            corrupt(found.result())));
+                }),
+                // The first correction restores the status, restating the transfer list as it still believes it
+                blockAmendment(spec -> corrupted.get().blockNumber())
+                        .withOperations(spec -> List.of(replaceResult(
+                                corrupted.get().resultIndex(),
+                                corrupted.get()
+                                        .result()
+                                        .copyBuilder()
+                                        .transferList(WRONG_TRANSFERS)
+                                        .build())))
+                        .payingWith(GENESIS)
+                        .hasKnownStatus(SUCCESS)
+                        .via("firstCorrection"),
+                // The second correction restores the transfer list, restating the status as it still believes it
+                blockAmendment(spec -> corrupted.get().blockNumber())
+                        .withOperations(spec -> List.of(replaceResult(
+                                corrupted.get().resultIndex(),
+                                corrupted.get()
+                                        .result()
+                                        .copyBuilder()
+                                        .status(WRONG_STATUS)
+                                        .build())))
+                        .payingWith(GENESIS)
+                        .hasKnownStatus(SUCCESS)
+                        .via("secondCorrection"),
+                doingContextual(spec -> {
+                    try (final var blocks = watcher.get()) {
+                        final var target = corrupted.get();
+                        // Extract both amendments from the later blocks, as a Block Node would
+                        final var first = blocks.awaitTransaction(txnId(spec, "firstCorrection"), BLOCK_TIMEOUT);
+                        final var second = blocks.awaitTransaction(txnId(spec, "secondCorrection"), BLOCK_TIMEOUT);
+                        // Nothing complains: each amendment is valid on its own and the conflict is never reported
+                        for (final var correction : List.of(first, second)) {
+                            assertEquals(
+                                    com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS,
+                                    correction.result().status());
+                            assertTrue(
+                                    correction.blockNumber() > target.blockNumber(),
+                                    "Amendment must be in a later block");
+                        }
+                        final var inConsensusOrder = amendmentsOf(
+                                target.blockNumber(),
+                                List.of(
+                                        first.body().blockAmendmentOrThrow(),
+                                        second.body().blockAmendmentOrThrow()));
+                        final var amended = amendedItems(broken.get(), inConsensusOrder);
+                        assertEquals(
+                                broken.get().size(), amended.size(), "A replacement must not shift item positions");
+
+                        // Each amendment corrected a different field, so both corrections must survive. Today
+                        // the later replacement wins outright, keeping its transfer list correction and reverting
+                        // the status to the wrong value it still believed, so this assertion fails.
+                        assertEquals(
+                                resultItem(target.result()),
+                                amended.get(target.resultIndex()),
+                                "Both corrections must survive; today the later amendment discards the earlier"
+                                        + " one outright, reverting the status it did not correct");
+                    }
+                }));
+    }
+
+    /**
      * Waits for the first block stream update of the named account, which is its creation.
      */
     private static StateChangeLocation awaitAccountUpdate(
@@ -423,6 +548,38 @@ public class BlockAmendmentSuite {
                         .stateChanges(new StateChanges(stateChanges.consensusTimestamp(), remaining))
                         .build());
         return broken;
+    }
+
+    /**
+     * Returns the given original block items with the {@code TransactionResult} at the given index replaced,
+     * simulating a consensus node that executed correctly but wrote a wrong result into the block.
+     */
+    private static List<BlockItem> withResult(
+            @NonNull final List<BlockItem> original, final int resultIndex, @NonNull final TransactionResult result) {
+        final List<BlockItem> broken = new ArrayList<>(original);
+        broken.set(resultIndex, resultItem(result));
+        return broken;
+    }
+
+    /**
+     * Returns the given result wrong in two independent fields, each needing its own correction.
+     */
+    private static TransactionResult corrupt(@NonNull final TransactionResult result) {
+        return result.copyBuilder()
+                .status(WRONG_STATUS)
+                .transferList(WRONG_TRANSFERS)
+                .build();
+    }
+
+    private static BlockItem resultItem(@NonNull final TransactionResult result) {
+        return BlockItem.newBuilder().transactionResult(result).build();
+    }
+
+    /**
+     * Returns an operation replacing an original item with the given transaction result.
+     */
+    private static BlockAmendmentOperation replaceResult(final int itemIndex, @NonNull final TransactionResult result) {
+        return replaceBlockItem(itemIndex, BlockItem.PROTOBUF.toBytes(resultItem(result)));
     }
 
     private static BlockAmendmentOperation insertStateChanges(

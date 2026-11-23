@@ -18,9 +18,11 @@ import com.hedera.hapi.block.stream.output.MapDeleteChange;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.block.stream.output.TransactionResult;
+import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.network.BlockAmendment;
 import com.hedera.hapi.node.network.BlockAmendmentOperation;
 import com.hedera.hapi.node.network.BlockAmendmentTransactionBody;
@@ -127,6 +129,42 @@ class BlockAmendmentReplayerTest {
         assertEquals(
                 stateChanges(C0, Y, C2),
                 amendedItems(ORIGINAL, List.of(replace, remove, replaceAgain)).get(5));
+    }
+
+    /**
+     * Asserts the behavior block amendments <i>should</i> have, and therefore <b>fails until the composition gap
+     * is fixed</b>.
+     *
+     * <p>A {@link ReplaceBlockItem} carries an absolute serialized item rather than a delta, and only the
+     * operations within a <i>single</i> amendment are required to target distinct items. Two separately submitted
+     * amendments may therefore both replace the same item, and today the later replacement silently discards the
+     * earlier one, so independent corrections to <i>different fields</i> of the same {@link TransactionResult}
+     * cannot both land. Neither transaction fails and nothing is reported.
+     *
+     * <p>The state-change level has no such gap: inserts compose, as
+     * {@link #amendmentsComposeAgainstOriginalPositionsWithoutShifting()} asserts. The item level is the weak one,
+     * and {@link #latestReplaceOrRemoveOfTheSameElementWins()} asserts the latest-wins behavior that causes the
+     * loss.
+     */
+    @Test
+    void independentCorrectionsToDifferentFieldsOfTheSameItemBothLand() {
+        final var wrongTransfers = transfers(1001L, -5L);
+        final var correctedTransfers = transfers(1001L, -7L);
+        // Each amendment corrects one field and restates the other as it still believes it
+        final var correctsStatus =
+                amendment(replaceBlockItem(4, result(ResponseCodeEnum.INVALID_SIGNATURE, wrongTransfers)));
+        final var correctsTransfers =
+                amendment(replaceBlockItem(4, result(ResponseCodeEnum.SUCCESS, correctedTransfers)));
+        // Both corrections must be present once the amendments are replayed
+        final var bothCorrections = result(ResponseCodeEnum.INVALID_SIGNATURE, correctedTransfers);
+
+        final var amended = amendedItems(ORIGINAL, List.of(correctsStatus, correctsTransfers));
+
+        assertEquals(
+                bothCorrections,
+                amended.get(4),
+                "Each amendment corrected a different field, so both corrections must survive;"
+                        + " today the later replacement discards the earlier one outright");
     }
 
     @Test
@@ -273,6 +311,24 @@ class BlockAmendmentReplayerTest {
     private static BlockItem result(final ResponseCodeEnum status) {
         return BlockItem.newBuilder()
                 .transactionResult(TransactionResult.newBuilder().status(status).build())
+                .build();
+    }
+
+    private static BlockItem result(final ResponseCodeEnum status, final TransferList transferList) {
+        return BlockItem.newBuilder()
+                .transactionResult(TransactionResult.newBuilder()
+                        .status(status)
+                        .transferList(transferList)
+                        .build())
+                .build();
+    }
+
+    private static TransferList transfers(final long accountNum, final long tinybars) {
+        return TransferList.newBuilder()
+                .accountAmounts(List.of(AccountAmount.newBuilder()
+                        .accountID(AccountID.newBuilder().accountNum(accountNum))
+                        .amount(tinybars)
+                        .build()))
                 .build();
     }
 

@@ -58,12 +58,14 @@ public final class BlockWatcher implements StreamDataListener, AutoCloseable {
      * @param block the block
      * @param body the transaction body
      * @param result the transaction result
+     * @param resultIndex the index of the {@code TransactionResult} item within the block
      * @param stateChanges the state changes with the transaction's consensus timestamp
      */
     public record FoundTransaction(
             @NonNull Block block,
             @NonNull TransactionBody body,
             @NonNull TransactionResult result,
+            int resultIndex,
             @NonNull List<StateChange> stateChanges) {
         public long blockNumber() {
             return BlockWatcher.blockNumberOf(block);
@@ -174,10 +176,11 @@ public final class BlockWatcher implements StreamDataListener, AutoCloseable {
             if (body == null || !transactionId.equals(body.transactionID())) {
                 continue;
             }
-            final var result = nextResult(items, i);
-            if (result == null) {
+            final int resultIndex = nextResultIndex(items, i);
+            if (resultIndex < 0) {
                 return Optional.empty();
             }
+            final var result = items.get(resultIndex).transactionResultOrThrow();
             final List<StateChange> stateChanges = new ArrayList<>();
             for (final var item : items) {
                 if (item.hasStateChanges()
@@ -186,21 +189,25 @@ public final class BlockWatcher implements StreamDataListener, AutoCloseable {
                     stateChanges.addAll(item.stateChangesOrThrow().stateChanges());
                 }
             }
-            return Optional.of(new FoundTransaction(block, body, result, stateChanges));
+            return Optional.of(new FoundTransaction(block, body, result, resultIndex, stateChanges));
         }
         return Optional.empty();
     }
 
-    private static @Nullable TransactionResult nextResult(@NonNull final List<BlockItem> items, final int from) {
+    /**
+     * Returns the index of the {@code TransactionResult} item of the transactional unit starting at the given
+     * item, or {@code -1} if the next unit begins before any result.
+     */
+    private static int nextResultIndex(@NonNull final List<BlockItem> items, final int from) {
         for (int k = from + 1; k < items.size(); k++) {
             if (items.get(k).hasTransactionResult()) {
-                return items.get(k).transactionResultOrThrow();
+                return k;
             }
             if (items.get(k).hasSignedTransaction()) {
-                return null;
+                return -1;
             }
         }
-        return null;
+        return -1;
     }
 
     private static @Nullable TransactionBody bodyOf(@NonNull final BlockItem item) {
