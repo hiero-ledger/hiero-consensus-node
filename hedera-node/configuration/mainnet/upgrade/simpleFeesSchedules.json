@@ -794,54 +794,74 @@
       "schedule": [
         {
           "name": "ClprUpdateLedgerConfiguration",
-          "baseFee": 10000000,
+          "baseFee": 0,
           "extras": []
         },
         {
           "name": "ClprRegisterChannel",
-          "baseFee": 10000000,
+          "baseFee": 1000000000000,
           "extras": []
         },
         {
           "name": "ClprCompleteChannel",
-          "baseFee": 10000000,
-          "extras": []
+          "baseFee": 1000000000000,
+          "extras": [
+            { "name": "STATE_BYTES", "includedCount": 8192 }
+          ]
         },
         {
           "name": "ClprCloseChannel",
-          "baseFee": 10000000,
+          "baseFee": 0,
           "extras": []
         },
         {
           "name": "ClprEvictPeerEndpoint",
-          "baseFee": 10000000,
+          "baseFee": 0,
           "extras": []
         },
         {
           "name": "ClprSubmitBundle",
-          "baseFee": 10000000,
-          "extras": []
+          "baseFee": 100000000,
+          "extras": [
+            { "name": "PROCESSING_BYTES", "includedCount": 0 }
+          ],
+          "nodeNetworkFeeExempt": true
         },
         {
           "name": "ClprRegisterConnector",
-          "baseFee": 10000000,
+          "baseFee": 100000000000,
           "extras": []
         },
         {
           "name": "ClprCompleteConnector",
-          "baseFee": 10000000,
+          "baseFee": 250000000000,
           "extras": []
         },
         {
           "name": "ClprDeregisterConnector",
-          "baseFee": 10000000,
+          "baseFee": 100000000,
           "extras": []
         },
         {
           "name": "ClprEndpointPublication",
           "baseFee": 0,
           "extras": [],
+          "free": true,
           "nodeNetworkFeeExempt": true
+        },
+        {
+          "name": "ClprGetLedgerConfiguration",
+          "baseFee": 100000000,
+          "extras": [
+            { "name": "GAS", "includedCount": 0 }
+          ]
+        },
+        {
+          "name": "ClprGetEndpointManifest",
+          "baseFee": 100000000,
+          "extras": [
+            { "name": "GAS", "includedCount": 0 }
+          ]
         }
       ]
     }

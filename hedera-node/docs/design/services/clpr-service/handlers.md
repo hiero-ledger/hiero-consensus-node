@@ -99,9 +99,10 @@ side-effects.
   The channel ID is public metadata; the commitment preimage is verified during reveal.
 - Reveal verifies signature `ECDSA(keccak256(connector_id ‖ 0x…16e))` (Hiero-specific
   binding from spec §6.3 callout).
-- Stake: `complete` requires the connector's `min_locked_stake` (`ClprConfig.minLockedStake`)
-  to be transferred from payer to `ClprConfig.stakingAccount` via the transaction's
-  crypto-transfer list.
+- Stake: `complete` converts `ClprConfig.minLockedStakeTinycents` (default $3,000) at the active
+  exchange rate for the transaction's consensus time and requires `locked_stake` to meet that minimum.
+  The submitted `locked_stake` is transferred in tinybars from payer to `ClprConfig.stakingAccount`
+  and stored on the connector. Existing locked stake is not continuously revalued as exchange rates change.
 - Register rejects a commitment already in `PENDING_CONNECTOR_COMMITMENTS` with
   `CLPR_CONNECTOR_ALREADY_EXISTS`.
 - Writes: `CONNECTORS[ClprConnectorKey] = ClprConnector{...}`. The commitment stays in
@@ -143,8 +144,8 @@ side-effects.
   Recovery requires an authenticated source block timestamp and a proof without queue metadata or messages.
   After recovery, a higher manifest version can advance the channel only with a proof from a strictly
   later source block. Verifiers that do not authenticate source ordering cannot downgrade a manifest.
-- Slashing/reimbursement: on misbehaviour, calls `ClprSlashingUtils.slashConnector(...)`
-  and credits the submitting endpoint per `ClprConfig.endpointMarginPercent`. See
+- Slashing/reimbursement: on misbehaviour, calls `ClprSlashingUtils.applySlash(...)`
+  and credits the submitting endpoint the full penalty via `reimburseEndpoint`. See
   [`config-and-slashing.md`](config-and-slashing.md).
 - On running-hash or ordering mismatch: channel moves to `PAUSED` (spec §4.5).
 

@@ -25,7 +25,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * HAPI spec operation for {@code ClprGetLedgerConfiguration} free queries.
+ * HAPI spec operation for {@code ClprGetLedgerConfiguration} paid queries.
  *
  * <p>Usage:
  * <pre>

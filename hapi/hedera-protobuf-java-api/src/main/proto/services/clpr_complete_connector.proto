@@ -75,7 +75,9 @@ message ClprCompleteConnectorTransactionBody {
 
     /**
      * Slashable bond (in tinybars) to lock at registration.
-     * Must be >= clpr.minLockedStake.
+     * Must be at least clpr.minLockedStakeTinycents converted to tinybars using
+     * the active exchange rate at this transaction's consensus time.
+     * Existing locked stake is not revalued when the exchange rate changes.
      */
     uint64 locked_stake = 9;
 }

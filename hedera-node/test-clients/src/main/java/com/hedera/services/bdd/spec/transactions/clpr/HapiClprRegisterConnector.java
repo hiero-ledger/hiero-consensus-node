@@ -23,7 +23,12 @@ public class HapiClprRegisterConnector extends HapiTxnOp<HapiClprRegisterConnect
     private byte[] commitment;
     private byte[] channelId;
 
-    public HapiClprRegisterConnector() {}
+    /** Covers the $10 CLPR price at the test exchange rate; an explicit {@link #fee} overrides it. */
+    private static final long DEFAULT_MAX_FEE_TINYBARS = 1_000L * 100_000_000L;
+
+    public HapiClprRegisterConnector() {
+        fee(DEFAULT_MAX_FEE_TINYBARS);
+    }
 
     public HapiClprRegisterConnector commitment(final byte[] commitment) {
         this.commitment = commitment;

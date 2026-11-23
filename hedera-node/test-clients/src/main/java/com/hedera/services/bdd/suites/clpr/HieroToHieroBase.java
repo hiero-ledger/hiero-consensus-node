@@ -144,7 +144,8 @@ public abstract class HieroToHieroBase implements LifecycleTest {
     static final String CLPR_CONTRACT = "ClprSystemContract";
     static final String SEND_MESSAGE = "sendMessage";
     static final String GET_QUEUE_STATE = "getChannelQueueState";
-    static final long GAS = 2_000_000L;
+    // Each send pays its CLPR fee through gas, on top of the gas its own execution uses
+    static final long GAS = 4_000_000L;
     /** The node-local CLPR channel registry (default {@code clpr.peerEndpointsFile}), relative to a working dir. */
     static final String PEER_ENDPOINTS_FILE = "data/clpr/peer-endpoints.json";
 
@@ -1798,6 +1799,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                                                             crypto.connectorId,
                                                             new byte[20],
                                                             "probe".getBytes(StandardCharsets.UTF_8))
+                                                    .sending(ONE_HBAR)
                                                     .gas(GAS)
                                                     .payingWith("probeCaller")
                                                     .hasKnownStatus(ResponseCodeEnum.CONTRACT_REVERT_EXECUTED));
@@ -1849,6 +1851,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                                                         crypto.connectorId,
                                                         new byte[20],
                                                         "active-probe".getBytes(StandardCharsets.UTF_8))
+                                                .sending(ONE_HBAR)
                                                 .gas(GAS)
                                                 .payingWith("activeProbeCaller")
                                                 .hasKnownStatus(ResponseCodeEnum.SUCCESS));
@@ -1870,6 +1873,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                         crypto.connectorId,
                         new byte[20],
                         data.getBytes(StandardCharsets.UTF_8))
+                .sending(ONE_HBAR)
                 .gas(GAS)
                 .payingWith(caller);
     }

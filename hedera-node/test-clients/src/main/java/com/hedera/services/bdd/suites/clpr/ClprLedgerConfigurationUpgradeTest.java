@@ -18,6 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import com.hedera.node.app.hapi.utils.forensics.RecordStreamEntry;
+import com.hedera.services.bdd.junit.ConfigOverride;
 import com.hedera.services.bdd.junit.GenesisHapiTest;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
@@ -60,7 +61,8 @@ public class ClprLedgerConfigurationUpgradeTest {
             }
             """;
 
-    @GenesisHapiTest
+    // Close every round so the simulated upgrade starts at a block boundary.
+    @GenesisHapiTest(bootstrapOverrides = @ConfigOverride(key = "blockStream.blockPeriod", value = "0s"))
     final Stream<DynamicTest> changedLedgerConfigurationFileIsAppliedAtUpgradeBoundary() {
         return hapiTest(
                 streamMustIncludePassFrom(selectedItems(
