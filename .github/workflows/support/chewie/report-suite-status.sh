@@ -4,7 +4,7 @@ set -uo pipefail
 # Reports the SDCT suite status to Chewie via POST api/v1/suites/results.
 # Never fails the caller: every error is a warning and the script always exits 0.
 #
-# Usage: report-suite-result.sh <disposition> <start-time> [end-time]
+# Usage: report-suite-status.sh <disposition> <start-time> [end-time]
 #   No end-time sends "end_time": null (the running report).
 #
 # Environment: CHEWIE_HOST, CHEWIE_KEY (repository identity key), REF, BUILD_TAG, COMMIT (40-character head commit
@@ -26,7 +26,7 @@ note() {
   echo "- ⚠️ Chewie report: $1" >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
 }
 
-report_suite_result() {
+report_suite_status() {
   local disposition=${1:-} start_time=${2:-} end_time=${3:-}
 
   [[ " ${DISPOSITIONS} " == *" ${disposition} "* ]] || warn "unknown disposition '${disposition}'"
@@ -125,5 +125,5 @@ chewie_error() {
   fi
 }
 
-report_suite_result "$@"
+report_suite_status "$@"
 exit 0

@@ -7,7 +7,7 @@ plugins {
 description = "Consensus Benchmark Tools"
 
 testModuleInfo {
-    requires("com.swirlds.base")
+    requires("com.swirlds.base.test.fixtures")
     requires("com.swirlds.metrics.api")
     requires("org.hiero.consensus.fakes")
     requires("org.hiero.consensus.model.test.fixtures")

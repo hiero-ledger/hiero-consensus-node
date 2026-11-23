@@ -25,6 +25,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SOMEBOD
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthAccountCreationWithKeyAndCodeDelegation;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthHollowAccountCreation;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -208,7 +209,11 @@ class HandleHederaNativeOperationsTest {
                 .cryptoCreateAccount(synthHollowAccountCreation(CANONICAL_ALIAS, true))
                 .build();
         given(context.payer()).willReturn(A_NEW_ACCOUNT_ID);
-        given(context.dispatch(assertArg(options -> assertEquals(synthLazyCreate, options.body()))))
+        given(context.dispatch(assertArg(options -> {
+                    assertEquals(synthLazyCreate, options.body());
+                    assertEquals(TransactionCategory.PRECEDING, options.category());
+                    assertEquals(REVERSIBLE, options.reversingBehavior());
+                })))
                 .willReturn(cryptoCreateRecordBuilder);
         given(cryptoCreateRecordBuilder.status()).willReturn(MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED);
         given(context.configuration()).willReturn(DEFAULT_CONFIG);

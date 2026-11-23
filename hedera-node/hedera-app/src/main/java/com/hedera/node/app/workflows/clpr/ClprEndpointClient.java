@@ -2,7 +2,7 @@
 package com.hedera.node.app.workflows.clpr;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.time.Duration;
+import io.grpc.Deadline;
 
 /**
  * Responsible for outbound CLPR RPC calls to a single peer endpoint.
@@ -27,14 +27,11 @@ public interface ClprEndpointClient {
      * <p>The returned handle owns a live gRPC stream and must be closed — it is
      * {@link AutoCloseable}, so a try-with-resources block is the intended usage.
      *
-     * @param timeout the deadline for the <em>entire</em> exchange, not for a single message. It
-     *     starts running when this method is called and covers every subsequent write and read on
-     *     the returned handle, so it must be sized for the whole multi-bundle conversation rather
-     *     than for one round trip.
+     * @param deadline the absolute deadline shared by peer resolution and all stream reads and writes
      * @return a handle for writing/reading messages on the new stream
      */
     @NonNull
-    ClprStreamingSyncCall sync(@NonNull Duration timeout);
+    ClprStreamingSyncCall sync(@NonNull Deadline deadline);
 
     /**
      * Exception thrown when an outbound CLPR sync call fails.

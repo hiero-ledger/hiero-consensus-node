@@ -339,7 +339,7 @@ Dispatching 223 with `mock=true` runs the same workflow against the `nightly/sdc
 ### Chewie Reporting
 
 Only the full `sdct` test reports to Chewie, with
-[report-suite-result.sh](/.github/workflows/support/chewie/report-suite-result.sh), from two jobs on the
+[report-suite-status.sh](/.github/workflows/support/chewie/report-suite-status.sh), from two jobs on the
 `hl-cn-chewie-lin-sm` runner (the SDCT runner may not reach Chewie):
 
 - `Chewie Report Running`: after `canonical-test`, when the Jenkins build has started
@@ -633,3 +633,55 @@ All tests are run in parallel with adjustable total TPS. Currently runs at PROD 
 | K/V pairs                               | 200M                                           |
 | Best effort coverage of Hedera Tx Types | < 100 TPS                                      |
 | Re-connects                             | At most 2 nodes in re-connect at the same time |
+
+
+## SDPT in HashSphere Resource Simulator, SDPT(H)
+
+### Purpose
+
+SDPT HashSphere (Single Day Performance Test for HashSphere) is designed to run unthrottled TPS tests with medium states to evaluate the
+throughput capability of the network simulating HashSphere limitations. It runs on a small (4-nodes), heterogeneous network
+environment to quickly identify potential performance regressions in HashSphere environment.
+
+### Environment
+
+- SDPT(H) is expected to complete within 12 hours of the test suite starting.
+- SDPT(H) has a dry-run equivalent that can be run against any PR, tag, or branch.
+
+### Workflows
+
+- SDPT(H) Dry Run is triggered manually via
+  the [207: [USER] CITR SDPT HashSphere Ctrl Adhoc](/.github/workflows/207-user-sdpt-hashsphere-controller-adhoc.yaml)
+  workflow.
+
+### Hardware
+
+The environment is allocated by Chewie. The requested shape is defined in
+[sdpt-config.json](/.github/workflows/support/chewie/sdpt-config.json) and is read by
+[861: [CALL] Get Test Config](/.github/workflows/861-call-get-test-config.yaml).
+
+SDPT(H) allows to evaluate TPSes with varioud memory/CPU limitation, given as a choice list at start.
+Default ones are:
+| Instance Group |            Role             | Quantity | CPU | Memory (MB) |
+|----------------|-----------------------------|----------|-----|-------------|
+| `cn-nodes`     | Consensus Nodes, CryptoBench| 4        | 8   | 32000       |
+
+
+The allocation duration and the time SDPT(H) will wait for capacity come from
+[`.github/chewie.yaml`](/.github/chewie.yaml). Chewie deletes the namespace when the allocation expires; the workflow
+does not tear it down. See [Chewie Resource Allocation](chewie.md).
+
+### Included Tests
+
+|       Test Name        |                                          Workflow                                                                |                Required Parameters                | Run time  |                  Precursor Steps                   |
+|------------------------|------------------------------------------------------------------------------------------------------------------|---------------------------------------------------|-----------|----------------------------------------------------|
+| NftTransferLoadTest    | [875: [CALL] CITR Exec SDPT HashSphere](/.github/workflows/875-call-single-day-performance-hashsphere-test.yaml) | nlg-accounts,nlg-time                             | 2 hours   | Code Compiles, Solo deployed CNs/NLG onto Latitude |
+| HCSLoadTest            | [875: [CALL] CITR Exec SDPT HashSphere](/.github/workflows/875-call-single-day-performance-hashsphere-test.yaml) | nlg-accounts,nlg-time                             | 40 mins   | NftTransferLoadTest                                |
+| CryptoTransferLoadTest | [875: [CALL] CITR Exec SDPT HashSphere](/.github/workflows/875-call-single-day-performance-hashsphere-test.yaml) | nlg-accounts,nlg-time                             | 40 mins   | HCSLoadTest                                        |
+| HeliSwapLoadTest       | [875: [CALL] CITR Exec SDPT HashSphere](/.github/workflows/875-call-single-day-performance-hashsphere-test.yaml) | nlg-accounts                                      | 2 hours   | CryptoTransferLoadTest                             |
+| SmartContractLoadTest  | [875: [CALL] CITR Exec SDPT HashSphere](/.github/workflows/875-call-single-day-performance-hashsphere-test.yaml) | nlg-accounts,nlg-time                             | 40 mins   | HeliSwapLoadTest                                   |
+
+### Runtime durations, practical settings
+
+- 1 hour with arguments: nlg-time=3 (mins), nlg-accounts=100000
+- 10 hours : nlg-time=180 (mins), nlg-accounts=100000000, files=600

@@ -14,6 +14,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.clpr.ClprEndpoint;
@@ -44,6 +45,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -64,6 +67,9 @@ class ClprEndpointPublicationHandlerTest {
                     .port(50211)
                     .build())
             .tlsCertificate(Bytes.wrap(new byte[] {1, 2, 3, 4}))
+            .build();
+    private static final ClprEndpoint DNS_ENDPOINT = ENDPOINT.copyBuilder()
+            .serviceEndpoint(ENDPOINT.serviceEndpointOrThrow().copyBuilder().ipAddress("node.svc.cluster.local"))
             .build();
 
     @Mock
@@ -124,23 +130,39 @@ class ClprEndpointPublicationHandlerTest {
     }
 
     @Test
+    void handleDropsDnsPublicationBeforeOpeningOrJoiningAConstructionWhenDisabled() {
+        setupHandleContext(bodyWithEndpoint(DNS_ENDPOINT), true);
+
+        subject.handle(handleContext);
+
+        verifyNoInteractions(constructionStore, manifestStore, rosterStore);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
     @DisplayName("C: admits into an active construction (no account_id cross-check)")
-    void handleAdmitsIntoActiveConstruction() {
-        setupHandleContext(bodyWithEndpoint(), true);
+    void handleAdmitsIntoActiveConstruction(final boolean publishDns) {
+        final var endpoint = publishDns ? DNS_ENDPOINT : ENDPOINT;
+        setupHandleContext(bodyWithEndpoint(endpoint), true, publishDns);
         given(constructionStore.get()).willReturn(constructionTargeting(PUBLISHER_NODE_ID, PEER_NODE_ID));
         given(constructionStore.admitPublication(eq(PUBLISHER_NODE_ID), any(ClprEndpointPublication.class)))
                 .willReturn(true);
 
         subject.handle(handleContext);
 
-        verify(constructionStore).admitPublication(eq(PUBLISHER_NODE_ID), any(ClprEndpointPublication.class));
+        verify(constructionStore)
+                .admitPublication(
+                        PUBLISHER_NODE_ID,
+                        ClprEndpointPublication.newBuilder().endpoint(endpoint).build());
         verify(constructionStore, never()).put(any());
     }
 
-    @Test
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
     @DisplayName("C: opens a construction when the published endpoint is not already in the manifest")
-    void handleOpensConstructionOnDifferingEndpoint() {
-        setupHandleContext(bodyWithEndpoint(), true);
+    void handleOpensConstructionOnDifferingEndpoint(final boolean publishDns) {
+        final var endpoint = publishDns ? DNS_ENDPOINT : ENDPOINT;
+        setupHandleContext(bodyWithEndpoint(endpoint), true, publishDns);
         given(constructionStore.get()).willReturn(null);
         given(manifestStore.get()).willReturn(manifest(1L)); // genesis seed: empty
         given(rosterStore.getActiveRoster()).willReturn(rosterOf(PUBLISHER_NODE_ID, PEER_NODE_ID));
@@ -155,7 +177,7 @@ class ClprEndpointPublicationHandlerTest {
         assertThat(opened.gatheredPublications()).hasSize(1);
         assertThat(opened.gatheredPublications().getFirst().nodeId()).isEqualTo(PUBLISHER_NODE_ID);
         assertThat(opened.gatheredPublications().getFirst().publicationOrThrow().endpointOrThrow())
-                .isEqualTo(ENDPOINT);
+                .isEqualTo(endpoint);
     }
 
     @Test
@@ -187,8 +209,13 @@ class ClprEndpointPublicationHandlerTest {
     // ---- helpers ----
 
     private void setupHandleContext(final TransactionBody body, final boolean enabled) {
+        setupHandleContext(body, enabled, false);
+    }
+
+    private void setupHandleContext(final TransactionBody body, final boolean enabled, final boolean publishDns) {
         final Configuration config = HederaTestConfigBuilder.create()
                 .withValue("clpr.enabled", enabled ? "true" : "false")
+                .withValue("clpr.publishDnsEndpoints", Boolean.toString(publishDns))
                 .getOrCreateConfig();
         given(handleContext.configuration()).willReturn(config);
         lenient().when(handleContext.body()).thenReturn(body);
@@ -229,10 +256,14 @@ class ClprEndpointPublicationHandlerTest {
     }
 
     private static TransactionBody bodyWithEndpoint() {
+        return bodyWithEndpoint(ENDPOINT);
+    }
+
+    private static TransactionBody bodyWithEndpoint(final ClprEndpoint endpoint) {
         return TransactionBody.newBuilder()
                 .transactionID(TransactionID.DEFAULT)
                 .clprEndpointPublication(ClprEndpointPublicationTransactionBody.newBuilder()
-                        .endpoint(ENDPOINT)
+                        .endpoint(endpoint)
                         .build())
                 .build();
     }
