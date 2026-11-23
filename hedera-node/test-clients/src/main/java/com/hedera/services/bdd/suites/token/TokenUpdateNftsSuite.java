@@ -4,6 +4,7 @@ package com.hedera.services.bdd.suites.token;
 import static com.google.protobuf.ByteString.copyFromUtf8;
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
+import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenNftInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.burnToken;
@@ -12,6 +13,9 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenDelete;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenPause;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUnpause;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUpdateNfts;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
@@ -24,6 +28,8 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNAT
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_METADATA_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_METADATA_OR_SUPPLY_KEY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_IS_PAUSED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_WAS_DELETED;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
 import com.google.protobuf.ByteString;
@@ -61,9 +67,10 @@ public class TokenUpdateNftsSuite {
                                 .initialSupply(0L),
                         mintToken(NON_FUNGIBLE_TOKEN, List.of(copyFromUtf8("a"), copyFromUtf8("b"))))
                 .when()
-                .then(submitModified(withSuccessivelyVariedBodyIds(), () -> tokenUpdateNfts(
-                                NON_FUNGIBLE_TOKEN, NFT_TEST_METADATA, List.of(1L, 2L))
-                        .signedBy(DEFAULT_PAYER, "multiKey")));
+                .then(submitModified(
+                        withSuccessivelyVariedBodyIds(),
+                        () -> tokenUpdateNfts(NON_FUNGIBLE_TOKEN, NFT_TEST_METADATA, List.of(1L, 2L))
+                                .signedBy(DEFAULT_PAYER, "multiKey")));
     }
 
     /**
@@ -435,5 +442,43 @@ public class TokenUpdateNftsSuite {
                                 .hasMetadata(ByteString.copyFromUtf8(NFT_TEST_METADATA)),
                         burnToken(NON_FUNGIBLE_TOKEN, List.of(7L)),
                         getAccountBalance(TOKEN_TREASURY).hasTokenBalance(NON_FUNGIBLE_TOKEN, 6L));
+    }
+
+    /**
+     * Tests that the metadata of a paused or deleted token's NFTs cannot be updated, as for every other operation on
+     * such a token.
+     * @return the dynamic test
+     */
+    @HapiTest
+    final Stream<DynamicTest> cannotUpdateMetadataOfPausedOrDeletedToken() {
+        final var pauseKey = "pauseKey";
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                newKeyNamed(METADATA_KEY),
+                newKeyNamed(ADMIN_KEY),
+                newKeyNamed(pauseKey),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(NON_FUNGIBLE_TOKEN)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .treasury(TOKEN_TREASURY)
+                        .initialSupply(0L)
+                        .adminKey(ADMIN_KEY)
+                        .supplyKey(SUPPLY_KEY)
+                        .metadataKey(METADATA_KEY)
+                        .pauseKey(pauseKey),
+                mintToken(NON_FUNGIBLE_TOKEN, List.of(copyFromUtf8("original"))),
+                tokenUpdateNfts(NON_FUNGIBLE_TOKEN, "active", List.of(1L)).signedByPayerAnd(METADATA_KEY),
+                getTokenNftInfo(NON_FUNGIBLE_TOKEN, 1L).hasMetadata(copyFromUtf8("active")),
+                tokenPause(NON_FUNGIBLE_TOKEN).signedByPayerAnd(pauseKey),
+                tokenUpdateNfts(NON_FUNGIBLE_TOKEN, "paused", List.of(1L))
+                        .signedByPayerAnd(METADATA_KEY)
+                        .hasKnownStatus(TOKEN_IS_PAUSED),
+                getTokenNftInfo(NON_FUNGIBLE_TOKEN, 1L).hasMetadata(copyFromUtf8("active")),
+                tokenUnpause(NON_FUNGIBLE_TOKEN).signedByPayerAnd(pauseKey),
+                tokenDelete(NON_FUNGIBLE_TOKEN).signedByPayerAnd(ADMIN_KEY),
+                tokenUpdateNfts(NON_FUNGIBLE_TOKEN, "deleted", List.of(1L))
+                        .signedByPayerAnd(METADATA_KEY)
+                        .hasKnownStatus(TOKEN_WAS_DELETED),
+                getTokenNftInfo(NON_FUNGIBLE_TOKEN, 1L).hasMetadata(copyFromUtf8("active")));
     }
 }
