@@ -71,6 +71,9 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver, 
     /** Whether this node signs its events with its own key. */
     private final boolean signEvents;
 
+    /** The recorder of creation-to-consensus latency and event throughput, shared by all nodes of the network. */
+    private final ConsensusLatencyRecorder latencyRecorder;
+
     @Nullable
     private FalconWiring wiring;
 
@@ -101,8 +104,9 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver, 
      * @param transactionShape the shape the transactions of created events are drawn from, or {@code null} for events
      * without any
      * @param signEvents whether this node signs its events with its own key
+     * @param latencyRecorder the recorder of creation-to-consensus latency and event throughput, shared by all nodes
      */
-    public FalconNode(
+    FalconNode(
             @NonNull final Random random,
             @NonNull final SimulatorTimeManager timeManager,
             @NonNull final NodeId selfId,
@@ -111,13 +115,15 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver, 
             @NonNull final NetworkConfiguration networkConfiguration,
             @NonNull final ConsensusRoundPool consensusRoundPool,
             @Nullable final EventShape transactionShape,
-            final boolean signEvents) {
+            final boolean signEvents,
+            @NonNull final ConsensusLatencyRecorder latencyRecorder) {
         super(selfId, keysAndCerts, networkConfiguration);
         this.random = requireNonNull(random);
         this.timeManager = requireNonNull(timeManager);
         this.gossipNetwork = requireNonNull(gossipNetwork);
         this.transactionShape = transactionShape;
         this.signEvents = signEvents;
+        this.latencyRecorder = requireNonNull(latencyRecorder);
 
         this.nodeConfiguration =
                 new FalconNodeConfiguration(() -> lifeCycle, networkConfiguration.overrideProperties());
@@ -239,6 +245,7 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver, 
         final Time time = timeManager.time();
         creatorSeed = random.nextLong();
         creatorStartTime = time.now();
+        latencyRecorder.markStarted(creatorStartTime);
         final SecureRandom secureRandom = new SecureRandomBuilder(creatorSeed).get();
         final BytesSigner signer = signEvents ? new PlatformSigner(keysAndCerts) : _ -> Bytes.EMPTY;
         final EventTransactionSupplier transactionSupplier = transactionShape == null
@@ -248,6 +255,10 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver, 
         wiring = new FalconWiring(
                 currentConfiguration, time, selfId, roster(), secureRandom, signer, transactionSupplier, stepRecorder);
         final Consumer<PlatformEvent> eventSubmitter = event -> {
+            if (selfId.equals(event.getCreatorId())) {
+                // Every event leaves the orphan buffer exactly once, so each self-created event is counted once
+                latencyRecorder.onEventCreated(event);
+            }
             event.setSenderId(selfId);
             gossipNetwork.submitEvent(event);
         };
@@ -257,6 +268,12 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver, 
             gossipNetwork.updateEventWindow(selfId, eventWindow);
         };
         wiring.eventWindowOutputWire().solderTo("EventWindowSubmitter_" + selfId, "event window", eventWindowSubmitter);
+        // The latency recorder is fed from this node's own rounds. Subscribers of the results collector receive the
+        // instance interned in the consensus round pool, which carries the reached timestamp of the first node that
+        // reported the round, not the one of this node.
+        wiring.consensusRoundOutputWire()
+                .solderTo(
+                        "LatencyRecorder", "consensus round", round -> latencyRecorder.onConsensusRound(selfId, round));
         wiring.consensusRoundOutputWire()
                 .solderTo("ResultsCollector", "consensus round", resultsCollector::addConsensusRound);
         wiring.preConsensusEventOutputWire()

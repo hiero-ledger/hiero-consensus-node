@@ -90,6 +90,9 @@ public class FalconMiniNode extends AbstractMiniNode implements MiniNode, TimeTi
     /** Whether this node signs its events with its own key. */
     private final boolean signEvents;
 
+    /** The recorder of event throughput, shared by all nodes of the network. */
+    private final ConsensusLatencyRecorder latencyRecorder;
+
     /**
      * Constructor for {@code FalconMiniNode}.
      *
@@ -101,6 +104,7 @@ public class FalconMiniNode extends AbstractMiniNode implements MiniNode, TimeTi
      * @param networkConfiguration the network configuration
      * @param transactionShape the shape the transactions of created events are drawn from, or {@code null} for empty events
      * @param signEvents whether this node signs its events with its own key
+     * @param latencyRecorder the recorder of event throughput, shared by all nodes of the network
      */
     FalconMiniNode(
             @NonNull final Random random,
@@ -111,7 +115,8 @@ public class FalconMiniNode extends AbstractMiniNode implements MiniNode, TimeTi
             @NonNull final NetworkConfiguration networkConfiguration,
             @NonNull final FalconSharedTipsets sharedTipsets,
             @Nullable final EventShape transactionShape,
-            final boolean signEvents) {
+            final boolean signEvents,
+            @NonNull final ConsensusLatencyRecorder latencyRecorder) {
         super(selfId, keysAndCerts, networkConfiguration);
 
         this.random = requireNonNull(random);
@@ -122,6 +127,7 @@ public class FalconMiniNode extends AbstractMiniNode implements MiniNode, TimeTi
                 new FalconNodeConfiguration(() -> lifeCycle, networkConfiguration.overrideProperties());
         this.transactionShape = transactionShape;
         this.signEvents = signEvents;
+        this.latencyRecorder = requireNonNull(latencyRecorder);
     }
 
     @Override
@@ -169,6 +175,7 @@ public class FalconMiniNode extends AbstractMiniNode implements MiniNode, TimeTi
             final PlatformEvent orderedEvent = orderedEvents.get(i);
             if (selfId.equals(orderedEvent.getCreatorId())) {
                 sharedTipsets.computeIfAbsent(orderedEvent);
+                latencyRecorder.onEventCreated(orderedEvent);
             }
             eventCreationManager.registerEvent(orderedEvent);
             orderedEvent.setSenderId(selfId);
@@ -201,6 +208,7 @@ public class FalconMiniNode extends AbstractMiniNode implements MiniNode, TimeTi
         creationPeriodNanos =
                 configuration.getConfigData(EventCreationConfig.class).period().toNanos();
         final Instant now = time.now();
+        latencyRecorder.markStarted(now);
         previousCreationAttemptNanos = now.getEpochSecond() * 1_000_000_000L + now.getNano();
 
         lifeCycle = RUNNING;
