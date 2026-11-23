@@ -9,6 +9,13 @@ import org.junit.jupiter.api.Test;
 
 class HederaEvmTransactionTest {
     @Test
+    void weiValueIsTheRawTinybarValue() {
+        final var subject = TestHelpers.wellKnownHapiCall();
+        assertEquals(VALUE, subject.weiValue().toLong());
+        assertEquals(WEI_VALUE, subject.weiValue());
+    }
+
+    @Test
     void computesUpfrontCostWithoutOverflowConcern() {
         final var subject = TestHelpers.wellKnownHapiCall();
         assertEquals(VALUE + 123L * GAS_LIMIT, subject.upfrontCostGiven(123L));

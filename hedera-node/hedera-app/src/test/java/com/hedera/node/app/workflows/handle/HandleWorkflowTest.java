@@ -6,6 +6,7 @@ import static com.hedera.hapi.services.auxiliary.clpr.ClprMaintenanceReason.GENE
 import static com.hedera.hapi.services.auxiliary.clpr.ClprMaintenanceReason.UPGRADE_INITIALIZATION;
 import static com.hedera.hapi.services.auxiliary.clpr.ClprMaintenanceReason.UPGRADE_ROSTER_RECONCILIATION;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
+import static com.hedera.hapi.util.HapiUtils.endpointFor;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.POST_UPGRADE_WORK;
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
@@ -25,8 +26,8 @@ import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ST
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.BOTH;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
-import static java.util.Collections.emptyIterator;
 import static java.util.Collections.emptyList;
+import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.platformstate.PlatformStateService.NAME;
 import static org.hiero.consensus.roster.RosterStateId.ROSTERS_STATE_ID;
 import static org.hiero.consensus.roster.RosterStateId.ROSTER_STATE_STATE_ID;
@@ -35,6 +36,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -47,11 +49,13 @@ import static org.mockito.BDDMockito.willAnswer;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.withSettings;
@@ -68,7 +72,6 @@ import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
@@ -80,10 +83,16 @@ import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.file.File;
+import com.hedera.hapi.node.state.hints.CRSStage;
+import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
+import com.hedera.hapi.node.state.hints.HintsScheme;
+import com.hedera.hapi.node.state.hints.NodePartyId;
+import com.hedera.hapi.node.state.hints.PreprocessedKeys;
 import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
+import com.hedera.hapi.node.state.history.ProofNodeWeight;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
@@ -103,8 +112,18 @@ import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
 import com.hedera.node.app.fees.ExchangeRateManager;
+import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.HintsService;
+import com.hedera.node.app.hints.WritableHintsStore;
+import com.hedera.node.app.hints.impl.HintsContext;
+import com.hedera.node.app.hints.impl.HintsGenerationWeights;
+import com.hedera.node.app.hints.impl.HintsServiceFixtures;
+import com.hedera.node.app.hints.impl.HintsSigningMetrics;
+import com.hedera.node.app.hints.impl.OnHintsFinished;
 import com.hedera.node.app.hints.impl.WritableHintsStoreImpl;
+import com.hedera.node.app.hints.schemas.V059HintsSchema;
+import com.hedera.node.app.hints.schemas.V060HintsSchema;
+import com.hedera.node.app.hints.schemas.V079HintsSchema;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.WritableHistoryStore;
 import com.hedera.node.app.history.impl.OnProofFinished;
@@ -142,6 +161,7 @@ import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
 import com.hedera.node.app.throttle.CongestionMetrics;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
 import com.hedera.node.app.tss.PreparedTssHandoff;
+import com.hedera.node.app.tss.TssBlockHashSigner;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.clpr.ClprEndpointManifestReconciler;
@@ -185,6 +205,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.stream.LongStream;
 import javax.inject.Provider;
 import org.apache.logging.log4j.LogManager;
 import org.hiero.base.crypto.Hash;
@@ -194,7 +215,6 @@ import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 import org.hiero.consensus.platformstate.V0540PlatformStateSchema;
 import org.junit.jupiter.api.BeforeEach;
@@ -383,17 +403,15 @@ class HandleWorkflowTest {
         final var missingCreatorId = NodeId.of(2L);
         final var eventFromPresentCreator = mock(ConsensusEvent.class);
         final var eventFromMissingCreator = mock(ConsensusEvent.class);
-        given(round.iterator())
-                .willReturn(List.of(eventFromMissingCreator, eventFromPresentCreator)
-                        .iterator())
-                .willReturn(List.of(eventFromMissingCreator, eventFromPresentCreator)
-                        .iterator());
+        given(round.getConsensusEvents())
+                .willAnswer(_ -> List.of(eventFromMissingCreator, eventFromPresentCreator))
+                .willAnswer(_ -> List.of(eventFromMissingCreator, eventFromPresentCreator));
         given(eventFromPresentCreator.getCreatorId()).willReturn(presentCreatorId);
         given(eventFromMissingCreator.getCreatorId()).willReturn(missingCreatorId);
         given(networkInfo.nodeInfo(presentCreatorId.id())).willReturn(mock(NodeInfo.class));
         given(networkInfo.nodeInfo(missingCreatorId.id())).willReturn(null);
-        given(eventFromPresentCreator.consensusTransactionIterator()).willReturn(emptyIterator());
-        given(eventFromMissingCreator.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(eventFromPresentCreator.getTransactions()).willReturn(emptyList());
+        given(eventFromMissingCreator.getTransactions()).willReturn(emptyList());
         given(round.getConsensusTimestamp()).willReturn(Instant.ofEpochSecond(12345L));
         given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(NOW);
         given(blockRecordManager.lastIntervalProcessTime()).willReturn(NOW);
@@ -402,8 +420,8 @@ class HandleWorkflowTest {
 
         subject.handleRound(state, round, txns -> {});
 
-        verify(eventFromPresentCreator).consensusTransactionIterator();
-        verify(eventFromMissingCreator).consensusTransactionIterator();
+        verify(eventFromPresentCreator).getTransactions();
+        verify(eventFromMissingCreator).getTransactions();
         verify(recordCache).resetRoundReceipts();
         verify(recordCache)
                 .commitReceipts(any(), any(), same(immediateStateChangeListener), same(blockStreamManager), any());
@@ -411,10 +429,9 @@ class HandleWorkflowTest {
 
     @Test
     void writesEachMigrationStateChangeWithBlockTimestamp() {
-        given(round.iterator())
-                .willReturn(List.of(event).iterator())
-                .willReturn(List.of(event).iterator());
-        given(event.allParentsIterator()).willReturn(List.of(wrapper).iterator());
+        given(round.getConsensusEvents()).willAnswer(_ -> List.of(event));
+        given(event.getCreatorId()).willReturn(NodeId.of(0));
+        given(event.getAllParents()).willReturn(List.of(wrapper));
         given(event.getConsensusTimestamp()).willReturn(NOW);
         given(systemTransactions.firstReservedSystemTimeFor(any())).willReturn(NOW);
         final var firstBuilder = StateChanges.newBuilder().stateChanges(List.of(StateChange.DEFAULT));
@@ -486,16 +503,14 @@ class HandleWorkflowTest {
         final var txn = new TransactionWrapper(com.hedera.pbj.runtime.io.buffer.Bytes.EMPTY);
         txn.setConsensusTimestamp(NOW);
         given(event.getHash()).willReturn(CryptoRandomUtils.randomHash());
-        given(event.allParentsIterator())
-                .willReturn(List.<EventDescriptorWrapper>of().iterator());
+        given(event.getAllParents()).willReturn(List.<EventDescriptorWrapper>of());
         given(event.getEventCore()).willReturn(EventCore.DEFAULT);
         given(blockStreamManager.lastIntervalProcessTime()).willReturn(NOW);
-        given(round.iterator()).willAnswer(invocation -> List.of(event).iterator());
+        given(round.getConsensusEvents()).willAnswer(invocation -> List.of(event));
         final var creatorId = NodeId.of(0);
         given(event.getCreatorId()).willReturn(creatorId);
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
-        given(event.consensusTransactionIterator())
-                .willAnswer(invocation -> List.<ConsensusTransaction>of(txn).iterator());
+        given(event.getTransactions()).willAnswer(invocation -> List.of(txn));
         givenSubjectWith(StreamMode.BLOCKS, BlockStreamWriterMode.FILE, List.of());
 
         subject.handleRound(state, round, txns -> {});
@@ -557,16 +572,14 @@ class HandleWorkflowTest {
         final var txn = new TransactionWrapper(com.hedera.pbj.runtime.io.buffer.Bytes.EMPTY);
         txn.setConsensusTimestamp(NOW);
         given(event.getHash()).willReturn(CryptoRandomUtils.randomHash());
-        given(event.allParentsIterator())
-                .willReturn(List.<EventDescriptorWrapper>of().iterator());
+        given(event.getAllParents()).willReturn(List.<EventDescriptorWrapper>of());
         given(event.getEventCore()).willReturn(EventCore.DEFAULT);
         given(blockStreamManager.lastIntervalProcessTime()).willReturn(NOW);
-        given(round.iterator()).willAnswer(invocation -> List.of(event).iterator());
+        given(round.getConsensusEvents()).willAnswer(invocation -> List.of(event));
         final var creatorId = NodeId.of(0);
         given(event.getCreatorId()).willReturn(creatorId);
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
-        given(event.consensusTransactionIterator())
-                .willAnswer(invocation -> List.<ConsensusTransaction>of(txn).iterator());
+        given(event.getTransactions()).willAnswer(invocation -> List.of(txn));
 
         givenSubjectWith(StreamMode.BLOCKS, BlockStreamWriterMode.FILE, List.of());
 
@@ -582,20 +595,18 @@ class HandleWorkflowTest {
     void writeEventHeaderWithNoParentEvents() {
         // Setup event with no parents
         given(event.getHash()).willReturn(CryptoRandomUtils.randomHash());
-        given(event.allParentsIterator())
-                .willReturn(List.<EventDescriptorWrapper>of().iterator());
+        given(event.getAllParents()).willReturn(List.<EventDescriptorWrapper>of());
         given(event.getEventCore()).willReturn(EventCore.DEFAULT);
         given(blockStreamManager.lastIntervalProcessTime()).willReturn(NOW);
 
         // Set up the round
-        given(round.iterator()).willAnswer(invocationOnMock -> List.of(event).iterator());
+        given(round.getConsensusEvents()).willAnswer(invocationOnMock -> List.of(event));
 
         // Setup node info for event creator
         NodeId creatorId = NodeId.of(0);
         given(event.getCreatorId()).willReturn(creatorId);
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
-        given(event.consensusTransactionIterator())
-                .willReturn(List.<ConsensusTransaction>of().iterator());
+        given(event.getTransactions()).willReturn(emptyList());
 
         // Create subject with BLOCKS mode
         givenSubjectWith(StreamMode.BLOCKS, BlockStreamWriterMode.FILE, List.of());
@@ -635,17 +646,17 @@ class HandleWorkflowTest {
         given(parent.hash()).willReturn(parentHash);
 
         given(event.getHash()).willReturn(eventHash);
-        given(event.allParentsIterator()).willReturn(List.of(parent).iterator());
+        given(event.getAllParents()).willReturn(List.of(parent));
         given(event.getEventCore()).willReturn(EventCore.DEFAULT);
 
         // Setup node info for event creator
         NodeId creatorId = NodeId.of(0);
         given(event.getCreatorId()).willReturn(creatorId);
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
-        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(event.getTransactions()).willReturn(emptyList());
 
         // Set up the round
-        given(round.iterator()).willAnswer(invocationOnMock -> List.of(event).iterator());
+        given(round.getConsensusEvents()).willAnswer(invocationOnMock -> List.of(event));
 
         // Create subject with BLOCKS mode
         givenSubjectWith(StreamMode.BLOCKS, BlockStreamWriterMode.FILE, List.of());
@@ -692,17 +703,17 @@ class HandleWorkflowTest {
         given(parent.toPbj()).willReturn(parentDescriptor);
 
         given(event.getHash()).willReturn(eventHash);
-        given(event.allParentsIterator()).willReturn(List.of(parent).iterator());
+        given(event.getAllParents()).willReturn(List.of(parent));
         given(event.getEventCore()).willReturn(EventCore.DEFAULT);
 
         // Setup node info for event creator
         NodeId creatorId = NodeId.of(0);
         given(event.getCreatorId()).willReturn(creatorId);
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
-        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(event.getTransactions()).willReturn(emptyList());
 
         // Set up the round
-        given(round.iterator()).willAnswer(invocationOnMock -> List.of(event).iterator());
+        given(round.getConsensusEvents()).willAnswer(invocationOnMock -> List.of(event));
 
         // Create subject with BLOCKS mode
         givenSubjectWith(StreamMode.BLOCKS, BlockStreamWriterMode.FILE, List.of());
@@ -757,18 +768,17 @@ class HandleWorkflowTest {
 
         // Setup event with two parents
         given(event.getHash()).willReturn(eventHash);
-        given(event.allParentsIterator())
-                .willReturn(List.of(parentInBlock, parentNotInBlock).iterator());
+        given(event.getAllParents()).willReturn(List.of(parentInBlock, parentNotInBlock));
         given(event.getEventCore()).willReturn(EventCore.DEFAULT);
 
         // Setup node info for event creator
         NodeId creatorId = NodeId.of(0);
         given(event.getCreatorId()).willReturn(creatorId);
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
-        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(event.getTransactions()).willReturn(emptyList());
 
         // Set up the round
-        given(round.iterator()).willAnswer(invocationOnMock -> List.of(event).iterator());
+        given(round.getConsensusEvents()).willAnswer(invocationOnMock -> List.of(event));
 
         // Create subject with BLOCKS mode
         givenSubjectWith(StreamMode.BLOCKS, BlockStreamWriterMode.FILE, List.of());
@@ -913,17 +923,16 @@ class HandleWorkflowTest {
         given(event.getHash()).willReturn(eventHash);
         given(event.getCreatorId()).willReturn(creatorId);
         given(event.getEventCore()).willReturn(EventCore.DEFAULT);
-        given(event.allParentsIterator())
-                .willReturn(List.<EventDescriptorWrapper>of().iterator());
+        given(event.getAllParents()).willReturn(List.<EventDescriptorWrapper>of());
         given(blockStreamManager.lastIntervalProcessTime()).willReturn(NOW);
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
-        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
-        given(round.iterator()).willAnswer(invocationOnMock -> List.of(event).iterator());
+        given(event.getTransactions()).willReturn(emptyList());
+        given(round.getConsensusEvents()).willAnswer(_ -> List.of(event));
 
         // Create subject with streamToBlockNodes enabled
         givenSubjectWith(BOTH, BlockStreamWriterMode.FILE_AND_GRPC, emptyList());
 
-        subject.handleRound(state, round, txn -> {});
+        subject.handleRound(state, round, _ -> {});
 
         verify(blockBufferService).ensureNewBlocksPermitted();
     }
@@ -969,6 +978,192 @@ class HandleWorkflowTest {
                 reconciliationTimes.getAllValues());
     }
 
+    @Test
+    void invalidSigningGenerationStillCommitsHintsProgressAndCompletesHistoryLedgerWork() {
+        givenTssEnabledEmptyRounds();
+        final var failure = assertThrows(
+                HintsGenerationWeights.InvalidGenerationException.class,
+                () -> HintsGenerationWeights.from(HintsConstruction.DEFAULT, null));
+        willThrow(failure).given(hintsService).reconcile(any(), any(), any(), any(), any(), anyBoolean(), any());
+        final var callback = new AtomicReference<OnProofFinished>();
+        willAnswer(invocation -> {
+                    callback.set(invocation.getArgument(0));
+                    return null;
+                })
+                .given(historyService)
+                .onFinishedConstruction(any());
+        final var proof =
+                HistoryProof.newBuilder().targetHistory(History.DEFAULT).build();
+        final var completed = HistoryProofConstruction.newBuilder()
+                .constructionId(5)
+                .targetProof(proof)
+                .build();
+        final var callbackStore = mock(WritableHistoryStore.class);
+        given(callbackStore.getActiveConstruction()).willReturn(completed);
+        final var ledgerId = Bytes.wrap("recovered-ledger-id");
+        given(historyService.ledgerIdOf(proof)).willReturn(ledgerId);
+        willAnswer(_ -> {
+                    callback.get().onFinished(callbackStore, completed, new TreeMap<>());
+                    return null;
+                })
+                .given(historyService)
+                .reconcile(any(), any(), any(), any(), any(), anyBoolean(), any(), anyBoolean(), any(), anyLong());
+
+        subject.handleRound(state, round, txn -> {});
+
+        final var order = inOrder(historyService, hintsService, callbackStore);
+        order.verify(historyService).recoverActiveBook(any(), any(), any());
+        order.verify(hintsService).reconcile(any(), any(), any(), any(), any(), anyBoolean(), any());
+        order.verify(historyService)
+                .reconcile(any(), any(), any(), any(), any(), anyBoolean(), any(), anyBoolean(), any(), anyLong());
+        order.verify(historyService).setLatestHistoryProof(proof);
+        order.verify(callbackStore).setLedgerId(ledgerId);
+        verify((CommittableWritableStates) state.getWritableStates(HintsService.NAME))
+                .commit();
+        verify((CommittableWritableStates) state.getWritableStates(HistoryService.NAME), times(2))
+                .commit();
+        verify(hintsService, never()).setActiveConstruction(any(), any(), any());
+    }
+
+    @Test
+    void repeatedInvalidGenerationsAreLoggedOnceWhileHistoryContinuesAndResetAfterRecovery() {
+        givenTssEnabledEmptyRounds();
+        final var failure = assertThrows(
+                HintsGenerationWeights.InvalidGenerationException.class,
+                () -> HintsGenerationWeights.from(HintsConstruction.DEFAULT, null));
+        final var currentFailure = new AtomicReference<RuntimeException>(failure);
+        willAnswer(_ -> {
+                    if (currentFailure.get() != null) {
+                        throw currentFailure.get();
+                    }
+                    return null;
+                })
+                .given(hintsService)
+                .reconcile(any(), any(), any(), any(), any(), anyBoolean(), any());
+        final var logs = new LogCaptor(LogManager.getLogger(HandleWorkflow.class));
+        try {
+            for (int i = 1; i <= 3; i++) {
+                given(round.getConsensusTimestamp()).willReturn(NOW.plusSeconds(i));
+                subject.handleRound(state, round, txn -> {});
+            }
+            assertEquals(
+                    1,
+                    logs.errorLogs().stream()
+                            .filter(message ->
+                                    message.contains("Cannot advance hinTS with the current generation snapshot"))
+                            .count());
+            verify(historyService, times(3))
+                    .reconcile(any(), any(), any(), any(), any(), anyBoolean(), any(), anyBoolean(), any(), anyLong());
+
+            currentFailure.set(null);
+            given(round.getConsensusTimestamp()).willReturn(NOW.plusSeconds(4));
+            subject.handleRound(state, round, txn -> {});
+            currentFailure.set(failure);
+            given(round.getConsensusTimestamp()).willReturn(NOW.plusSeconds(5));
+            subject.handleRound(state, round, txn -> {});
+
+            assertEquals(
+                    2,
+                    logs.errorLogs().stream()
+                            .filter(message ->
+                                    message.contains("Cannot advance hinTS with the current generation snapshot"))
+                            .count());
+            verify(historyService, times(5))
+                    .reconcile(any(), any(), any(), any(), any(), anyBoolean(), any(), anyBoolean(), any(), anyLong());
+            verify((CommittableWritableStates) state.getWritableStates(HintsService.NAME), times(5))
+                    .commit();
+        } finally {
+            logs.stopCapture();
+        }
+    }
+
+    @Test
+    void unrelatedHintsFailureStillAbortsTheTssReconciliationAction() {
+        givenTssEnabledEmptyRounds();
+        willThrow(new IllegalStateException("unrelated local failure"))
+                .given(hintsService)
+                .reconcile(any(), any(), any(), any(), any(), anyBoolean(), any());
+
+        subject.handleRound(state, round, txn -> {});
+
+        verify(historyService).recoverActiveBook(any(), any(), any());
+        verify(historyService, never())
+                .reconcile(any(), any(), any(), any(), any(), anyBoolean(), any(), anyBoolean(), any(), anyLong());
+        verify((CommittableWritableStates) state.getWritableStates(HintsService.NAME), never())
+                .commit();
+        verify((CommittableWritableStates) state.getWritableStates(HistoryService.NAME))
+                .commit();
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void compatibilityCompletionStartsGenesisSigningWithoutAHistorySnapshot(final boolean historyEnabled)
+            throws Exception {
+        givenSubjectWith(
+                BLOCKS,
+                BlockStreamWriterMode.FILE,
+                emptyList(),
+                Map.of(
+                        "tss.hintsEnabled",
+                        "true",
+                        "tss.historyEnabled",
+                        "" + historyEnabled,
+                        "tss.forceMockSignatures",
+                        "" + historyEnabled));
+        final var configure =
+                HandleWorkflow.class.getDeclaredMethod("configureTssCallbacks", State.class, AtomicReference.class);
+        configure.setAccessible(true);
+        configure.invoke(subject, state, new AtomicReference<>());
+        final var callback = ArgumentCaptor.forClass(OnHintsFinished.class);
+        verify(hintsService).onFinishedConstruction(callback.capture());
+        final var active = HintsConstruction.newBuilder()
+                .constructionId(7)
+                .hintsScheme(HintsScheme.DEFAULT)
+                .build();
+        final var store = mock(WritableHintsStore.class);
+        given(store.getActiveConstruction()).willReturn(active);
+        given(store.getCrsStateFor(active)).willReturn(CRSState.DEFAULT);
+
+        callback.getValue().accept(store, active, mock(HintsContext.class));
+
+        verify(hintsService).setActiveConstruction(active, CRSState.DEFAULT);
+        verify(hintsService, never()).setActiveConstruction(any(), any(), any());
+    }
+
+    @Test
+    void switchingFromCompatibilityToStrictModeClearsTheCapturedHintsCallback() throws Exception {
+        givenSubjectWith(
+                BLOCKS,
+                BlockStreamWriterMode.FILE,
+                emptyList(),
+                Map.of("tss.hintsEnabled", "true", "tss.historyEnabled", "false", "tss.forceMockSignatures", "false"));
+        final var installedCallback = new AtomicReference<OnHintsFinished>();
+        willAnswer(invocation -> {
+                    installedCallback.set(invocation.getArgument(0));
+                    return null;
+                })
+                .given(hintsService)
+                .onFinishedConstruction(any());
+        final var configure =
+                HandleWorkflow.class.getDeclaredMethod("configureTssCallbacks", State.class, AtomicReference.class);
+        configure.setAccessible(true);
+        configure.invoke(subject, state, new AtomicReference<>());
+        assertNotNull(installedCallback.get());
+
+        final var strictConfig = HederaTestConfigBuilder.create()
+                .withValue("tss.hintsEnabled", true)
+                .withValue("tss.historyEnabled", true)
+                .withValue("tss.forceMockSignatures", false)
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(strictConfig, 2L));
+        configure.invoke(subject, state, new AtomicReference<>());
+
+        assertNull(installedCallback.get());
+        final var order = inOrder(hintsService);
+        order.verify(hintsService).onFinishedConstruction(any(OnHintsFinished.class));
+        order.verify(hintsService).onFinishedConstruction(null);
+    }
+
     private void givenTssEnabledEmptyRounds() {
         final var rosterStates = mock(ReadableStates.class);
         final ReadableSingletonState<RosterState> rosterState = mock(ReadableSingletonState.class);
@@ -982,14 +1177,16 @@ class HandleWorkflowTest {
         final var entityStates =
                 mock(WritableStates.class, withSettings().extraInterfaces(CommittableWritableStates.class));
         given(state.getWritableStates(EntityIdService.NAME)).willReturn(entityStates);
-        final var hintsStates = mock(WritableStates.class);
+        final var hintsStates =
+                mock(WritableStates.class, withSettings().extraInterfaces(CommittableWritableStates.class));
         final WritableSingletonState<HintsConstruction> hintsConstruction = mock(WritableSingletonState.class);
         given(state.getWritableStates(HintsService.NAME)).willReturn(hintsStates);
         lenient()
                 .when(hintsStates.<HintsConstruction>getSingleton(ACTIVE_HINTS_CONSTRUCTION_STATE_ID))
                 .thenReturn(hintsConstruction);
         given(hintsConstruction.get()).willReturn(HintsConstruction.DEFAULT);
-        final var historyStates = mock(WritableStates.class);
+        final var historyStates =
+                mock(WritableStates.class, withSettings().extraInterfaces(CommittableWritableStates.class));
         given(state.getWritableStates(HistoryService.NAME)).willReturn(historyStates);
         lenient()
                 .when(historyStates.<ProtoBytes>getSingleton(LEDGER_ID_STATE_ID))
@@ -1006,13 +1203,15 @@ class HandleWorkflowTest {
         given(event.getHash()).willReturn(CryptoRandomUtils.randomHash());
         given(event.getCreatorId()).willReturn(NodeId.of(0));
         given(event.getEventCore()).willReturn(EventCore.DEFAULT);
-        given(event.allParentsIterator()).willAnswer(ignore -> emptyIterator());
-        given(event.consensusTransactionIterator()).willAnswer(ignore -> emptyIterator());
-        given(round.iterator()).willAnswer(ignore -> List.of(event).iterator());
+        given(event.getAllParents()).willAnswer(ignore -> emptyList());
+        given(event.getTransactions()).willAnswer(ignore -> emptyList());
+        given(round.getConsensusEvents()).willAnswer(ignore -> List.of(event));
         given(networkInfo.nodeInfo(0)).willReturn(mock(NodeInfo.class));
-        given(blockStreamManager.lastIntervalProcessTime()).willReturn(NOW);
-        given(scheduleService.executableTxns(any(), any(), any())).willReturn(mock(ExecutableTxnIterator.class));
-        given(state.getWritableStates(ScheduleService.NAME)).willReturn(mock(WritableStates.class));
+        lenient().when(blockStreamManager.lastIntervalProcessTime()).thenReturn(NOW);
+        lenient()
+                .when(scheduleService.executableTxns(any(), any(), any()))
+                .thenReturn(mock(ExecutableTxnIterator.class));
+        lenient().when(state.getWritableStates(ScheduleService.NAME)).thenReturn(mock(WritableStates.class));
 
         givenSubjectWith(
                 BLOCKS,
@@ -1225,10 +1424,7 @@ class HandleWorkflowTest {
                                                 .accountId(AccountID.newBuilder()
                                                         .accountNum(3)
                                                         .build())
-                                                .serviceEndpoint(ServiceEndpoint.newBuilder()
-                                                        .domainName("node0")
-                                                        .port(50211)
-                                                        .build())
+                                                .serviceEndpoint(endpointFor("10.0.0.1", 50211))
                                                 .build())
                                 .build())
                         .build());
@@ -1239,9 +1435,9 @@ class HandleWorkflowTest {
         given(event.getHash()).willReturn(CryptoRandomUtils.randomHash());
         given(event.getCreatorId()).willReturn(NodeId.of(0));
         given(event.getEventCore()).willReturn(EventCore.DEFAULT);
-        given(event.allParentsIterator()).willAnswer(ignore -> emptyIterator());
-        given(event.consensusTransactionIterator()).willAnswer(ignore -> emptyIterator());
-        given(round.iterator()).willAnswer(ignore -> List.of(event).iterator());
+        given(event.getAllParents()).willAnswer(ignore -> emptyList());
+        given(event.getTransactions()).willAnswer(ignore -> emptyList());
+        given(round.getConsensusEvents()).willAnswer(ignore -> List.of(event));
         final var firstEventTime = NOW.minusNanos(1000);
         given(event.getConsensusTimestamp()).willReturn(firstEventTime);
         given(networkInfo.nodeInfo(0)).willReturn(creatorInfo);
@@ -1462,6 +1658,137 @@ class HandleWorkflowTest {
         }
     }
 
+    @Test
+    void restartedNodeUsesTheSameTssWorkTimeInTheRoundSigningIsInstalled() throws Exception {
+        // Both nodes handle the round after the genesis history proof completed; one restarted in between
+        final var runningNodeWorkTime = tssWorkTimeInRoundAfterGenesisProof(false);
+        final var restartedNodeWorkTime = tssWorkTimeInRoundAfterGenesisProof(true);
+
+        assertEquals(runningNodeWorkTime, restartedNodeWorkTime);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Instant tssWorkTimeInRoundAfterGenesisProof(final boolean restartedBeforeRound) throws Exception {
+        final var rosterHash = Bytes.wrap("genesis-roster");
+        final var verificationKey = Bytes.wrap("vk");
+        final var active = HintsConstruction.newBuilder()
+                .constructionId(1L)
+                .crsId(1L)
+                .numParties(16)
+                .sourceRosterHash(rosterHash)
+                .targetRosterHash(rosterHash)
+                .hintsScheme(new HintsScheme(
+                        new PreprocessedKeys(Bytes.wrap("ak"), verificationKey),
+                        LongStream.range(0, 7)
+                                .mapToObj(id -> new NodePartyId(id, (int) id + 1, 1L))
+                                .toList()))
+                .build();
+        final var crs = CRSState.newBuilder()
+                .stage(CRSStage.COMPLETED)
+                .ceremonyId(1L)
+                .numParties(16)
+                .crs(Bytes.wrap("crs"))
+                .build();
+        final var history = HistoryProofConstruction.newBuilder()
+                .constructionId(1L)
+                .sourceRosterHash(rosterHash)
+                .targetRosterHash(rosterHash)
+                .targetProof(HistoryProof.newBuilder()
+                        .targetHistory(new History(Bytes.wrap("book-hash"), verificationKey))
+                        .targetNodeWeights(LongStream.range(0, 10)
+                                .mapToObj(id -> new ProofNodeWeight(id, 1L))
+                                .toList()))
+                .build();
+        final var roster = new Roster(LongStream.range(0, 10)
+                .mapToObj(id -> RosterEntry.newBuilder().nodeId(id).weight(1L).build())
+                .toList());
+
+        final var rosterStates = mock(ReadableStates.class);
+        final ReadableSingletonState<RosterState> rosterState = mock(ReadableSingletonState.class);
+        final ReadableKVState<ProtoBytes, Roster> rosters = mock(ReadableKVState.class);
+        lenient().when(state.getReadableStates(RosterService.NAME)).thenReturn(rosterStates);
+        lenient()
+                .when(rosterStates.<RosterState>getSingleton(ROSTER_STATE_STATE_ID))
+                .thenReturn(rosterState);
+        lenient().when(rosterStates.<ProtoBytes, Roster>get(ROSTERS_STATE_ID)).thenReturn(rosters);
+        lenient()
+                .when(rosterState.get())
+                .thenReturn(RosterState.newBuilder()
+                        .roundRosterPairs(new RoundRosterPair(0, rosterHash))
+                        .build());
+        lenient().when(rosters.get(new ProtoBytes(rosterHash))).thenReturn(roster);
+        lenient()
+                .when(state.getWritableStates(EntityIdService.NAME))
+                .thenReturn(
+                        mock(WritableStates.class, withSettings().extraInterfaces(CommittableWritableStates.class)));
+        final var hintsStates =
+                mock(WritableStates.class, withSettings().extraInterfaces(CommittableWritableStates.class));
+        lenient().when(state.getWritableStates(HintsService.NAME)).thenReturn(hintsStates);
+        givenSingleton(hintsStates, ACTIVE_HINTS_CONSTRUCTION_STATE_ID, active);
+        givenSingleton(hintsStates, V059HintsSchema.NEXT_HINTS_CONSTRUCTION_STATE_ID, HintsConstruction.DEFAULT);
+        givenSingleton(hintsStates, V060HintsSchema.CRS_STATE_STATE_ID, crs);
+        givenSingleton(hintsStates, V079HintsSchema.NEXT_CRS_STATE_ID, CRSState.DEFAULT);
+        final var historyStates =
+                mock(WritableStates.class, withSettings().extraInterfaces(CommittableWritableStates.class));
+        lenient().when(state.getWritableStates(HistoryService.NAME)).thenReturn(historyStates);
+        givenSingleton(historyStates, ACTIVE_PROOF_CONSTRUCTION_STATE_ID, history);
+        givenSingleton(historyStates, NEXT_PROOF_CONSTRUCTION_STATE_ID, HistoryProofConstruction.DEFAULT);
+        givenSingleton(historyStates, LEDGER_ID_STATE_ID, new ProtoBytes(Bytes.wrap("ledger")));
+
+        // The real signing context, service, and block hash signer decide readiness
+        final var selfNodeInfo = mock(NodeInfo.class);
+        final var context = new HintsContext(
+                mock(HintsLibrary.class),
+                () -> configProvider.getConfiguration(),
+                mock(HintsSigningMetrics.class),
+                () -> selfNodeInfo);
+        hintsService = spy(HintsServiceFixtures.serviceOver(context));
+        // Key provenance needs native-sized keys and has no part in readiness
+        doReturn(null).when(hintsService).keyProvenanceFor(any());
+        // Lets the second node restub the answers that read their argument
+        Mockito.reset(systemTransactions);
+        givenSubjectWith(
+                BLOCKS,
+                BlockStreamWriterMode.FILE,
+                emptyList(),
+                Map.of("tss.hintsEnabled", "true", "tss.historyEnabled", "true", "tss.forceMockSignatures", "false"));
+        final var signer = new TssBlockHashSigner(hintsService, historyService, configProvider);
+        lenient().when(blockHashSigner.isReady()).thenAnswer(_ -> signer.isReady());
+        // The completed genesis proof is set on a running node in the previous round, and on a restarted node at init
+        lenient().when(historyService.isReady()).thenReturn(true);
+        lenient().when(blockStreamManager.lastUsedConsensusTime()).thenReturn(NOW.minusSeconds(7));
+        if (restartedBeforeRound) {
+            // What Hedera.initializeHintsSigning() does with this state at startup
+            hintsService.setActiveConstruction(active, crs, history);
+        }
+        final var workTime = new AtomicReference<Instant>();
+        willAnswer(invocation -> {
+                    workTime.set(invocation.getArgument(3));
+                    return null;
+                })
+                .given(historyService)
+                .reconcile(any(), any(), any(), any(), any(), anyBoolean(), any(), anyBoolean(), any(), anyLong());
+
+        final var configure =
+                HandleWorkflow.class.getDeclaredMethod("configureTssCallbacks", State.class, AtomicReference.class);
+        configure.setAccessible(true);
+        configure.invoke(subject, state, new AtomicReference<>());
+        final var reconcile = HandleWorkflow.class.getDeclaredMethod("reconcileTssState", State.class, Instant.class);
+        reconcile.setAccessible(true);
+        reconcile.invoke(subject, state, NOW);
+
+        // Either way the node signs blocks from this round on
+        assertTrue(signer.isReady());
+        return requireNonNull(workTime.get());
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> void givenSingleton(final WritableStates states, final int stateId, final T value) {
+        final WritableSingletonState<T> singleton = mock(WritableSingletonState.class);
+        lenient().when(states.<T>getSingleton(stateId)).thenReturn(singleton);
+        lenient().when(singleton.get()).thenReturn(value);
+    }
+
     private void invokeResetTssReconcileFailureSuppression() {
         try {
             final var method = HandleWorkflow.class.getDeclaredMethod("resetTssReconcileFailureSuppression");
@@ -1484,14 +1811,13 @@ class HandleWorkflowTest {
     void freezeRoundSkipsWrappedHashWritesInBlocksMode() {
         final var freezeEvent = mock(ConsensusEvent.class);
         final var creatorId = NodeId.of(0);
-        given(round.iterator()).willAnswer(ignore -> List.of(freezeEvent).iterator());
+        given(round.getConsensusEvents()).willAnswer(ignore -> List.of(freezeEvent));
         given(freezeEvent.getCreatorId()).willReturn(creatorId);
         given(freezeEvent.getConsensusTimestamp()).willReturn(NOW);
         given(freezeEvent.getHash()).willReturn(CryptoRandomUtils.randomHash());
-        given(freezeEvent.allParentsIterator())
-                .willReturn(List.<EventDescriptorWrapper>of().iterator());
+        given(freezeEvent.getAllParents()).willReturn(List.<EventDescriptorWrapper>of());
         given(freezeEvent.getEventCore()).willReturn(EventCore.DEFAULT);
-        given(freezeEvent.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(freezeEvent.getTransactions()).willReturn(emptyList());
         givenFreezeRoundPlatformState();
         givenSubjectWith(
                 BLOCKS,
@@ -1808,9 +2134,9 @@ class HandleWorkflowTest {
     void scheduledTxnNextTimeUsesTxnOffsetNanos() {
         final var creatorId = NodeId.of(0);
         given(event.getCreatorId()).willReturn(creatorId);
-        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(event.getTransactions()).willReturn(emptyList());
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
-        given(round.iterator()).willAnswer(ignore -> List.of(event).iterator());
+        given(round.getConsensusEvents()).willAnswer(ignore -> List.of(event));
 
         given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(NOW);
         // EPOCH causes executionStart to be set to consensusNow, keeping the window simple
@@ -1860,9 +2186,9 @@ class HandleWorkflowTest {
     void lastUsableTimePreventsScheduledDispatchWhenOffsetTooLarge() {
         final var creatorId = NodeId.of(0);
         given(event.getCreatorId()).willReturn(creatorId);
-        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(event.getTransactions()).willReturn(emptyList());
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
-        given(round.iterator()).willAnswer(ignore -> List.of(event).iterator());
+        given(round.getConsensusEvents()).willAnswer(ignore -> List.of(event));
 
         given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(NOW);
         given(blockRecordManager.lastIntervalProcessTime()).willReturn(Instant.EPOCH);
@@ -1899,9 +2225,9 @@ class HandleWorkflowTest {
     void scheduledTxnWhoseDispatchCannotBeCreatedDoesNotDropTheNextOne() {
         final var creatorId = NodeId.of(0);
         given(event.getCreatorId()).willReturn(creatorId);
-        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(event.getTransactions()).willReturn(emptyList());
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
-        given(round.iterator()).willAnswer(ignore -> List.of(event).iterator());
+        given(round.getConsensusEvents()).willAnswer(ignore -> List.of(event));
         given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(NOW);
         given(blockRecordManager.lastIntervalProcessTime()).willReturn(Instant.EPOCH);
         given(blockRecordManager.lastUsedConsensusTime()).willReturn(NOW);
@@ -1952,8 +2278,10 @@ class HandleWorkflowTest {
         verify(schedIter, times(2)).remove();
     }
 
-    @Test
-    void completedWeightRotationRecordsTheDispatchConsensusTime() throws Exception {
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void completedWeightRotationWaitsForHistoryAndRecordsDispatchTime(final boolean mockSignatures) throws Exception {
+        given(hintsService.requiresHistoryWeights()).willReturn(!mockSignatures);
         final var activeRosterHash = Bytes.wrap("ACTIVE");
         final var candidateRosterHash = Bytes.wrap("CANDIDATE");
         final var activeRoster = Roster.newBuilder()
@@ -1975,13 +2303,13 @@ class HandleWorkflowTest {
                         .build());
         given(rosters.get(new ProtoBytes(activeRosterHash))).willReturn(activeRoster);
         given(rosters.get(new ProtoBytes(candidateRosterHash))).willReturn(candidateRoster);
-        final var prepared = new PreparedTssHandoff(candidateRosterHash);
+        final var prepared = new PreparedTssHandoff(candidateRosterHash, 2L);
         final var historyStore = mock(WritableHistoryStore.class);
         prepared.stub(historyStore);
         final var boundary = NOW.plusSeconds(5).plusNanos(123);
         given(historyStore.handoff(activeRoster, candidateRoster, candidateRosterHash, boundary))
                 .willReturn(true);
-        given(hintsService.handoff(any(), eq(activeRoster), eq(candidateRoster), eq(candidateRosterHash)))
+        given(hintsService.handoff(any(), eq(activeRoster), eq(candidateRoster), eq(candidateRosterHash), any()))
                 .willReturn(true);
         final var dispatch = mock(Dispatch.class, RETURNS_DEEP_STUBS);
         given(dispatch.consensusNow()).willReturn(boundary);
@@ -1989,7 +2317,13 @@ class HandleWorkflowTest {
                 BLOCKS,
                 BlockStreamWriterMode.FILE,
                 emptyList(),
-                Map.of("tss.hintsEnabled", "true", "tss.historyEnabled", "true"));
+                Map.of(
+                        "tss.hintsEnabled",
+                        "true",
+                        "tss.historyEnabled",
+                        "true",
+                        "tss.forceMockSignatures",
+                        "" + mockSignatures));
         final var field = HandleWorkflow.class.getDeclaredField("inFlightDispatch");
         field.setAccessible(true);
         field.set(subject, dispatch);
@@ -1999,10 +2333,32 @@ class HandleWorkflowTest {
         configure.invoke(subject, state, new AtomicReference<>());
         final var callback = ArgumentCaptor.forClass(OnProofFinished.class);
         verify(historyService).onFinishedConstruction(callback.capture());
+        if (mockSignatures) {
+            final var hintsCallback = ArgumentCaptor.forClass(OnHintsFinished.class);
+            verify(hintsService).onFinishedConstruction(hintsCallback.capture());
+            final var completedHintsStore = mock(WritableHintsStore.class);
+            prepared.stub(completedHintsStore);
+
+            hintsCallback.getValue().accept(completedHintsStore, prepared.next(), mock(HintsContext.class));
+
+            // Mock signatures relax the signing denominator, but both persistent generations still adopt together.
+            assertEquals(prepared.next(), completedHintsStore.getNextConstruction());
+            assertEquals(prepared.active(), completedHintsStore.getActiveConstruction());
+            verify(hintsService, never()).handoff(any(), any(), any(), any());
+            verify(hintsService, never()).handoff(any(), any(), any(), any(), any());
+            verify(historyStore, never()).handoff(any(), any(), any(), any());
+        }
         try (final var hintsStores =
                 mockConstruction(WritableHintsStoreImpl.class, (store, _) -> prepared.stub(store))) {
             callback.getValue().onFinished(historyStore, prepared.history(), new TreeMap<>());
             verify(historyStore).handoff(activeRoster, candidateRoster, candidateRosterHash, boundary);
+            verify(hintsService)
+                    .handoff(
+                            same(hintsStores.constructed().getFirst()),
+                            eq(activeRoster),
+                            eq(candidateRoster),
+                            eq(candidateRosterHash),
+                            any());
             verify(historyService).setLatestHistoryProof(prepared.history().targetProofOrThrow());
             assertEquals(1, hintsStores.constructed().size());
         }
@@ -2054,11 +2410,11 @@ class HandleWorkflowTest {
                 .onFinishedConstruction(any());
         // A round with one event and no transactions
         final var creatorId = NodeId.of(0L);
-        given(round.iterator()).willAnswer(ignore -> List.of(event).iterator());
+        given(round.getConsensusEvents()).willAnswer(ignore -> List.of(event));
         lenient().when(event.getConsensusTimestamp()).thenReturn(NOW);
-        lenient().when(event.allParentsIterator()).thenAnswer(ignore -> emptyIterator());
+        lenient().when(event.getAllParents()).thenAnswer(ignore -> emptyList());
         lenient().when(event.getCreatorId()).thenReturn(creatorId);
-        lenient().when(event.consensusTransactionIterator()).thenAnswer(ignore -> emptyIterator());
+        lenient().when(event.getTransactions()).thenAnswer(ignore -> emptyList());
         lenient().when(networkInfo.nodeInfo(creatorId.id())).thenReturn(mock(NodeInfo.class));
         lenient().when(blockStreamManager.lastIntervalProcessTime()).thenReturn(NOW);
         givenSubjectWith(
@@ -2078,13 +2434,18 @@ class HandleWorkflowTest {
         final var beforeEvents = Instant.ofEpochSecond(1_234_600L, 100);
         final var afterEvents = beforeEvents.plusSeconds(1);
         final var ledgerId = Bytes.wrap("LEDGER_ID");
+        final var targetRosterHash = Bytes.wrap("generation roster");
+        final var verificationKey = Bytes.wrap("generation verification key");
         final var proof = HistoryProof.newBuilder()
                 .targetHistory(History.newBuilder()
                         .addressBookHash(Bytes.wrap("ADDRESS_BOOK_HASH"))
+                        .metadata(verificationKey)
                         .build())
+                .targetNodeWeights(new ProofNodeWeight(0L, 1L))
                 .build();
         final var construction = HistoryProofConstruction.newBuilder()
                 .constructionId(1L)
+                .targetRosterHash(targetRosterHash)
                 .targetProof(proof)
                 .build();
         final var historyStore = mock(WritableHistoryStore.class);
@@ -2101,15 +2462,15 @@ class HandleWorkflowTest {
         given(state.getReadableStates(RosterService.NAME)).willReturn(mock(ReadableStates.class));
 
         final var creatorId = NodeId.of(0L);
-        given(round.iterator()).willAnswer(_ -> List.of(event).iterator());
+        given(round.getConsensusEvents()).willAnswer(_ -> List.of(event));
         given(event.getConsensusTimestamp()).willReturn(NOW);
-        given(event.allParentsIterator()).willReturn(emptyIterator());
+        given(event.getAllParents()).willReturn(emptyList());
         given(event.getCreatorId()).willReturn(creatorId);
         final var lastUsedConsTime = new AtomicReference<>(beforeEvents);
         // Stands in for handling the round's transactions, which advances the last-used consensus time
-        given(event.consensusTransactionIterator()).willAnswer(invocation -> {
+        given(event.getTransactions()).willAnswer(invocation -> {
             lastUsedConsTime.set(afterEvents);
-            return emptyIterator();
+            return emptyList();
         });
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
         given(blockHashSigner.isReady()).willReturn(true);
@@ -2175,6 +2536,7 @@ class HandleWorkflowTest {
 
         subject.handleRound(state, round, txns -> {});
 
+        verify(hintsService, never()).setActiveConstruction(any(), any(), any());
         final var consTimes = assignedConsTimes.getAllValues();
         assertEquals(2, consTimes.size(), "Expected the node fee payment and the ledger id publication to dispatch");
         final var nodeFeeConsTime = consTimes.getFirst();
@@ -2195,9 +2557,9 @@ class HandleWorkflowTest {
         final var creatorId = NodeId.of(0);
         given(event.getCreatorId()).willReturn(creatorId);
         given(event.getConsensusTimestamp()).willReturn(NOW);
-        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(event.getTransactions()).willReturn(emptyList());
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
-        given(round.iterator()).willAnswer(ignore -> List.of(event).iterator());
+        given(round.getConsensusEvents()).willAnswer(ignore -> List.of(event));
         given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(NOW);
         given(blockRecordManager.lastIntervalProcessTime()).willReturn(NOW);
 
@@ -2215,9 +2577,9 @@ class HandleWorkflowTest {
         final var creatorId = NodeId.of(0);
         given(event.getCreatorId()).willReturn(creatorId);
         given(event.getConsensusTimestamp()).willReturn(NOW);
-        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(event.getTransactions()).willReturn(emptyList());
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
-        given(round.iterator()).willAnswer(ignore -> List.of(event).iterator());
+        given(round.getConsensusEvents()).willAnswer(ignore -> List.of(event));
         given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(NOW);
         given(blockRecordManager.lastIntervalProcessTime()).willReturn(NOW);
         given(blockHashSigner.isReady()).willReturn(false);

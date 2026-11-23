@@ -4,15 +4,18 @@ This document specifies how the CLPR endpoint — the component responsible for 
 construction, and transaction submission — is implemented within the Hiero consensus node. Every Hiero consensus node
 IS a CLPR endpoint when CLPR is enabled. There is no separate process, sidecar, or external service.
 
-For the cross-platform protocol specification, see the companion
-[CLPR Protocol Specification](clpr-service-spec.md). For the architectural rationale and design overview, see the
-[CLPR Design Document](clpr-service.md).
+For the cross-platform protocol specification, see the canonical
+[CLPR Protocol Specification](https://github.com/LFDT-CLPR/clpr-spec/blob/945082d69e65dd0fd9e9bdf8d59cb8121579f6fd/clpr-service-spec.md).
+For the architectural rationale and design overview, see the canonical
+[CLPR Design Document](https://github.com/LFDT-CLPR/clpr-spec/blob/945082d69e65dd0fd9e9bdf8d59cb8121579f6fd/clpr-service.md).
 
 ---
 
 ## Notation
 
-This document uses RFC 2119 keywords per the [cross-platform spec](clpr-service-spec.md). Additional terms:
+This document uses RFC 2119 keywords per the
+[cross-platform spec](https://github.com/LFDT-CLPR/clpr-spec/blob/945082d69e65dd0fd9e9bdf8d59cb8121579f6fd/clpr-service-spec.md).
+Additional terms:
 
 - "Node" refers to a Hiero consensus node.
 - "Endpoint module" refers to the CLPR endpoint code running within a node.
@@ -206,11 +209,12 @@ heartbeat syncing is needed to receive messages — the peer initiates the sync 
 this ledger. The endpoint module tracks inbound sync frequency per `(channel_id, remote_endpoint_account_id)`
 pair to detect abuse (see Section 12.1).
 
-**Channel status filtering.** Per cross-platform spec §2.1.1, Channels have five statuses. On Hiero, the
-sync orchestrator filters as follows: ACTIVE, PAUSED, CLOSING, and DRAINED Channels all participate in syncs
-(both inbound and outbound). PAUSED Channels continue outbound syncs and accept inbound syncs, but reject
-inbound bundles containing out-of-order responses. CLOSING and DRAINED Channels continue syncing to drain
-queues. Only CLOSED Channels are skipped entirely (see Section 13.4 for PAUSED, CLOSING, and DRAINED behavior).
+**Channel status filtering.** Per cross-platform spec §2.1.1, ACTIVE, PAUSED, CLOSING, and DRAINED Channels all
+participate in syncs (both inbound and outbound). PAUSED Channels continue outbound syncs and accept inbound
+syncs, but reject inbound bundles containing out-of-order responses. CLOSING and DRAINED Channels continue
+syncing to drain queues. PENDING Channels do not sync. CLOSED Channels cease normal syncs but retain the
+final close-notification obligation described in Section 13.4, which Hiero does not yet implement
+([#28315](https://github.com/hiero-ledger/hiero-consensus-node/issues/28315)).
 
 ## 3.2 Peer Endpoint Selection
 
@@ -218,7 +222,8 @@ When initiating a sync for a Channel, the endpoint must select a peer endpoint f
 
 **Selection algorithm:**
 
-1. **Filter.** Remove endpoints that are marked as unreachable (circuit breaker open — see Section 13).
+1. **Filter.** Defer endpoints until their next retry time. When `clpr.syncPeerExclusionEnabled=true`, also
+   remove endpoints whose circuit breaker is open (see Section 13).
 2. **Randomize.** From the remaining candidates, select one using weighted random selection.
 3. **Weight factors:**
    - **Base weight:** Equal for all candidates (ensures randomization).
@@ -231,6 +236,24 @@ When initiating a sync for a Channel, the endpoint must select a peer endpoint f
 `(channel_id, peer_endpoint_account_id)`. This table is not persisted to state — it is rebuilt from scratch
 on node restart. Entries decay over time (exponential decay with a half-life of `clpr.reputationDecaySeconds`,
 default: 300 seconds).
+
+**Outbound destinations.** The canonical CLPR protocol requires numeric IPv4 or IPv6 addresses. DNS hostnames
+are a Hiero-local extension for test networks such as Solo. Every channel receives the publishing ledger's
+manifest, so all peers that need to dial a published hostname must support the extension.
+
+Set the node-local `clpr.allowDnsPeerEndpoints=true` on each dialing node. It can continue publishing numeric
+addresses on its own ledger. DNS resolution and the gRPC stream share the `clpr.syncTimeoutSeconds` deadline.
+The client keeps the pinned IP while it appears among the permitted A or AAAA answers. Otherwise it dials the
+first permitted answer and lets any RPCs on the old transport finish under their original deadlines.
+Ports MUST be in `1..65535`, and IPv6 scope identifiers are unsupported. Ordinary public unicast destinations are accepted
+by default. For IPv6, this means `2000::/3`, excluding the IETF special-purpose range `2001::/23`, documentation
+ranges `2001:db8::/32` and `3fff::/20`, and the 6to4 range `2002::/16`.
+Deployments using other unicast ranges, including local or private networks, MUST explicitly list them in the node-local
+`clpr.additionalPeerEndpointCidrs` setting, for example `127.0.0.1/32,10.0.0.0/24`. The default is an empty set.
+Unspecified and multicast destinations remain invalid. These checks apply independently of
+`clpr.syncPeerExclusionEnabled` and do not change the peer manifest stored in consensus state.
+When the client cache observes a change in `clpr.additionalPeerEndpointCidrs` or `clpr.allowDnsPeerEndpoints`, it retires existing transports before
+validating the requested destination and creating a client under the new setting.
 
 ## 3.3 Concurrency Model
 
@@ -524,8 +547,8 @@ submitting endpoint pays the transaction cost.
 
 ## 7.1 Local Endpoint Identity
 
-On Hiero, every consensus node is automatically a CLPR endpoint. The CLPR endpoint module derives its identity
-from the active consensus roster. No manual endpoint registration is needed.
+Each Hiero consensus node can publish its own CLPR endpoint using its address-book entry and local HAPI TLS
+configuration.
 
 **Roster reading.** The `RosterObserver` component reads the active roster from state on startup and watches for
 roster change events. Each node's CLPR endpoint identity is derived from:
@@ -536,6 +559,24 @@ roster change events. Each node's CLPR endpoint identity is derived from:
 | `tls_certificate`   | Node's HAPI TLS certificate (DER-encoded); not used by the network                |
 | `ecdsa_signing_key` | Node's ECDSA secp256k1 public key (33 bytes compressed, or 64 bytes uncompressed) |
 | `account_id`        | Node's account ID (serialized as bytes, 20 bytes for Hiero)                       |
+
+For CLPR self-publication with the default settings, configure a reachable IPv4 address in the `ipAddressV4` field of a HAPI service
+endpoint in the node's address book. The publisher selects the first such entry in address-book order. It uses
+that entry's port for plaintext or `grpc.tlsPort` when the node has a HAPI TLS certificate. A node with only
+domain-name entries skips self-publication until a numeric endpoint is available. With
+`clpr.publishDnsEndpoints=true`, the publisher selects the first IPv4 address or valid ASCII DNS hostname,
+skipping malformed entries. The manifest stores the name verbatim. Only the dialing node resolves it.
+
+Set `clpr.publishDnsEndpoints` through the network properties file (`0.0.121`). All nodes use this value when
+deciding whether to rebuild the manifest. A node-local override can cause nodes to write different consensus state.
+
+**Returning to numeric publication.** First put a reachable IPv4 entry ahead of each hostname in the address
+book and restart with the updated book. For private addresses, allow the corresponding
+`clpr.additionalPeerEndpointCidrs` on dialing nodes. Check the published address and port with
+`yahcli clpr get-endpoint-manifest` and let connected peers receive the numeric manifest before disabling DNS dialing.
+Set `clpr.publishDnsEndpoints=false` in file `0.0.121`. If the manifest still lists hostnames, reconciliation
+rebuilds it without waiting for an upgrade. Domain-only nodes drop out when that construction closes. If every
+node is domain-only, the resulting manifest has no dial targets.
 
 The endpoint count from the active roster is used for per-endpoint throttle calculation
 (`max_bundles_per_sec / num_endpoints`).
@@ -548,10 +589,16 @@ Peer endpoints come from the peer ledger's **endpoint manifest**. There is no en
 its endpoints, each with a service endpoint and TLS CA certificate. The peer's manifest is proven and cached on the
 Channel record (`Channel.endpoint_manifest` / `endpoint_manifest_version`):
 
-- at `completeChannel`, from the proven manifest returned by `verifyConfig`, truncated to this ledger's
-  `max_peer_endpoints`;
+- at `completeChannel`, from the proven manifest returned by `verifyConfig`, retaining the declared-order
+  prefix that fits both this ledger's `max_peer_endpoints` and the 16,384-byte serialized manifest ceiling;
 - mid-life, when a `submitBundle` verifier response carries a `new_endpoint_manifest` whose version strictly
-  advances the stored one.
+  advances the stored one, applying the same count and byte bounds.
+
+Zero `max_peer_endpoints` disables only the count bound. The byte ceiling always applies, including to
+certificate, account, address, and protobuf-framing bytes. An ASCII hostname can use 253 bytes, compared with
+15 for a dotted IPv4 address or 39 for an IPv6 address in hexadecimal notation. Longer names increase the encoded
+input a peer must verify and can reduce the number of endpoints that fit in its retained manifest. See [Peer manifest storage ceiling](#peer-manifest-storage-ceiling)
+for oversized-entry handling and configuration migration.
 
 ## 7.3 Reciprocity-Based Peer Selection
 
@@ -636,18 +683,21 @@ the standard Hiero configuration system. Parameters prefixed with `clpr.` in pro
 |         Parameter          |    Type     | Default |                          Description                           |
 |----------------------------|-------------|---------|----------------------------------------------------------------|
 | `clpr.maxConcurrentSyncs`  | `int`       | `4`     | Maximum simultaneous outbound sync calls per node.             |
-| `clpr.syncTimeoutSeconds`  | `int`       | `30`    | Timeout for a single sync gRPC call.                           |
+| `clpr.syncTimeoutSeconds`  | `int`       | `30`    | Deadline shared by DNS lookup and streaming sync.              |
 | `clpr.maxPayloadBufferAge` | `long` (ms) | `60000` | Maximum age of a buffered inbound payload before discard.      |
 | `clpr.maxStateAgeSeconds`  | `int`       | `30`    | Maximum acceptable age of signed state for proof construction. |
 
 ## 9.3 Peer Selection Parameters
 
-|            Parameter            |   Type   | Default |                         Description                         |
-|---------------------------------|----------|---------|-------------------------------------------------------------|
-| `clpr.reputationDecaySeconds`   | `int`    | `300`   | Half-life for peer reputation score decay.                  |
-| `clpr.reputationSuccessBonus`   | `double` | `1.0`   | Reputation score added for a successful sync.               |
-| `clpr.reputationFailurePenalty` | `double` | `5.0`   | Reputation score subtracted for a failed sync.              |
-| `clpr.recentPeerPenaltyFactor`  | `double` | `0.5`   | Weight multiplier for a peer selected on the previous tick. |
+|             Parameter              |     Type      | Default |                                           Description                                            |
+|------------------------------------|---------------|---------|--------------------------------------------------------------------------------------------------|
+| `clpr.reputationDecaySeconds`      | `int`         | `300`   | Half-life for peer reputation score decay.                                                       |
+| `clpr.reputationSuccessBonus`      | `double`      | `1.0`   | Reputation score added for a successful sync.                                                    |
+| `clpr.reputationFailurePenalty`    | `double`      | `5.0`   | Reputation score subtracted for a failed sync.                                                   |
+| `clpr.recentPeerPenaltyFactor`     | `double`      | `0.5`   | Weight multiplier for a peer selected on the previous tick.                                      |
+| `clpr.publishDnsEndpoints`         | `boolean`     | `false` | Network-wide; set through `0.0.121`. Publish address-book domain names.                          |
+| `clpr.allowDnsPeerEndpoints`       | `boolean`     | `false` | Node-local. Resolve and dial DNS names that peers publish.                                       |
+| `clpr.additionalPeerEndpointCidrs` | `Set<String>` | empty   | Node-local IPv4/IPv6 CIDRs for additional peer destinations, such as a local or private network. |
 
 ## 9.4 Retry Parameters
 
@@ -864,14 +914,15 @@ within the node process.
 
 ## 13.1 Retry Strategy
 
-Transient failures (network timeouts, gRPC `UNAVAILABLE`, ingest throttling) are retried with **exponential
-backoff with jitter**:
+Failed syncs are retried with **capped exponential delay**, including connection failures and stream timeouts:
 
 ```
-delay = min(retryInitialDelayMs * 2^attempt + random(0, retryInitialDelayMs), retryMaxDelayMs)
+delay = min(retryInitialDelayMs * 2^attempt, retryMaxDelayMs)
 ```
 
-The maximum number of consecutive retries before opening the circuit breaker is `retryMaxAttempts`.
+Retry pacing remains active when `clpr.syncPeerExclusionEnabled=false`. Successful syncs reset the delay.
+The `clpr.syncTimeoutSeconds` deadline covers the complete streaming exchange. When peer exclusion is enabled,
+the maximum number of consecutive retries before opening the circuit breaker is `retryMaxAttempts`.
 
 ## 13.2 Circuit Breaker Pattern
 
@@ -890,14 +941,15 @@ Each peer endpoint has an independent circuit breaker with three states:
 ```
 
 - **CLOSED:** Normal operation. Failures increment a counter.
-- **OPEN:** All sync attempts to this peer are skipped. After `circuitBreakerCooldownSeconds`, transition to
+- **OPEN:** When peer exclusion is enabled, sync attempts to this peer are skipped. After
+  `circuitBreakerCooldownSeconds`, transition to
   HALF-OPEN.
 - **HALF-OPEN:** A single probe sync is attempted. If it succeeds, transition to CLOSED. If it fails, transition
   back to OPEN.
 
 ## 13.3 Channel-Level Resilience
 
-When all peer endpoints for a Channel have open circuit breakers:
+When peer exclusion is enabled and all peer endpoints for a Channel have open circuit breakers:
 
 1. Outbound messages continue to queue (up to `max_queue_depth`).
 2. The orchestrator continues probing (via half-open circuit breakers) on each tick.
@@ -926,20 +978,42 @@ immutable state and:
 - Rejects inbound bundles with out-of-order responses. When a bundle arrives with correctly ordered responses,
   the Channel auto-resumes to ACTIVE and the bundle is processed normally.
 
-**CLOSING Channel handling.** CLOSING indicates an admin-initiated close that is draining queues. On Hiero:
+**CLOSING Channel handling.** CLOSING indicates a graceful close initiated by an admin or observed in a peer's
+proven queue metadata. Per the canonical [Channel status transitions](https://github.com/LFDT-CLPR/clpr-spec/blob/945082d69e65dd0fd9e9bdf8d59cb8121579f6fd/clpr-service-spec.md#211-channel-status-transitions),
+closing stops new local Data Messages while existing traffic drains. On Hiero:
 
-- Continues initiating outbound syncs for the CLOSING Channel (acks and `CHANNEL_CLOSED` responses drain).
-- Continues accepting inbound sync calls for the CLOSING Channel.
-- When the peer has acknowledged all outbound messages, the Channel transitions to DRAINED. The
-  `ClprQueueMetadata.state` reflects the Channel status and is propagated to the peer via the next sync.
-- The CLPR Service generates `CHANNEL_CLOSED` responses for in-flight messages during `handle()`.
+- Rejects new local `sendMessage` calls.
+- Continues initiating outbound syncs and accepting inbound sync calls (queued messages and acks still flow).
+- Dispatches inbound Data Messages normally, charges the Connector under the normal execution rules, and
+  enqueues the application's response. Incoming Response Messages are delivered to the originating application.
+- Propagates the Channel status through `ClprQueueMetadata.status` in the next proven bundle. The peer then
+  enters CLOSING and rejects new local `sendMessage` calls on its side.
+- Transitions to DRAINED when no unacknowledged outbound Data Messages remain. Response Messages generated for
+  the peer's remaining Data Messages may still be unacknowledged and continue draining in DRAINED.
 
-**DRAINED Channel handling.** DRAINED indicates this side's outbound queue is fully acknowledged. On Hiero:
+**DRAINED Channel handling.** DRAINED indicates this side's outbound Data Messages have all been acknowledged;
+Response Messages may still be in flight. On Hiero:
 
-- Continues accepting inbound sync calls (the peer may still be draining its side).
-- Continues initiating outbound syncs (to propagate the DRAINED status to the peer).
-- Transitions automatically to CLOSED when both sides are DRAINED.
-- No new messages are generated.
+- Rejects new local `sendMessage` calls.
+- Continues accepting inbound sync calls and initiating outbound syncs, including propagation of DRAINED status.
+- Dispatches arriving Data Messages normally, charges the Connector, and enqueues responses while the peer drains.
+- Transitions automatically to CLOSED only when the peer's proven status is DRAINED or CLOSED and the entire
+  outbound queue, including generated Response Messages, has been acknowledged
+  (`acked_message_id >= next_message_id - 1`).
+
+**CLOSED Channel handling.** Normal syncs end; the endpoint MUST deliver a final proven
+close-notification bundle carrying CLOSED status and the final acknowledgement point to the peer, as required by
+[the canonical endpoint close-notification obligation](https://github.com/LFDT-CLPR/clpr-spec/blob/945082d69e65dd0fd9e9bdf8d59cb8121579f6fd/clpr-service-spec.md#34-endpoint-close-notification-obligation).
+The endpoint retries until the peer accepts the bundle or rejects it because its Channel is already CLOSED.
+The peer can then complete its DRAINED → CLOSED transition using the final acknowledgement. If delivery is
+permanently unavailable, the peer's admin may use the DRAINED → CLOSED recovery path (`ClprCloseChannel` on the
+DRAINED Channel). That path does not check acknowledgements, so Response Messages without a proven
+acknowledgement may be left undelivered.
+
+**Implementation status.** The Hiero endpoint does not yet send the close-notification. Once a Channel is CLOSED,
+the sync orchestrator unschedules it and inbound sync sessions for it are refused. A peer that has not yet met
+its own DRAINED → CLOSED condition can therefore stay DRAINED until its admin uses the recovery path. Tracked
+in [#28315](https://github.com/hiero-ledger/hiero-consensus-node/issues/28315).
 
 ## 13.5 Submission Deduplication
 
@@ -1090,3 +1164,48 @@ but the impact on the node's transaction throughput budget must be evaluated.
 | V-6 | `LedgerIdentityChangeListener` SPI fires on all roster change types (join, leave, key rotation).                                               | Verify SPI contract and existing listeners.                         |
 | V-7 | The ingest pipeline can handle `submitBundle` as a new transaction type without special handling.                                              | Verify transaction dispatch and throttle configuration.             |
 | V-8 | Proof construction from `VirtualMap`-backed state can complete within 2 seconds for typical queue depths.                                      | Benchmark required.                                                 |
+
+### Peer manifest storage ceiling
+
+Channel completion and manifest-update bundles retain only the declared endpoint prefix
+that fits both `max_peer_endpoints` and a 16 KiB serialized `ClprEndpointManifest` ceiling.
+The 16,384-byte `MAX_STORED_MANIFEST_BYTES` value is a consensus protocol constant, not
+a node-local configuration setting. Changing it changes transaction acceptance and retained
+state, so it requires a coordinated protocol upgrade.
+The byte ceiling includes certificates, account identifiers, addresses, and protobuf framing,
+and applies even when `max_peer_endpoints` is zero. Oversized endpoint entries and all
+following entries are discarded before state or peer-cache writes. Oversized manifest
+framing (the service address and version alone) rejects the entire transaction. For a
+`submitBundle`, this intentionally rolls back the bundle's messages and acknowledgements
+as well as its manifest update; the handler does not silently skip an invalid manifest and
+partially apply the bundle.
+
+The bundled ledger configuration sets `max_peer_endpoints` to 100. This default seeds
+ledgers that use the bundled configuration at genesis. A node-local configuration file
+keeps its own value, and existing ledger state is not rewritten by changing the bundled
+resource. Updating an existing ledger's count limit requires a configuration update or
+an upgrade file that explicitly sets `maxPeerEndpoints`. The byte ceiling applies to
+existing ledgers independently of that migration, including ledgers whose count limit
+remains zero. These bounds limit retained state; they do not replace the planned fee
+model for retained storage.
+
+Verifier execution is separately paid by the transaction payer at the ordinary
+`ContractCall` gas price, including congestion and the active exchange rate. The payer
+must cover the gas reservation before the verifier is dispatched. Successful parent
+transactions refund unused gas; a failed parent replays the charge for gas already
+consumed after state rollback, so a later invalid manifest cannot erase execution fees.
+The contract handler reports billed gas before child rollback can clear record fields,
+so billing is identical in BLOCKS, RECORDS, and BOTH stream modes. A dispatch that fails
+before producing an EVM outcome, including a pre-execution throttle, bills zero gas.
+A reverted execution still pays its reported gas.
+
+Verifier billing is capped at 300,000 gas units across the parent operation. This is a
+billing ceiling, not an execution allowance: verifier and callback gas grants still share
+one parent execution budget. The shared escrow owns verifier billing; native fee
+settlement detects that ownership and does not collect the same verifier gas again.
+Base and applicable byte fees remain part of the normal fee schedule. For user dispatches,
+fees already charged plus the gas reservation and any possible endpoint penalty cannot
+exceed the signed `transactionFee`, on success or rollback. Bundles reserve headroom for
+the full possible penalty before validation without collecting it; the penalty is
+collected only when applicable. Unexpected internal errors retain the normal service-fee waiver and
+platform alert while replaying payment for executed gas.

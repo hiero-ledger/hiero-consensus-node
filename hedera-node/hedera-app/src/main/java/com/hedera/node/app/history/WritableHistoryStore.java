@@ -31,7 +31,9 @@ public interface WritableHistoryStore extends ReadableHistoryStore {
     /**
      * If there is a known construction matching the active rosters, returns it; otherwise, creates one. When a
      * fresh genesis proof is requested, a matching construction that is already complete is replaced by a new
-     * one rather than returned.
+     * one rather than returned. An unfinished construction from an incompatible WRAPS protocol is also replaced
+     * with a fresh id before any of its votes or signing transcript can be replayed. Completed legacy proofs keep
+     * their existing committed trust root and are not replaced merely because their protocol version is old.
      * @param activeRosters the active rosters
      * @param now the current time
      * @param tssConfig the TSS configuration

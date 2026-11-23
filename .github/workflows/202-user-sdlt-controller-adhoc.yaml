@@ -62,6 +62,11 @@ on:
         default: true
         type: boolean
         description: "If true, skip tag and notifications"
+      enable-chaos:
+        required: false
+        default: true
+        type: boolean
+        description: "Enable Chaos"
 
 defaults:
   run:
@@ -238,7 +243,7 @@ jobs:
       - verify-citr-vars
       - acquire-kubernetes-resources
     if: ${{ needs.verify-tag.outputs.commit != '' }}
-    uses: ./.github/workflows/864-call-report-suite-result.yaml
+    uses: ./.github/workflows/864-call-report-suite-status.yaml
     with:
       suite-type: adhoc_sdlt
       commit: ${{ needs.verify-tag.outputs.commit }}
@@ -274,6 +279,8 @@ jobs:
       allocation-id: ${{ needs.acquire-kubernetes-resources.outputs.allocation-id }}
       java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
       nlg-version: "${{ needs.extract-citr-vars.outputs.nlg-version }}"
+      enable-chaos: "${{ inputs.enable-chaos }}"
+
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
       github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -288,7 +295,7 @@ jobs:
       - report-adhoc-sdlt-running # keeps the terminal report after the running one, so it is the latest
       - run-single-day-longevity-test
     if: ${{ always() && needs.verify-tag.outputs.commit != '' }}
-    uses: ./.github/workflows/864-call-report-suite-result.yaml
+    uses: ./.github/workflows/864-call-report-suite-status.yaml
     with:
       suite-type: adhoc_sdlt
       commit: ${{ needs.verify-tag.outputs.commit }}

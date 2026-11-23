@@ -399,6 +399,49 @@ public class ClassicCreatesCallTest extends CallTestBase {
     }
 
     @Test
+    void acceptsExactlyTheNonGasCostInTinybarsAsValue() {
+        // nonGasCost = baseCost + 20% - gas cost of the fixed gas, all in tinybars
+        final long baseCost = 200_000L;
+        final long fixedGasCostInTinybars = 40_000L;
+        final long nonGasCost = baseCost + baseCost / 5 - fixedGasCostInTinybars;
+        given(gasCalculator.gasCostInTinybars(100_000L)).willReturn(fixedGasCostInTinybars);
+        commonGivens(baseCost, nonGasCost, false);
+        given(recordBuilder.status()).willReturn(SUCCESS);
+
+        final var result = subject.execute(frame).fullResult().result();
+
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
+        assertEquals(
+                Bytes.wrap(CreateTranslator.CREATE_FUNGIBLE_TOKEN_V1
+                        .getOutputs()
+                        .encode(Tuple.of((long) SUCCESS.protoOrdinal(), tokenId))
+                        .array()),
+                result.output());
+    }
+
+    @Test
+    void rejectsOneTinybarBelowTheNonGasCost() {
+        final long baseCost = 200_000L;
+        final long fixedGasCostInTinybars = 40_000L;
+        final long nonGasCost = baseCost + baseCost / 5 - fixedGasCostInTinybars;
+        given(gasCalculator.gasCostInTinybars(100_000L)).willReturn(fixedGasCostInTinybars);
+        commonGivens(baseCost, nonGasCost - 1, true);
+        given(recordBuilder.status()).willReturn(SUCCESS);
+        given(systemContractOperations.externalizePreemptedDispatch(any(), eq(INSUFFICIENT_TX_FEE), eq(TOKEN_CREATE)))
+                .willReturn(recordBuilder);
+
+        final var result = subject.execute(frame).fullResult().result();
+
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
+        assertEquals(
+                Bytes.wrap(CreateTranslator.CREATE_FUNGIBLE_TOKEN_V1
+                        .getOutputs()
+                        .encode(Tuple.of((long) INSUFFICIENT_TX_FEE.protoOrdinal(), ZERO_ADDRESS))
+                        .array()),
+                result.output());
+    }
+
+    @Test
     void createFungibleTokenUnhappyPathRevertsWithReason() {
         commonGivens();
         given(recordBuilder.status()).willReturn(TOKEN_HAS_NO_SUPPLY_KEY);
@@ -419,7 +462,7 @@ public class ClassicCreatesCallTest extends CallTestBase {
                         .adminKey(AN_ED25519_KEY)
                         .build())
                 .build();
-        final var strategy = new AccountAuthorizingVerificationStrategy(SENDER_ID, _ -> INVALID);
+        final var strategy = new AccountAuthorizingVerificationStrategy(SENDER_ID, key -> INVALID);
         final var legacyCaller = mock(MessageFrame.class);
         given(legacyCaller.getRecipientAddress()).willReturn(asLongZeroAddress(LEGACY_ACTIVATION_NUM));
         given(legacyCaller.getContextVariable(CONFIG_CONTEXT_VARIABLE)).willReturn(DEFAULT_CONFIG);

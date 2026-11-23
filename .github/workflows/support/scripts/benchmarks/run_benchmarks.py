@@ -9,7 +9,8 @@ Usage: run_benchmarks.py --manifest FILE... --out DIR [options] [-- JMH argument
 The benchmarks come either from the manifests that the Gradle task jmhTracked writes for every module that tracks
 benchmarks (build/jmh/tracked.properties: module, jar, includes, profilers), which is how the nightly job finds them, or
 from one jar and one include pattern, which is how a calibration run names its benchmark. They run in the order given,
-and within a manifest in the order of its includes.
+and within a manifest in the order of its includes. --only limits the manifests' includes to the given names, --param
+the parameter sets of the benchmarks that have the parameter.
 
 Every parameter set of every matching benchmark runs in its own JMH invocation, with "-foe true", so that a loaded
 parameter set can be repeated alone. While the benchmarks run, record-benchmark-environment.sh --monitor records the
@@ -65,6 +66,12 @@ def list_parameter_sets(java, jar, pattern):
         for values in itertools.product(*(params[n] for n in names)):
             sets.append((benchmark, dict(zip(names, values))))
     return sets
+
+
+def has_values(params, wanted):
+    """whether a parameter set has the wanted value of every wanted parameter it has; a parameter it lacks is ignored,
+    so that a filter for one benchmark leaves the others whole"""
+    return all(params[name] == value for name, value in wanted.items() if name in params)
 
 
 def read_manifest(path):
@@ -138,6 +145,9 @@ def main():
     parser.add_argument("--manifest", nargs="+", action="extend", default=[],
                         help="tracked.properties files of the modules, written by their jmhTracked task; instead of"
                              " --jar and --benchmark")
+    parser.add_argument("--only", default="",
+                        help="with --manifest: only the includes with these names, separated by commas or spaces"
+                             " (default: all)")
     parser.add_argument("--jar", help="the benchmark jar")
     parser.add_argument("--benchmark", help="JMH include pattern of the benchmarks to run")
     parser.add_argument("--out", required=True, help="results directory")
@@ -147,7 +157,8 @@ def main():
                         help="processors the forked JVMs assume, as -XX:ActiveProcessorCount (default 12; 0 leaves"
                              " it to the JVM, which then sizes its GC and compiler threads by the runner's pod)")
     parser.add_argument("--param", action="append", default=[],
-                        help="only the parameter sets with this name=value, repeatable")
+                        help="only the parameter sets with this name=value, repeatable; a benchmark without the"
+                             " parameter runs all its sets")
     parser.add_argument("--max-load", type=float, default=0.5,
                         help="most CPUs of other workloads for a quiet slot (default 0.5; on the benchmark runner,"
                              " latency rises about 1%% per CPU of other workloads)")
@@ -163,24 +174,44 @@ def main():
     parser.add_argument("jmh_args", nargs=argparse.REMAINDER, help="further JMH arguments, after --")
     args = parser.parse_args()
     jmh_args = args.jmh_args[1:] if args.jmh_args[:1] == ["--"] else args.jmh_args
-    only = dict(p.split("=", 1) for p in args.param)
+    if any("=" not in p for p in args.param):
+        parser.error("--param takes name=value")
+    wanted = dict(p.split("=", 1) for p in args.param)
+    if len(wanted) < len(args.param):
+        parser.error("--param takes one value per parameter")
 
     if bool(args.manifest) == bool(args.jar or args.benchmark) or (args.jar is None) != (args.benchmark is None):
         parser.error("give either --manifest or both --jar and --benchmark")
+    selected = args.only.replace(",", " ").split()
+    if selected and not args.manifest:
+        parser.error("--only needs --manifest")
     if args.manifest:
         jobs = [(module, jar, pattern, profilers + args.profiler) for path in args.manifest
                 for module, jar, patterns, profilers in [read_manifest(path)] for pattern in patterns]
+        if selected:
+            unknown = [name for name in selected if name not in {job[2] for job in jobs}]
+            if unknown:
+                sys.exit(f"not tracked: {', '.join(unknown)}; tracked benchmarks: {', '.join(j[2] for j in jobs)}")
+            jobs = [job for job in jobs if job[2] in selected]
     else:
         jobs = [(None, args.jar, args.benchmark, args.profiler)]
 
     os.makedirs(args.out, exist_ok=True)
-    sets = []
+    listed = []
     for module, jar, pattern, profilers in jobs:
-        matched = [(module, jar, profilers, b, p) for b, p in list_parameter_sets(args.java, jar, pattern)
-                   if all(p.get(k) == v for k, v in only.items())]
-        if not matched:
-            sys.exit(f"no benchmark in {jar} matches {pattern} {only}")
-        sets += matched
+        found = [(module, jar, profilers, b, p) for b, p in list_parameter_sets(args.java, jar, pattern)]
+        if not found:
+            sys.exit(f"no benchmark in {jar} matches {pattern}")
+        listed += found
+    unknown = [name for name in wanted if not any(name in p for *_, p in listed)]
+    if unknown:
+        sys.exit(f"no selected benchmark has the parameter {', '.join(unknown)}")
+    sets = [(module, jar, profilers, b, p) for module, jar, profilers, b, p in listed if has_values(p, wanted)]
+    listed_benchmarks = dict.fromkeys(b for *_, b, _ in listed)
+    kept_benchmarks = {b for *_, b, _ in sets}
+    emptied = [b for b in listed_benchmarks if b not in kept_benchmarks]
+    if emptied:
+        sys.exit(f"no parameter set of {', '.join(emptied)} matches {' '.join(args.param)}")
     monitor_path = os.path.join(args.out, "monitor.csv")
     monitor = subprocess.Popen(["bash", MONITOR_SCRIPT, "--monitor", str(args.monitor_interval)],
                                stdout=open(monitor_path, "w"), stderr=subprocess.STDOUT, start_new_session=True)

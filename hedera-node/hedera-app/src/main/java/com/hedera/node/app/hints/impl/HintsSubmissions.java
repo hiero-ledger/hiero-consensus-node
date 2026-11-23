@@ -16,6 +16,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -129,20 +130,36 @@ public class HintsSubmissions extends TssSubmissions {
      * <p>
      * The construction id is explicit so signing uses the same key material as the signing attempt that requested the
      * submission, even if the active construction has changed during a handoff.
+     * <p>
+     * The {@code onSubmitted} callback runs only once the partial signature has actually been submitted to gossip;
+     * not if the submission was skipped because gossip was unavailable (e.g., while replaying events), even though
+     * the returned future then also completes normally.
      *
      * @param constructionId the construction id to sign under
      * @param message the message to sign
-     * @return a future that completes when the vote has been submitted
+     * @param onSubmitted a callback to run once the partial signature has been submitted
+     * @return a future that completes when the partial signature has been submitted
      */
-    public CompletableFuture<Void> submitPartialSignature(final long constructionId, @NonNull final Bytes message) {
+    public CompletableFuture<Void> submitPartialSignature(
+            final long constructionId, @NonNull final Bytes message, @NonNull final Runnable onSubmitted) {
         requireNonNull(message);
-        return submitIfActive(
+        requireNonNull(onSubmitted);
+        final var attempted = new AtomicBoolean();
+        final var future = submitIfActive(
                 b -> {
                     final var signature = keyAccessor.signWithBlsPrivateKey(constructionId, message);
                     b.hintsPartialSignature(new HintsPartialSignatureTransactionBody(
                             constructionId, message, requireNonNull(signature)));
+                    attempted.set(true);
                 },
                 onFailure);
+        // The future only completes normally after a successful attempt, or if no attempt was made at all
+        future.thenRun(() -> {
+            if (attempted.get()) {
+                onSubmitted.run();
+            }
+        });
+        return future;
     }
 
     /**

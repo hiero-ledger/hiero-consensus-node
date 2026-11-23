@@ -3,51 +3,64 @@ package org.hiero.metrics.core;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.Objects;
 
 /**
  * A snapshot of a {@link Metric} at a point in time, allowing iteration over {@link MeasurementSnapshot}s
- * with consistent repetitive order (new measurements are appended).
+ * sorted by their dynamic label values.
  * <p>
- * Every iteration reads a fixed list: measurements added or removed after the iteration started
- * are not added to or removed from it.
+ * Only an exported metric has a snapshot, which keeps the list of measurement snapshots, so a metric that is not
+ * exported keeps nothing for export. Adding or removing measurements only marks this snapshot as changed.
+ * The list of measurement snapshots is rebuilt from the {@link Measurements} of the metric by the next
+ * {@link #update()}, so measurements added or removed after an update are iterated only after the next update.
+ * Every iteration reads a fixed list of measurement snapshots, which later updates do not change, but later updates
+ * do overwrite the values of the snapshots in it.
  */
 public final class MetricSnapshot implements MetricInfo, Iterable<MeasurementSnapshot> {
 
-    private final Metric metric;
-    private final CopyOnWriteArrayList<MeasurementSnapshot> measurementSnapshots;
+    private static final Comparator<MeasurementSnapshot> BY_LABEL_VALUES =
+            (first, second) -> LabelValues.compare(first.getDynamicLabelValues(), second.getDynamicLabelValues());
 
-    public MetricSnapshot(Metric metric) {
-        this.metric = metric;
-        this.measurementSnapshots = new CopyOnWriteArrayList<>();
-    }
+    private final Metric<?> metric;
+
+    // marked by any thread after measurements are added or removed, rebuilt and updated by exports
+    private final SnapshotList<MeasurementSnapshot> measurementSnapshots;
 
     /**
-     * Internal method to add a measurement snapshot to this metric snapshot.
-     * Package private method, because it is called by the {@link Metric} internally during measurement snapshot creation.
+     * Package private, because it is created only by the {@link Metric} constructor of an exported metric.
+     * Reads nothing from the metric, so it does not depend on the order of the constructor assignments:
+     * the metadata and measurements of the metric are read only by exports.
+     *
+     * @param metric the metric of this snapshot
      */
-    void addMeasurementSnapshot(MeasurementSnapshot measurementSnapshot) {
-        measurementSnapshots.add(measurementSnapshot);
+    MetricSnapshot(@NonNull Metric<?> metric) {
+        this.metric = Objects.requireNonNull(metric, "metric must not be null");
+        this.measurementSnapshots =
+                new SnapshotList<>(BY_LABEL_VALUES, metric::collectMeasurementSnapshots, MeasurementSnapshot::update);
     }
 
     /**
-     * Internal method to remove all measurement snapshots with the given label values from this metric snapshot.
-     * Package private method, because it is called by the {@link Metric} internally during measurement removal.
-     */
-    void removeMeasurementSnapshot(LabelValues labelValues) {
-        measurementSnapshots.removeIf(
-                snapshot -> snapshot.getDynamicLabelValues().equals(labelValues));
-    }
-
-    /**
-     * Update all measurement snapshots in this metric snapshot with the latest measurement values.
+     * Rebuilds the list of measurement snapshots if measurements were added or removed since the last update,
+     * and updates all measurement snapshots with the latest measurement values.
+     * A rebuilt list replaces the iterated one only after its values are updated.
      * <p>
      * This method is package private, because it is called by the {@link MetricRegistry} internally each time collecting metrics snapshots.
+     *
+     * @return {@code true} if the list of measurement snapshots was rebuilt, {@code false} if nothing changed
      */
-    void update() {
-        measurementSnapshots.forEach(MeasurementSnapshot::update);
+    boolean update() {
+        return measurementSnapshots.update();
+    }
+
+    /**
+     * Marks the list of measurement snapshots as changed, so the next {@link #update()} rebuilds it.
+     * Package private, because it is called only by the {@link Metric} after its measurements are added or removed.
+     */
+    void markChanged() {
+        measurementSnapshots.markChanged();
     }
 
     @Override

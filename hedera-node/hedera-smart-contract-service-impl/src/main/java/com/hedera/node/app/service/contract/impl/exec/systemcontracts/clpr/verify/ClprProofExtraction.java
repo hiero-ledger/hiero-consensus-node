@@ -32,6 +32,13 @@ final class ClprProofExtraction {
      */
     static final int SK_MESSAGE_KEY_TAG = 498;
 
+    /**
+     * StateKey field 60 (clpr channels key, a {@code ProtoBytes} channel id) length-delimited tag. Numerically equal
+     * to {@link #SV_CHANNEL_TAG}, since both sides of the channels state use field number 60, but it belongs to
+     * {@code StateKey}, not {@code StateValue}.
+     */
+    static final int SK_CHANNEL_KEY_TAG = 482;
+
     /** StateValue field 60 (clpr channel) length-delimited tag. */
     static final int SV_CHANNEL_TAG = 482;
 

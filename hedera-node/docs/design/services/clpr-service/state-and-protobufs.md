@@ -73,17 +73,23 @@ values; schema startup only registers the state definitions.
 Seeds `LEDGER_CONFIGURATION` with:
 
 - `chainId` and `protocolVersion` from `ClprConfig` (active network config).
-- Default `ClprThrottles`:
+- Default `ClprThrottles` from the bundled genesis configuration, unless a node-local file overrides them:
   - `maxSyncBytes = 4 MiB`
   - `maxMessagesPerBundle = 1 000`
   - `maxQueueDepth = 10 000`
   - `maxMessagePayloadBytes = 64 KiB`
   - `maxSyncsPerSec = 10`
   - `maxLocalEndpoints = 10`
-  - `maxPeerEndpoints = 10`
+  - `maxPeerEndpoints = 100`
 - `endpoints` is **not** seeded by the schema; it is populated via
   `CLPR_UPDATE_LEDGER_CONFIGURATION` (admin tx). A fresh genesis network has empty seeds
   and no channels — bootstrap must perform an admin update before any sync can run.
+
+Changing the bundled defaults does not migrate existing `LEDGER_CONFIGURATION` state. A node-local
+file or an upgrade configuration file retains its explicitly configured count limit; existing ledgers
+must apply a configuration update or upgrade file to adopt `maxPeerEndpoints = 100`. Independently,
+Hiero bounds every retained peer manifest to 16,384 serialized bytes. A zero count limit disables
+only the endpoint-count bound, not this protocol byte ceiling.
 
 > **Spec mapping:** the singleton corresponds to `ClprLedgerConfiguration` from spec
 > §1.1. Throttle defaults satisfy the §7 "TBD per platform" placeholders.

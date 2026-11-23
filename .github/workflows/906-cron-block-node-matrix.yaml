@@ -11,7 +11,7 @@ on:
         description: "Comma-separated Block Node versions to test (e.g. v0.44.0,v0.45.0-alpha1)."
         type: string
         required: true
-      dry-run:
+      dry-run-enabled:
         description: "Dry run: report the result in the job summary only, do not post to Slack."
         type: boolean
         default: false
@@ -20,7 +20,7 @@ defaults:
   run:
     shell: bash
 
-# Same permissions as the called 821 and 844 workflows require
+# Same permissions as the called 821 and 874 workflows require
 permissions:
   checks: write
   contents: read
@@ -168,7 +168,7 @@ jobs:
       access-token: ${{ secrets.GH_ACCESS_TOKEN }}
       slack-detailed-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
 
-  # One BN communication HAPI suite (844) per CN ref x BN version; its real-Block-Node tests run that BN version.
+  # One BN communication HAPI suite (874) per CN ref x BN version; its real-Block-Node tests run that BN version.
   block-node-communication:
     name: BN Comms CN ${{ matrix.cn-ref }} / BN ${{ matrix.bn-version }}
     needs:
@@ -180,12 +180,17 @@ jobs:
       max-parallel: 1
       matrix:
         include: ${{ fromJSON(needs.resolve-versions.outputs.comms-matrix) }}
-    uses: ./.github/workflows/844-call-execute-hapi-bn-communication.yaml
+    uses: ./.github/workflows/874-call-execute-hapi-suite.yaml
     with:
+      suite-name: "BN Comms"
+      gradle-tasks: >-
+        hapiTestBlockNodeCommunication
+      runner: "hl-cn-hapi-bn-lin-xl"
       ref: ${{ matrix.cn-ref }}
       java-version: ${{ matrix.java-version }}
       bn-release-version: ${{ matrix.bn-version }}
       artifact-suffix: ${{ matrix.cn-slug }}-${{ matrix.bn-version }}
+      enable-network-log-capture: "true"
     secrets:
       access-token: ${{ secrets.GH_ACCESS_TOKEN }}
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
@@ -234,7 +239,7 @@ jobs:
           echo "payload=$(cat payload.json)" >> "${GITHUB_OUTPUT}"
 
       - name: Report Matrix Result to Detailed Test Reports Channel
-        if: ${{ !inputs.dry-run }}
+        if: ${{ !inputs.dry-run-enabled }}
         uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc # v3.0.5
         with:
           webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}

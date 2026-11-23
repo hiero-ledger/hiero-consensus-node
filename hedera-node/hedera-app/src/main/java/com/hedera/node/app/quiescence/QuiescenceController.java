@@ -76,7 +76,7 @@ public class QuiescenceController {
             return;
         }
         try {
-            pipelineTransactionCount.addAndGet(QuiescenceUtils.countRelevantTransactions(transactions.iterator()));
+            pipelineTransactionCount.addAndGet(QuiescenceUtils.countRelevantTransactions(transactions));
         } catch (final BadMetadataException e) {
             disableQuiescence(e);
         }
@@ -208,12 +208,14 @@ public class QuiescenceController {
      *
      * @param event the event that has become stale
      */
+    @SuppressWarnings("unchecked")
     public void staleEvent(@NonNull final Event event) {
         if (isDisabled()) {
             return;
         }
         try {
-            pipelineTransactionCount.addAndGet(-QuiescenceUtils.countRelevantTransactions(event.transactionIterator()));
+            pipelineTransactionCount.addAndGet(
+                    -QuiescenceUtils.countRelevantTransactions((List<Transaction>) event.getTransactions()));
         } catch (final BadMetadataException e) {
             disableQuiescence(e);
         }

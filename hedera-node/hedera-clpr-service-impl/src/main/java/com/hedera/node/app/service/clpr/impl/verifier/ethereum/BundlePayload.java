@@ -80,15 +80,28 @@ record BundlePayload(
             @NonNull byte[] blockHeaderRlp) {}
 
     /**
+     * The proof of the CLPR service account: a header signed by a trusted committee, the finalized execution block its
+     * beacon state names, and the account under that block's state root. It is the first seven wire items of a
+     * {@link MessageDelivery} and of a {@link ConfigManifestProof}, which both verify it the same way.
+     *
+     * @param signedHeader       the attested header and its signature
+     * @param signatureSlot      the slot at which the committee signed the attested header; its period selects the
+     *                           signing committee
+     * @param finalizedExecution the finalized execution block that anchors the account and storage proofs
+     * @param finalityBranch     the branch of the finalized header's root in the attested header's {@code stateRoot}
+     * @param accountProof       the Merkle-Patricia proof of the CLPR service account under the execution state root
+     */
+    record ServiceAccountProof(
+            @NonNull SignedHeader signedHeader,
+            long signatureSlot,
+            @NonNull FinalizedExecution finalizedExecution,
+            @NonNull byte[][] finalityBranch,
+            @NonNull byte[][] accountProof) {}
+
+    /**
      * The message/state payload, verified against the committee trusted after every rotation.
      *
-     * @param signedHeader         the attested header and its signature
-     * @param signatureSlot        the slot at which the committee signed the attested header; its period selects the
-     *                             signing committee
-     * @param finalizedExecution   the finalized execution block that anchors the account and storage proofs
-     * @param finalityBranch       the branch of the finalized header's root in the attested header's
-     *                             {@code stateRoot}
-     * @param accountProof         the Merkle-Patricia proof of the CLPR service account under the execution state root
+     * @param serviceAccount       the signed header, the finalized execution block and the CLPR service account proof
      * @param storageProof         the Channel slot proofs: 5 entries, 6 when the bundle carries messages, or none for
      *                             a manifest-only bundle (spec §8.1.4)
      * @param bundleContent        the protobuf-encoded {@code ClprBundleContent}
@@ -98,11 +111,7 @@ record BundlePayload(
      *                             commitment, or {@code null} when the bundle carries no manifest update
      */
     record MessageDelivery(
-            @NonNull SignedHeader signedHeader,
-            long signatureSlot,
-            @NonNull FinalizedExecution finalizedExecution,
-            @NonNull byte[][] finalityBranch,
-            @NonNull byte[][] accountProof,
+            @NonNull ServiceAccountProof serviceAccount,
             @NonNull List<StorageProofEntry> storageProof,
             @NonNull byte[] bundleContent,
             @Nullable StorageProofEntry manifestStorageProof,

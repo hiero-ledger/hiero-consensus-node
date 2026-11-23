@@ -35,6 +35,9 @@ import org.openjdk.jmh.annotations.Warmup;
  *   <li>{@code keepsUp}: two sequential schedulers of the wiring framework, each spinning {@value #STAGE_NANOS} ns per
  *       item, which caps the pipeline at 5,000 items/s, get the items at half that rate. Every latency is at least the
  *       sum of both times: {@code latency.min} is at least {@code 2 × STAGE_NANOS}.</li>
+ *   <li>{@code saturated}: the same pipeline gets the items at 1.1 times its capacity, so its latency grows by about
+ *       10% of the elapsed time. Every pass must fail the timer's saturation check, so that the profiler reports no
+ *       latencies and counts the passes in {@code measured.saturation.discardedPasses}.</li>
  * </ul>
  *
  * <p>Profile it with {@code -prof jfr} and {@code jfr-components.sh}: the timer's busy-waiting shows as "timer:
@@ -65,7 +68,7 @@ public class PipelineTimerBenchmark {
     /** The unprocessed tasks a stage may hold before the health monitor counts it as unhealthy. */
     private static final long STAGE_CAPACITY = 500;
 
-    @Param({"direct", "keepsUp"})
+    @Param({"direct", "keepsUp", "saturated"})
     public String pipeline;
 
     private WiringModel model;
@@ -92,6 +95,7 @@ public class PipelineTimerBenchmark {
                         .build();
             }
             case "keepsUp" -> stages(0.5);
+            case "saturated" -> stages(1.1);
             default -> throw new IllegalArgumentException("Unknown pipeline " + pipeline);
         };
         model.start();
@@ -118,6 +122,11 @@ public class PipelineTimerBenchmark {
         exceptions.throwIfAny();
         if (timer.arrivals() != items) {
             throw new IllegalStateException("Expected " + items + " arrivals, but got " + timer.arrivals());
+        }
+        final boolean expectSaturated = pipeline.equals("saturated");
+        if (timer.saturated() != expectSaturated) {
+            throw new IllegalStateException(
+                    "Expected a pass that " + (expectSaturated ? "fails" : "passes") + " the saturation check");
         }
     }
 

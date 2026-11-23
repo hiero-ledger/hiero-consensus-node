@@ -1034,10 +1034,6 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             // create snapshot dir if it doesn't exist
             Files.createDirectories(snapshotDirectory);
             final MerkleDbPaths snapshotDbPaths = new MerkleDbPaths(snapshotDirectory);
-            if (indexes == null) {
-                // Flush cached hash chunks to the hash chunk store. A copy gets them in memory instead
-                flushHashChunkCache();
-            }
             // main snapshotting process in multiple-threads
             final List<CompletableFuture<String>> tasks = new ArrayList<>();
             try {
@@ -1057,15 +1053,18 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                             "keyToPath", () -> keyToPath.snapshotWithoutIndex(snapshotDbPaths.keyToPathDirectory)));
                 } else {
                     tasks.add(runWithSnapshotExecutor(
-                            "idToDiskLocationHashChunks",
-                            () -> idToDiskLocationHashChunks.writeToFile(
-                                    snapshotDbPaths.idToDiskLocationHashChunksFile)));
-                    tasks.add(runWithSnapshotExecutor(
                             "pathToDiskLocationLeafNodes",
                             () -> pathToDiskLocationLeafNodes.writeToFile(
                                     snapshotDbPaths.pathToDiskLocationLeafNodesFile)));
                     tasks.add(runWithSnapshotExecutor(
                             "keyToPath", () -> keyToPath.snapshot(snapshotDbPaths.keyToPathDirectory)));
+                    // Performance optimization: flush cached hash chunks to the hash chunk store while the leaf and
+                    // bucket indexes above are written, instead of before. A copy gets the chunks in memory instead
+                    flushHashChunkCache();
+                    tasks.add(runWithSnapshotExecutor(
+                            "idToDiskLocationHashChunks",
+                            () -> idToDiskLocationHashChunks.writeToFile(
+                                    snapshotDbPaths.idToDiskLocationHashChunksFile)));
                 }
                 tasks.add(runWithSnapshotExecutor(
                         "hashChunkStore", () -> hashChunkStore.snapshot(snapshotDbPaths.hashChunkDirectory)));

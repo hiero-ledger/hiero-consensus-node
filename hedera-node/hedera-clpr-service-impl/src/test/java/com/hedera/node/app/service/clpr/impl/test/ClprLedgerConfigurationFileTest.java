@@ -21,19 +21,21 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class ClprLedgerConfigurationFileTest {
-    /** The throttles in the bundled resource, which match the throttles seeded before the file existed. */
+    /** The current throttles in the bundled resource. */
     private static final ClprThrottles BUNDLED_THROTTLES = ClprThrottles.newBuilder()
             .maxMessagesPerBundle(1_000)
             .maxMessagePayloadBytes(65_536)
             .maxGasPerMessage(15_000_000L)
             .maxQueueDepth(10_000)
             .maxSyncBytes(4_194_304L)
+            .maxPeerEndpoints(100)
             .build();
 
     private static final ClprThrottles CUSTOM_THROTTLES = BUNDLED_THROTTLES
             .copyBuilder()
             .maxMessagesPerBundle(500)
             .maxQueueDepth(20_000)
+            .maxPeerEndpoints(0)
             .build();
 
     @TempDir

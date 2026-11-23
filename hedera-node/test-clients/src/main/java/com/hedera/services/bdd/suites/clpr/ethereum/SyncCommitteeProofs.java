@@ -84,7 +84,15 @@ public final class SyncCommitteeProofs {
     /** EVM storage slot of the {@code ClprEndpointManifest} commitment on the CLPR service contract (slot 18). */
     private static final int MANIFEST_COMMITMENT_SLOT_INDEX = 0x12;
 
+    /** Positions of the Channel slot proofs and of the manifest proof in a delivery. */
+    private static final int DELIVERY_INDEX_STORAGE_PROOF = 7;
+
+    private static final int DELIVERY_INDEX_MANIFEST_PROOF = 9;
+
     private static final byte[] ZERO_32 = new byte[32];
+
+    /** A beacon block root that no bundle serves, signed in place of the attested header's root. */
+    private static final byte[] OTHER_BEACON_BLOCK_ROOT = generateBytes(32, 0x25);
 
     /** The consensus presets the verifier supports. */
     public enum Preset {
@@ -208,23 +216,43 @@ public final class SyncCommitteeProofs {
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
-    //  Endpoint manifest (raw ClprEndpointManifest protobuf preimage)
+    //  Endpoint manifest (ClprEndpointManifest protobuf preimage and its config-time proof)
     // ─────────────────────────────────────────────────────────────────────────────
 
     /**
-     * Raw {@code ClprEndpointManifest} protobuf bytes bound to {@link #SERVICE_ADDRESS} — the value carried as the
-     * config path's {@code endpoint_manifest_proof_bytes} (arg2) and as the bundle's manifest preimage.
-     * {@code endpointCount} manifest endpoints are generated deterministically via
-     * {@link #manifestEndpointIp}/{@link #manifestEndpointPort}.
+     * Raw {@code ClprEndpointManifest} protobuf bytes bound to {@link #SERVICE_ADDRESS} — the manifest preimage that a
+     * bundle and a {@link #configManifestProof} carry. {@code endpointCount} manifest endpoints are generated
+     * deterministically via {@link #manifestEndpointIp}/{@link #manifestEndpointPort}.
      */
     public static byte[] manifestBytes(final long version, final int endpointCount) {
         return manifest(version, SERVICE_ADDRESS, endpointCount).toByteArray();
     }
 
     /**
+     * The config path's {@code endpoint_manifest_proof_bytes} (arg2) for {@code manifestBytes}: the RLP
+     * {@code [attestedHeader, signatureSlot, syncAggregate, nonSignerProofs, finalizedExecution, finalityBranch,
+     * accountProof, manifestStorageProof, manifestPreimage]}. It is a delivery signed by the initial committee in the
+     * configured period, without the Channel slots and the bundle content: its CLPR service storage commits
+     * {@code keccak256(manifestBytes)} at slot 18.
+     */
+    public static byte[] configManifestProof(final byte[] manifestBytes) {
+        final Delivery delivery = new Delivery(
+                Preset.MAINNET,
+                CONFIG_PERIOD,
+                Committee.initial(Preset.MAINNET),
+                new byte[32],
+                ClprBundleContent.getDefaultInstance());
+        delivery.manifestBytes = manifestBytes;
+        final List<Object> items = delivery.toRlpItems();
+        final List<Object> proof = new ArrayList<>(items.subList(0, DELIVERY_INDEX_STORAGE_PROOF));
+        proof.addAll(items.subList(DELIVERY_INDEX_MANIFEST_PROOF, items.size()));
+        return RLPEncoder.list(proof);
+    }
+
+    /**
      * A manifest whose {@code service_address} is a valid 20-byte address that nonetheless differs from the config's
      * {@link #SERVICE_ADDRESS}. The verifier enforces spec §4.8 (manifest service_address == config service_address),
-     * so completeChannel reverts with {@code CLPR_VERIFIER_CONFIG_FAILED}.
+     * so a config whose manifest proof carries it makes completeChannel revert with {@code CLPR_VERIFIER_CONFIG_FAILED}.
      */
     public static byte[] manifestBytesBadServiceAddress() {
         return manifest(1L, generateBytes(20, 0x66), 1).toByteArray();
@@ -332,6 +360,19 @@ public final class SyncCommitteeProofs {
     }
 
     /**
+     * A bundle payload whose SSZ and Merkle-Patricia proofs are all valid, but whose sync-aggregate signature is the
+     * initial committee's signature over the signing root of another beacon block root. Only the BLS check can reject
+     * it, so the verifier fails it with {@code CLPR_BUNDLE_VERIFICATION_FAILED} unless the node's signature verifier
+     * accepts every signature.
+     */
+    public static byte[] wrongSigningRootBundlePayload(final byte[] channelId, final ClprBundleContent content) {
+        final Delivery delivery =
+                new Delivery(Preset.MAINNET, CONFIG_PERIOD, Committee.initial(Preset.MAINNET), channelId, content);
+        delivery.signOtherRoot = true;
+        return bundle(List.of(), delivery.toRlpItems());
+    }
+
+    /**
      * A bundle that slides the channel's trust anchor by one period and delivers {@code content} under it: one rotation
      * of the period after the configured one, signed by the next committee and proving the committee after it, then a
      * delivery signed by that committee two periods after the configured one. The verifier returns a successor trust
@@ -429,6 +470,7 @@ public final class SyncCommitteeProofs {
         private final byte[] channelId;
         private final ClprBundleContent content;
         private boolean tamperAccountProof;
+        private boolean signOtherRoot;
         private byte[] manifestBytes;
 
         private Delivery(
@@ -445,9 +487,10 @@ public final class SyncCommitteeProofs {
         }
 
         /** The RLP items of the delivery. */
-        private Object toRlpItems() {
+        private List<Object> toRlpItems() {
             // 1) Storage trie over the Channel slots (and the manifest commitment), keyed by keccak(slot).
-            final byte[][] channelSlots = channelSlots(channelId);
+            final byte[][] channelSlots =
+                    channelSlots(channelId, content.getMetadata().getNextMessageId());
             final List<byte[]> slots = new ArrayList<>(Arrays.asList(channelSlots));
             final List<byte[]> values = new ArrayList<>(Arrays.asList(computeSlotValues(content.getMetadata())));
             if (manifestBytes != null) {
@@ -488,6 +531,10 @@ public final class SyncCommitteeProofs {
             final byte[] attestedParentRoot = generateBytes(32, 0x21);
             final byte[] attestedStateRoot = sparseRoot(state);
             final byte[] attestedBodyRoot = generateBytes(32, 0x22);
+            final byte[] attestedRoot =
+                    beaconHeaderRoot(attestedSlot, 7L, attestedParentRoot, attestedStateRoot, attestedBodyRoot);
+            // When signing another root, the served header and its proofs stay intact: only the signature is wrong.
+            final byte[] signedRoot = signOtherRoot ? OTHER_BEACON_BLOCK_ROOT : attestedRoot;
 
             // 5) Storage proof entries — every entry carries the full node set; only matching keys resolve.
             final List<Object> storageEntries = new ArrayList<>();
@@ -501,11 +548,7 @@ public final class SyncCommitteeProofs {
             return List.of(
                     header(attestedSlot, 7L, attestedParentRoot, attestedStateRoot, attestedBodyRoot),
                     minimalBE(attestedSlot + 1), // signature slot
-                    syncAggregate(
-                            signer,
-                            preset,
-                            beaconHeaderRoot(
-                                    attestedSlot, 7L, attestedParentRoot, attestedStateRoot, attestedBodyRoot)),
+                    syncAggregate(signer, preset, signedRoot),
                     signer.nonSignerEntries(),
                     List.of(
                             header(finalizedSlot, 3L, finalizedParentRoot, finalizedStateRoot, finalizedBodyRoot),
@@ -535,31 +578,79 @@ public final class SyncCommitteeProofs {
 
     // ── Storage-slot layout and packing (mirrors the ClprService Channel struct) ──
 
-    /** The Channel slot keys of {@code channelId}: {@code keccak256(channelId ‖ uint256(15)) + {1, 2, 4, 5, 16}}. */
-    private static byte[][] channelSlots(final byte[] channelId) {
+    /**
+     * The storage keys a bundle for {@code channelId} must prove, in the order {@link #computeSlotValues} fills: the
+     * five Channel fields {@code keccak256(channelId ‖ uint256(15)) + {1, 2, 4, 5, 16}} and, when at least one
+     * message has been sent, the running-hash slot of the last one. The verifier derives that last key from the proven
+     * {@code nextMessageId}, so the two must agree.
+     *
+     * @param channelId the 32-byte channel ID
+     * @param nextMessageId the queue's next message ID; message IDs start at 1, so the last sent message is
+     *     {@code nextMessageId - 1}
+     */
+    private static byte[][] channelSlots(final byte[] channelId, final long nextMessageId) {
+        if (channelId.length != 32) {
+            throw new IllegalArgumentException("Channel proofs require a bytes32 channel ID");
+        }
         final byte[] mappingKey = new byte[64];
         System.arraycopy(channelId, 0, mappingKey, 0, 32);
         mappingKey[63] = CHANNELS_BASE_SLOT;
         final BigInteger base = new BigInteger(1, MiscCryptoUtils.keccak256DigestOf(mappingKey));
-        final byte[][] slots = new byte[CHANNEL_SLOT_OFFSETS.length][];
-        for (int i = 0; i < slots.length; i++) {
+        // nextMessageId 0 or 1 means no message has been sent yet, so there is no last-message slot to prove.
+        final boolean hasLastMessage = nextMessageId > 1;
+        final byte[][] slots = new byte[CHANNEL_SLOT_OFFSETS.length + (hasLastMessage ? 1 : 0)][];
+        for (int i = 0; i < CHANNEL_SLOT_OFFSETS.length; i++) {
             final byte[] raw = base.add(BigInteger.valueOf(CHANNEL_SLOT_OFFSETS[i]))
                     .mod(BigInteger.ONE.shiftLeft(256))
                     .toByteArray();
             slots[i] = leftPad32(raw.length > 32 ? Arrays.copyOfRange(raw, 1, raw.length) : raw);
         }
+        if (hasLastMessage) {
+            // Message mapping at slot 1: entry = keccak256(uint256(messageId) ‖ keccak256(channelId ‖ uint256(1))),
+            // and the running hash is field +1 of that entry.
+            final byte[] queueBase = mappingSlot(channelId, slotKey(1));
+            slots[CHANNEL_SLOT_OFFSETS.length] =
+                    addSlotOffset(mappingSlot(leftPad32(minimalBE(nextMessageId - 1)), queueBase), 1);
+        }
         return slots;
+    }
+
+    /** Storage slot of {@code mapping[key]} for a Solidity mapping at {@code base}: {@code keccak256(key ‖ base)}. */
+    private static byte[] mappingSlot(final byte[] key, final byte[] base) {
+        final byte[] preimage = new byte[64];
+        System.arraycopy(key, 0, preimage, 0, 32);
+        System.arraycopy(base, 0, preimage, 32, 32);
+        return MiscCryptoUtils.keccak256DigestOf(preimage);
+    }
+
+    /** Returns {@code base + offset} as a 32-byte big-endian word, wrapping modulo 2^256. */
+    private static byte[] addSlotOffset(final byte[] base, final int offset) {
+        final byte[] result = base.clone();
+        int carry = offset;
+        for (int i = result.length - 1; i >= 0 && carry != 0; i--) {
+            final int sum = (result[i] & 0xff) + carry;
+            result[i] = (byte) sum;
+            carry = sum >>> 8;
+        }
+        return result;
     }
 
     /** The Channel slot values, in {@link #channelSlots} order, encoding {@code metadata}. */
     private static byte[][] computeSlotValues(final ClprQueueMetadata metadata) {
-        final byte[][] slotValues = new byte[CHANNEL_SLOT_OFFSETS.length][];
+        final boolean hasLastMessage = metadata.getNextMessageId() > 1;
+        final byte[][] slotValues = new byte[CHANNEL_SLOT_OFFSETS.length + (hasLastMessage ? 1 : 0)][];
         slotValues[0] = packedStatusSlot(
                 metadata.getNextMessageId(), metadata.getStatus().getNumber());
         slotValues[1] = packedReceivedMessageIdSlot(metadata.getReceivedMessageId());
         slotValues[2] = leftPad32(metadata.getSentRunningHash().toByteArray());
         slotValues[3] = leftPad32(metadata.getReceivedRunningHash().toByteArray());
-        slotValues[4] = ZERO_32; // endpointManifestVersion: the peer has not cached our manifest.
+        // Slot +16: endpointManifestVersion, a lone uint64 in the low 8 bytes.
+        slotValues[4] = new byte[32];
+        putUint64BigEndian(slotValues[4], 24, metadata.getEndpointManifestVersion());
+        if (hasLastMessage) {
+            // The queue's sent running hash is the running hash stored with the last sent message.
+            slotValues[5] = leftPad32(metadata.getSentRunningHash().toByteArray());
+        }
         return slotValues;
     }
 

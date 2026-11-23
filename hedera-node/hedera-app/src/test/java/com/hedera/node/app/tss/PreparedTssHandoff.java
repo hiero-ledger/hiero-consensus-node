@@ -6,12 +6,14 @@ import static org.mockito.Mockito.lenient;
 import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.HintsScheme;
+import com.hedera.hapi.node.state.hints.NodePartyId;
 import com.hedera.hapi.node.state.hints.PreprocessedKeys;
 import com.hedera.hapi.node.state.history.ChainOfTrustProof;
 import com.hedera.hapi.node.state.history.HintsKeyProvenance;
 import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
+import com.hedera.hapi.node.state.history.ProofNodeWeight;
 import com.hedera.node.app.hints.ReadableHintsStore;
 import com.hedera.node.app.history.ReadableHistoryStore;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -21,11 +23,15 @@ import java.util.List;
 public record PreparedTssHandoff(
         Bytes rosterHash, HintsConstruction active, HintsConstruction next, HistoryProofConstruction history) {
     public PreparedTssHandoff(final Bytes rosterHash) {
+        this(rosterHash, 1L);
+    }
+
+    public PreparedTssHandoff(final Bytes rosterHash, final long nodeWeight) {
         this(
                 rosterHash,
-                hints(1L, rosterHash, Bytes.wrap("old-key")),
-                hints(2L, rosterHash, Bytes.wrap("new-key")),
-                history(rosterHash));
+                hints(1L, rosterHash, Bytes.wrap("old-key"), nodeWeight),
+                hints(2L, rosterHash, Bytes.wrap("new-key"), nodeWeight),
+                history(rosterHash, nodeWeight));
     }
 
     public void stub(final ReadableHintsStore store) {
@@ -47,16 +53,18 @@ public record PreparedTssHandoff(
         lenient().when(store.isReadyToAdopt(rosterHash)).thenReturn(true);
     }
 
-    private static HintsConstruction hints(final long id, final Bytes hash, final Bytes key) {
+    private static HintsConstruction hints(final long id, final Bytes hash, final Bytes key, final long nodeWeight) {
         return HintsConstruction.newBuilder()
                 .constructionId(id)
                 .targetRosterHash(hash)
                 .numParties(8)
-                .hintsScheme(new HintsScheme(new PreprocessedKeys(Bytes.wrap("aggregation-key"), key), List.of()))
+                .hintsScheme(new HintsScheme(
+                        new PreprocessedKeys(Bytes.wrap("aggregation-key"), key),
+                        List.of(new NodePartyId(0L, 0, nodeWeight))))
                 .build();
     }
 
-    private static HistoryProofConstruction history(final Bytes hash) {
+    private static HistoryProofConstruction history(final Bytes hash, final long nodeWeight) {
         final var provenance = HintsKeyProvenance.newBuilder()
                 .sourceHintsConstructionId(1L)
                 .targetHintsConstructionId(2L)
@@ -70,6 +78,7 @@ public record PreparedTssHandoff(
                 .targetRosterHash(hash)
                 .keyProvenance(provenance)
                 .targetProof(HistoryProof.newBuilder()
+                        .targetNodeWeights(new ProofNodeWeight(0L, nodeWeight))
                         .targetHistory(History.newBuilder().metadata(provenance.targetVerificationKey()))
                         .chainOfTrustProof(ChainOfTrustProof.newBuilder().wrapsProof(Bytes.wrap("proof")))
                         .uncompressedWrapsProof(Bytes.wrap("uncompressed"))

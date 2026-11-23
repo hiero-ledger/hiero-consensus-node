@@ -1,12 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.pces.impl.common;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.base.time.Time;
 import java.io.IOException;
+import java.lang.management.BufferPoolMXBean;
+import java.lang.management.ManagementFactory;
+import java.nio.channels.ClosedChannelException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -122,5 +127,60 @@ class PcesFileChannelWriterTest {
         assertEquals(normalEvent, iterator.next().getGossipEvent());
         assertEquals(largeEvent, iterator.next().getGossipEvent());
         assertEquals(normalEvent, iterator.next().getGossipEvent());
+    }
+
+    @Test
+    void testCloseReleasesDirectBuffer() throws IOException {
+        final int capacity = 64 * 1024 * 1024;
+        final BufferPoolMXBean directPool = directBufferPool();
+
+        writer = new PcesFileChannelWriter(testFile, List.of(), capacity);
+        writer.writeVersion(2);
+        final long usedBeforeClose = directPool.getMemoryUsed();
+
+        writer.close();
+        final long usedAfterClose = directPool.getMemoryUsed();
+
+        // Without an explicit release, the buffer would stay allocated until the writer is garbage collected.
+        // Allow some slack in case something else allocates direct memory concurrently.
+        assertTrue(
+                usedBeforeClose - usedAfterClose >= capacity / 2,
+                "Closing the writer should release its direct buffer. Used before close: " + usedBeforeClose
+                        + ", after close: " + usedAfterClose);
+    }
+
+    @Test
+    void testCloseIsIdempotent() throws IOException {
+        writer = new PcesFileChannelWriter(testFile, List.of(), BUFFER_CAPACITY);
+        writer.writeVersion(2);
+
+        writer.close();
+        assertDoesNotThrow(writer::close, "Closing the writer twice should not fail");
+    }
+
+    @Test
+    void testWriteAfterCloseFails() throws IOException {
+        final GossipEvent event = new TestingEventBuilder(random)
+                .setAppTransactionCount(1)
+                .build()
+                .getGossipEvent();
+
+        writer = new PcesFileChannelWriter(testFile, List.of(), BUFFER_CAPACITY);
+        writer.writeVersion(2);
+        writer.writeEvent(event);
+        final long sizeAtClose = writer.fileSize();
+        writer.close();
+
+        assertThrows(ClosedChannelException.class, () -> writer.writeVersion(2));
+        assertThrows(ClosedChannelException.class, () -> writer.writeEvent(event));
+        assertThrows(ClosedChannelException.class, writer::sync);
+        assertEquals(sizeAtClose, writer.fileSize(), "File size should remain readable after close");
+    }
+
+    private static BufferPoolMXBean directBufferPool() {
+        return ManagementFactory.getPlatformMXBeans(BufferPoolMXBean.class).stream()
+                .filter(pool -> pool.getName().equals("direct"))
+                .findFirst()
+                .orElseThrow();
     }
 }

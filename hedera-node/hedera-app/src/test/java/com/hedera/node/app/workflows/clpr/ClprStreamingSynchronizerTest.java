@@ -14,6 +14,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -53,10 +54,12 @@ import com.swirlds.state.BinaryState;
 import com.swirlds.state.State;
 import com.swirlds.state.binary.MerkleProof;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import io.grpc.Deadline;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.RejectedExecutionException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -64,6 +67,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -125,7 +129,9 @@ class ClprStreamingSynchronizerTest {
                 .thenReturn(HederaTestConfigBuilder.createConfig().getConfigData(BlockStreamConfig.class));
         // Peer selection is covered by ClprPeerSelectorTest; here it just hands back the one peer.
         lenient().when(peerSelector.selectEndpoint(any(), any())).thenReturn(new SelectedPeer(PEER_ID, endpoint()));
-        lenient().when(clientCache.clientFor(any(), anyInt(), anyBoolean())).thenReturn(client);
+        lenient()
+                .when(clientCache.clientFor(any(), anyInt(), anyBoolean(), any()))
+                .thenReturn(client);
         lenient().when(client.sync(any())).thenReturn(streamingCall);
         lenient().when(bundleSubmitter.submitBundle(any())).thenReturn(true);
         subject = new ClprStreamingSynchronizer(
@@ -189,7 +195,7 @@ class ClprStreamingSynchronizerTest {
             subject = new ClprStreamingSynchronizer(
                     configProvider,
                     bundleSubmitter,
-                    new ClprStateProofManager(snapshotProvider, tssVerifier, configProvider),
+                    new ClprStateProofManager(snapshotProvider, tssVerifier, configProvider, (proof, anchor) -> false),
                     clientCache,
                     peerSelector,
                     3);
@@ -364,7 +370,9 @@ class ClprStreamingSynchronizerTest {
 
         synchronize(channel(1L, 0L, 0L));
 
-        verify(clientCache).clientFor(PEER_HOST, PEER_PORT, true);
+        final var deadline = ArgumentCaptor.forClass(Deadline.class);
+        verify(clientCache).clientFor(eq(PEER_HOST), eq(PEER_PORT), eq(true), deadline.capture());
+        verify(client).sync(deadline.getValue());
         verify(streamingCall).halfClose();
     }
 
@@ -379,7 +387,7 @@ class ClprStreamingSynchronizerTest {
 
         synchronize(channel(1L, 0L, 0L));
 
-        verify(clientCache).clientFor(PEER_HOST, PEER_PORT, false);
+        verify(clientCache).clientFor(eq(PEER_HOST), eq(PEER_PORT), eq(false), any());
         verify(streamingCall).halfClose();
     }
 
@@ -558,12 +566,45 @@ class ClprStreamingSynchronizerTest {
         @Test
         @DisplayName("given the TLS client cannot be built, then the peer is penalized")
         void givenClientCannotBeBuilt_thenPeerIsPenalized() {
-            given(clientCache.clientFor(any(), anyInt(), anyBoolean()))
+            given(clientCache.clientFor(any(), anyInt(), anyBoolean(), any()))
                     .willThrow(new ClientException("bad TLS context", new IllegalArgumentException()));
 
             synchronize(channel(6L, 0L, 0L));
 
             thenFailureIsRecorded();
+        }
+
+        @Test
+        void localResolverSaturationDefersSyncWithoutPenalizingPeer() {
+            given(clientCache.clientFor(any(), anyInt(), anyBoolean(), any()))
+                    .willThrow(new RejectedExecutionException("DNS resolver busy"));
+            synchronize(channel(6L, 0L, 0L));
+            verify(peerSelector, never()).recordFailure(any());
+            verify(peerSelector, never()).recordSuccess(any());
+            verifyNoInteractions(client);
+        }
+
+        @ParameterizedTest
+        @ValueSource(booleans = {false, true})
+        void unconfiguredLocalDestinationRecordsFailureBeforeCreatingChannel(final boolean useTls) {
+            final var localEndpoint = endpoint()
+                    .copyBuilder()
+                    .tlsCertificate(useTls ? Bytes.wrap("certificate") : Bytes.EMPTY)
+                    .build();
+            given(peerSelector.selectEndpoint(any(), any())).willReturn(new SelectedPeer(PEER_ID, localEndpoint));
+            final var realCache = new ClprEndpointClientCache(configProvider);
+            subject = new ClprStreamingSynchronizer(
+                    configProvider, bundleSubmitter, stateProofManager, realCache, peerSelector);
+
+            try (final var transport = mockStatic(ClprEndpointClientImpl.class)) {
+                synchronize(channel(6L, 0L, 0L));
+
+                transport.verifyNoInteractions();
+                thenFailureIsRecorded();
+                verifyNoInteractions(stateProofManager, bundleSubmitter, client, streamingCall);
+            } finally {
+                realCache.shutdownAll();
+            }
         }
     }
 
