@@ -7,9 +7,13 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_FUN
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_HEADLONG_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
+import static com.hedera.node.app.service.contract.impl.utils.ConstantUtils.ZERO_ACCOUNT_ID;
+import static com.hedera.node.app.service.contract.impl.utils.ConstantUtils.ZERO_ADDRESS;
 import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 
@@ -17,8 +21,11 @@ import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateCommonDecoder;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x16c.UpdateDecoder;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x16c.UpdateKeysTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x16c.UpdateNFTsMetadataTranslator;
+import java.math.BigInteger;
 import java.time.Instant;
 import org.apache.tuweni.bytes.Bytes;
 import org.junit.jupiter.api.BeforeEach;
@@ -65,6 +72,7 @@ class UpdateDecoderTest {
     void setUp() {
         lenient().when(attempt.addressIdConverter()).thenReturn(addressIdConverter);
         lenient().when(addressIdConverter.convert(OWNER_HEADLONG_ADDRESS)).thenReturn(OWNER_ID);
+        lenient().when(addressIdConverter.convert(ZERO_ADDRESS)).thenReturn(ZERO_ACCOUNT_ID);
     }
 
     @Test
@@ -94,5 +102,50 @@ class UpdateDecoderTest {
         assertNotNull(tokenUpdate.metadata());
         assertEquals("Jerry", tokenUpdate.metadata().asUtf8String());
         assertEquals(3, tokenUpdate.serialNumbers().size());
+    }
+
+    @Test
+    void updateKeysDropsInheritedMetadataKeyAndReportsIt() {
+        final var inheritedMetadataKey =
+                Tuple.of(BigInteger.valueOf(128), Tuple.of(true, ZERO_ADDRESS, new byte[0], new byte[0], ZERO_ADDRESS));
+        final var encoded = Bytes.wrapByteBuffer(UpdateKeysTranslator.TOKEN_UPDATE_KEYS_16C.encodeCallWithArgs(
+                FUNGIBLE_TOKEN_HEADLONG_ADDRESS, new Tuple[] {inheritedMetadataKey}));
+        given(attempt.input()).willReturn(encoded);
+        given(attempt.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
+
+        final var tokenUpdate =
+                requireNonNull(subject.decodeTokenUpdateKeys(attempt)).tokenUpdateOrThrow();
+        assertFalse(tokenUpdate.hasMetadataKey());
+        assertTrue(subject.keysRequestInheritedAccountKey(attempt));
+    }
+
+    @Test
+    void updateWithMetadataDropsInheritedMetadataKeyAndReportsIt() {
+        final var inheritedMetadataKey =
+                Tuple.of(BigInteger.valueOf(128), Tuple.of(true, ZERO_ADDRESS, new byte[0], new byte[0], ZERO_ADDRESS));
+        final var token = Tuple.from(
+                newName,
+                "",
+                ZERO_ADDRESS,
+                "",
+                true,
+                1000L,
+                false,
+                new Tuple[] {inheritedMetadataKey},
+                Tuple.of(0L, ZERO_ADDRESS, 0L),
+                metadata.getBytes());
+        given(attempt.input())
+                .willReturn(Bytes.wrapByteBuffer(TOKEN_UPDATE_INFO_FUNCTION_WITH_METADATA.encodeCallWithArgs(
+                        FUNGIBLE_TOKEN_HEADLONG_ADDRESS, token)));
+        given(attempt.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
+
+        final var tokenUpdate = subject.decodeTokenUpdateWithMetadata(attempt).tokenUpdateOrThrow();
+        assertEquals(newName, tokenUpdate.name());
+        assertFalse(tokenUpdate.hasMetadataKey());
+        assertTrue(UpdateCommonDecoder.tokenRequestsInheritedAccountKey(
+                TOKEN_UPDATE_INFO_FUNCTION_WITH_METADATA.decodeCall(
+                        attempt.input().toArrayUnsafe())));
     }
 }

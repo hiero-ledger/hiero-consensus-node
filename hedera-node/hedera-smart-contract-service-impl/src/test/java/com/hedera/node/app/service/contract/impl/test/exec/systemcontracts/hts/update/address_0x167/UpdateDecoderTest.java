@@ -7,25 +7,35 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_I
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.utils.ConstantUtils.ZERO_ACCOUNT_ID;
 import static com.hedera.node.app.service.contract.impl.utils.ConstantUtils.ZERO_ADDRESS;
+import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
 
 import com.esaulpaugh.headlong.abi.Tuple;
+import com.hedera.hapi.node.base.Key;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateCommonDecoder;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateExpiryTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x167.UpdateDecoder;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x167.UpdateKeysTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x167.UpdateTranslator;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
+import java.math.BigInteger;
 import java.time.Instant;
+import java.util.stream.Stream;
 import org.apache.tuweni.bytes.Bytes;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -164,6 +174,106 @@ class UpdateDecoderTest {
             assertEquals(EXPIRY_TIMESTAMP, tokenUpdate.expiry().seconds());
             assertEquals(AUTO_RENEW_PERIOD, tokenUpdate.autoRenewPeriod().seconds());
             assertEquals(OWNER_ID, tokenUpdate.autoRenewAccount());
+        }
+    }
+
+    @Nested
+    class InheritAccountKey {
+        private static final BigInteger SUPPLY_KEY_TYPE = BigInteger.valueOf(16);
+        private static final byte[] ED25519_KEY = new byte[32];
+
+        @BeforeEach
+        void setUp() {
+            lenient().when(attempt.addressIdConverter()).thenReturn(addressIdConverter);
+            lenient().when(addressIdConverter.convert(ZERO_ADDRESS)).thenReturn(ZERO_ACCOUNT_ID);
+            lenient().when(attempt.nativeOperations()).thenReturn(nativeOperations);
+            lenient().when(nativeOperations.entityIdFactory()).thenReturn(entityIdFactory);
+        }
+
+        @Test
+        void updateKeysDropsInheritedKeyAndReportsIt() {
+            givenKeysCall(inheritedSupplyKey());
+
+            final var tokenUpdate =
+                    requireNonNull(subject.decodeTokenUpdateKeys(attempt)).tokenUpdateOrThrow();
+            assertFalse(tokenUpdate.hasSupplyKey());
+            assertTrue(subject.keysRequestInheritedAccountKey(attempt));
+        }
+
+        @Test
+        void updateKeysStillAcceptsExplicitKey() {
+            givenKeysCall(ed25519SupplyKey());
+
+            final var tokenUpdate =
+                    requireNonNull(subject.decodeTokenUpdateKeys(attempt)).tokenUpdateOrThrow();
+            assertEquals(
+                    Key.newBuilder()
+                            .ed25519(com.hedera.pbj.runtime.io.buffer.Bytes.wrap(ED25519_KEY))
+                            .build(),
+                    tokenUpdate.supplyKey());
+            assertFalse(subject.keysRequestInheritedAccountKey(attempt));
+        }
+
+        @Test
+        void detectsAnInheritedKeyAmongOtherKeys() {
+            assertTrue(UpdateCommonDecoder.requestsInheritedAccountKey(
+                    new Tuple[] {ed25519SupplyKey(), inheritedSupplyKey()}));
+            assertFalse(UpdateCommonDecoder.requestsInheritedAccountKey(new Tuple[] {ed25519SupplyKey()}));
+            assertFalse(UpdateCommonDecoder.requestsInheritedAccountKey(new Tuple[0]));
+        }
+
+        @ParameterizedTest
+        @MethodSource("updateTokenInfoMethods")
+        void updateTokenInfoKeepsOtherFieldsAndReportsInheritedKey(final SystemContractMethod method) {
+            givenInfoCall(method);
+
+            final var body = method == UpdateTranslator.TOKEN_UPDATE_INFO_FUNCTION_V1
+                    ? subject.decodeTokenUpdateV1(attempt)
+                    : method == UpdateTranslator.TOKEN_UPDATE_INFO_FUNCTION_V2
+                            ? subject.decodeTokenUpdateV2(attempt)
+                            : subject.decodeTokenUpdateV3(attempt);
+            final var tokenUpdate = requireNonNull(body).tokenUpdateOrThrow();
+            assertEquals(newName, tokenUpdate.name());
+            assertFalse(tokenUpdate.hasSupplyKey());
+            assertTrue(UpdateCommonDecoder.tokenRequestsInheritedAccountKey(
+                    method.decodeCall(attempt.input().toArrayUnsafe())));
+        }
+
+        static Stream<SystemContractMethod> updateTokenInfoMethods() {
+            return Stream.of(
+                    UpdateTranslator.TOKEN_UPDATE_INFO_FUNCTION_V1,
+                    UpdateTranslator.TOKEN_UPDATE_INFO_FUNCTION_V2,
+                    UpdateTranslator.TOKEN_UPDATE_INFO_FUNCTION_V3);
+        }
+
+        private void givenKeysCall(final Tuple... keys) {
+            given(attempt.input())
+                    .willReturn(Bytes.wrapByteBuffer(UpdateKeysTranslator.TOKEN_UPDATE_KEYS_FUNCTION.encodeCallWithArgs(
+                            FUNGIBLE_TOKEN_HEADLONG_ADDRESS, keys)));
+        }
+
+        private void givenInfoCall(final SystemContractMethod method) {
+            final var token = Tuple.from(
+                    newName,
+                    "",
+                    ZERO_ADDRESS,
+                    "",
+                    true,
+                    1000L,
+                    false,
+                    new Tuple[] {ed25519SupplyKey(), inheritedSupplyKey()},
+                    Tuple.of(0L, ZERO_ADDRESS, 0L));
+            given(attempt.input())
+                    .willReturn(
+                            Bytes.wrapByteBuffer(method.encodeCallWithArgs(FUNGIBLE_TOKEN_HEADLONG_ADDRESS, token)));
+        }
+
+        private static Tuple inheritedSupplyKey() {
+            return Tuple.of(SUPPLY_KEY_TYPE, Tuple.of(true, ZERO_ADDRESS, new byte[0], new byte[0], ZERO_ADDRESS));
+        }
+
+        private static Tuple ed25519SupplyKey() {
+            return Tuple.of(SUPPLY_KEY_TYPE, Tuple.of(false, ZERO_ADDRESS, ED25519_KEY, new byte[0], ZERO_ADDRESS));
         }
     }
 }

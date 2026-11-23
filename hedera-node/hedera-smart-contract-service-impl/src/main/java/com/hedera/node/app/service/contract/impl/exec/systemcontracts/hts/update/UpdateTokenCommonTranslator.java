@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update;
 
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateCommonDecoder.FAILURE_CUSTOMIZER;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateCommonDecoder.tokenRequestsInheritedAccountKey;
 
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
@@ -35,8 +36,20 @@ public class UpdateTokenCommonTranslator extends AbstractCallTranslator<HtsCallA
 
     @Override
     public Call callFrom(@NonNull HtsCallAttempt attempt) {
-        return new DispatchForResponseCodeHtsCall(
-                attempt, nominalBodyFor(attempt), UpdateCommons::gasRequirement, FAILURE_CUSTOMIZER);
+        final var body = nominalBodyFor(attempt);
+        if (body != null && requestsInheritedAccountKey(attempt)) {
+            return new InheritedKeyUpdateCall(attempt, body);
+        }
+        return new DispatchForResponseCodeHtsCall(attempt, body, UpdateCommons::gasRequirement, FAILURE_CUSTOMIZER);
+    }
+
+    private boolean requestsInheritedAccountKey(@NonNull final HtsCallAttempt attempt) {
+        return updateMethodsMap.keySet().stream()
+                .filter(attempt::isSelector)
+                .findFirst()
+                .map(method -> tokenRequestsInheritedAccountKey(
+                        method.decodeCall(attempt.input().toArrayUnsafe())))
+                .orElse(false);
     }
 
     private TransactionBody nominalBodyFor(@NonNull final HtsCallAttempt attempt) {
