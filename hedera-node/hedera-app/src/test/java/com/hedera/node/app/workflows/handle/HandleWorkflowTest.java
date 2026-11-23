@@ -1309,11 +1309,14 @@ class HandleWorkflowTest {
     @CsvSource({
         "hiero:localnet, 295, eip155:295",
         "hiero:localnet, 297, eip155:297",
+        "hiero:mainnet, 295, eip155:295",
+        "'', 297, eip155:297",
+        "eip1550:123, 297, eip155:297",
         "eip155:297, 297, eip155:297",
         "eip155:456, 297, eip155:456"
     })
-    void upgradeMigratesOnlyTheLegacyChainId(final String storedId, final String evmId, final String expectedId)
-            throws Exception {
+    void upgradeMigratesChainIdsOutsideTheEip155Namespace(
+            final String storedId, final String evmId, final String expectedId) throws Exception {
         final var existing = ClprLedgerConfiguration.newBuilder()
                 .chainId(storedId)
                 .protocolVersion(1)

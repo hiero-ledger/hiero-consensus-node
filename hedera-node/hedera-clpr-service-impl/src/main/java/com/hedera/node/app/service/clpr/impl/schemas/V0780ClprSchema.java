@@ -88,6 +88,7 @@ public class V0780ClprSchema extends Schema<SemanticVersion> {
 
     private static final SemanticVersion VERSION =
             SemanticVersion.newBuilder().major(0).minor(78).patch(0).build();
+    private static final String EIP155_PREFIX = "eip155:";
 
     /** EVM address of the Hiero CLPR service contract: 0x000000000000000000000000000000000000016e */
     public static final Bytes CLPR_SERVICE_ADDRESS = CLPR_EVM_ADDRESS_BYTES;
@@ -197,14 +198,13 @@ public class V0780ClprSchema extends Schema<SemanticVersion> {
     }
 
     /**
-     * Replaces the 0.79 default chain ID during post-upgrade maintenance. Networks that set an
-     * explicit chain ID at genesis retain it unless it is the same legacy value.
+     * Migrates stored chain IDs outside the eip155 namespace to the configured EVM chain ID on upgrade.
      */
     public static void migrateLegacyChainId(
             @NonNull final WritableStates writableStates, @NonNull final Configuration configuration) {
         final var ledger = writableStates.<ClprLedgerConfiguration>getSingleton(LEDGER_CONFIGURATION_STATE_ID);
         final var existing = ledger.get();
-        if (existing != null && "hiero:localnet".equals(existing.chainId())) {
+        if (existing != null && !existing.chainId().startsWith(EIP155_PREFIX)) {
             ledger.put(existing.copyBuilder()
                     .chainId(configuredChainId(configuration))
                     .build());
@@ -212,6 +212,7 @@ public class V0780ClprSchema extends Schema<SemanticVersion> {
     }
 
     private static String configuredChainId(@NonNull final Configuration configuration) {
-        return "eip155:" + configuration.getConfigData(ContractsConfig.class).chainId();
+        return EIP155_PREFIX
+                + configuration.getConfigData(ContractsConfig.class).chainId();
     }
 }
