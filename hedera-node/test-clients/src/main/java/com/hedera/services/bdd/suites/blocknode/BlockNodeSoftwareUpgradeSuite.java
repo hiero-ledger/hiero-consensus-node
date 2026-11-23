@@ -51,12 +51,16 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
     @HapiTest
     @HapiBlockNode(
             networkSize = 4,
-            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL)},
+            blockNodeConfigs = {
+                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL),
+                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.REAL),
+                @BlockNodeConfig(nodeId = 2, mode = BlockNodeMode.REAL)
+            },
             subProcessNodeConfigs = {
                 @SubProcessNodeConfig(
                         nodeId = 0,
-                        blockNodeIds = {0},
-                        blockNodePriorities = {0},
+                        blockNodeIds = {0, 1, 2},
+                        blockNodePriorities = {0, 1, 1},
                         applicationPropertiesOverrides = {
                             "blockStream.streamMode",
                             "BLOCKS",
@@ -78,8 +82,8 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 1,
-                        blockNodeIds = {0},
-                        blockNodePriorities = {0},
+                        blockNodeIds = {0, 1, 2},
+                        blockNodePriorities = {0, 1, 1},
                         applicationPropertiesOverrides = {
                             "blockStream.streamMode",
                             "BLOCKS",
@@ -101,8 +105,8 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 2,
-                        blockNodeIds = {0},
-                        blockNodePriorities = {0},
+                        blockNodeIds = {0, 1, 2},
+                        blockNodePriorities = {0, 1, 1},
                         applicationPropertiesOverrides = {
                             "blockStream.streamMode",
                             "BLOCKS",
@@ -124,8 +128,8 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 3,
-                        blockNodeIds = {0},
-                        blockNodePriorities = {0},
+                        blockNodeIds = {0, 1, 2},
+                        blockNodePriorities = {0, 1, 1},
                         applicationPropertiesOverrides = {
                             "blockStream.streamMode",
                             "BLOCKS",

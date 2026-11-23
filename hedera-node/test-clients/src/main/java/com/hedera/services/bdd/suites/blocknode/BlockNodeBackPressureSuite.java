@@ -50,12 +50,10 @@ public class BlockNodeBackPressureSuite {
                         blockNodeIds = {0},
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
-                            "blockStream.buffer.maxBlocks",
-                            "15",
-                            "blockStream.streamMode",
-                            "BLOCKS",
-                            "blockStream.streamWrappedRecordBlocks",
-                            "false"
+                            "blockStream.buffer.maxBlocks", "15",
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.streamWrappedRecordBlocks", "false",
+                            "blockStream.buffer.minAcksRequiredPerBlock", "1"
                         })
             })
     @Order(1)
@@ -93,16 +91,12 @@ public class BlockNodeBackPressureSuite {
                         blockNodeIds = {0},
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
-                            "blockStream.buffer.maxBlocks",
-                            "15",
-                            "blockStream.streamMode",
-                            "BLOCKS",
-                            "blockStream.writerMode",
-                            "GRPC",
-                            "blockStream.streamWrappedRecordBlocks",
-                            "false",
-                            "tss.forceMockSignatures",
-                            "false"
+                            "blockStream.buffer.maxBlocks", "15",
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.writerMode", "GRPC",
+                            "blockStream.streamWrappedRecordBlocks", "false",
+                            "tss.forceMockSignatures", "false",
+                            "blockStream.buffer.minAcksRequiredPerBlock", "1"
                         })
             })
     @Order(2)
@@ -149,32 +143,24 @@ public class BlockNodeBackPressureSuite {
                         blockNodeIds = {0},
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
-                            "blockStream.buffer.maxBlocks",
-                            "5",
-                            "blockStream.streamMode",
-                            "BLOCKS",
-                            "blockStream.writerMode",
-                            "GRPC",
-                            "blockStream.streamWrappedRecordBlocks",
-                            "false",
-                            "tss.forceMockSignatures",
-                            "false"
+                            "blockStream.buffer.maxBlocks", "5",
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.writerMode", "GRPC",
+                            "blockStream.streamWrappedRecordBlocks", "false",
+                            "tss.forceMockSignatures", "false",
+                            "blockStream.buffer.minAcksRequiredPerBlock", "1"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 1,
                         blockNodeIds = {1},
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
-                            "blockStream.buffer.maxBlocks",
-                            "5",
-                            "blockStream.streamMode",
-                            "BLOCKS",
-                            "blockStream.writerMode",
-                            "GRPC",
-                            "blockStream.streamWrappedRecordBlocks",
-                            "false",
-                            "tss.forceMockSignatures",
-                            "false"
+                            "blockStream.buffer.maxBlocks", "5",
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.writerMode", "GRPC",
+                            "blockStream.streamWrappedRecordBlocks", "false",
+                            "tss.forceMockSignatures", "false",
+                            "blockStream.buffer.minAcksRequiredPerBlock", "1"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 2,
@@ -190,7 +176,9 @@ public class BlockNodeBackPressureSuite {
                             "blockStream.streamWrappedRecordBlocks",
                             "false",
                             "tss.forceMockSignatures",
-                            "false"
+                            "false",
+                            "blockStream.buffer.minAcksRequiredPerBlock",
+                            "1"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 3,
@@ -206,7 +194,9 @@ public class BlockNodeBackPressureSuite {
                             "blockStream.streamWrappedRecordBlocks",
                             "false",
                             "tss.forceMockSignatures",
-                            "false"
+                            "false",
+                            "blockStream.buffer.minAcksRequiredPerBlock",
+                            "1"
                         })
             })
     @Order(3)
@@ -288,7 +278,9 @@ public class BlockNodeBackPressureSuite {
                             "blockStream.streamWrappedRecordBlocks",
                             "false",
                             "tss.forceMockSignatures",
-                            "false"
+                            "false",
+                            "blockStream.buffer.minAcksRequiredPerBlock",
+                            "1"
                         })
             })
     @Order(4)

@@ -189,6 +189,7 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
         assertThat(buffer).hasSize(numBlocks);
         assertThat(blockBufferService.getLastBlockNumberProduced()).isEqualTo(startBlockNumber + numBlocks - 1);
         assertThat(blockBufferService.getLastBlockClosed()).isEqualTo(startBlockNumber + numBlocks - 1);
+        assertThat(blockBufferService.getEarliestAvailableBlockNumber()).isEqualTo(startBlockNumber);
         final long bufferSizeBeforeShutdown = bufferSizeInBytes.sum();
         assertThat(bufferSizeBeforeShutdown).isGreaterThan(0L);
 
@@ -199,6 +200,7 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
         assertThat(bufferSizeInBytes).isZero();
         assertThat(blockBufferService.getLastBlockNumberProduced()).isEqualTo(-1L);
         assertThat(blockBufferService.getLastBlockClosed()).isEqualTo(-1L);
+        assertThat(blockBufferService.getEarliestAvailableBlockNumber()).isEqualTo(-1L);
 
         blockBufferService.start(); // This should load buffer from disk
 
@@ -210,6 +212,7 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
         assertThat(bufferSizeAfterRestart).isGreaterThan(0L).isEqualTo(bufferSizeBeforeShutdown);
         assertThat(blockBufferService.getLastBlockNumberProduced()).isEqualTo(startBlockNumber + numBlocks - 1);
         assertThat(blockBufferService.getLastBlockClosed()).isEqualTo(startBlockNumber + numBlocks - 1);
+        assertThat(blockBufferService.getEarliestAvailableBlockNumber()).isEqualTo(startBlockNumber);
 
         // Verify all blocks were restored correctly
         for (long blockNum = startBlockNumber; blockNum < startBlockNumber + numBlocks; blockNum++) {

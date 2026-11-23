@@ -632,6 +632,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
                 .withConfigDataType(BlockStreamConfig.class)
                 .withValue("blockStream.writerMode", "GRPC")
                 .withValue("blockStream.buffer.isBufferPersistenceEnabled", false)
+                .withValue("blockStream.buffer.minAcksRequiredPerBlock", 1)
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(mockConfig, 1));
 
@@ -886,6 +887,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
                 .withValue("blockStream.blockPeriod", Duration.ofSeconds(1))
                 .withValue("blockStream.buffer.maxBlocks", maxBlocks)
                 .withValue("blockStream.buffer.isBufferPersistenceEnabled", false)
+                .withValue("blockStream.buffer.minAcksRequiredPerBlock", 1)
                 .getOrCreateConfig();
         when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
 
@@ -1089,6 +1091,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
                 .withValue("blockStream.blockPeriod", Duration.ofSeconds(1))
                 .withValue("blockStream.buffer.maxBlocks", 20)
                 .withValue("blockStream.buffer.isBufferPersistenceEnabled", false)
+                .withValue("blockStream.buffer.minAcksRequiredPerBlock", 1)
                 .getOrCreateConfig();
         when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
 
@@ -1172,6 +1175,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
                 .withValue("blockStream.streamMode", "BOTH")
                 .withValue("blockStream.buffer.maxBlocks", 1)
                 .withValue("blockStream.buffer.isBufferPersistenceEnabled", false)
+                .withValue("blockStream.buffer.minAcksRequiredPerBlock", 1)
                 .getOrCreateConfig();
         when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
 
@@ -1235,6 +1239,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
                 .withValue("blockStream.writerMode", BlockStreamWriterMode.GRPC)
                 .withValue("blockStream.buffer.isBufferPersistenceEnabled", false)
                 .withValue("blockStream.streamMode", StreamMode.BLOCKS)
+                .withValue("blockStream.buffer.minAcksRequiredPerBlock", 1)
                 .getOrCreateConfig();
         when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
 
@@ -2669,6 +2674,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
                 .withValue("blockStream.buffer.maxBlocks", 20)
                 .withValue("blockStream.buffer.ackedBlocksToRetain", 3)
                 .withValue("blockStream.buffer.isBufferPersistenceEnabled", false)
+                .withValue("blockStream.buffer.minAcksRequiredPerBlock", 1)
                 .getOrCreateConfig();
         when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
 
@@ -2727,6 +2733,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
                 .withValue("blockStream.buffer.maxBlocks", 5)
                 .withValue("blockStream.buffer.ackedBlocksToRetain", 10)
                 .withValue("blockStream.buffer.isBufferPersistenceEnabled", false)
+                .withValue("blockStream.buffer.minAcksRequiredPerBlock", 1)
                 .getOrCreateConfig();
         when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
 
@@ -2780,6 +2787,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
                 .withValue("blockStream.buffer.maxBlocks", 20)
                 .withValue("blockStream.buffer.ackedBlocksToRetain", 0)
                 .withValue("blockStream.buffer.isBufferPersistenceEnabled", false)
+                .withValue("blockStream.buffer.minAcksRequiredPerBlock", 1)
                 .getOrCreateConfig();
         when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
 
@@ -3011,6 +3019,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
                 .withValue("blockStream.buffer.maxBytes", "100M")
                 .withValue("blockStream.buffer.maxBlocks", "100")
                 .withValue("blockStream.buffer.ackedBlocksToRetain", "20")
+                .withValue("blockStream.buffer.minAcksRequiredPerBlock", 1)
                 .getOrCreateConfig();
         when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
 
@@ -3291,6 +3300,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
                 .withValue("blockStream.buffer.maxBlocks", "100")
                 .withValue("blockStream.buffer.ackedBlocksToRetain", "20")
                 .withValue("blockStream.buffer.maxInProgressBlocks", "5")
+                .withValue("blockStream.buffer.minAcksRequiredPerBlock", 1)
                 .getOrCreateConfig();
         when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
 
@@ -3558,6 +3568,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
                 .withValue("blockStream.buffer.maxBlocks", "50")
                 .withValue("blockStream.buffer.ackedBlocksToRetain", "20")
                 .withValue("blockStream.buffer.maxInProgressBlocks", "5")
+                .withValue("blockStream.buffer.minAcksRequiredPerBlock", 1)
                 .getOrCreateConfig();
         when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
 

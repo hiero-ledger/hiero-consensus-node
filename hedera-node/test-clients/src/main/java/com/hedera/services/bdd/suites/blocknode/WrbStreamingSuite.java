@@ -37,12 +37,16 @@ public class WrbStreamingSuite {
     @HapiTest
     @HapiBlockNode(
             networkSize = 1,
-            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
+            blockNodeConfigs = {
+                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR, catchUpFromPeers = true),
+                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.SIMULATOR, catchUpFromPeers = true),
+                @BlockNodeConfig(nodeId = 2, mode = BlockNodeMode.SIMULATOR, catchUpFromPeers = true)
+            },
             subProcessNodeConfigs = {
                 @SubProcessNodeConfig(
                         nodeId = 0,
-                        blockNodeIds = {0},
-                        blockNodePriorities = {0},
+                        blockNodeIds = {0, 1, 2},
+                        blockNodePriorities = {0, 0, 0},
                         applicationPropertiesOverrides = {
                             // Wrapped record blocks only exist in the pre-cutover world
                             "blockStream.streamMode", "BOTH",
@@ -106,12 +110,16 @@ public class WrbStreamingSuite {
     @HapiTest
     @HapiBlockNode(
             networkSize = 1,
-            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
+            blockNodeConfigs = {
+                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR, catchUpFromPeers = true),
+                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.SIMULATOR, catchUpFromPeers = true),
+                @BlockNodeConfig(nodeId = 2, mode = BlockNodeMode.SIMULATOR, catchUpFromPeers = true)
+            },
             subProcessNodeConfigs = {
                 @SubProcessNodeConfig(
                         nodeId = 0,
-                        blockNodeIds = {0},
-                        blockNodePriorities = {0},
+                        blockNodeIds = {0, 1, 2},
+                        blockNodePriorities = {0, 0, 0},
                         applicationPropertiesOverrides = {
                             "blockStream.streamMode", "BOTH",
                             "blockStream.enableCutover", "false",
