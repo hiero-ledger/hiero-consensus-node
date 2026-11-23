@@ -157,9 +157,6 @@ public class V0780ClprSchema extends Schema<SemanticVersion> {
                 writableStates.<ClprLedgerConfiguration>getSingleton(LEDGER_CONFIGURATION_STATE_ID);
         if (ledgerConfigurationState.get() == null) {
             final var clprConfig = configuration.getConfigData(ClprConfig.class);
-            // The CAIP-2 chain id is the network's HIP-26 EVM chain id in the eip155 namespace
-            final var chainId = "eip155:"
-                    + configuration.getConfigData(ContractsConfig.class).chainId();
             // Use seconds=1 as the initialization sentinel so timestamp is non-zero and
             // distinguishable from the proto default. The first admin update replaces it with
             // the actual consensus time.
@@ -168,7 +165,7 @@ public class V0780ClprSchema extends Schema<SemanticVersion> {
             // The trust anchor fields remain unset until the history ledger ID is established.
             // The first configuration update after that point populates them from consensus state.
             final var initialConfig = ClprLedgerConfiguration.newBuilder()
-                    .chainId(chainId)
+                    .chainId(configuredChainId(configuration))
                     .protocolVersion(clprConfig.protocolVersion())
                     .serviceAddress(CLPR_SERVICE_ADDRESS)
                     .timestamp(initializationTimestamp)
@@ -197,5 +194,24 @@ public class V0780ClprSchema extends Schema<SemanticVersion> {
             initialized = true;
         }
         return initialized;
+    }
+
+    /**
+     * Replaces the 0.79 default chain ID during post-upgrade maintenance. Networks that set an
+     * explicit chain ID at genesis retain it unless it is the same legacy value.
+     */
+    public static void migrateLegacyChainId(
+            @NonNull final WritableStates writableStates, @NonNull final Configuration configuration) {
+        final var ledger = writableStates.<ClprLedgerConfiguration>getSingleton(LEDGER_CONFIGURATION_STATE_ID);
+        final var existing = ledger.get();
+        if (existing != null && "hiero:localnet".equals(existing.chainId())) {
+            ledger.put(existing.copyBuilder()
+                    .chainId(configuredChainId(configuration))
+                    .build());
+        }
+    }
+
+    private static String configuredChainId(@NonNull final Configuration configuration) {
+        return "eip155:" + configuration.getConfigData(ContractsConfig.class).chainId();
     }
 }
