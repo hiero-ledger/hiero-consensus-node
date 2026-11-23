@@ -181,7 +181,7 @@
                       },
                       "spec": {
                         "editorMode": "builder",
-                        "expr": "delta(blockStream_serviceConn_onError_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_serviceConn_onError_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -292,7 +292,7 @@
                       },
                       "spec": {
                         "editorMode": "builder",
-                        "expr": "delta(blockStream_observingConn_onError_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_observingConn_onError_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -403,7 +403,7 @@
                       },
                       "spec": {
                         "editorMode": "builder",
-                        "expr": "delta(blockStream_streamingConn_onComplete_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_streamingConn_onComplete_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -514,7 +514,7 @@
                       },
                       "spec": {
                         "editorMode": "builder",
-                        "expr": "delta(blockStream_serviceConn_onComplete_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_serviceConn_onComplete_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -625,7 +625,7 @@
                       },
                       "spec": {
                         "editorMode": "builder",
-                        "expr": "delta(blockStream_observingConn_onComplete_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_observingConn_onComplete_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -736,7 +736,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_streamingConn_connClose_blockNodeBehind_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_streamingConn_connClose_blockNodeBehind_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}} (BlockNodeBehind)",
                         "range": true
                       }
@@ -757,7 +757,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_streamingConn_connClose_blockNodeHighLatency_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_streamingConn_connClose_blockNodeHighLatency_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}} (BlockNodeHighLatency)",
                         "range": true
                       }
@@ -778,7 +778,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_streamingConn_connClose_bufferSaturation_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_streamingConn_connClose_bufferSaturation_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}} (BufferSaturation)",
                         "range": true
                       }
@@ -799,7 +799,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_streamingConn_connClose_configUpdate_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_streamingConn_connClose_configUpdate_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}} (ConfigUpdate)",
                         "range": true
                       }
@@ -820,7 +820,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_streamingConn_connClose_connectionError_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_streamingConn_connClose_connectionError_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}} (ConnectionError)",
                         "range": true
                       }
@@ -841,7 +841,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_streamingConn_connClose_endStreamReceived_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_streamingConn_connClose_endStreamReceived_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}} (EndOfStreamRecv)",
                         "range": true
                       }
@@ -862,7 +862,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_streamingConn_connClose_higherPriorityFound_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_streamingConn_connClose_higherPriorityFound_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}} (HigherPriorityFound)",
                         "range": true
                       }
@@ -883,7 +883,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_streamingConn_connClose_idleReceive_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_streamingConn_connClose_idleReceive_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}} (IdleReceive)",
                         "range": true
                       }
@@ -904,7 +904,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_streamingConn_connClose_internalError_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_streamingConn_connClose_internalError_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}} (InternalError)",
                         "range": true
                       }
@@ -925,7 +925,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_streamingConn_connClose_newConnection_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_streamingConn_connClose_newConnection_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}} (NewConnection)",
                         "range": true
                       }
@@ -946,7 +946,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_streamingConn_connClose_obsolete_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_streamingConn_connClose_obsolete_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}} (Obsolete)",
                         "range": true
                       }
@@ -967,7 +967,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_streamingConn_connClose_periodicReset_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_streamingConn_connClose_periodicReset_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}} (PeriodicReset)",
                         "range": true
                       }
@@ -988,7 +988,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_streamingConn_connClose_shutdown_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_streamingConn_connClose_shutdown_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}} (Shutdown)",
                         "range": true
                       }
@@ -1009,7 +1009,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_streamingConn_connClose_timeout_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_streamingConn_connClose_timeout_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}} (Timeout)",
                         "range": true
                       }
@@ -1030,7 +1030,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_streamingConn_connClose_tooManyEndStreamResponses_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_streamingConn_connClose_tooManyEndStreamResponses_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}} (TooManyEndOfStreams)",
                         "range": true
                       }
@@ -1051,7 +1051,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_streamingConn_connClose_transientEndStreamReceived_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_streamingConn_connClose_transientEndStreamReceived_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}} (TransientEndOfStream)",
                         "range": true
                       }
@@ -1072,7 +1072,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_streamingConn_connClose_unknown_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_streamingConn_connClose_unknown_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}} (Unknown)",
                         "range": true
                       }
@@ -1182,8 +1182,8 @@
                         "name": "grafanacloud-prom"
                       },
                       "spec": {
-                        "editorMode": "builder",
-                        "expr": "delta(blockStream_serviceConn_connClose_blockNodeBehind_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "editorMode": "code",
+                        "expr": "increase(blockStream_serviceConn_connClose_blockNodeBehind_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}} (BlockNodeBehind)",
                         "range": true
                       }
@@ -1204,7 +1204,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_serviceConn_connClose_blockNodeHighLatency_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_serviceConn_connClose_blockNodeHighLatency_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}} (BlockNodeHighLatency)",
                         "range": true
                       }
@@ -1225,7 +1225,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_serviceConn_connClose_bufferSaturation_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_serviceConn_connClose_bufferSaturation_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}} (BufferSaturation)",
                         "range": true
                       }
@@ -1246,7 +1246,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_serviceConn_connClose_configUpdate_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_serviceConn_connClose_configUpdate_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}} (ConfigUpdate)",
                         "range": true
                       }
@@ -1267,7 +1267,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_serviceConn_connClose_connectionError_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_serviceConn_connClose_connectionError_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}} (ConnectionError)",
                         "range": true
                       }
@@ -1288,7 +1288,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_serviceConn_connClose_endStreamReceived_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_serviceConn_connClose_endStreamReceived_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}} (EndOfStreamRecv)",
                         "range": true
                       }
@@ -1309,7 +1309,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_serviceConn_connClose_higherPriorityFound_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_serviceConn_connClose_higherPriorityFound_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}} (HigherPriorityFound)",
                         "range": true
                       }
@@ -1330,7 +1330,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_serviceConn_connClose_idleReceive_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_serviceConn_connClose_idleReceive_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}} (IdleReceive)",
                         "range": true
                       }
@@ -1351,7 +1351,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_serviceConn_connClose_internalError_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_serviceConn_connClose_internalError_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}} (InternalError)",
                         "range": true
                       }
@@ -1372,7 +1372,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_serviceConn_connClose_newConnection_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_serviceConn_connClose_newConnection_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}} (NewConnection)",
                         "range": true
                       }
@@ -1393,7 +1393,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_serviceConn_connClose_obsolete_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_serviceConn_connClose_obsolete_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}} (Obsolete)",
                         "range": true
                       }
@@ -1414,7 +1414,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_serviceConn_connClose_periodicReset_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_serviceConn_connClose_periodicReset_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}} (PeriodicReset)",
                         "range": true
                       }
@@ -1435,7 +1435,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_serviceConn_connClose_shutdown_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_serviceConn_connClose_shutdown_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}} (Shutdown)",
                         "range": true
                       }
@@ -1456,7 +1456,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_serviceConn_connClose_timeout_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_serviceConn_connClose_timeout_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}} (Timeout)",
                         "range": true
                       }
@@ -1477,7 +1477,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_serviceConn_connClose_tooManyEndStreamResponses_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_serviceConn_connClose_tooManyEndStreamResponses_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}} (TooManyEndOfStreams)",
                         "range": true
                       }
@@ -1498,7 +1498,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_serviceConn_connClose_transientEndStreamReceived_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_serviceConn_connClose_transientEndStreamReceived_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}} (TransientEndOfStream)",
                         "range": true
                       }
@@ -1519,7 +1519,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_serviceConn_connClose_unknown_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_serviceConn_connClose_unknown_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}} (Unknown)",
                         "range": true
                       }
@@ -1630,7 +1630,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_observingConn_connClose_blockNodeBehind_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_observingConn_connClose_blockNodeBehind_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}} (BlockNodeBehind)",
                         "range": true
                       }
@@ -1651,7 +1651,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_observingConn_connClose_blockNodeHighLatency_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_observingConn_connClose_blockNodeHighLatency_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}} (BlockNodeHighLatency)",
                         "range": true
                       }
@@ -1672,7 +1672,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_observingConn_connClose_bufferSaturation_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_observingConn_connClose_bufferSaturation_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}} (BufferSaturation)",
                         "range": true
                       }
@@ -1693,7 +1693,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_observingConn_connClose_configUpdate_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_observingConn_connClose_configUpdate_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}} (ConfigUpdate)",
                         "range": true
                       }
@@ -1714,7 +1714,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_observingConn_connClose_connectionError_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_observingConn_connClose_connectionError_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}} (ConnectionError)",
                         "range": true
                       }
@@ -1735,7 +1735,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_observingConn_connClose_endStreamReceived_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_observingConn_connClose_endStreamReceived_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}} (EndOfStreamRecv)",
                         "range": true
                       }
@@ -1756,7 +1756,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_observingConn_connClose_higherPriorityFound_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_observingConn_connClose_higherPriorityFound_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}} (HigherPriorityFound)",
                         "range": true
                       }
@@ -1777,7 +1777,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_observingConn_connClose_idleReceive_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_observingConn_connClose_idleReceive_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}} (IdleReceive)",
                         "range": true
                       }
@@ -1798,7 +1798,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_observingConn_connClose_internalError_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_observingConn_connClose_internalError_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}} (InternalError)",
                         "range": true
                       }
@@ -1819,7 +1819,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_observingConn_connClose_newConnection_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_observingConn_connClose_newConnection_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}} (NewConnection)",
                         "range": true
                       }
@@ -1840,7 +1840,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_observingConn_connClose_obsolete_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_observingConn_connClose_obsolete_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}} (Obsolete)",
                         "range": true
                       }
@@ -1861,7 +1861,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_observingConn_connClose_periodicReset_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_observingConn_connClose_periodicReset_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}} (PeriodicReset)",
                         "range": true
                       }
@@ -1882,7 +1882,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_observingConn_connClose_shutdown_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_observingConn_connClose_shutdown_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}} (Shutdown)",
                         "range": true
                       }
@@ -1903,7 +1903,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_observingConn_connClose_timeout_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_observingConn_connClose_timeout_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}} (Timeout)",
                         "range": true
                       }
@@ -1924,7 +1924,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_observingConn_connClose_tooManyEndStreamResponses_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_observingConn_connClose_tooManyEndStreamResponses_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}} (TooManyEndOfStreams)",
                         "range": true
                       }
@@ -1945,7 +1945,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_observingConn_connClose_transientEndStreamReceived_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_observingConn_connClose_transientEndStreamReceived_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}} (TransientEndOfStream)",
                         "range": true
                       }
@@ -1966,7 +1966,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_observingConn_connClose_unknown_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_observingConn_connClose_unknown_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}} (Unknown)",
                         "range": true
                       }
@@ -2077,7 +2077,7 @@
                       },
                       "spec": {
                         "editorMode": "builder",
-                        "expr": "delta(blockStream_serviceConn_opened_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_serviceConn_opened_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -2188,7 +2188,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_observingConn_opened_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_observingConn_opened_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -2410,7 +2410,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_conn_highLatencyEvents_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_conn_highLatencyEvents_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -2521,7 +2521,7 @@
                       },
                       "spec": {
                         "editorMode": "builder",
-                        "expr": "delta(blockStream_serviceConn_operationTimeout_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_serviceConn_operationTimeout_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -2632,7 +2632,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_streamingConn_operationTimeout_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_streamingConn_operationTimeout_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -2743,7 +2743,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_observingConn_operationTimeout_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_observingConn_operationTimeout_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -2854,7 +2854,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_serviceConnRecv_serverStatus_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_serviceConnRecv_serverStatus_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -2965,7 +2965,7 @@
                       },
                       "spec": {
                         "editorMode": "builder",
-                        "expr": "delta(blockStream_streamingConnRecv_acknowledgement_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_streamingConnRecv_acknowledgement_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -3076,7 +3076,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_observingConnRecv_acknowledgement_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_observingConnRecv_acknowledgement_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -3187,7 +3187,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_streamingConnRecv_endStream_badBlockProof_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_streamingConnRecv_endStream_badBlockProof_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -3298,7 +3298,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_observingConnRecv_endStream_badBlockProof_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_observingConnRecv_endStream_badBlockProof_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -3409,7 +3409,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_streamingConnRecv_endStream_duplicateBlock_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_streamingConnRecv_endStream_duplicateBlock_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -3520,7 +3520,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_observingConnRecv_endStream_duplicateBlock_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_observingConnRecv_endStream_duplicateBlock_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -3631,7 +3631,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_streamingConnRecv_endStream_error_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_streamingConnRecv_endStream_error_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -3742,7 +3742,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_observingConnRecv_endStream_error_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_observingConnRecv_endStream_error_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -3853,7 +3853,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_streamingConnRecv_endStream_invalidRequest_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_streamingConnRecv_endStream_invalidRequest_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -3964,7 +3964,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_observingConnRecv_endStream_invalidRequest_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_observingConnRecv_endStream_invalidRequest_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -4075,7 +4075,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_streamingConnRecv_endStream_persistenceFailed_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_streamingConnRecv_endStream_persistenceFailed_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -4186,7 +4186,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_observingConnRecv_endStream_persistenceFailed_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_observingConnRecv_endStream_persistenceFailed_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -4297,7 +4297,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_streamingConnRecv_endStream_success_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_streamingConnRecv_endStream_success_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -4408,7 +4408,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_observingConnRecv_endStream_success_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_observingConnRecv_endStream_success_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -4519,7 +4519,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_streamingConnRecv_endStream_timeout_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_streamingConnRecv_endStream_timeout_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -4630,7 +4630,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_observingConnRecv_endStream_timeout_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_observingConnRecv_endStream_timeout_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -4741,7 +4741,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_streamingConnRecv_endStream_unknown_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_streamingConnRecv_endStream_unknown_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -4852,7 +4852,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_observingConnRecv_endStream_unknown_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_observingConnRecv_endStream_unknown_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -4963,7 +4963,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_streamingConnRecv_endStream_unrecognized_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_streamingConnRecv_endStream_unrecognized_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -5074,7 +5074,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_observingConnRecv_endStream_unrecognized_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_observingConnRecv_endStream_unrecognized_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -5312,118 +5312,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_streamingConnRecv_nodeBehindPublisher_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
-                        "legendFormat": "node {{node}}",
-                        "range": true
-                      }
-                    },
-                    "refId": "A",
-                    "hidden": false
-                  }
-                }
-              ],
-              "transformations": [],
-              "queryOptions": {}
-            }
-          },
-          "vizConfig": {
-            "kind": "VizConfig",
-            "group": "timeseries",
-            "version": "13.2.1",
-            "spec": {
-              "options": {
-                "legend": {
-                  "calcs": [],
-                  "displayMode": "list",
-                  "placement": "bottom",
-                  "showLegend": false
-                },
-                "tooltip": {
-                  "hideZeros": false,
-                  "mode": "multi",
-                  "sort": "desc"
-                }
-              },
-              "fieldConfig": {
-                "defaults": {
-                  "thresholds": {
-                    "mode": "absolute",
-                    "steps": [
-                      {
-                        "value": 0,
-                        "color": "green"
-                      }
-                    ]
-                  },
-                  "color": {
-                    "mode": "palette-classic"
-                  },
-                  "custom": {
-                    "axisBorderShow": false,
-                    "axisCenteredZero": false,
-                    "axisColorMode": "text",
-                    "axisLabel": "",
-                    "axisPlacement": "auto",
-                    "axisSoftMin": 0,
-                    "barAlignment": 0,
-                    "barWidthFactor": 0.6,
-                    "drawStyle": "line",
-                    "fillOpacity": 0,
-                    "gradientMode": "none",
-                    "hideFrom": {
-                      "legend": false,
-                      "tooltip": false,
-                      "viz": false
-                    },
-                    "insertNulls": false,
-                    "lineInterpolation": "linear",
-                    "lineWidth": 1,
-                    "pointSize": 5,
-                    "scaleDistribution": {
-                      "type": "linear"
-                    },
-                    "showPoints": "never",
-                    "showValues": false,
-                    "spanNulls": false,
-                    "stacking": {
-                      "group": "A",
-                      "mode": "none"
-                    },
-                    "thresholdsStyle": {
-                      "mode": "off"
-                    }
-                  }
-                },
-                "overrides": []
-              }
-            }
-          }
-        }
-      },
-      "panel-148": {
-        "kind": "Panel",
-        "spec": {
-          "id": 148,
-          "title": "NodeBehindPublisher Received (1m Δ, Observing)",
-          "description": "",
-          "links": [],
-          "data": {
-            "kind": "QueryGroup",
-            "spec": {
-              "queries": [
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "query": {
-                      "kind": "DataQuery",
-                      "group": "prometheus",
-                      "version": "v0",
-                      "datasource": {
-                        "name": "grafanacloud-prom"
-                      },
-                      "spec": {
-                        "editorMode": "code",
-                        "expr": "delta(blockStream_observingConnRecv_nodeBehindPublisher_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_streamingConnRecv_nodeBehindPublisher_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -5534,118 +5423,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_streamingConnRecv_resendBlock_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
-                        "legendFormat": "node {{node}}",
-                        "range": true
-                      }
-                    },
-                    "refId": "A",
-                    "hidden": false
-                  }
-                }
-              ],
-              "transformations": [],
-              "queryOptions": {}
-            }
-          },
-          "vizConfig": {
-            "kind": "VizConfig",
-            "group": "timeseries",
-            "version": "13.2.1",
-            "spec": {
-              "options": {
-                "legend": {
-                  "calcs": [],
-                  "displayMode": "list",
-                  "placement": "bottom",
-                  "showLegend": false
-                },
-                "tooltip": {
-                  "hideZeros": false,
-                  "mode": "multi",
-                  "sort": "desc"
-                }
-              },
-              "fieldConfig": {
-                "defaults": {
-                  "thresholds": {
-                    "mode": "absolute",
-                    "steps": [
-                      {
-                        "value": 0,
-                        "color": "green"
-                      }
-                    ]
-                  },
-                  "color": {
-                    "mode": "palette-classic"
-                  },
-                  "custom": {
-                    "axisBorderShow": false,
-                    "axisCenteredZero": false,
-                    "axisColorMode": "text",
-                    "axisLabel": "",
-                    "axisPlacement": "auto",
-                    "axisSoftMin": 0,
-                    "barAlignment": 0,
-                    "barWidthFactor": 0.6,
-                    "drawStyle": "line",
-                    "fillOpacity": 0,
-                    "gradientMode": "none",
-                    "hideFrom": {
-                      "legend": false,
-                      "tooltip": false,
-                      "viz": false
-                    },
-                    "insertNulls": false,
-                    "lineInterpolation": "linear",
-                    "lineWidth": 1,
-                    "pointSize": 5,
-                    "scaleDistribution": {
-                      "type": "linear"
-                    },
-                    "showPoints": "never",
-                    "showValues": false,
-                    "spanNulls": false,
-                    "stacking": {
-                      "group": "A",
-                      "mode": "none"
-                    },
-                    "thresholdsStyle": {
-                      "mode": "off"
-                    }
-                  }
-                },
-                "overrides": []
-              }
-            }
-          }
-        }
-      },
-      "panel-151": {
-        "kind": "Panel",
-        "spec": {
-          "id": 151,
-          "title": "ResendBlock Received (1m Δ, Observing)",
-          "description": "",
-          "links": [],
-          "data": {
-            "kind": "QueryGroup",
-            "spec": {
-              "queries": [
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "query": {
-                      "kind": "DataQuery",
-                      "group": "prometheus",
-                      "version": "v0",
-                      "datasource": {
-                        "name": "grafanacloud-prom"
-                      },
-                      "spec": {
-                        "editorMode": "code",
-                        "expr": "delta(blockStream_observingConnRecv_resendBlock_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_streamingConnRecv_resendBlock_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -5756,118 +5534,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_streamingConnRecv_skipBlock_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
-                        "legendFormat": "node {{node}}",
-                        "range": true
-                      }
-                    },
-                    "refId": "A",
-                    "hidden": false
-                  }
-                }
-              ],
-              "transformations": [],
-              "queryOptions": {}
-            }
-          },
-          "vizConfig": {
-            "kind": "VizConfig",
-            "group": "timeseries",
-            "version": "13.2.1",
-            "spec": {
-              "options": {
-                "legend": {
-                  "calcs": [],
-                  "displayMode": "list",
-                  "placement": "bottom",
-                  "showLegend": false
-                },
-                "tooltip": {
-                  "hideZeros": false,
-                  "mode": "multi",
-                  "sort": "desc"
-                }
-              },
-              "fieldConfig": {
-                "defaults": {
-                  "thresholds": {
-                    "mode": "absolute",
-                    "steps": [
-                      {
-                        "value": 0,
-                        "color": "green"
-                      }
-                    ]
-                  },
-                  "color": {
-                    "mode": "palette-classic"
-                  },
-                  "custom": {
-                    "axisBorderShow": false,
-                    "axisCenteredZero": false,
-                    "axisColorMode": "text",
-                    "axisLabel": "",
-                    "axisPlacement": "auto",
-                    "axisSoftMin": 0,
-                    "barAlignment": 0,
-                    "barWidthFactor": 0.6,
-                    "drawStyle": "line",
-                    "fillOpacity": 0,
-                    "gradientMode": "none",
-                    "hideFrom": {
-                      "legend": false,
-                      "tooltip": false,
-                      "viz": false
-                    },
-                    "insertNulls": false,
-                    "lineInterpolation": "linear",
-                    "lineWidth": 1,
-                    "pointSize": 5,
-                    "scaleDistribution": {
-                      "type": "linear"
-                    },
-                    "showPoints": "never",
-                    "showValues": false,
-                    "spanNulls": false,
-                    "stacking": {
-                      "group": "A",
-                      "mode": "none"
-                    },
-                    "thresholdsStyle": {
-                      "mode": "off"
-                    }
-                  }
-                },
-                "overrides": []
-              }
-            }
-          }
-        }
-      },
-      "panel-154": {
-        "kind": "Panel",
-        "spec": {
-          "id": 154,
-          "title": "SkipBlock Received (1m Δ, Observing)",
-          "description": "",
-          "links": [],
-          "data": {
-            "kind": "QueryGroup",
-            "spec": {
-              "queries": [
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "query": {
-                      "kind": "DataQuery",
-                      "group": "prometheus",
-                      "version": "v0",
-                      "datasource": {
-                        "name": "grafanacloud-prom"
-                      },
-                      "spec": {
-                        "editorMode": "code",
-                        "expr": "delta(blockStream_observingConnRecv_skipBlock_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_streamingConnRecv_skipBlock_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -5978,7 +5645,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_serviceConnRecv_unknown_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_serviceConnRecv_unknown_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -6089,7 +5756,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_streamingConnRecv_unknown_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_streamingConnRecv_unknown_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -6200,7 +5867,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_observingConnRecv_unknown_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_observingConnRecv_unknown_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -6692,7 +6359,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_connRecv_responsesIgnoredAsObserving_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_observingConnRecv_ignored_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -7481,7 +7148,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_serviceConnSend_serverStatus_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_serviceConnSend_serverStatus_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -7592,7 +7259,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_observingConnSend_acknowledgeOnly_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_observingConnSend_acknowledgeOnly_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -7703,7 +7370,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_streamingConnSend_blockItems_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_streamingConnSend_blockItems_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -7814,7 +7481,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_streamingConnSend_endOfBlock_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_streamingConnSend_endOfBlock_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -7925,7 +7592,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_streamingConnSend_endStream_error_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_streamingConnSend_endStream_error_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -8036,7 +7703,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_observingConnSend_endStream_error_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_observingConnSend_endStream_error_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -8147,7 +7814,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_streamingConnSend_endStream_reset_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_streamingConnSend_endStream_reset_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -8258,7 +7925,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_observingConnSend_endStream_reset_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_observingConnSend_endStream_reset_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -8369,7 +8036,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_streamingConnSend_endStream_timeout_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_streamingConnSend_endStream_timeout_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -8480,7 +8147,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_observingConnSend_endStream_timeout_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_observingConnSend_endStream_timeout_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -8591,7 +8258,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_streamingConnSend_endStream_tooFarBehind_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_streamingConnSend_endStream_tooFarBehind_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -8702,7 +8369,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_observingConnSend_endStream_tooFarBehind_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_observingConnSend_endStream_tooFarBehind_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -8813,7 +8480,7 @@
                       },
                       "spec": {
                         "disableTextWrap": false,
-                        "editorMode": "builder",
+                        "editorMode": "code",
                         "expr": "blockStream_buffer_blockBytes{node=~\"$NodeId\", environment=\"$environment\", type=\"mean\"}",
                         "fullMetaSearch": false,
                         "includeNullMetadata": true,
@@ -8935,7 +8602,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_streamingConnSend_endStream_unknown_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_streamingConnSend_endStream_unknown_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -9046,7 +8713,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_observingConnSend_endStream_unknown_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_observingConnSend_endStream_unknown_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -9157,7 +8824,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_streamingConnSend_endStream_unrecognized_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_streamingConnSend_endStream_unrecognized_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -9268,7 +8935,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_observingConnSend_endStream_unrecognized_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_observingConnSend_endStream_unrecognized_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -9379,7 +9046,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_serviceConnSend_failure_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_serviceConnSend_failure_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -9490,7 +9157,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_streamingConnSend_failure_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_streamingConnSend_failure_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -9601,7 +9268,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_observingConnSend_failure_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_observingConnSend_failure_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -9712,7 +9379,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_connSend_blockItemCount_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_connSend_blockItemCount_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -10078,7 +9745,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_connSend_multiItemRequestExceedsSoftLimit_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_connSend_multiItemRequestExceedsSoftLimit_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -10190,7 +9857,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_connSend_requestExceedsHardLimit_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_connSend_requestExceedsHardLimit_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -11206,7 +10873,7 @@
                       "spec": {
                         "disableTextWrap": false,
                         "editorMode": "code",
-                        "expr": "delta(app_hintsPeerSigBeforeSubmit_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(app_hintsPeerSigBeforeSubmit_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "fullMetaSearch": false,
                         "includeNullMetadata": true,
                         "legendFormat": "node {{node}} (peer signature first)",
@@ -11231,7 +10898,7 @@
                       "spec": {
                         "disableTextWrap": false,
                         "editorMode": "code",
-                        "expr": "delta(app_hintsThresholdBeforeSubmit_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(app_hintsThresholdBeforeSubmit_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "fullMetaSearch": false,
                         "includeNullMetadata": true,
                         "legendFormat": "node {{node}} (signature aggregated first)",
@@ -11595,7 +11262,7 @@
                       "spec": {
                         "disableTextWrap": false,
                         "editorMode": "code",
-                        "expr": "delta(app_hintsSignaturesProduced_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(app_hintsSignaturesProduced_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "fullMetaSearch": false,
                         "includeNullMetadata": true,
                         "legendFormat": "node {{node}} (aggregated)",
@@ -11620,7 +11287,7 @@
                       "spec": {
                         "disableTextWrap": false,
                         "editorMode": "code",
-                        "expr": "delta(app_hintsSigningNoSigCompletions_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(app_hintsSigningNoSigCompletions_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "fullMetaSearch": false,
                         "includeNullMetadata": true,
                         "legendFormat": "node {{node}} (timed out without signature)",
@@ -11742,7 +11409,7 @@
                       "spec": {
                         "disableTextWrap": false,
                         "editorMode": "code",
-                        "expr": "delta(block_numIndirectProofs_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(block_numIndirectProofs_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "fullMetaSearch": false,
                         "includeNullMetadata": true,
                         "legendFormat": "node {{node}}",
@@ -11792,6 +11459,117 @@
                       {
                         "value": 80,
                         "color": "red"
+                      }
+                    ]
+                  },
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "axisSoftMin": 0,
+                    "barAlignment": 0,
+                    "barWidthFactor": 0.6,
+                    "drawStyle": "line",
+                    "fillOpacity": 0,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "insertNulls": false,
+                    "lineInterpolation": "linear",
+                    "lineWidth": 1,
+                    "pointSize": 5,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "showPoints": "never",
+                    "showValues": false,
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-215": {
+        "kind": "Panel",
+        "spec": {
+          "id": 215,
+          "title": "EndOfStream Limit Exceeded (1m Δ, Streaming)",
+          "description": "",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "prometheus",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "grafanacloud-prom"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "increase(blockStream_conn_endOfStreamLimitExceeded_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "legendFormat": "node {{node}}",
+                        "range": true
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.2.1",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": false
+                },
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": 0,
+                        "color": "green"
                       }
                     ]
                   },
@@ -12036,12 +11814,13 @@
                     {
                       "type": "value",
                       "options": {
-                        "1138063291": {
-                          "text": "s03.perf.blk.chi.lat.ope.eng.hashgraph.io",
+                        "0": {
+                          "text": "N/C",
+                          "color": "transparent",
                           "index": 2
                         },
                         "2130706433": {
-                          "text": "127.0.0.1",
+                          "text": "localhost",
                           "index": 0
                         },
                         "-1": {
@@ -12790,8 +12569,8 @@
                       },
                       "spec": {
                         "disableTextWrap": false,
-                        "editorMode": "builder",
-                        "expr": "delta(blockStream_buffer_numBlocksOpened_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "editorMode": "code",
+                        "expr": "increase(blockStream_buffer_numBlocksOpened_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "fullMetaSearch": false,
                         "includeNullMetadata": true,
                         "legendFormat": "node {{node}}",
@@ -12998,11 +12777,11 @@
                     "insertNulls": false,
                     "lineInterpolation": "linear",
                     "lineWidth": 1,
-                    "pointSize": 5,
+                    "pointSize": 1,
                     "scaleDistribution": {
                       "type": "linear"
                     },
-                    "showPoints": "auto",
+                    "showPoints": "never",
                     "showValues": false,
                     "spanNulls": false,
                     "stacking": {
@@ -15756,8 +15535,8 @@
                       },
                       "spec": {
                         "disableTextWrap": false,
-                        "editorMode": "builder",
-                        "expr": "delta(blockStream_buffer_numBlocksClosed_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "editorMode": "code",
+                        "expr": "increase(blockStream_buffer_numBlocksClosed_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "fullMetaSearch": false,
                         "includeNullMetadata": true,
                         "legendFormat": "node {{node}}",
@@ -16664,7 +16443,7 @@
                       },
                       "spec": {
                         "disableTextWrap": false,
-                        "editorMode": "builder",
+                        "editorMode": "code",
                         "expr": "blockStream_buffer_numBlocks{node=~\"$NodeId\", environment=\"$environment\"}",
                         "fullMetaSearch": false,
                         "includeNullMetadata": true,
@@ -16786,8 +16565,8 @@
                       },
                       "spec": {
                         "disableTextWrap": false,
-                        "editorMode": "builder",
-                        "expr": "delta(blockStream_buffer_numBlocksPruned_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "editorMode": "code",
+                        "expr": "increase(blockStream_buffer_numBlocksPruned_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "fullMetaSearch": false,
                         "includeNullMetadata": true,
                         "legendFormat": "node {{node}}",
@@ -17749,7 +17528,7 @@
                       "spec": {
                         "disableTextWrap": false,
                         "editorMode": "code",
-                        "expr": "delta(blockStream_buffer_numBlocksMissing_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_buffer_numBlocksMissing_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "fullMetaSearch": false,
                         "includeNullMetadata": true,
                         "legendFormat": "node {{node}}",
@@ -17869,7 +17648,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "delta(blockStream_streamingConn_opened_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_streamingConn_opened_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -18091,7 +17870,7 @@
                       },
                       "spec": {
                         "editorMode": "builder",
-                        "expr": "delta(blockStream_streamingConn_closed_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_streamingConn_closed_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -18202,7 +17981,7 @@
                       },
                       "spec": {
                         "editorMode": "builder",
-                        "expr": "delta(blockStream_serviceConn_closed_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_serviceConn_closed_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -18313,7 +18092,7 @@
                       },
                       "spec": {
                         "editorMode": "builder",
-                        "expr": "delta(blockStream_observingConn_closed_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_observingConn_closed_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -18424,7 +18203,7 @@
                       },
                       "spec": {
                         "editorMode": "builder",
-                        "expr": "delta(blockStream_streamingConn_createFailure_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_streamingConn_createFailure_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -18535,7 +18314,7 @@
                       },
                       "spec": {
                         "editorMode": "builder",
-                        "expr": "delta(blockStream_serviceConn_createFailure_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_serviceConn_createFailure_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -18646,7 +18425,7 @@
                       },
                       "spec": {
                         "editorMode": "builder",
-                        "expr": "delta(blockStream_observingConn_createFailure_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_observingConn_createFailure_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -18757,7 +18536,7 @@
                       },
                       "spec": {
                         "editorMode": "builder",
-                        "expr": "delta(blockStream_streamingConn_onError_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
+                        "expr": "increase(blockStream_streamingConn_onError_total{node=~\"$NodeId\", environment=\"$environment\"}[1m])",
                         "legendFormat": "node {{node}}",
                         "range": true
                       }
@@ -18947,7 +18726,7 @@
                         "height": 9,
                         "element": {
                           "kind": "ElementReference",
-                          "name": "panel-78"
+                          "name": "panel-79"
                         }
                       }
                     },
@@ -18960,7 +18739,7 @@
                         "height": 9,
                         "element": {
                           "kind": "ElementReference",
-                          "name": "panel-79"
+                          "name": "panel-78"
                         }
                       }
                     },
@@ -19615,6 +19394,19 @@
                           "name": "panel-111"
                         }
                       }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 8,
+                        "y": 72,
+                        "width": 8,
+                        "height": 8,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-215"
+                        }
+                      }
                     }
                   ]
                 }
@@ -19947,7 +19739,7 @@
                                   "height": 8,
                                   "element": {
                                     "kind": "ElementReference",
-                                    "name": "panel-148"
+                                    "name": "panel-157"
                                   }
                                 }
                               },
@@ -19973,7 +19765,7 @@
                                   "height": 8,
                                   "element": {
                                     "kind": "ElementReference",
-                                    "name": "panel-151"
+                                    "name": "panel-161"
                                   }
                                 }
                               },
@@ -19993,19 +19785,6 @@
                               {
                                 "kind": "GridLayoutItem",
                                 "spec": {
-                                  "x": 16,
-                                  "y": 96,
-                                  "width": 8,
-                                  "height": 8,
-                                  "element": {
-                                    "kind": "ElementReference",
-                                    "name": "panel-154"
-                                  }
-                                }
-                              },
-                              {
-                                "kind": "GridLayoutItem",
-                                "spec": {
                                   "x": 8,
                                   "y": 104,
                                   "width": 8,
@@ -20013,32 +19792,6 @@
                                   "element": {
                                     "kind": "ElementReference",
                                     "name": "panel-156"
-                                  }
-                                }
-                              },
-                              {
-                                "kind": "GridLayoutItem",
-                                "spec": {
-                                  "x": 16,
-                                  "y": 104,
-                                  "width": 8,
-                                  "height": 8,
-                                  "element": {
-                                    "kind": "ElementReference",
-                                    "name": "panel-157"
-                                  }
-                                }
-                              },
-                              {
-                                "kind": "GridLayoutItem",
-                                "spec": {
-                                  "x": 16,
-                                  "y": 112,
-                                  "width": 8,
-                                  "height": 8,
-                                  "element": {
-                                    "kind": "ElementReference",
-                                    "name": "panel-161"
                                   }
                                 }
                               }

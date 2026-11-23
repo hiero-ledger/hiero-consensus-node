@@ -486,6 +486,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verify(metrics).recordRequestLatency(eq(ConnectionType.BLOCK_STREAMING), anyLong());
         verify(metrics).recordRequestBytes(eq(ConnectionType.BLOCK_STREAMING), anyLong());
         verify(metrics).recordPublisherRequestEndStreamSent(ConnectionType.BLOCK_STREAMING, EndStream.Code.TIMEOUT);
+        verify(metrics).recordPublisherRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.END_STREAM);
         verify(connectionManager).notifyConnectionClosed(connection);
         verifyNoMoreInteractions(connectionManager);
         verifyNoMoreInteractions(metrics);
@@ -601,6 +602,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verify(metrics).recordConnectionClosed(ConnectionType.BLOCK_STREAMING, CloseReason.BLOCK_NODE_BEHIND);
         verify(metrics)
                 .recordPublisherRequestEndStreamSent(ConnectionType.BLOCK_STREAMING, EndStream.Code.TOO_FAR_BEHIND);
+        verify(metrics).recordPublisherRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.END_STREAM);
         verify(metrics).recordRequestLatency(eq(ConnectionType.BLOCK_STREAMING), anyLong());
         verify(metrics).recordRequestBytes(eq(ConnectionType.BLOCK_STREAMING), anyLong());
         verify(bufferService, atLeastOnce()).getEarliestAvailableBlockNumber();
@@ -639,6 +641,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
                         ConnectionType.BLOCK_STREAMING, ResponseOneOfType.NODE_BEHIND_PUBLISHER);
         verify(metrics).recordConnectionClosed(ConnectionType.BLOCK_STREAMING, CloseReason.INTERNAL_ERROR);
         verify(metrics).recordPublisherRequestEndStreamSent(ConnectionType.BLOCK_STREAMING, EndStream.Code.ERROR);
+        verify(metrics).recordPublisherRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.END_STREAM);
         verify(metrics).recordRequestLatency(eq(ConnectionType.BLOCK_STREAMING), anyLong());
         verify(metrics).recordRequestBytes(eq(ConnectionType.BLOCK_STREAMING), anyLong());
         verify(stats).shouldIgnoreBehindPublisher(any(Instant.class), any(Duration.class), any(Duration.class));
@@ -752,6 +755,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verify(metrics).recordRequestBytes(eq(ConnectionType.BLOCK_STREAMING), anyLong());
         verify(metrics)
                 .recordPublisherRequestEndStreamSent(ConnectionType.BLOCK_STREAMING, EndStream.Code.TOO_FAR_BEHIND);
+        verify(metrics).recordPublisherRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.END_STREAM);
         verify(requestCall).sendRequest(createRequest(EndStream.Code.TOO_FAR_BEHIND, 11L), false);
         verify(requestCall).completeRequests();
         verify(connectionManager).notifyConnectionClosed(connection);
@@ -782,6 +786,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verify(metrics).recordConnectionClosed(ConnectionType.BLOCK_STREAMING, CloseReason.INTERNAL_ERROR);
         verify(metrics).recordRequestLatency(eq(ConnectionType.BLOCK_STREAMING), anyLong());
         verify(metrics).recordRequestBytes(eq(ConnectionType.BLOCK_STREAMING), anyLong());
+        verify(metrics).recordPublisherRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.END_STREAM);
         verify(metrics).recordPublisherRequestEndStreamSent(ConnectionType.BLOCK_STREAMING, EndStream.Code.ERROR);
         verify(requestCall).sendRequest(createRequest(EndStream.Code.ERROR), false);
         verify(requestCall).completeRequests();
@@ -923,6 +928,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
 
         verify(metrics).recordRequestLatency(eq(ConnectionType.BLOCK_STREAMING), anyLong());
         verify(metrics).recordRequestBytes(eq(ConnectionType.BLOCK_STREAMING), anyLong());
+        verify(metrics).recordPublisherRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.END_STREAM);
         verify(metrics)
                 .recordPublisherRequestEndStreamSent(ConnectionType.BLOCK_STREAMING, EndStream.Code.TOO_FAR_BEHIND);
         verify(metrics).recordConnectionClosed(ConnectionType.BLOCK_STREAMING, CloseReason.BLOCK_NODE_BEHIND);
@@ -1211,6 +1217,9 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verify(metrics).recordRequestExceedsHardLimit();
         verify(metrics).recordConnectionClosed(ConnectionType.BLOCK_STREAMING, CloseReason.INTERNAL_ERROR);
         verify(metrics, times(5)).recordRequestLatency(eq(ConnectionType.BLOCK_STREAMING), anyLong());
+        verify(metrics, times(4))
+                .recordPublisherRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.BLOCK_ITEMS);
+        verify(metrics).recordPublisherRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.END_STREAM);
         verify(requestCall).completeRequests();
         verify(bufferService).getEarliestAvailableBlockNumber();
         verify(bufferService).getHighestAckedBlockNumber();
@@ -1361,6 +1370,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verify(metrics).recordConnectionClosed(ConnectionType.BLOCK_STREAMING, CloseReason.BLOCK_NODE_BEHIND);
         // Verify EndStream request metrics
         verify(metrics).recordPublisherRequestEndStreamSent(ConnectionType.BLOCK_STREAMING, EndStream.Code.RESET);
+        verify(metrics).recordPublisherRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.END_STREAM);
         verify(metrics).recordRequestLatency(eq(ConnectionType.BLOCK_STREAMING), anyLong());
         verify(metrics).recordRequestBytes(eq(ConnectionType.BLOCK_STREAMING), anyLong());
         verify(stats).shouldIgnoreBehindPublisher(any(Instant.class), any(Duration.class), any(Duration.class));

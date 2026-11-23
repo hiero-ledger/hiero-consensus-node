@@ -135,7 +135,8 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
         verifyNoInteractions(executorService);
         verifyNoInteractions(client);
         verifyNoMoreInteractions(clientFactory);
-        verifyNoInteractions(metrics);
+        verify(metrics).recordConnectionOpened(ConnectionType.SERVER_STATUS);
+        verifyNoMoreInteractions(metrics);
     }
 
     @Test
@@ -246,8 +247,7 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
         verifyNoMoreInteractions(executorService);
         verifyNoInteractions(client);
         verifyNoInteractions(clientFactory);
-        verify(metrics).recordConnectionOpened(ConnectionType.SERVER_STATUS);
-        verifyNoMoreInteractions(metrics);
+        verifyNoInteractions(metrics);
     }
 
     @Test
@@ -283,6 +283,7 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
         verifyNoInteractions(clientFactory);
         verifyNoMoreInteractions(executorService);
         verify(metrics).recordOperationTimeout(ConnectionType.SERVER_STATUS);
+        verify(metrics).recordConnectionCreateFailure(ConnectionType.SERVER_STATUS);
         verifyNoMoreInteractions(metrics);
     }
 
@@ -317,12 +318,13 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(thread.isInterrupted()).isTrue();
 
         verify(executorService).submit(any(CreateClientTask.class));
-
+        verify(future).cancel(true);
         verifyNoMoreInteractions(future);
         verifyNoInteractions(client);
         verifyNoInteractions(clientFactory);
         verifyNoMoreInteractions(executorService);
-        verifyNoInteractions(metrics);
+        verify(metrics).recordConnectionCreateFailure(ConnectionType.SERVER_STATUS);
+        verifyNoMoreInteractions(metrics);
     }
 
     @Test
@@ -338,12 +340,12 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
                 .hasCause(error);
 
         verify(executorService).submit(any(CreateClientTask.class));
-
+        verify(metrics).recordConnectionCreateFailure(ConnectionType.SERVER_STATUS);
         verifyNoMoreInteractions(future);
         verifyNoInteractions(client);
         verifyNoInteractions(clientFactory);
         verifyNoMoreInteractions(executorService);
-        verifyNoInteractions(metrics);
+        verifyNoMoreInteractions(metrics);
     }
 
     @Test
@@ -401,7 +403,7 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
 
         connection.close();
 
-        assertThat(stateRef()).hasValue(ConnectionState.UNINITIALIZED);
+        assertThat(stateRef()).hasValue(ConnectionState.CLOSED);
 
         verifyNoInteractions(client);
         verifyNoInteractions(clientFactory);
@@ -566,6 +568,7 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
         verifyNoMoreInteractions(clientFactory);
         verifyNoInteractions(executorService);
         verify(metrics).recordRequestBytes(eq(ConnectionType.SERVER_STATUS), anyLong());
+        verify(metrics).recordServiceRequestSent();
         verifyNoMoreInteractions(metrics);
     }
 
@@ -599,7 +602,6 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
         verifyNoInteractions(client);
         verifyNoMoreInteractions(executorService);
         verify(metrics).recordRequestLatency(eq(ConnectionType.SERVER_STATUS), anyLong());
-        verify(metrics).recordServiceRequestSent();
         verify(metrics).recordServiceResponseReceived();
         verifyNoMoreInteractions(metrics);
     }
@@ -688,6 +690,7 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(stateRef()).hasValue(ConnectionState.ACTIVE); // errors do not affect connection state
 
         verify(executorService).submit(any(GetBlockNodeStatusTask.class));
+        verify(future).cancel(true);
         verifyNoMoreInteractions(future);
         verifyNoInteractions(client);
         verifyNoInteractions(clientFactory);

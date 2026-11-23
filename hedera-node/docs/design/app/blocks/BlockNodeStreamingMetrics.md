@@ -128,7 +128,6 @@ These metrics relate to responses received from a block node. They are identifie
 | `blockStream_connRecv_latestBlockEndOfStream`               | Gauge (long) | The latest block number received in an EndOfStream response                                       |
 | `blockStream_connRecv_latestBlockResendBlock`               | Gauge (long) | The latest block number received in a ResendBlock response                                        |
 | `blockStream_connRecv_latestBlockSkipBlock`                 | Gauge (long) | The latest block number received in a SkipBlock response                                          |
-| `blockStream_connRecv_responsesIgnoredAsObserving`          | Counter      | The number of ignored responses from the block node over observing connections                    |
 | `blockStream_observingConnRecv_acknowledgement`             | Counter      | Number of 'Acknowledgement' responses received on block node observing connections                |
 | `blockStream_observingConnRecv_endStream_badBlockProof`     | Counter      | Number of 'EndOfStream.BAD_BLOCK_PROOF' responses received on block node observing connections    |
 | `blockStream_observingConnRecv_endStream_duplicateBlock`    | Counter      | Number of 'EndOfStream.DUPLICATE_BLOCK' responses received on block node observing connections    |
@@ -139,9 +138,7 @@ These metrics relate to responses received from a block node. They are identifie
 | `blockStream_observingConnRecv_endStream_timeout`           | Counter      | Number of 'EndOfStream.TIMEOUT' responses received on block node observing connections            |
 | `blockStream_observingConnRecv_endStream_unknown`           | Counter      | Number of 'EndOfStream.UNKNOWN' responses received on block node observing connections            |
 | `blockStream_observingConnRecv_endStream_unrecognized`      | Counter      | Number of 'EndOfStream.UNRECOGNIZED' responses received on block node observing connections       |
-| `blockStream_observingConnRecv_nodeBehindPublisher`         | Counter      | Number of 'NodeBehindPublisher' responses received on block node observing connections            |
-| `blockStream_observingConnRecv_resendBlock`                 | Counter      | Number of 'ResendBlock' responses received on block node observing connections                    |
-| `blockStream_observingConnRecv_skipBlock`                   | Counter      | Number of 'SkipBlock' responses received on block node observing connections                      |
+| `blockStream_observingConnRecv_ignored`                     | Counter      | The number of ignored responses from the block node over observing connections                    |
 | `blockStream_observingConnRecv_unknown`                     | Counter      | Number of unknown response types received on block node observing connections                     |
 | `blockStream_serviceConnRecv_serverStatus`                  | Counter      | Number of ServerStatus responses received on block node service connections                       |
 | `blockStream_serviceConnRecv_unknown`                       | Counter      | Number of unknown response types received on block node service connections                       |
@@ -174,8 +171,6 @@ These metrics relate to the requests sent from the consensus node to a block nod
 | `blockStream_connSend_requestExceedsHardLimit`          | Counter         | Number of requests that exceed the hard limit size                                          |
 | `blockStream_connSend_streamingBlockNumber`             | Gauge (long)    | The current block number this connection is streaming                                       |
 | `blockStream_observingConnSend_acknowledgeOnly`         | Counter         | Number of 'AcknowledgeOnly' requests sent on block node observing connections               |
-| `blockStream_observingConnSend_blockItems`              | Counter         | Number of 'BlockItems' requests sent on block node observing connections                    |
-| `blockStream_observingConnSend_endOfBlock`              | Counter         | Number of 'EndOfBlock' requests sent on block node observing connections                    |
 | `blockStream_observingConnSend_endStream_error`         | Counter         | Number of 'EndStream.ERROR' requests sent on block node observing connections               |
 | `blockStream_observingConnSend_endStream_reset`         | Counter         | Number of 'EndStream.RESET' requests sent on block node observing connections               |
 | `blockStream_observingConnSend_endStream_timeout`       | Counter         | Number of 'EndStream.TIMEOUT' requests sent on block node observing connections             |
@@ -189,7 +184,6 @@ These metrics relate to the requests sent from the consensus node to a block nod
 | `blockStream_serviceConnSend_requestBytes`              | Running average | Average number of bytes in a request sent on block node service connections                 |
 | `blockStream_serviceConnSend_requestLatency`            | Running average | Average latency (µs) for a request to be sent on block node service connections             |
 | `blockStream_serviceConnSend_serverStatus`              | Counter         | Number of ServerStatus requests sent on block node service connections                      |
-| `blockStream_streamingConnSend_acknowledgeOnly`         | Counter         | Number of 'AcknowledgeOnly' requests sent on block node streaming connections               |
 | `blockStream_streamingConnSend_blockItems`              | Counter         | Number of 'BlockItems' requests sent on block node streaming connections                    |
 | `blockStream_streamingConnSend_endOfBlock`              | Counter         | Number of 'EndOfBlock' requests sent on block node streaming connections                    |
 | `blockStream_streamingConnSend_endStream_error`         | Counter         | Number of 'EndStream.ERROR' requests sent on block node streaming connections               |

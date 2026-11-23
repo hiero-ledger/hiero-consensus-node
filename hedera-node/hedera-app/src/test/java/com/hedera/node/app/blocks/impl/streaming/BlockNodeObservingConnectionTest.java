@@ -497,9 +497,11 @@ public class BlockNodeObservingConnectionTest extends BlockNodeCommunicationTest
         verify(bufferService).getLastBlockClosed();
         verify(metrics).recordRequestSendFailure(ConnectionType.ACK_OBSERVING);
         verify(metrics).recordPublisherRequestEndStreamSent(ConnectionType.ACK_OBSERVING, EndStream.Code.ERROR);
+        verify(metrics).recordPublisherRequestSent(ConnectionType.ACK_OBSERVING, RequestOneOfType.ACKNOWLEDGE_ONLY);
+        verify(metrics).recordPublisherRequestSent(ConnectionType.ACK_OBSERVING, RequestOneOfType.END_STREAM);
         verify(metrics).recordConnectionClosed(ConnectionType.ACK_OBSERVING, CloseReason.CONNECTION_ERROR);
         verify(metrics).recordRequestLatency(eq(ConnectionType.ACK_OBSERVING), anyLong());
-        verify(metrics).recordRequestBytes(eq(ConnectionType.ACK_OBSERVING), anyLong());
+        verify(metrics, times(2)).recordRequestBytes(eq(ConnectionType.ACK_OBSERVING), anyLong());
         verify(requestCall, times(2)).sendRequest(any(PublishStreamRequestBytes.class), anyBoolean());
         verify(publishBytesClient).close();
         verify(blockingIoExecutor).shutdown();
@@ -709,6 +711,7 @@ public class BlockNodeObservingConnectionTest extends BlockNodeCommunicationTest
         verify(metrics, times(2)).recordRequestLatency(eq(ConnectionType.ACK_OBSERVING), anyLong());
         verify(metrics, times(2)).recordRequestBytes(eq(ConnectionType.ACK_OBSERVING), anyLong());
         verify(metrics).recordPublisherRequestSent(ConnectionType.ACK_OBSERVING, RequestOneOfType.ACKNOWLEDGE_ONLY);
+        verify(metrics).recordPublisherRequestSent(ConnectionType.ACK_OBSERVING, RequestOneOfType.END_STREAM);
         verifyNoMoreInteractions(metrics);
         verify(publishBytesClient).close();
         verify(blockingIoExecutor).shutdown();

@@ -88,8 +88,9 @@ class AbstractBlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         connection.updateConnectionState(ConnectionState.READY);
 
         assertThatThrownBy(() -> connection.updateConnectionState(ConnectionState.READY, ConnectionState.UNINITIALIZED))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Attempted to downgrade state from READY to UNINITIALIZED");
+                .isInstanceOf(IllegalConnectionStateTransition.class)
+                .hasMessage("Attempted to update connection (" + connection.connectionId()
+                        + ") state from READY to UNINITIALIZED");
 
         assertThat(connection.currentState()).isEqualTo(ConnectionState.READY);
     }

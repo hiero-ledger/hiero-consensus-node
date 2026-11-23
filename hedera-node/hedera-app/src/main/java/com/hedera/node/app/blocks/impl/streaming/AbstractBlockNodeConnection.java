@@ -231,7 +231,7 @@ public abstract class AbstractBlockNodeConnection extends BlockStreamingBase imp
                     this,
                     latestState,
                     newState);
-            throw new IllegalArgumentException("Attempted to downgrade state from " + latestState + " to " + newState);
+            throw new IllegalConnectionStateTransition(connectionId, latestState, newState);
         }
 
         if (expectedState != null && expectedState != latestState) {

@@ -12,6 +12,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -99,19 +100,25 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
         try {
             future = blockingIoExecutor.submit(new CreateClientTask());
             future.get(timeoutMillis, TimeUnit.MILLISECONDS);
-            metrics.recordConnectionOpened(connectionType());
         } catch (final TimeoutException e) {
             future.cancel(true);
             logger.warn("{} Pipeline creation timed out after {}ms", this, timeoutMillis);
             metrics.recordOperationTimeout(connectionType());
+            metrics.recordConnectionCreateFailure(connectionType());
             throw new RuntimeException("Pipeline creation timed out", e);
         } catch (final InterruptedException e) {
+            metrics.recordConnectionCreateFailure(connectionType());
+            future.cancel(true);
             Thread.currentThread().interrupt();
             logger.warn("{} Interrupted while creating pipeline", this, e);
             throw new RuntimeException("Interrupted while creating pipeline", e);
-        } catch (final ExecutionException e) {
-            logger.warn("{} Error creating pipeline", this, e.getCause());
-            throw new RuntimeException("Error creating pipeline", e.getCause());
+        } catch (final Exception e) {
+            metrics.recordConnectionCreateFailure(connectionType());
+
+            final Throwable error = e instanceof final ExecutionException ee ? ee.getCause() : e;
+
+            logger.warn("{} Error creating pipeline", this, error);
+            throw new RuntimeException("Error creating pipeline", error);
         }
     }
 
@@ -133,10 +140,26 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
                     timeout,
                     connectionId().toString(),
                     bncConfig().grpcCompressionType());
-            if (clientRef.compareAndSet(null, new ServiceClientHolder(clientId, client))) {
+            final ServiceClientHolder holder = new ServiceClientHolder(clientId, client);
+            if (clientRef.compareAndSet(null, holder)) {
                 // unlike the streaming connection, these connections don't really have an intermediate state between
                 // UNINITIALIZED and ACTIVE, so just set the state to ACTIVE
-                updateConnectionState(ConnectionState.UNINITIALIZED, ConnectionState.ACTIVE);
+                boolean activated;
+
+                try {
+                    activated = updateConnectionState(ConnectionState.UNINITIALIZED, ConnectionState.ACTIVE);
+                } catch (final IllegalConnectionStateTransition _) {
+                    activated = false;
+                }
+
+                if (!activated) {
+                    if (clientRef.compareAndSet(holder, null)) {
+                        closeSilently(holder);
+                    }
+                    return;
+                }
+
+                metrics.recordConnectionOpened(connectionType());
                 logger.info(
                         "{} Client initialized successfully (clientId: {})", BlockNodeServiceConnection.this, clientId);
             } else {
@@ -191,26 +214,32 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
 
     @Override
     public void close() {
-        final ServiceClientHolder clientHolder = clientRef.get();
+        ConnectionState state;
 
-        if (clientHolder == null || currentState().isTerminal()) {
-            // either close has already been called or close was called while the connection wasn't initialized
+        try {
+            do {
+                state = currentState();
+                if (state.isTerminal()) {
+                    // either close has already been called or close was called while the connection wasn't initialized
+                    return;
+                }
+            } while (!updateConnectionState(state, ConnectionState.CLOSING));
+        } catch (final IllegalConnectionStateTransition _) {
+            // another thread has transitioned this connection to a later stage
             return;
         }
 
-        if (!clientRef.compareAndSet(clientHolder, null)) {
-            logger.debug("{} Another thread has closed the connection", this);
-            return;
-        }
+        final ServiceClientHolder clientHolder = clientRef.getAndSet(null);
 
         logger.info("{} Closing connection", this);
-        updateConnectionState(ConnectionState.CLOSING);
 
         Future<?> future = null;
         boolean wasInterrupted = Thread.interrupted(); // drain pre-existing interrupt flag
 
         try {
-            future = blockingIoExecutor.submit(new CloseClientTask(clientHolder));
+            future = clientHolder == null
+                    ? CompletableFuture.completedFuture(null)
+                    : blockingIoExecutor.submit(new CloseClientTask(clientHolder));
             future.get(connectionManagementTimeoutMillis(), TimeUnit.MILLISECONDS);
         } catch (final Exception e) {
             // the connection is being closed... don't propagate the exception
@@ -225,7 +254,10 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
             }
         } finally {
             // regardless of outcome, mark this connection as closed
-            metrics.recordConnectionClosed(connectionType(), CloseReason.OBSOLETE);
+            if (clientHolder != null) {
+                // only record the connection closed for metrics _if_ we actually opened the connection
+                metrics.recordConnectionClosed(connectionType(), CloseReason.OBSOLETE);
+            }
             updateConnectionState(ConnectionState.CLOSED);
             if (wasInterrupted) {
                 Thread.currentThread().interrupt();
@@ -250,7 +282,7 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
 
         final long crn = connectionRequestNumberGenerator.incrementAndGet();
         final String correlationId = buildRequestCorrelationId(crn);
-        final long timeoutMillis = connectionManagementTimeoutMillis();
+        final long timeoutMillis = statusTimeoutMillis();
         Future<ServerStatusResponse> future = null;
         final ServerStatusResponse response;
         final long startNanos = System.nanoTime();
@@ -265,6 +297,7 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
             future.cancel(true);
             return handleSendTimeout(correlationId, startNanos, endNanos, timeoutMillis);
         } catch (final InterruptedException _) {
+            future.cancel(true);
             endNanos = System.nanoTime();
             return handleSendInterrupt(correlationId, startNanos, endNanos);
         } catch (final Exception e) {
@@ -275,7 +308,6 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
         final long durationNanos = endNanos - startNanos;
         final long durationMicros = TimeUnit.NANOSECONDS.toMicros(durationNanos);
         metrics.recordRequestLatency(connectionType(), durationMicros);
-        metrics.recordServiceRequestSent();
 
         if (response == null) {
             if (logger.isWarnEnabled()) {
@@ -402,12 +434,11 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
 
         @Override
         public ServerStatusResponse call() throws Exception {
+            metrics.recordServiceRequestSent();
             final ServerStatusRequest req = new ServerStatusRequest();
-            final ServerStatusResponse resp =
-                    client.serverStatus(req, clientFactory.requestOptionsForCorrelationId(correlationId));
-
             metrics.recordRequestBytes(connectionType(), req.protobufSize());
-            return resp;
+
+            return client.serverStatus(req, clientFactory.requestOptionsForCorrelationId(correlationId));
         }
     }
 }

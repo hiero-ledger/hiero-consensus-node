@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchRuntimeException;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -300,8 +301,9 @@ public class BlockNodePublisherConnectionTest extends BlockNodeCommunicationTest
 
         // the connection is ACTIVE so try to "downgrade" the state back to READY... should fail
         assertThatThrownBy(() -> connection.updateConnectionState(ConnectionState.UNINITIALIZED))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Attempted to downgrade state from READY to UNINITIALIZED");
+                .isInstanceOf(IllegalConnectionStateTransition.class)
+                .hasMessage("Attempted to update connection (" + connection.connectionId()
+                        + ") state from READY to UNINITIALIZED");
 
         assertThat(connection.currentState()).isEqualTo(ConnectionState.READY);
     }
@@ -321,6 +323,7 @@ public class BlockNodePublisherConnectionTest extends BlockNodeCommunicationTest
 
         // verifications for sending EndStream.RESET
         verify(requestCall).sendRequest(any(), anyBoolean());
+        verify(metrics).recordPublisherRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.END_STREAM);
         verify(metrics).recordRequestLatency(eq(ConnectionType.BLOCK_STREAMING), anyLong());
         verify(metrics).recordRequestBytes(eq(ConnectionType.BLOCK_STREAMING), anyLong());
         verify(metrics).recordPublisherRequestEndStreamSent(ConnectionType.BLOCK_STREAMING, EndStream.Code.RESET);
@@ -348,6 +351,7 @@ public class BlockNodePublisherConnectionTest extends BlockNodeCommunicationTest
         verify(requestCall).sendRequest(any(), anyBoolean());
         verify(metrics).recordRequestLatency(eq(ConnectionType.BLOCK_STREAMING), anyLong());
         verify(metrics).recordRequestBytes(eq(ConnectionType.BLOCK_STREAMING), anyLong());
+        verify(metrics).recordPublisherRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.END_STREAM);
         verify(metrics).recordPublisherRequestEndStreamSent(ConnectionType.BLOCK_STREAMING, EndStream.Code.RESET);
         // remaining verifications
         // Should not call onComplete when callOnComplete is false
@@ -709,6 +713,10 @@ public class BlockNodePublisherConnectionTest extends BlockNodeCommunicationTest
         assertThat(connection.postSuccessfulRequestSendArgs).hasNullValue();
 
         verify(metrics).recordRequestSendFailure(ConnectionType.BLOCK_STREAMING);
+        verify(metrics).recordRequestBytes(eq(ConnectionType.BLOCK_STREAMING), anyLong());
+        verify(metrics).recordPublisherRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.BLOCK_ITEMS);
+        verify(metrics).recordBlockItemsSent(1);
+        verify(metrics).recordRequestBlockItemCount(1);
         verifyNoMoreInteractions(metrics);
     }
 
@@ -730,6 +738,10 @@ public class BlockNodePublisherConnectionTest extends BlockNodeCommunicationTest
         verify(requestCall).sendRequest(any(), anyBoolean());
         verify(spiedConnection, atLeast(2)).currentState();
         verify(metrics).recordRequestSendFailure(ConnectionType.BLOCK_STREAMING);
+        verify(metrics).recordRequestBytes(eq(ConnectionType.BLOCK_STREAMING), anyLong());
+        verify(metrics).recordPublisherRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.BLOCK_ITEMS);
+        verify(metrics).recordBlockItemsSent(anyInt());
+        verify(metrics).recordRequestBlockItemCount(anyInt());
 
         verifyNoMoreInteractions(metrics);
     }
