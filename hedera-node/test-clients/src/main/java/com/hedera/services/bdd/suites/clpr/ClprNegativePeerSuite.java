@@ -8,7 +8,7 @@ import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.CLPR;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteConnector;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprOpenChannel;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCreateChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprSubmitBundle;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprUpdateLedgerConfiguration;
@@ -83,7 +83,7 @@ public class ClprNegativePeerSuite {
                             clprUpdateLedgerConfiguration()
                                     .configuration(defaultLedgerConfig())
                                     .payingWith(GENESIS),
-                            clprOpenChannel()
+                            clprCreateChannel()
                                     .channelId(crypto.channelId())
                                     .salt(crypto.salt())
                                     .peerVerifier(crypto.peerVerifier())
@@ -220,7 +220,7 @@ public class ClprNegativePeerSuite {
             uploadInitCode(CLPR_CONTRACT),
             contractCreate(CLPR_CONTRACT),
             cryptoCreate("caller").balance(ONE_HUNDRED_HBARS),
-            clprOpenChannel()
+            clprCreateChannel()
                     .channelId(crypto.channelId())
                     .salt(crypto.salt())
                     .peerVerifier(crypto.peerVerifier())

@@ -20,7 +20,7 @@ abstract class enforces:
    `ClprChannel` or throws `HandleException` (e.g. `INVALID_CLPR_CHANNEL_ID`,
    `CLPR_CHANNEL_NOT_ACTIVE`).
 3. **Admin gating** uses the platform's `PrivilegesVerifier`. The treasury, system
-   admin, and configured `accounts.clprAdmin` payer can submit `closeChannel`,
+   admin, and configured `accounts.clprAdmin` payer can submit `deleteChannel`,
    `evictPeerEndpoint`, and `updateLedgerConfiguration`.
    The framework verifies the payer signature and rejects unauthorized payers with
    `AUTHORIZATION_FAILED`.
@@ -38,13 +38,13 @@ HAPI dispatch table for the CLPR `HederaFunctionality` values. Add new handlers 
 For each: trigger functionality → spec §6 method → key validation → state writes →
 side-effects.
 
-### `ClprOpenChannelHandler`
+### `ClprCreateChannelHandler`
 
 Any payer can open a channel in one transaction. The selected verifier authenticates the peer configuration and endpoint manifest. The handler derives the channel ID from both ledgers’ chain IDs, service addresses, verifier addresses, and the shared 32-byte salt. If the ID matches the submitted ID and the channel is new, the handler stores the active channel and schedules synchronization with its verified endpoints.
 
-### `ClprCloseChannelHandler` — admin close
+### `ClprDeleteChannelHandler` — admin close
 
-- Functionality: `CLPR_CLOSE_CHANNEL`. Spec §6.2 (`closeChannel`).
+- Functionality: `CLPR_DELETE_CHANNEL`. HAPI method: `deleteChannel` (channel closure in spec §6.2).
 - Admin-gated.
 - From `ACTIVE`/`PAUSED`, status becomes `CLOSING`, or `DRAINED` directly if the whole
   outbound queue is already acknowledged. From `DRAINED`, status becomes `CLOSED`.

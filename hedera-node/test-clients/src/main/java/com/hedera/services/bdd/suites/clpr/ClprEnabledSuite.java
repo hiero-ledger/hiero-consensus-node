@@ -16,11 +16,11 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCloseChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteConnector;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCreateChannel;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprDeleteChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprDeregisterConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprEvictPeerEndpoint;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprOpenChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprSubmitBundle;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprUpdateLedgerConfiguration;
@@ -72,7 +72,7 @@ import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
-import com.hedera.services.bdd.spec.transactions.clpr.HapiClprOpenChannel;
+import com.hedera.services.bdd.spec.transactions.clpr.HapiClprCreateChannel;
 import com.hedera.services.bdd.spec.transactions.clpr.HapiClprUpdateLedgerConfiguration;
 import com.hederahashgraph.api.proto.java.ClprChannelStatus;
 import com.hederahashgraph.api.proto.java.ClprEndpoint;
@@ -213,7 +213,7 @@ public class ClprEnabledSuite {
                     final var operations = contractSetup();
                     final var txns = clprTxns(crypto);
                     for (final var name : List.of(
-                            "updateLedgerConfiguration", "openChannel", "registerConnector", "completeConnector")) {
+                            "updateLedgerConfiguration", "createChannel", "registerConnector", "completeConnector")) {
                         operations.add(dispatch(txns.get(name), false, false));
                     }
                     operations.add(sendMessage(crypto).via("sentMessage"));
@@ -259,7 +259,7 @@ public class ClprEnabledSuite {
                     operations.add(contractCreate(application).refusingEthConversion());
                     final var txns = clprTxns(crypto);
                     for (final var name : List.of(
-                            "updateLedgerConfiguration", "openChannel", "registerConnector", "completeConnector")) {
+                            "updateLedgerConfiguration", "createChannel", "registerConnector", "completeConnector")) {
                         operations.add(dispatch(txns.get(name), false, false));
                     }
                     operations.add(cryptoTransfer(tinyBarsFromTo(GENESIS, CONNECTOR_CONTRACT, ONE_HUNDRED_HBARS)));
@@ -535,8 +535,8 @@ public class ClprEnabledSuite {
         final var txns = new LinkedHashMap<String, HapiTxnOp<?>>();
         txns.put("updateLedgerConfiguration", clprUpdateLedgerConfiguration().configuration(ledgerConfig()));
         txns.put(
-                "openChannel",
-                clprOpenChannel()
+                "createChannel",
+                clprCreateChannel()
                         .channelId(crypto.channelId())
                         .salt(crypto.salt())
                         .peerVerifier(crypto.peerVerifier())
@@ -582,12 +582,12 @@ public class ClprEnabledSuite {
         txns.put(
                 "evictPeerEndpoint",
                 clprEvictPeerEndpoint().channelId(crypto.channelId()).endpoint("203.0.113.1", 50211));
-        txns.put("closeChannel", clprCloseChannel().channelId(crypto.channelId()));
+        txns.put("deleteChannel", clprDeleteChannel().channelId(crypto.channelId()));
         // Only governance operations require an administrator; public operations must exercise user throttles.
         txns.values()
                 .forEach(op -> op.payingWith(
                         switch (op.type()) {
-                            case ClprUpdateLedgerConfiguration, ClprCloseChannel, ClprEvictPeerEndpoint -> GENESIS;
+                            case ClprUpdateLedgerConfiguration, ClprDeleteChannel, ClprEvictPeerEndpoint -> GENESIS;
                             default -> CALLER;
                         }));
         return txns;
@@ -635,10 +635,10 @@ public class ClprEnabledSuite {
                         + "in NODE_INTERNAL_CLPR_FUNCTIONS with the reason it is unreachable from HAPI");
     }
 
-    private static HapiClprOpenChannel endpointPublicationProbe() {
+    private static HapiClprCreateChannel endpointPublicationProbe() {
         // Reuse a transaction transport but replace its oneof body before signing. This checks
         // the actual parsed functionality, including an internal operation without its own RPC.
-        return clprOpenChannel()
+        return clprCreateChannel()
                 .payingWith(GENESIS)
                 .withBodyMutation((body, spec) ->
                         body.setClprEndpointPublication(ClprEndpointPublicationTransactionBody.newBuilder()

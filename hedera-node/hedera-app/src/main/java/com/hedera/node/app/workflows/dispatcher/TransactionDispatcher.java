@@ -272,8 +272,8 @@ public class TransactionDispatcher {
             case MIGRATION_ROOT_HASH_VOTE -> handlers.migrationRootHashVoteHandler();
 
             case CLPR_UPDATE_LEDGER_CONFIGURATION -> handlers.clprUpdateLedgerConfigurationHandler();
-            case CLPR_OPEN_CHANNEL -> handlers.clprOpenChannelHandler();
-            case CLPR_CLOSE_CHANNEL -> handlers.clprCloseChannelHandler();
+            case CLPR_CREATE_CHANNEL -> handlers.clprCreateChannelHandler();
+            case CLPR_DELETE_CHANNEL -> handlers.clprDeleteChannelHandler();
             case CLPR_SUBMIT_BUNDLE -> handlers.clprSubmitBundleHandler();
             case CLPR_REGISTER_CONNECTOR -> handlers.clprRegisterConnectorHandler();
             case CLPR_COMPLETE_CONNECTOR -> handlers.clprCompleteConnectorHandler();

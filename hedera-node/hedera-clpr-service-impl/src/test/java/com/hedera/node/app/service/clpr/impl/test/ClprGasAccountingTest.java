@@ -19,7 +19,7 @@ import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.FeeData;
-import com.hedera.hapi.node.clpr.ClprOpenChannelTransactionBody;
+import com.hedera.hapi.node.clpr.ClprCreateChannelTransactionBody;
 import com.hedera.hapi.node.clpr.ClprSubmitBundleTransactionBody;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -114,7 +114,7 @@ class ClprGasAccountingTest {
     void completionReservesOnlyVerifierAllowanceInsteadOfFullTransactionBudget() {
         given(context.body())
                 .willReturn(TransactionBody.newBuilder()
-                        .clprOpenChannel(ClprOpenChannelTransactionBody.DEFAULT)
+                        .clprCreateChannel(ClprCreateChannelTransactionBody.DEFAULT)
                         .build());
         final var subject = ClprGasAccounting.forContext(context);
 

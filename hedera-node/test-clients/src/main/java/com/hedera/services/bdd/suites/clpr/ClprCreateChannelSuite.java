@@ -7,8 +7,8 @@ import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.CLPR;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteConnector;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCreateChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprDeregisterConnector;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprOpenChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -55,7 +55,7 @@ import org.junit.jupiter.api.Tag;
  * branch coverage belongs in the unit tests.
  */
 @Tag(CLPR)
-public class ClprOpenChannelSuite {
+public class ClprCreateChannelSuite {
 
     private static final String VERIFIER = "ClprPassThroughVerifier";
     private static final String CONNECTOR_CONTRACT = "PassThroughAuth";
@@ -69,7 +69,7 @@ public class ClprOpenChannelSuite {
         return hapiTest(ClprChannelCrypto.withVerifier(VERIFIER, "hiero:testing", new byte[] {0, 0, 1}, crypto -> {
             return blockingOrder(
                     cryptoCreate("registrant").balance(ONE_HUNDRED_HBARS),
-                    clprOpenChannel()
+                    clprCreateChannel()
                             .channelId(crypto.channelId())
                             .salt(crypto.salt())
                             .peerVerifier(crypto.peerVerifier())
@@ -88,7 +88,7 @@ public class ClprOpenChannelSuite {
                     overriding("clpr.enabled", "true"),
                     uploadInitCode(CONNECTOR_CONTRACT),
                     contractCreate(CONNECTOR_CONTRACT),
-                    clprOpenChannel()
+                    clprCreateChannel()
                             .channelId(crypto.channelId())
                             .salt(crypto.salt())
                             .peerVerifier(crypto.peerVerifier())
@@ -146,7 +146,7 @@ public class ClprOpenChannelSuite {
     final Stream<DynamicTest> duplicateOpenFails() {
         return hapiTest(ClprChannelCrypto.withVerifier(VERIFIER, "hiero:testing", new byte[] {0, 0, 1}, crypto -> {
             return blockingOrder(
-                    clprOpenChannel()
+                    clprCreateChannel()
                             .channelId(crypto.channelId())
                             .salt(crypto.salt())
                             .peerVerifier(crypto.peerVerifier())
@@ -154,7 +154,7 @@ public class ClprOpenChannelSuite {
                             .configProofBytes(defaultConfigProofBytes())
                             .payingWith(GENESIS)
                             .hasKnownStatus(SUCCESS),
-                    clprOpenChannel()
+                    clprCreateChannel()
                             .channelId(crypto.channelId())
                             .salt(crypto.salt())
                             .peerVerifier(crypto.peerVerifier())
@@ -174,7 +174,7 @@ public class ClprOpenChannelSuite {
                     .setRealmNum(0)
                     .setContractNum(99_999_999L)
                     .build();
-            return blockingOrder(clprOpenChannel()
+            return blockingOrder(clprCreateChannel()
                     .channelId(crypto.channelId())
                     .salt(crypto.salt())
                     .peerVerifier(crypto.peerVerifier())
@@ -195,7 +195,7 @@ public class ClprOpenChannelSuite {
                 .build();
         final var crypto = new ClprChannelCrypto("eip155:298", seiAddress, "hiero:testing", new byte[] {0, 0, 1});
         return hapiTest(Stream.of(seiByNumber, seiByAddress)
-                .map(verifier -> clprOpenChannel()
+                .map(verifier -> clprCreateChannel()
                         .channelId(crypto.channelId())
                         .salt(crypto.salt())
                         .peerVerifier(crypto.peerVerifier())
@@ -213,7 +213,7 @@ public class ClprOpenChannelSuite {
     final Stream<DynamicTest> openWhenDisabledFails() {
         return hapiTest(
                 overriding("clpr.enabled", "false"),
-                clprOpenChannel()
+                clprCreateChannel()
                         .channelId(new byte[32])
                         .salt(new byte[32])
                         .peerVerifier(new byte[20])
@@ -233,7 +233,7 @@ public class ClprOpenChannelSuite {
     final Stream<DynamicTest> verifyConfigFieldsStoredOnChannel() {
         return hapiTest(ClprChannelCrypto.withVerifier(VERIFIER, "hiero:testing", new byte[] {0, 0, 1}, crypto -> {
             return blockingOrder(
-                    clprOpenChannel()
+                    clprCreateChannel()
                             .channelId(crypto.channelId())
                             .salt(crypto.salt())
                             .peerVerifier(crypto.peerVerifier())
@@ -278,7 +278,7 @@ public class ClprOpenChannelSuite {
 
     /**
      * Synthetic config proof bytes for the passthrough verifier path; spec refs §3.1
-     * (verifyConfig contract) and §5.1.3 (openChannel consumes the verifier output).
+     * (verifyConfig contract) and §5.1.3 (createChannel consumes the verifier output).
      */
     private static byte[] defaultConfigProofBytes() {
         return ClprTestProofs.toConfigProofBytes(ClprLedgerConfiguration.newBuilder()

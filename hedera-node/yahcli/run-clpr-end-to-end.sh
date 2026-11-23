@@ -201,17 +201,17 @@ yh "derive shared channel ID" "${LOG_DIR}/derive-channel.log" \
 CHANNEL_ID=$(read_json_field "${CHANNEL_FILE}" channelId)
 CHANNEL_SALT=$(read_json_field "${CHANNEL_FILE}" salt)
 
-header "[7/13] open-channel — each side verifies the peer's proof"
-yh "open-channel on ${NET_A} via verifier ${VERIFIER_A}" \
+header "[7/13] create-channel — each side verifies the peer's proof"
+yh "create-channel on ${NET_A} via verifier ${VERIFIER_A}" \
     "${LOG_DIR}/06a-complete-conn.log" \
     -n "${NET_A}" -p "${PAYER}" \
-    clpr open-channel --channel-id "${CHANNEL_ID}" --salt "${CHANNEL_SALT}" --peer-verifier "${VERIFIER_ADDRESS_B}" \
+    clpr create-channel --channel-id "${CHANNEL_ID}" --salt "${CHANNEL_SALT}" --peer-verifier "${VERIFIER_ADDRESS_B}" \
         --verifier-contract "${VERIFIER_A}" --config-proof "${PROOF_B}"
 
-yh "open-channel on ${NET_B} via verifier ${VERIFIER_B}" \
+yh "create-channel on ${NET_B} via verifier ${VERIFIER_B}" \
     "${LOG_DIR}/06b-complete-conn.log" \
     -n "${NET_B}" -p "${PAYER}" \
-    clpr open-channel --channel-id "${CHANNEL_ID}" --salt "${CHANNEL_SALT}" --peer-verifier "${VERIFIER_ADDRESS_A}" \
+    clpr create-channel --channel-id "${CHANNEL_ID}" --salt "${CHANNEL_SALT}" --peer-verifier "${VERIFIER_ADDRESS_A}" \
         --verifier-contract "${VERIFIER_B}" --config-proof "${PROOF_A}"
 
 CHANNEL_ID=$(read_json_field "${CHANNEL_FILE}" "channelId")

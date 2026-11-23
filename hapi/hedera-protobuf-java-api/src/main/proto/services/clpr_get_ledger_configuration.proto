@@ -41,7 +41,7 @@ message ClprGetLedgerConfigurationResponse {
      * singleton leaf up to the latest signed block root on this ledger.
      *
      * Suitable verbatim as the configuration_proof_bytes for a peer's
-     * ClprOpenChannel transaction when that peer's verifier is the
+     * ClprCreateChannel transaction when that peer's verifier is the
      * native HieroTssVerifier (or any verifier that accepts a StateProof).
      *
      * Empty when no signed block snapshot is available yet (e.g. during node

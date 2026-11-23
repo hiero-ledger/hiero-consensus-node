@@ -376,7 +376,7 @@ public class ClprChannelManager implements ClprChannelLifecycle {
                 return;
             }
             // Dial targets come from Channel.endpoint_manifest.endpoints() — populated at
-            // ClprOpenChannel time from the required manifest proof — with no config
+            // ClprCreateChannel time from the required manifest proof — with no config
             // fallback (spec §4.7).
             initiateSync(channel);
         } catch (final Exception e) {
@@ -425,7 +425,7 @@ public class ClprChannelManager implements ClprChannelLifecycle {
         }
 
         // Resolve the dial-target list from Channel.endpoint_manifest.endpoints() (spec §4.7, the
-        // authoritative cached peer manifest), populated at ClprOpenChannel time from the required
+        // authoritative cached peer manifest), populated at ClprCreateChannel time from the required
         // manifest proof. A cached manifest may legitimately have no endpoints yet (e.g. the peer's
         // genesis placeholder); until a later manifest update there is nothing to dial, so skip before
         // taking a sync slot rather than dispatching a sync that can only warn and return every tick.

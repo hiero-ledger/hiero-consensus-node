@@ -24,7 +24,7 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 
 /**
- * Handler for {@link HederaFunctionality#CLPR_CLOSE_CHANNEL} transactions.
+ * Handler for {@link HederaFunctionality#CLPR_DELETE_CHANNEL} transactions.
  *
  * <p>Three cases:
  * <ol>
@@ -40,19 +40,19 @@ import javax.inject.Singleton;
  * Requires an authorized CLPR admin payer.
  */
 @Singleton
-public final class ClprCloseChannelHandler extends AbstractClprHandler {
+public final class ClprDeleteChannelHandler extends AbstractClprHandler {
 
     private final ClprChannelLifecycle channelLifecycle;
 
     @Inject
-    public ClprCloseChannelHandler(@NonNull final ClprChannelLifecycle channelLifecycle) {
+    public ClprDeleteChannelHandler(@NonNull final ClprChannelLifecycle channelLifecycle) {
         this.channelLifecycle = requireNonNull(channelLifecycle);
     }
 
     @Override
     public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
         requireNonNull(context);
-        final var op = context.body().clprCloseChannelOrThrow();
+        final var op = context.body().clprDeleteChannelOrThrow();
         validateTruePreCheck(op.channelId().length() == CHANNEL_ID_LENGTH, INVALID_TRANSACTION_BODY);
     }
 
@@ -64,7 +64,7 @@ public final class ClprCloseChannelHandler extends AbstractClprHandler {
 
     @Override
     protected void doHandle(@NonNull final HandleContext context) throws HandleException {
-        final var op = context.body().clprCloseChannelOrThrow();
+        final var op = context.body().clprDeleteChannelOrThrow();
         final var storeFactory = context.storeFactory();
         final var channelStore = storeFactory.writableStore(WritableChannelStore.class);
         final var commitmentStore = storeFactory.writableStore(WritablePendingCommitmentStore.class);

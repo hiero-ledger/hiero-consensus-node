@@ -39,7 +39,7 @@ import org.apache.logging.log4j.Logger;
  * required. Enables:
  * <ul>
  *   <li>Channel registrants to build the {@code endpoint_manifest_proof_bytes} needed by
- *       {@code ClprOpenChannel} (spec PR #332).</li>
+ *       {@code ClprCreateChannel} (spec PR #332).</li>
  *   <li>Any party to construct manifest-recovery {@code ClprSubmitBundle} calls (spec PR #336).</li>
  * </ul>
  */

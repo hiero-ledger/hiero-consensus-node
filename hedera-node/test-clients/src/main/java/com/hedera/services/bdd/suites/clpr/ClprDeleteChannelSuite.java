@@ -4,8 +4,8 @@ package com.hedera.services.bdd.suites.clpr;
 import static com.hedera.services.bdd.junit.ContextRequirement.PROPERTY_OVERRIDES;
 import static com.hedera.services.bdd.junit.TestTags.CLPR;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCloseChannel;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprOpenChannel;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCreateChannel;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprDeleteChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprSubmitBundle;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
@@ -35,10 +35,10 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 /**
- * HAPI tests for CLPR close-channel (CLPR-1.5).
+ * HAPI tests for CLPR delete-channel (CLPR-1.5).
  */
 @Tag(CLPR)
-public class ClprCloseChannelSuite {
+public class ClprDeleteChannelSuite {
 
     private static final String VERIFIER_CONTRACT = "ClprPassThroughVerifier";
 
@@ -48,14 +48,14 @@ public class ClprCloseChannelSuite {
     final Stream<DynamicTest> rejectsCloseWhenDisabled() {
         return hapiTest(
                 overriding("clpr.enabled", "false"),
-                clprCloseChannel().channelId(new byte[32]).payingWith(GENESIS).hasPrecheck(CLPR_NOT_ENABLED));
+                clprDeleteChannel().channelId(new byte[32]).payingWith(GENESIS).hasPrecheck(CLPR_NOT_ENABLED));
     }
 
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
-    final Stream<DynamicTest> nonAdminCannotCloseChannel() {
+    final Stream<DynamicTest> nonAdminCannotDeleteChannel() {
         return hapiTest(
                 cryptoCreate("civilian").balance(ONE_HUNDRED_HBARS),
-                clprCloseChannel()
+                clprDeleteChannel()
                         .channelId(new byte[32])
                         .payingWith("civilian")
                         .hasKnownStatusFrom(AUTHORIZATION_FAILED, NOT_SUPPORTED));
@@ -64,13 +64,13 @@ public class ClprCloseChannelSuite {
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
     final Stream<DynamicTest> rejectsInvalidChannelIdLength() {
         return hapiTest(
-                clprCloseChannel().channelId(new byte[16]).payingWith(GENESIS).hasPrecheck(INVALID_TRANSACTION_BODY));
+                clprDeleteChannel().channelId(new byte[16]).payingWith(GENESIS).hasPrecheck(INVALID_TRANSACTION_BODY));
     }
 
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
     final Stream<DynamicTest> rejectsCloseOfNonexistentChannel() {
         return hapiTest(
-                clprCloseChannel().channelId(new byte[32]).payingWith(GENESIS).hasKnownStatus(CLPR_CHANNEL_NOT_FOUND));
+                clprDeleteChannel().channelId(new byte[32]).payingWith(GENESIS).hasKnownStatus(CLPR_CHANNEL_NOT_FOUND));
     }
 
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
@@ -82,7 +82,7 @@ public class ClprCloseChannelSuite {
 
                             // Phase 1: Register (commit)
                             // Phase 2: Complete (reveal) — creates ACTIVE channel
-                            clprOpenChannel()
+                            clprCreateChannel()
                                     .channelId(crypto.channelId())
                                     .salt(crypto.salt())
                                     .peerVerifier(crypto.peerVerifier())
@@ -90,7 +90,7 @@ public class ClprCloseChannelSuite {
                                     .configProofBytes(defaultConfigProofBytes())
                                     .payingWith(GENESIS),
                             // Phase 3: Close — transitions ACTIVE → CLOSING
-                            clprCloseChannel().channelId(crypto.channelId()).payingWith(GENESIS));
+                            clprDeleteChannel().channelId(crypto.channelId()).payingWith(GENESIS));
                 }));
     }
 
@@ -117,7 +117,7 @@ public class ClprCloseChannelSuite {
                     final var hashAfterBundle1 =
                             ClprTestProofs.runningHashAfter(new byte[32], drainingBundle.getMessagesList());
                     return blockingOrder(
-                            clprOpenChannel()
+                            clprCreateChannel()
                                     .channelId(crypto.channelId())
                                     .salt(crypto.salt())
                                     .peerVerifier(crypto.peerVerifier())
@@ -162,10 +162,10 @@ public class ClprCloseChannelSuite {
                                     .payingWith(GENESIS),
                             // Admin recovery: peer is unable to submit a close notification for some reason, so admin
                             // calls
-                            // closeChannel to transition channel from DRAINED -> CLOSED
-                            clprCloseChannel().channelId(crypto.channelId()).payingWith(GENESIS),
+                            // deleteChannel to transition channel from DRAINED -> CLOSED
+                            clprDeleteChannel().channelId(crypto.channelId()).payingWith(GENESIS),
                             // Subsequent close attempts are rejected since channel is now CLOSED
-                            clprCloseChannel()
+                            clprDeleteChannel()
                                     .channelId(crypto.channelId())
                                     .payingWith(GENESIS)
                                     .hasKnownStatus(CLPR_INVALID_CHANNEL_STATUS));
@@ -177,7 +177,7 @@ public class ClprCloseChannelSuite {
      * deployed ClprPassThroughVerifier accepts it (see {@link ClprTestProofs} for layout).
      *
      * <p>Spec refs: §3.1 (Verifier Contract Interface — verifyConfig returns the proven
-     * ClprLedgerConfiguration), §5.1.3 (openChannel runs verifyConfig over the
+     * ClprLedgerConfiguration), §5.1.3 (createChannel runs verifyConfig over the
      * supplied config_proof_bytes); §1.1 (ClprLedgerConfiguration shape, including the
      * renamed {@code endpoints} field and the {@code initial_trust_anchor} pair).
      */

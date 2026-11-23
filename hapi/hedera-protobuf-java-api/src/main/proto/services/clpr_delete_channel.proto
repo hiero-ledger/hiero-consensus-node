@@ -19,7 +19,7 @@ option java_multiple_files = true;
  * When no Channel exists for channel_id and ownership_commitment is
  * set, the admin can remove a matching legacy pending commitment.
  */
-message ClprCloseChannelTransactionBody {
+message ClprDeleteChannelTransactionBody {
     /**
      * 32-byte Channel ID to close.
      */

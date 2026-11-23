@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.yahcli.commands.clpr;
 
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprOpenChannel;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCreateChannel;
 import static com.hedera.services.yahcli.config.ConfigUtils.configFrom;
 
 import com.hedera.services.yahcli.suites.ClprTxnSuite;
@@ -11,12 +11,12 @@ import picocli.CommandLine.HelpCommand;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.ParentCommand;
 
-/** Opens a CLPR channel using the two ledgers’ agreed channel ID. */
+/** Creates a CLPR channel using the two ledgers’ agreed channel ID. */
 @Command(
-        name = "open-channel",
+        name = "create-channel",
         subcommands = {HelpCommand.class},
-        description = "Opens a CLPR channel with a verifier-bound channel ID.")
-public class OpenChannelCommand implements Callable<Integer> {
+        description = "Creates a CLPR channel with a verifier-bound channel ID.")
+public class CreateChannelCommand implements Callable<Integer> {
 
     /** The Hiero TSS verifier is the CLPR system contract itself (0.0.366). */
     private static final long HIERO_TSS_VERIFIER_NUM = 0x16eL;
@@ -37,7 +37,7 @@ public class OpenChannelCommand implements Callable<Integer> {
             names = {"--verifier-contract"},
             paramLabel = "<shard.realm.num>",
             required = true,
-            description = "Verifier contract id. Required: ClprOpenChannelHandler.pureChecks rejects "
+            description = "Verifier contract id. Required: ClprCreateChannelHandler.pureChecks rejects "
                     + "transactions missing a verifier contract.")
     String verifierContract;
 
@@ -47,7 +47,7 @@ public class OpenChannelCommand implements Callable<Integer> {
             description = "Path to a binary file containing the configuration proof bytes "
                     + "(e.g. the file written by `get-ledger-configuration --proof-path`). "
                     + "Mutually exclusive with --config-proof-hex; exactly one is required because "
-                    + "ClprOpenChannelHandler.pureChecks rejects transactions with empty configProofBytes.")
+                    + "ClprCreateChannelHandler.pureChecks rejects transactions with empty configProofBytes.")
     String configProofFile;
 
     @Option(
@@ -80,7 +80,7 @@ public class OpenChannelCommand implements Callable<Integer> {
     public Integer call() throws Exception {
         final var config = configFrom(clprCommand.getYahcli());
 
-        final var op = clprOpenChannel()
+        final var op = clprCreateChannel()
                 .channelId(ClprArgs.requiredBytes("channel-id", channelIdHex))
                 .salt(ClprArgs.requiredBytes("salt", saltHex))
                 .peerVerifier(ClprArgs.requiredBytes("peer-verifier", peerVerifierHex))
@@ -108,9 +108,9 @@ public class OpenChannelCommand implements Callable<Integer> {
                             + "`get-endpoint-manifest --proof-path` file via --endpoint-manifest-proof.");
         }
 
-        final var delegate = new ClprTxnSuite(config, "ClprOpenChannel", op);
+        final var delegate = new ClprTxnSuite(config, "ClprCreateChannel", op);
         delegate.runSuiteSync();
-        return ClprOutcome.reportTxn(config, delegate, op, "opened CLPR channel", "could not open CLPR channel");
+        return ClprOutcome.reportTxn(config, delegate, op, "created CLPR channel", "could not create CLPR channel");
     }
 
     /** True when {@code --verifier-contract} names the Hiero TSS verifier (0.0.366). */

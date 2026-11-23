@@ -21,7 +21,7 @@ All tagged `CLPR` (`TestTags.CLPR`). Multi-network ones additionally tagged
 |             Suite              |                        Tags                         |                                                                                   Covers                                                                                   |
 |--------------------------------|-----------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `ClprConnectorSuite`           | CLPR                                                | Connector commit-reveal (CLPR-3.1, 3.2): commitment, reveal, stake locking, error paths.                                                                                   |
-| `ClprCloseChannelSuite`        | CLPR                                                | Admin auth + channel status transitions for `closeChannel`.                                                                                                                |
+| `ClprDeleteChannelSuite`       | CLPR                                                | Admin auth + channel status transitions for `deleteChannel`.                                                                                                               |
 | `ClprLedgerConfigurationSuite` | CLPR                                                | Admin auth + validation for `updateLedgerConfiguration` (CLPR-1.2): seed-endpoint limits, invalid configs.                                                                 |
 | `ClprRedactMessageSuite`       | CLPR                                                | Admin-key redaction; running-hash preservation.                                                                                                                            |
 | `ClprSendMessageSuite`         | CLPR                                                | EVM `0x16e.sendMessage` happy path + throttle / authorization revert paths.                                                                                                |
@@ -83,7 +83,7 @@ to run two consensus nodes simultaneously.
 ## Patterns to follow when adding tests
 
 - For any **new handler**: add a suite under `bdd/suites/clpr/` driven by
-  `HapiSpecOperations` mirroring the patterns in the connector / close-channel suites.
+  `HapiSpecOperations` mirroring the patterns in the connector / delete-channel suites.
 - For **EVM precompile changes**: extend `ClprSendMessageSuite` (HAPI-level) plus a
   unit test under `hedera-smart-contract-service-impl/src/test/...`.
 - For **consensus-path features that need real sync**: use the multi-network harness.

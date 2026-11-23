@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows;
 
-import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_OPEN_CHANNEL;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_CREATE_CHANNEL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
@@ -1395,7 +1395,7 @@ final class TransactionCheckerTest extends AppTestBase {
         }
 
         @Test
-        void oversizedClprOpenChannelIsExemptForNonGovernancePayer() throws PreCheckException {
+        void oversizedClprCreateChannelIsExemptForNonGovernancePayer() throws PreCheckException {
             props = () -> new VersionedConfigImpl(
                     HederaTestConfigBuilder.create()
                             .withValue("governanceTransactions.isEnabled", true)
@@ -1411,7 +1411,7 @@ final class TransactionCheckerTest extends AppTestBase {
                     .thenReturn(SignedTransaction.newBuilder()
                             .bodyBytes(Bytes.wrap(new byte[25 * 1024]))
                             .build());
-            when(txInfo.functionality()).thenReturn(CLPR_OPEN_CHANNEL);
+            when(txInfo.functionality()).thenReturn(CLPR_CREATE_CHANNEL);
             final var nonGovernancePayer =
                     AccountID.newBuilder().accountNum(1000).build();
 

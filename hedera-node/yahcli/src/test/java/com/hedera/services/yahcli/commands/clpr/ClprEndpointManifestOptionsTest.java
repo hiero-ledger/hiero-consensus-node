@@ -25,11 +25,11 @@ class ClprEndpointManifestOptionsTest {
     }
 
     @Test
-    void openChannelAcceptsEndpointManifestProof() {
+    void createChannelAcceptsEndpointManifestProof() {
         final var parsed = new CommandLine(new Yahcli())
                 .parseArgs(
                         "clpr",
-                        "open-channel",
+                        "create-channel",
                         "--channel-id",
                         "00".repeat(32),
                         "--salt",
@@ -43,18 +43,18 @@ class ClprEndpointManifestOptionsTest {
                         "--endpoint-manifest-proof",
                         "manifest.bin");
 
-        final var command = (OpenChannelCommand)
+        final var command = (CreateChannelCommand)
                 parsed.subcommand().subcommand().commandSpec().userObject();
         assertThat(command.configProofFile).isEqualTo("config.bin");
         assertThat(command.endpointManifestProofFile).isEqualTo("manifest.bin");
     }
 
     @Test
-    void openChannelDoesNotRequireEndpointManifestProof() {
+    void createChannelDoesNotRequireEndpointManifestProof() {
         final var parsed = new CommandLine(new Yahcli())
                 .parseArgs(
                         "clpr",
-                        "open-channel",
+                        "create-channel",
                         "--channel-id",
                         "00".repeat(32),
                         "--salt",
@@ -66,7 +66,7 @@ class ClprEndpointManifestOptionsTest {
                         "--config-proof-hex",
                         "01");
 
-        final var command = (OpenChannelCommand)
+        final var command = (CreateChannelCommand)
                 parsed.subcommand().subcommand().commandSpec().userObject();
         assertThat(command.endpointManifestProofFile).isNull();
         assertThat(command.endpointManifestProofHex).isNull();

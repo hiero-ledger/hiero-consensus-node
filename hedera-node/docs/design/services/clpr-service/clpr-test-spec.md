@@ -30,7 +30,7 @@ implementation concerns for the teams that build the harnesses.
 CLPR testing builds on three existing Hiero test paradigms and introduces a fourth:
 
 **HAPI Tests.** Black-box tests that submit transactions to an embedded Hiero network and verify state
-mutations. CLPR extends this with new transaction types (`openChannel`, `sendMessage`, `submitBundle`,
+mutations. CLPR extends this with new transaction types (`createChannel`, `sendMessage`, `submitBundle`,
 etc.) and with multi-network support — the HAPI test framework has already been extended on a separate branch
 to stand up two Hiero networks simultaneously (the ShipOfTheseusTest demonstrates complete roster rotation
 on both sides while maintaining CLPR communication). HAPI tests cannot run block nodes, mirror nodes, or
@@ -210,7 +210,7 @@ require multi-network infrastructure.
 
 ## 3.2 Channel Lifecycle
 
-### 3.2.1 `openChannel`
+### 3.2.1 `createChannel`
 
 - The expected channel ID and salt are each 32 bytes.
 - The selected verifier must authenticate the peer configuration and endpoint manifest.
@@ -218,24 +218,24 @@ require multi-network infrastructure.
 - An ID mismatch, invalid proof, or duplicate ID must leave channel state intact.
 - A successful call creates an ACTIVE channel and stores the verifier and verified peer configuration.
 
-### 3.2.1b `closeChannel` on PENDING Channels
+### 3.2.1b `deleteChannel` on PENDING Channels
 
-- Admin can call `closeChannel` on a PENDING Channel to clean up abandoned claims.
+- Admin can call `deleteChannel` on a PENDING Channel to clean up abandoned claims.
 - The PENDING Channel is deleted immediately (no drain phase needed).
 - Non-admin callers cannot close a PENDING Channel.
 
 ### 3.2.2 Channel Status Transitions
 
-For tests that assert a persisted CLOSING state after `closeChannel`, keep at least one outbound
+For tests that assert a persisted CLOSING state after `deleteChannel`, keep at least one outbound
 Data Message unacknowledged. Also cover an already acknowledged outbound queue, which can reach
 DRAINED as part of initiating the close.
 
 - ACTIVE → PAUSED automatically when a response ordering violation is detected during `submitBundle`
   processing. No admin action triggers this transition.
-- ACTIVE → CLOSING via `closeChannel` (admin key required).
+- ACTIVE → CLOSING via `deleteChannel` (admin key required).
 - PAUSED → ACTIVE automatically when the next bundle contains correctly ordered responses (if admin
   hasn't closed). No admin action triggers this transition.
-- PAUSED → CLOSING via `closeChannel` (admin key required). The Channel drains once the peer
+- PAUSED → CLOSING via `deleteChannel` (admin key required). The Channel drains once the peer
   fixes the response ordering.
 - ACTIVE/PAUSED → CLOSING when verified peer metadata reports CLOSING, DRAINED, or CLOSED.
 - CLOSING → DRAINED automatically when the peer acknowledges all outbound Data Messages.
@@ -252,7 +252,7 @@ DRAINED as part of initiating the close.
 - Outbound syncs continue (queued messages still flow to the peer).
 - `nextResponseExpectedId` does not advance.
 - Auto-resumes when the next bundle has correctly ordered responses — no admin intervention required.
-- Admin MAY close a PAUSED Channel (`closeChannel` transitions to CLOSING). The Channel cannot
+- Admin MAY close a PAUSED Channel (`deleteChannel` transitions to CLOSING). The Channel cannot
   drain until the peer fixes the ordering; once fixed, inbound messages are dispatched normally
   and queues drain without returning to ACTIVE or accepting new local `sendMessage` calls.
 
@@ -289,10 +289,10 @@ DRAINED as part of initiating the close.
 
 ### 3.2.6 Invalid Transition Rejection
 
-- `closeChannel` on a CLOSING or CLOSED channel is rejected.
-- `closeChannel` on an ACTIVE or PAUSED channel succeeds (use an unacknowledged outbound Data
+- `deleteChannel` on a CLOSING or CLOSED channel is rejected.
+- `deleteChannel` on an ACTIVE or PAUSED channel succeeds (use an unacknowledged outbound Data
   Message to assert a persisted CLOSING state).
-- **Current Hiero behavior:** `closeChannel` on a DRAINED Channel succeeds and transitions it to
+- **Current Hiero behavior:** `deleteChannel` on a DRAINED Channel succeeds and transitions it to
   CLOSED without checking acknowledgements. Cover both a fully acknowledged outbound queue and one with
   unacknowledged Response Messages, including recovery when the peer's close-notification cannot be delivered.
   **Canonical inconsistency:** [§2.1.1](https://github.com/LFDT-CLPR/clpr-spec/blob/945082d69e65dd0fd9e9bdf8d59cb8121579f6fd/clpr-service-spec.md#211-channel-status-transitions),
@@ -606,7 +606,7 @@ rejected, inbound bundles with out-of-order responses are rejected, outbound syn
 queued messages continue syncing.
 - Auto-resume: submit a bundle with correctly ordered responses. Verify the Channel transitions back
 to ACTIVE and normal operation resumes.
-- With at least one outbound Data Message still unacknowledged, close the Channel via `closeChannel`.
+- With at least one outbound Data Message still unacknowledged, close the Channel via `deleteChannel`.
 Verify the Channel transitions to CLOSING, the
 `ClprQueueMetadata.status` carries the Channel status and propagates to the peer, and new local
 `sendMessage` calls are rejected on each side after it starts closing. Inbound Data Messages still
@@ -846,7 +846,7 @@ enqueued, bundles can be submitted, and responses are correctly ordered. No admi
 
 ### 5.4.4 Admin Closes a PAUSED Channel
 
-While a Channel is PAUSED and has an unacknowledged outbound Data Message, call `closeChannel`.
+While a Channel is PAUSED and has an unacknowledged outbound Data Message, call `deleteChannel`.
 Verify the Channel transitions to CLOSING. Submit a bundle with out-of-order responses and verify it is
 not processed: no dispatch, no acknowledgement update, and no running-hash advance (the ordering violation
 persists even in CLOSING). Then submit a bundle with correctly ordered responses and valid Data Messages:
@@ -855,7 +855,7 @@ new local `sendMessage` calls; it drains through DRAINED → CLOSED normally.
 
 ### 5.4.5 CLOSING Propagation via Metadata
 
-Call `closeChannel` on an ACTIVE Channel with an unacknowledged outbound Data Message.
+Call `deleteChannel` on an ACTIVE Channel with an unacknowledged outbound Data Message.
 Verify: the Channel transitions to CLOSING, the
 `ClprQueueMetadata.status` carries the Channel status, the peer sees the status during the next sync and
 transitions its side to CLOSING as well. Verify new local sends are rejected on both sides after each
@@ -1181,7 +1181,7 @@ verifier and new endpoints is operational.
 
 ### 8.3.1 Close Affected Channel
 
-Admin closes a Channel whose verifier is suspected of being compromised via `closeChannel`.
+Admin closes a Channel whose verifier is suspected of being compromised via `deleteChannel`.
 Keep an outbound Data Message unacknowledged to exercise CLOSING. Verify
 the Channel transitions to CLOSING and rejects new local sends. Inbound messages continue normal
 dispatch, charging, and response processing during CLOSING and DRAINED; graceful close does not provide

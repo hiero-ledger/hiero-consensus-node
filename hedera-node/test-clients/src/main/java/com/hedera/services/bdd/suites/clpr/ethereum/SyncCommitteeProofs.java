@@ -252,7 +252,7 @@ public final class SyncCommitteeProofs {
     /**
      * A manifest whose {@code service_address} is a valid 20-byte address that nonetheless differs from the config's
      * {@link #SERVICE_ADDRESS}. The verifier enforces spec §4.8 (manifest service_address == config service_address),
-     * so a config whose manifest proof carries it makes openChannel revert with {@code CLPR_VERIFIER_CONFIG_FAILED}.
+     * so a config whose manifest proof carries it makes createChannel revert with {@code CLPR_VERIFIER_CONFIG_FAILED}.
      */
     public static byte[] manifestBytesBadServiceAddress() {
         return manifest(1L, generateBytes(20, 0x66), 1).toByteArray();

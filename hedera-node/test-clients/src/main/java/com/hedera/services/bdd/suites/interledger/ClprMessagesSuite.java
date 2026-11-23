@@ -3,7 +3,7 @@ package com.hedera.services.bdd.suites.interledger;
 
 import static com.hedera.services.bdd.spec.HapiSpec.networkHapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteConnector;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprOpenChannel;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCreateChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprUpdateLedgerConfiguration;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
@@ -191,7 +191,7 @@ public class ClprMessagesSuite {
                                 .payingWith(GENESIS))
                 .findFirst()
                 .orElseThrow();
-        // NET_A's config and finalized endpoint-manifest StateProofs, threaded into NET_B's openChannel.
+        // NET_A's config and finalized endpoint-manifest StateProofs, threaded into NET_B's createChannel.
         final var netAConfigCapture =
                 captureConfigProof(netA, configProofForNetB, MAX_MESSAGES_PER_BUNDLE, MAX_QUEUE_DEPTH);
         final var netAManifestCapture = captureManifestProof(netA, manifestProofForNetB);
@@ -218,7 +218,7 @@ public class ClprMessagesSuite {
                         // TSS-signed config and endpoint-manifest StateProofs captured from NET_A above.
                         // sourcing(...) defers both .get() calls until runtime so the captured values are
                         // visible.
-                        sourcing(() -> clprOpenChannel()
+                        sourcing(() -> clprCreateChannel()
                                 .channelId(channelId.toByteArray())
                                 .salt(channelSalt)
                                 .peerVerifier(service.toByteArray())
@@ -227,7 +227,7 @@ public class ClprMessagesSuite {
                                 .endpointManifestProofBytes(
                                         manifestProofForNetB.get().toByteArray())
                                 .payingWith(GENESIS)
-                                .via("openChannelB")),
+                                .via("createChannelB")),
                         clprRegisterConnector()
                                 .channelId(channelId.toByteArray())
                                 .commitment(connectorCommitment.toByteArray())
@@ -249,7 +249,7 @@ public class ClprMessagesSuite {
                                 echoContractIdRef.set(spec.registry().getContractId(ECHO_APP))))
                 .findFirst()
                 .orElseThrow();
-        // NET_B's config and finalized endpoint-manifest StateProofs, threaded into NET_A's openChannel.
+        // NET_B's config and finalized endpoint-manifest StateProofs, threaded into NET_A's createChannel.
         final var netBConfigCapture =
                 captureConfigProof(netB, configProofForNetA, MAX_MESSAGES_PER_BUNDLE, MAX_QUEUE_DEPTH);
         final var netBManifestCapture = captureManifestProof(netB, manifestProofForNetA);
@@ -283,7 +283,7 @@ public class ClprMessagesSuite {
                         // TSS-signed config and endpoint-manifest StateProofs captured from NET_B above.
                         // sourcing(...) defers both .get() calls until runtime so the captured values are
                         // visible.
-                        sourcing(() -> clprOpenChannel()
+                        sourcing(() -> clprCreateChannel()
                                 .channelId(channelId.toByteArray())
                                 .salt(channelSalt)
                                 .peerVerifier(service.toByteArray())
@@ -292,7 +292,7 @@ public class ClprMessagesSuite {
                                 .endpointManifestProofBytes(
                                         manifestProofForNetA.get().toByteArray())
                                 .payingWith(GENESIS)
-                                .via("openChannelA")),
+                                .via("createChannelA")),
                         clprRegisterConnector()
                                 .channelId(channelId.toByteArray())
                                 .commitment(connectorCommitment.toByteArray())

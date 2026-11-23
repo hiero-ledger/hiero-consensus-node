@@ -365,10 +365,10 @@ note "config-proof hex (${#CONFIG_PROOF_HEX} chars): ${CONFIG_PROOF_HEX:0:60}…
 # Use the same salt and EVM-side verifier used when the EVM channel was opened.
 : "${CHANNEL_SALT:?Set CHANNEL_SALT to the EVM channel salt (32-byte hex)}"
 : "${EVM_VERIFIER_ADDRESS:?Set EVM_VERIFIER_ADDRESS to the verifier on the EVM ledger (20-byte hex)}"
-header "open-channel on ${NET} via verifier ${VERIFIER_CONTRACT}"
-yh_allow_status "CLPR_CHANNEL_ALREADY_EXISTS" "open-channel" "${LOG_DIR}/05-complete-conn.log" \
+header "create-channel on ${NET} via verifier ${VERIFIER_CONTRACT}"
+yh_allow_status "CLPR_CHANNEL_ALREADY_EXISTS" "create-channel" "${LOG_DIR}/05-complete-conn.log" \
     -n "${NET}" -p "${PAYER}" \
-    clpr open-channel \
+    clpr create-channel \
         --channel-id "${CHANNEL_ID}" --salt "${CHANNEL_SALT}" --peer-verifier "${EVM_VERIFIER_ADDRESS}" \
         --verifier-contract "${VERIFIER_CONTRACT}" \
         --config-proof-hex "${CONFIG_PROOF_HEX}"

@@ -3,11 +3,11 @@ package com.hedera.node.app.hapi.utils.sysfiles.validation;
 
 import static com.hedera.node.app.hapi.utils.sysfiles.validation.ExpectedCustomThrottles.ACTIVE_OPS;
 import static com.hedera.node.app.hapi.utils.sysfiles.validation.ExpectedCustomThrottles.CLPR_OPS;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprCloseChannel;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprCreateChannel;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprDeleteChannel;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprDeregisterConnector;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprEvictPeerEndpoint;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprGetLedgerConfiguration;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprOpenChannel;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprRegisterConnector;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprSubmitBundle;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprUpdateLedgerConfiguration;
@@ -134,8 +134,8 @@ class ExpectedCustomThrottlesTest {
         assertTrue(ACTIVE_OPS.contains(EthereumTransaction), "Missing EthereumTransaction!");
         assertTrue(ACTIVE_OPS.contains(UtilPrng), "Missing UtilPrng!");
         assertTrue(ACTIVE_OPS.contains(ClprUpdateLedgerConfiguration), "Missing ClprUpdateLedgerConfiguration!");
-        assertTrue(ACTIVE_OPS.contains(ClprOpenChannel), "Missing ClprOpenChannel!");
-        assertTrue(ACTIVE_OPS.contains(ClprCloseChannel), "Missing ClprCloseChannel!");
+        assertTrue(ACTIVE_OPS.contains(ClprCreateChannel), "Missing ClprCreateChannel!");
+        assertTrue(ACTIVE_OPS.contains(ClprDeleteChannel), "Missing ClprDeleteChannel!");
         assertTrue(ACTIVE_OPS.contains(ClprEvictPeerEndpoint), "Missing ClprEvictPeerEndpoint!");
         assertTrue(ACTIVE_OPS.contains(ClprGetLedgerConfiguration), "Missing ClprGetLedgerConfiguration!");
         assertTrue(ACTIVE_OPS.contains(ClprSubmitBundle), "Missing ClprSubmitBundle!");

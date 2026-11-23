@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.transactions.clpr;
 
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprOpenChannel;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprCreateChannel;
 
 import com.google.common.base.MoreObjects;
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
-import com.hederahashgraph.api.proto.java.ClprOpenChannelTransactionBody;
+import com.hederahashgraph.api.proto.java.ClprCreateChannelTransactionBody;
 import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Key;
@@ -18,9 +18,9 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
- * HAPI spec operation for {@code ClprOpenChannel} transactions.
+ * HAPI spec operation for {@code ClprCreateChannel} transactions.
  */
-public class HapiClprOpenChannel extends HapiTxnOp<HapiClprOpenChannel> {
+public class HapiClprCreateChannel extends HapiTxnOp<HapiClprCreateChannel> {
 
     private byte[] channelId;
     private byte[] salt;
@@ -30,34 +30,34 @@ public class HapiClprOpenChannel extends HapiTxnOp<HapiClprOpenChannel> {
     private byte[] configProofBytes;
     private byte[] endpointManifestProofBytes;
 
-    public HapiClprOpenChannel() {}
+    public HapiClprCreateChannel() {}
 
-    public HapiClprOpenChannel channelId(final byte[] channelId) {
+    public HapiClprCreateChannel channelId(final byte[] channelId) {
         this.channelId = channelId;
         return this;
     }
 
-    public HapiClprOpenChannel salt(final byte[] salt) {
+    public HapiClprCreateChannel salt(final byte[] salt) {
         this.salt = salt;
         return this;
     }
 
-    public HapiClprOpenChannel peerVerifier(final byte[] peerVerifier) {
+    public HapiClprCreateChannel peerVerifier(final byte[] peerVerifier) {
         this.peerVerifier = peerVerifier;
         return this;
     }
 
-    public HapiClprOpenChannel verifierContract(final String contractName) {
+    public HapiClprCreateChannel verifierContract(final String contractName) {
         this.verifierContractName = Optional.of(contractName);
         return this;
     }
 
-    public HapiClprOpenChannel verifierContractId(final ContractID contractId) {
+    public HapiClprCreateChannel verifierContractId(final ContractID contractId) {
         this.verifierContractId = Optional.of(contractId);
         return this;
     }
 
-    public HapiClprOpenChannel configProofBytes(final byte[] configProofBytes) {
+    public HapiClprCreateChannel configProofBytes(final byte[] configProofBytes) {
         this.configProofBytes = configProofBytes;
         return this;
     }
@@ -68,26 +68,26 @@ public class HapiClprOpenChannel extends HapiTxnOp<HapiClprOpenChannel> {
      * {@code StateProof} bytes of the peer's finalized {@code ClprEndpointManifest} singleton,
      * as returned by {@code clprGetEndpointManifest}.
      */
-    public HapiClprOpenChannel endpointManifestProofBytes(final byte[] endpointManifestProofBytes) {
+    public HapiClprCreateChannel endpointManifestProofBytes(final byte[] endpointManifestProofBytes) {
         this.endpointManifestProofBytes = endpointManifestProofBytes;
         return this;
     }
 
     @Override
     public HederaFunctionality type() {
-        return ClprOpenChannel;
+        return ClprCreateChannel;
     }
 
     @Override
-    protected HapiClprOpenChannel self() {
+    protected HapiClprCreateChannel self() {
         return this;
     }
 
     @Override
     protected Consumer<TransactionBody.Builder> opBodyDef(final HapiSpec spec) throws Throwable {
-        final ClprOpenChannelTransactionBody opBody = spec.txns()
-                .<ClprOpenChannelTransactionBody, ClprOpenChannelTransactionBody.Builder>body(
-                        ClprOpenChannelTransactionBody.class, b -> {
+        final ClprCreateChannelTransactionBody opBody = spec.txns()
+                .<ClprCreateChannelTransactionBody, ClprCreateChannelTransactionBody.Builder>body(
+                        ClprCreateChannelTransactionBody.class, b -> {
                             if (channelId != null) {
                                 b.setChannelId(ByteString.copyFrom(channelId));
                             }
@@ -108,7 +108,7 @@ public class HapiClprOpenChannel extends HapiTxnOp<HapiClprOpenChannel> {
                                 b.setEndpointManifestProofBytes(ByteString.copyFrom(endpointManifestProofBytes));
                             }
                         });
-        return b -> b.setClprOpenChannel(opBody);
+        return b -> b.setClprCreateChannel(opBody);
     }
 
     @Override

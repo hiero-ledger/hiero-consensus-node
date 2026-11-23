@@ -61,8 +61,8 @@ message ClprLedgerConfiguration {
      * Opaque starting trust anchor for the Channel. For Hiero TSS this is the
      * ledger_id of the ledger that produced this configuration (its own ledger_id
      * when this is the local-ledger config singleton, the peer's ledger_id when
-     * received via state proof at openChannel). Stored as
-     * Channel.trust_anchor at openChannel.
+     * received via state proof at createChannel). Stored as
+     * Channel.trust_anchor at createChannel.
      *
      * Populated by the source ledger as part of ClprUpdateLedgerConfiguration once
      * its genesis-rooted ledger_id is available.

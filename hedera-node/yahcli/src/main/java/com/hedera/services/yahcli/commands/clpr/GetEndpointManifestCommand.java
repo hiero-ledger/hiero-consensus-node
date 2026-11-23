@@ -26,7 +26,7 @@ import picocli.CommandLine.ParentCommand;
  * response's state-proof bytes are always surfaced (base64-encoded) under
  * {@code manifestStateProof} in the JSON; pass {@code --proof-path <path>} to also write the
  * raw serialized proof bytes to disk, for use as the peer's
- * {@code open-channel --endpoint-manifest-proof}.
+ * {@code create-channel --endpoint-manifest-proof}.
  *
  * <p>The manifest version and endpoint count are always printed, and the JSON carries a
  * top-level {@code finalized} flag. Genesis seeds a version-1 manifest with no endpoints, so a
@@ -67,7 +67,7 @@ public class GetEndpointManifestCommand implements Callable<Integer> {
             paramLabel = "<path>",
             description = "If set, writes the raw serialized manifest_state_proof bytes to this file. "
                     + "The same bytes are also surfaced (base64) under manifestStateProof in the JSON output. "
-                    + "Suitable as input to the peer's open-channel --endpoint-manifest-proof, which the "
+                    + "Suitable as input to the peer's create-channel --endpoint-manifest-proof, which the "
                     + "Hiero TSS verifier (0.0.366) requires.")
     String proofPath;
 

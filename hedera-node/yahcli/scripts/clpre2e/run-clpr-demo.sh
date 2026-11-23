@@ -6,7 +6,7 @@
 # exercised against TWO local Hiero networks ("ledger A" and "ledger B"). The script
 # does NOT generate real cryptographic material -- commit/reveal payloads and signatures
 # are static placeholder bytes, so the precheck path of every command runs, but the
-# handler-side signature/proof checks on open-channel / complete-connector /
+# handler-side signature/proof checks on create-channel / complete-connector /
 # submit-bundle will (correctly) reject the placeholder values. That is expected for a
 # smoke test; the value here is exercising the wire path of every command on both ledgers.
 #
@@ -166,7 +166,7 @@ run_on_network() {
     run_yahcli "get-ledger-configuration on ${net}" \
         -n "${net}" clpr get-ledger-configuration --json --include-defaults
 
-    # 4) Deploy the verifier first so we can pass its id into open-channel.
+    # 4) Deploy the verifier first so we can pass its id into create-channel.
     #    --immutable: no admin key, so peers can trust the verifier won't be swapped out.
     #    --memo: shows up in mirror-node lookups; useful when several verifiers coexist.
     print_step "[4/11] contracts deploy-clpr-verifier"
@@ -178,9 +178,9 @@ run_on_network() {
             --immutable
 
     # This smoke test intentionally supplies a placeholder proof.
-    print_step "[5/11] open-channel"
-    run_yahcli "open-channel on ${net}" \
-        -n "${net}" clpr open-channel --channel-id "${CHANNEL_ID_HEX}" \
+    print_step "[5/11] create-channel"
+    run_yahcli "create-channel on ${net}" \
+        -n "${net}" clpr create-channel --channel-id "${CHANNEL_ID_HEX}" \
             --salt "${CHANNEL_SALT_HEX}" --peer-verifier "${PEER_VERIFIER_HEX}" \
             --verifier-contract "${VERIFIER_CONTRACT}" --config-proof-hex "${CONFIG_PROOF_HEX}"
 
@@ -226,14 +226,14 @@ run_on_network() {
             --bundle-payload "${BUNDLE_PAYLOAD_HEX}"
 
     # 11) Teardown: deregister the connector then close the channel.
-    print_step "[11/11] deregister-connector and close-channel"
+    print_step "[11/11] deregister-connector and delete-channel"
     run_yahcli "deregister-connector on ${net}" \
         -n "${net}" clpr deregister-connector \
             --channel-id "${CHANNEL_ID_HEX}" \
             --connector-id "${CONNECTOR_ID_HEX}" \
             --stake-recipient "${STAKE_RECIPIENT}"
-    run_yahcli "close-channel on ${net}" \
-        -n "${net}" clpr close-channel --channel-id "${CHANNEL_ID_HEX}"
+    run_yahcli "delete-channel on ${net}" \
+        -n "${net}" clpr delete-channel --channel-id "${CHANNEL_ID_HEX}"
 }
 
 # ----- drive both networks ---------------------------------------------------

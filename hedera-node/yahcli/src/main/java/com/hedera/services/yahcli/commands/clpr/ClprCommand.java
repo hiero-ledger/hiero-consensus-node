@@ -24,8 +24,8 @@ import picocli.CommandLine.ParentCommand;
         subcommands = {
             HelpCommand.class,
             GenerateChannelIdentityCommand.class,
-            OpenChannelCommand.class,
-            CloseChannelCommand.class,
+            CreateChannelCommand.class,
+            DeleteChannelCommand.class,
             RegisterConnectorCommand.class,
             CompleteConnectorCommand.class,
             DeregisterConnectorCommand.class,

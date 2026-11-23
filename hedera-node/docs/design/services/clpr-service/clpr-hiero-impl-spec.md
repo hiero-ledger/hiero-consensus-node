@@ -1,6 +1,6 @@
 # CLPR Hiero Implementation Specification
 
-Current channel setup uses a single `openChannel` transaction. See the [channel handler](handlers.md#clpropenchannelhandler) for the active flow.
+Current channel setup uses a single `createChannel` transaction. See the [channel handler](handlers.md#clprcreatechannelhandler) for the active flow.
 
 This document maps CLPR to Hiero's native constructs. The canonical
 [CLPR Protocol Specification](https://github.com/LFDT-CLPR/clpr-spec/blob/945082d69e65dd0fd9e9bdf8d59cb8121579f6fd/clpr-service-spec.md)
@@ -41,11 +41,11 @@ that goes through consensus) or a HAPI query (read-only operation). All transact
 
 The following new `oneof` variants are added to `TransactionBody`:
 
-| Pseudo-API (spec section 6) |      HAPI Transaction Type      |   TransactionBody oneof field   |                        Authority                        |
+|       Hiero operation       |      HAPI Transaction Type      |   TransactionBody oneof field   |                        Authority                        |
 |-----------------------------|---------------------------------|---------------------------------|---------------------------------------------------------|
 | `updateLedgerConfiguration` | `ClprUpdateLedgerConfiguration` | `clprUpdateLedgerConfiguration` | CLPR admin (council key)                                |
-| `openChannel`               | `ClprOpenChannel`               | `clprOpenChannel`               | Any payer with a valid peer proof                       |
-| `closeChannel`              | `ClprCloseChannel`              | `clprCloseChannel`              | CLPR admin (ACTIVE/PAUSED → CLOSING → DRAINED → CLOSED) |
+| `createChannel`             | `ClprCreateChannel`             | `clprCreateChannel`             | Any payer with a valid peer proof                       |
+| `deleteChannel`             | `ClprDeleteChannel`             | `clprDeleteChannel`             | CLPR admin (ACTIVE/PAUSED → CLOSING → DRAINED → CLOSED) |
 | `registerConnector`         | `ClprRegisterConnector`         | `clprRegisterConnector`         | Any (requires initial funds)                            |
 | `topUpConnector`            | `ClprTopUpConnector`            | `clprTopUpConnector`            | Connector admin                                         |
 | `withdrawConnectorBalance`  | `ClprWithdrawConnectorBalance`  | `clprWithdrawConnectorBalance`  | Connector admin                                         |
@@ -90,7 +90,7 @@ message ClprUpdateLedgerConfigurationTransactionBody {
 
 ```protobuf
 // Any payer can open a channel after the verifier authenticates the peer configuration.
-message ClprOpenChannelTransactionBody {
+message ClprCreateChannelTransactionBody {
   bytes channel_id = 1;
   bytes salt = 2;
   proto.ContractID verifier_contract = 3;
@@ -113,7 +113,7 @@ message ClprOpenChannelTransactionBody {
 // recovery path when the peer's close-notification cannot be delivered);
 // this does not wait for outstanding acknowledgements.
 // See cross-platform spec §2.1.1 for the full status transition table.
-message ClprCloseChannelTransactionBody {
+message ClprDeleteChannelTransactionBody {
   bytes channel_id = 1;
 }
 ```
@@ -202,7 +202,7 @@ Each CLPR transaction produces a `TransactionRecord` with a standard `Transactio
 - `ClprSendMessage` records include the assigned `message_id` in the receipt.
 - `ClprSubmitBundle` records include the count of messages processed, any generated response message IDs,
   and a list of slash events (if any).
-- A successful `ClprOpenChannel` creates an ACTIVE channel with the submitted ID.
+- A successful `ClprCreateChannel` creates an ACTIVE channel with the submitted ID.
 - `ClprRegisterConnector` records include the connector key
   `(channel_id, source_connector_address)`.
 
@@ -258,8 +258,8 @@ These remain as they are in the prototype, served by the `ClprEndpointService` g
 |           Transaction           |                               Required Signers                               |
 |---------------------------------|------------------------------------------------------------------------------|
 | `ClprUpdateLedgerConfiguration` | CLPR admin key (Hedera council key, file `0.0.150` or equivalent system key) |
-| `ClprOpenChannel`               | Transaction payer only                                                       |
-| `ClprCloseChannel`              | CLPR admin key                                                               |
+| `ClprCreateChannel`             | Transaction payer only                                                       |
+| `ClprDeleteChannel`             | CLPR admin key                                                               |
 | `ClprRegisterConnector`         | Transaction payer + Connector admin key                                      |
 | `ClprTopUpConnector`            | Connector admin key                                                          |
 | `ClprWithdrawConnectorBalance`  | Connector admin key                                                          |
@@ -370,17 +370,17 @@ fingerprints are not rewritten.
 
 **Channel Status Transitions** (see also cross-platform spec section 2.1.1):
 
-|   From    |    To     |                                                         Trigger                                                          |
-|-----------|-----------|--------------------------------------------------------------------------------------------------------------------------|
-| (new)     | `ACTIVE`  | `ClprOpenChannel` verifies the peer and the channel ID.                                                                  |
-| `PENDING` | (deleted) | Admin: `ClprCloseChannel` on a PENDING Channel (immediate deletion)                                                      |
-| `ACTIVE`  | `PAUSED`  | Auto: response ordering violation during `ClprSubmitBundle`                                                              |
-| `ACTIVE`  | `CLOSING` | Admin: `ClprCloseChannel`, or peer's `ClprQueueMetadata.status` is `CLOSING`/`DRAINED`/`CLOSED`                          |
-| `PAUSED`  | `ACTIVE`  | Auto: peer fixes ordering (if admin hasn't closed)                                                                       |
-| `PAUSED`  | `CLOSING` | Admin: `ClprCloseChannel`, or peer status is `CLOSING`/`DRAINED`/`CLOSED`; drain requires valid response ordering        |
-| `CLOSING` | `DRAINED` | Auto: peer has acknowledged all outbound Data Messages; responses may still be in flight                                 |
-| `DRAINED` | `CLOSED`  | Auto: peer is `DRAINED`/`CLOSED` and all outbound messages, including responses, are acknowledged                        |
-| `DRAINED` | `CLOSED`  | Admin: `ClprCloseChannel` recovery when the peer's close-notification cannot be delivered; not gated on acknowledgements |
+|   From    |    To     |                                                          Trigger                                                          |
+|-----------|-----------|---------------------------------------------------------------------------------------------------------------------------|
+| (new)     | `ACTIVE`  | `ClprCreateChannel` verifies the peer and the channel ID.                                                                 |
+| `PENDING` | (deleted) | Admin: `ClprDeleteChannel` on a PENDING Channel (immediate deletion)                                                      |
+| `ACTIVE`  | `PAUSED`  | Auto: response ordering violation during `ClprSubmitBundle`                                                               |
+| `ACTIVE`  | `CLOSING` | Admin: `ClprDeleteChannel`, or peer's `ClprQueueMetadata.status` is `CLOSING`/`DRAINED`/`CLOSED`                          |
+| `PAUSED`  | `ACTIVE`  | Auto: peer fixes ordering (if admin hasn't closed)                                                                        |
+| `PAUSED`  | `CLOSING` | Admin: `ClprDeleteChannel`, or peer status is `CLOSING`/`DRAINED`/`CLOSED`; drain requires valid response ordering        |
+| `CLOSING` | `DRAINED` | Auto: peer has acknowledged all outbound Data Messages; responses may still be in flight                                  |
+| `DRAINED` | `CLOSED`  | Auto: peer is `DRAINED`/`CLOSED` and all outbound messages, including responses, are acknowledged                         |
+| `DRAINED` | `CLOSED`  | Admin: `ClprDeleteChannel` recovery when the peer's close-notification cannot be delivered; not gated on acknowledgements |
 
 `CLOSED` is a terminal state with no outgoing transitions.
 
@@ -479,8 +479,8 @@ Each HAPI transaction type maps to a `TransactionHandler` implementation. Handle
 |             Handler Class              |        Transaction Type         |                                                                                                                                          Complexity                                                                                                                                           |
 |----------------------------------------|---------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `ClprUpdateLedgerConfigurationHandler` | `ClprUpdateLedgerConfiguration` | Medium (admin key check, store config). The handler preserves immutable fields (`chain_id`, `protocol_version`) from the genesis configuration and updates only mutable fields (throttles, endpoints); `service_address` is fixed. Timestamp is set to the consensus time of the transaction. |
-| `ClprOpenChannelHandler`               | `ClprOpenChannel`               | Verify the peer proofs, check the derived ID, and store an ACTIVE channel.                                                                                                                                                                                                                    |
-| `ClprCloseChannelHandler`              | `ClprCloseChannel`              | Low (PENDING → immediate deletion; ACTIVE/PAUSED → graceful drain through CLOSING/DRAINED; DRAINED → CLOSED admin recovery; peer status and acknowledgements complete automatic closure per §2.1.1)                                                                                           |
+| `ClprCreateChannelHandler`             | `ClprCreateChannel`             | Verify the peer proofs, check the derived ID, and store an ACTIVE channel.                                                                                                                                                                                                                    |
+| `ClprDeleteChannelHandler`             | `ClprDeleteChannel`             | Low (PENDING → immediate deletion; ACTIVE/PAUSED → graceful drain through CLOSING/DRAINED; DRAINED → CLOSED admin recovery; peer status and acknowledgements complete automatic closure per §2.1.1)                                                                                           |
 | `ClprRegisterConnectorHandler`         | `ClprRegisterConnector`         | Medium (fund transfer, mapping setup). Records the `admin` field on the Connector state (defaults to the transaction payer if not specified in the body). The signing requirement includes the admin key if an explicit admin is provided; otherwise the payer key suffices.                  |
 | `ClprTopUpConnectorHandler`            | `ClprTopUpConnector`            | Low (balance update)                                                                                                                                                                                                                                                                          |
 | `ClprWithdrawConnectorBalanceHandler`  | `ClprWithdrawConnectorBalance`  | Low (balance check + transfer)                                                                                                                                                                                                                                                                |
@@ -577,7 +577,7 @@ verifies the payer can pay:
   CLPR admin key to the required keys set.
 - **Connector admin transactions** (`TopUp`, `Withdraw`, `Deregister`): `preHandle` looks up the Connector and
   adds its admin key to the required keys set.
-- **Permissionless transactions** (`OpenChannel`, `SubmitBundle`): `preHandle` is a no-op (payer key
+- **Permissionless transactions** (`CreateChannel`, `SubmitBundle`): `preHandle` is a no-op (payer key
   is the only requirement).
 
 **Note:** `sendMessage` is a system contract method and does not go through `preHandle`.
@@ -900,9 +900,9 @@ Each handler registers a `ServiceFeeCalculator`:
 |           Transaction           |                          Fee Basis                          |                                                  Notes                                                  |
 |---------------------------------|-------------------------------------------------------------|---------------------------------------------------------------------------------------------------------|
 | `ClprUpdateLedgerConfiguration` | Fixed base                                                  | Admin operation; relatively rare. Config propagation is lazy, so no per-Channel enqueue at update time. |
-| `ClprOpenChannel`               | Base fee, verifier gas and stored channel bytes             | Creates an ACTIVE channel                                                                               |
+| `ClprCreateChannel`             | Base fee, verifier gas and stored channel bytes             | Creates an ACTIVE channel                                                                               |
 | `ClprUpdateEndpointRoster`      | Fixed base + verification cost                              |                                                                                                         |
-| `ClprCloseChannel`              | Fixed base                                                  | Low; transition to CLOSING                                                                              |
+| `ClprDeleteChannel`             | Fixed base                                                  | Low; transition to CLOSING                                                                              |
 | `ClprRegisterConnector`         | Fixed base                                                  |                                                                                                         |
 | `ClprTopUpConnector`            | Fixed base                                                  |                                                                                                         |
 | `ClprWithdrawConnectorBalance`  | Fixed base                                                  |                                                                                                         |
@@ -1014,7 +1014,7 @@ the next message in the bundle is processed.
 ## 11.9 Prototype Compatibility
 
 The existing prototype on the `20111-clpr-prototype` branch defines a simpler model with:
-- `adoptPeerConfiguration` instead of `openChannel`
+- `adoptPeerConfiguration` instead of `createChannel`
 - `processSyncResult` instead of `submitBundle`
 - `sync` as a HAPI query instead of a separate gRPC service
 - `ClprLedgerId` instead of 32-byte Channel IDs
@@ -1094,7 +1094,7 @@ same peer ledger, so ledger ID is insufficient as a key.
 
 **Resolved.** A response ordering violation transitions the Channel to PAUSED. PAUSED auto-recovers when the
 next bundle contains correctly ordered responses (if admin hasn't closed). Admin may close a PAUSED Channel
-(`closeChannel` transitions to CLOSING); the Channel drains once the peer fixes the ordering. If the
+(`deleteChannel` transitions to CLOSING); the Channel drains once the peer fixes the ordering. If the
 peer never fixes the ordering, the Channel stays PAUSED (or CLOSING) indefinitely.
 
 ### F-9: Queue Metadata Naming

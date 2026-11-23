@@ -6,7 +6,7 @@ import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.CLPR;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteConnector;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprOpenChannel;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCreateChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprSubmitBundle;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprUpdateLedgerConfiguration;
@@ -153,7 +153,7 @@ public class ClprEthSyncCommitteeVerifierSuite {
                     clprUpdateLedgerConfiguration()
                             .configuration(localLedgerConfig())
                             .payingWith(GENESIS),
-                    clprOpenChannel()
+                    clprCreateChannel()
                             .channelId(crypto.channelId())
                             .salt(crypto.salt())
                             .peerVerifier(crypto.peerVerifier())
@@ -305,7 +305,7 @@ public class ClprEthSyncCommitteeVerifierSuite {
     }
 
     /**
-     * openChannel with a proof of the peer endpoint manifest supplied as the config path's
+     * createChannel with a proof of the peer endpoint manifest supplied as the config path's
      * {@code endpoint_manifest_proof_bytes} (a sync-committee proof of the manifest commitment, spec §4.8).
      * Exercises 0, 1, and N (3) manifest endpoints — each on a fresh channel — and asserts the resulting
      * Channel's {@code endpoint_manifest_version >= 1} and that its stored endpoints match the proven manifest.
@@ -313,8 +313,8 @@ public class ClprEthSyncCommitteeVerifierSuite {
     @LeakyEmbeddedHapiTest(
             reason = NEEDS_STATE_ACCESS,
             overrides = {"clpr.verifierGasLimit"})
-    @DisplayName("Eth verifier: openChannel installs the config endpoint manifest (0, 1, N endpoints)")
-    final Stream<DynamicTest> openChannelInstallsConfigManifest() {
+    @DisplayName("Eth verifier: createChannel installs the config endpoint manifest (0, 1, N endpoints)")
+    final Stream<DynamicTest> createChannelInstallsConfigManifest() {
         return hapiTest(sourcingContextual(networkSpec -> {
             final var localChain = "eip155:" + networkSpec.startupProperties().getLong("contracts.chainId");
             final int[] endpointCounts = {0, 1, 3};
@@ -331,7 +331,7 @@ public class ClprEthSyncCommitteeVerifierSuite {
                         asSolidityAddress(ETH_VERIFIER),
                         SyncCommitteeProofs.CHAIN_ID,
                         SyncCommitteeProofs.serviceAddress());
-                ops.add(clprOpenChannel()
+                ops.add(clprCreateChannel()
                         .channelId(crypto.channelId())
                         .salt(crypto.salt())
                         .peerVerifier(crypto.peerVerifier())
@@ -375,7 +375,7 @@ public class ClprEthSyncCommitteeVerifierSuite {
             final byte[] advanceManifest = SyncCommitteeProofs.manifestBytes(2L, 2);
 
             return blockingOrder(flattened(
-                    // openChannel with an empty endpoint_manifest_proof_bytes returns the uninitialized manifest
+                    // createChannel with an empty endpoint_manifest_proof_bytes returns the uninitialized manifest
                     // (version 0, no endpoints), so the channel opens at manifest version 0.
                     setupChannelWithEthereumVerifier(crypto, SyncCommitteeProofs.configPayload()),
                     withOpContext((spec, opLog) -> {
@@ -400,7 +400,7 @@ public class ClprEthSyncCommitteeVerifierSuite {
 
     /**
      * A proven manifest whose {@code service_address} does not match the config's service address violates spec §4.8,
-     * so the Ethereum verifier rejects it inside {@code verifyConfig} and openChannel reverts with
+     * so the Ethereum verifier rejects it inside {@code verifyConfig} and createChannel reverts with
      * {@code CLPR_VERIFIER_CONFIG_FAILED}.
      */
     @LeakyEmbeddedHapiTest(
@@ -420,7 +420,7 @@ public class ClprEthSyncCommitteeVerifierSuite {
                     clprUpdateLedgerConfiguration()
                             .configuration(localLedgerConfig())
                             .payingWith(GENESIS),
-                    clprOpenChannel()
+                    clprCreateChannel()
                             .channelId(crypto.channelId())
                             .salt(crypto.salt())
                             .peerVerifier(crypto.peerVerifier())
@@ -460,14 +460,14 @@ public class ClprEthSyncCommitteeVerifierSuite {
             clprUpdateLedgerConfiguration().configuration(localLedgerConfig()).payingWith(GENESIS),
             uploadInitCode(CONNECTOR_CONTRACT),
             contractCreate(CONNECTOR_CONTRACT),
-            clprOpenChannel()
+            clprCreateChannel()
                     .channelId(crypto.channelId())
                     .salt(crypto.salt())
                     .peerVerifier(crypto.peerVerifier())
                     .verifierContractId(ETH_VERIFIER)
                     .configProofBytes(ledgerConfigPayload)
                     .payingWith(GENESIS),
-            // openChannel seeds an ACTIVE channel with the verifier-derived trust anchor.
+            // createChannel seeds an ACTIVE channel with the verifier-derived trust anchor.
             withOpContext((spec, opLog) -> {
                 final var conn = readChannelFromState(spec, crypto);
                 assertEquals(ClprChannelStatus.ACTIVE, conn.status(), "channel should be ACTIVE");

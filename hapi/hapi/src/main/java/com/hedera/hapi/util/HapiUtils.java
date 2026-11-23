@@ -266,9 +266,9 @@ public class HapiUtils {
             case REGISTERED_NODE_DELETE -> HederaFunctionality.REGISTERED_NODE_DELETE;
             case MIGRATION_ROOT_HASH_VOTE -> HederaFunctionality.MIGRATION_ROOT_HASH_VOTE;
             case CLPR_UPDATE_LEDGER_CONFIGURATION -> HederaFunctionality.CLPR_UPDATE_LEDGER_CONFIGURATION;
-            case CLPR_CLOSE_CHANNEL -> HederaFunctionality.CLPR_CLOSE_CHANNEL;
+            case CLPR_DELETE_CHANNEL -> HederaFunctionality.CLPR_DELETE_CHANNEL;
             case CLPR_EVICT_PEER_ENDPOINT -> HederaFunctionality.CLPR_EVICT_PEER_ENDPOINT;
-            case CLPR_OPEN_CHANNEL -> HederaFunctionality.CLPR_OPEN_CHANNEL;
+            case CLPR_CREATE_CHANNEL -> HederaFunctionality.CLPR_CREATE_CHANNEL;
             case CLPR_SUBMIT_BUNDLE -> HederaFunctionality.CLPR_SUBMIT_BUNDLE;
             case CLPR_REGISTER_CONNECTOR -> HederaFunctionality.CLPR_REGISTER_CONNECTOR;
             case CLPR_COMPLETE_CONNECTOR -> HederaFunctionality.CLPR_COMPLETE_CONNECTOR;

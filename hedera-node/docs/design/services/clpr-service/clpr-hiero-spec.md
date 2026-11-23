@@ -126,7 +126,7 @@ See [C-6 in DRIFT-REVIEW-2026-05.md](DRIFT-REVIEW-2026-05.md#c-6) for the plan.
 ## E-5. `PrivilegesVerifier`-based admin gating
 
 The treasury (by default `0.0.2`), system admin (by default `0.0.50`), and configured
-`accounts.clprAdmin` payer can submit `closeChannel`, `evictPeerEndpoint`, and
+`accounts.clprAdmin` payer can submit `deleteChannel`, `evictPeerEndpoint`, and
 `updateLedgerConfiguration`.
 See [privileged transactions](../../../privileged-transactions.md#authorization-privileges-for-clpr-transactions).
 

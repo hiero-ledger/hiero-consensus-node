@@ -15,7 +15,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.ContractID;
-import com.hedera.hapi.node.clpr.ClprOpenChannelTransactionBody;
+import com.hedera.hapi.node.clpr.ClprCreateChannelTransactionBody;
 import com.hedera.hapi.node.state.clpr.ClprChannel;
 import com.hedera.hapi.node.state.clpr.ClprChannelStatus;
 import com.hedera.hapi.node.state.clpr.ClprEndpoint;
@@ -52,13 +52,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Handles {@link com.hedera.hapi.node.base.HederaFunctionality#CLPR_OPEN_CHANNEL} transactions.
+ * Handles {@link com.hedera.hapi.node.base.HederaFunctionality#CLPR_CREATE_CHANNEL} transactions.
  *
  * <p>Verifies the peer configuration and binds both ledger identities and verifiers to the channel ID.
  */
 @Singleton
-public final class ClprOpenChannelHandler extends AbstractClprHandler {
-    private static final Logger log = LoggerFactory.getLogger(ClprOpenChannelHandler.class);
+public final class ClprCreateChannelHandler extends AbstractClprHandler {
+    private static final Logger log = LoggerFactory.getLogger(ClprCreateChannelHandler.class);
     private static final Bytes ZERO_HASH = Bytes.wrap(new byte[32]);
 
     /**
@@ -126,7 +126,7 @@ public final class ClprOpenChannelHandler extends AbstractClprHandler {
     private final ClprChannelLifecycle channelLifecycle;
 
     @Inject
-    public ClprOpenChannelHandler(
+    public ClprCreateChannelHandler(
             @NonNull final ClprVerifierFactory verifierFactory, @NonNull final ClprChannelLifecycle channelLifecycle) {
         this.verifierFactory = requireNonNull(verifierFactory);
         this.channelLifecycle = requireNonNull(channelLifecycle);
@@ -134,7 +134,7 @@ public final class ClprOpenChannelHandler extends AbstractClprHandler {
 
     @Override
     public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
-        final var op = context.body().clprOpenChannelOrThrow();
+        final var op = context.body().clprCreateChannelOrThrow();
         validateTruePreCheck(op.channelId().length() == CHANNEL_ID_LENGTH, INVALID_TRANSACTION_BODY);
         validateTruePreCheck(op.salt().length() == 32, INVALID_TRANSACTION_BODY);
         validateTruePreCheck(op.hasVerifierContract(), INVALID_TRANSACTION_BODY);
@@ -149,7 +149,7 @@ public final class ClprOpenChannelHandler extends AbstractClprHandler {
     @Override
     protected void doHandle(@NonNull final HandleContext context) throws HandleException {
         try {
-            openChannel(context);
+            createChannel(context);
         } catch (final HandleException failure) {
             throw ClprGasAccounting.preservingChargesOnRollback(context, failure);
         } catch (final RuntimeException failure) {
@@ -157,13 +157,13 @@ public final class ClprOpenChannelHandler extends AbstractClprHandler {
         }
     }
 
-    private void openChannel(@NonNull final HandleContext context) {
-        final var op = context.body().clprOpenChannelOrThrow();
+    private void createChannel(@NonNull final HandleContext context) {
+        final var op = context.body().clprCreateChannelOrThrow();
         final var channelStore = context.storeFactory().writableStore(WritableChannelStore.class);
         final var accountStore = context.storeFactory().readableStore(ReadableAccountStore.class);
 
         if (channelStore.getChannel(op.channelId()) != null) {
-            log.debug("[ClprOpenChannel] channel already active channelId={}", shortHex(op.channelId()));
+            log.debug("[ClprCreateChannel] channel already active channelId={}", shortHex(op.channelId()));
             throw new HandleException(CLPR_CHANNEL_ALREADY_EXISTS);
         }
 
@@ -183,7 +183,7 @@ public final class ClprOpenChannelHandler extends AbstractClprHandler {
                     : Bytes.wrap(asEvmAddress(account.accountIdOrThrow().accountNumOrThrow()));
         }
         log.debug(
-                "[ClprOpenChannel] verifier contract validation PASS channelId={} verifierContract={} builtIn={}",
+                "[ClprCreateChannel] verifier contract validation PASS channelId={} verifierContract={} builtIn={}",
                 shortHex(op.channelId()),
                 op.verifierContractOrThrow(),
                 isBuiltInVerifier(op.verifierContractOrThrow()));
@@ -194,14 +194,14 @@ public final class ClprOpenChannelHandler extends AbstractClprHandler {
         // claim is needed; the verifier rejects a proof whose inner config has an empty anchor.
         final var verifier = verifierFactory.getVerifier(op.verifierContractOrThrow());
         log.debug(
-                "[ClprOpenChannel] verifyConfig START channelId={} verifierContract={} configProofBytes={} "
+                "[ClprCreateChannel] verifyConfig START channelId={} verifierContract={} configProofBytes={} "
                         + "configProofHash={}",
                 shortHex(op.channelId()),
                 op.verifierContractOrThrow(),
                 op.configProofBytes().length(),
                 shortHex(MiscCryptoUtils.keccak256DigestOf(op.configProofBytes())));
         // Thread endpoint_manifest_proof_bytes into the manifest-aware verifyConfig ABI
-        // (spec §4.8). No freshness check is applied at openChannel time.
+        // (spec §4.8). No freshness check is applied at createChannel time.
         final var verifiedConfig = verifyPeerConfig(
                 verifier,
                 op.verifierContractOrThrow(),
@@ -230,7 +230,7 @@ public final class ClprOpenChannelHandler extends AbstractClprHandler {
         // deprecated and left empty per spec §4.8).
         final List<ClprEndpoint> peerEndpoints = peerManifest.endpoints();
         log.debug(
-                "[ClprOpenChannel] verifyConfig PASS channelId={} verifierContract={} chainId={} "
+                "[ClprCreateChannel] verifyConfig PASS channelId={} verifierContract={} chainId={} "
                         + "serviceAddress={} endpoints={} throttlesPresent={} initialTrustAnchorBytes={} "
                         + "initialTrustAnchorHash={} initialTrustAnchorId={}",
                 shortHex(op.channelId()),
@@ -249,7 +249,7 @@ public final class ClprOpenChannelHandler extends AbstractClprHandler {
         // cleanly. This is an upstream config error and should surface here, not at runtime.
         if (peerConfig.throttles() == null) {
             log.warn(
-                    "[ClprOpenChannel] verified config rejected: missing peerThrottles channelId={} "
+                    "[ClprCreateChannel] verified config rejected: missing peerThrottles channelId={} "
                             + "chainId={} serviceAddress={} configProofHash={} initialTrustAnchorHash={}",
                     shortHex(op.channelId()),
                     peerConfig.chainId(),
@@ -271,7 +271,7 @@ public final class ClprOpenChannelHandler extends AbstractClprHandler {
         final var verifierFingerprint = computeVerifierFingerprint(context, op.verifierContractOrThrow());
         final var builtInVerifier = resolveBuiltInVerifier(op.verifierContractOrThrow());
         log.debug(
-                "[ClprOpenChannel] verifier fingerprint channelId={} verifierName={} verifierContract={} fingerprint={}",
+                "[ClprCreateChannel] verifier fingerprint channelId={} verifierName={} verifierContract={} fingerprint={}",
                 shortHex(op.channelId()),
                 builtInVerifier != null ? builtInVerifier.displayName() : "Deployed contract",
                 op.verifierContractOrThrow(),
@@ -288,7 +288,7 @@ public final class ClprOpenChannelHandler extends AbstractClprHandler {
         }
         final List<ClprEndpoint> truncatedPeerEndpoints = storedManifest.endpoints();
         log.debug(
-                "[ClprOpenChannel] endpoint policy channelId={} peerEndpoints={} localMaxPeerEndpoints={} "
+                "[ClprCreateChannel] endpoint policy channelId={} peerEndpoints={} localMaxPeerEndpoints={} "
                         + "storedEndpoints={}",
                 shortHex(op.channelId()),
                 peerEndpoints.size(),
@@ -300,7 +300,7 @@ public final class ClprOpenChannelHandler extends AbstractClprHandler {
 
         // Seed Channel.trust_anchor / trust_anchor_id from the verified config's
         // initial_trust_anchor / initial_trust_anchor_id. For Hiero TSS this is the peer
-        // ledger_id (populated by the source ledger on its config). openChannel is the
+        // ledger_id (populated by the source ledger on its config). createChannel is the
         // only path other than verifyBundle that writes these.
         final var channelBuilder = ClprChannel.newBuilder()
                 .channelId(op.channelId())
@@ -329,11 +329,11 @@ public final class ClprOpenChannelHandler extends AbstractClprHandler {
         // orchestrator dials, so it must honor the same bound applied to the seeded cache below.
         channelBuilder.endpointManifest(storedManifest).endpointManifestVersion(storedManifest.version());
         final var channel = channelBuilder.build();
-        ClprFeeCalculator.settleOpenChannelFee(
+        ClprFeeCalculator.settleCreateChannelFee(
                 context, 0L, Math.toIntExact(ClprChannel.PROTOBUF.measureRecord(channel)));
         channelStore.put(channel);
         log.debug(
-                "[ClprOpenChannel] channel ACTIVE channelId={} peerChainId={} endpointsStored={} "
+                "[ClprCreateChannel] channel ACTIVE channelId={} peerChainId={} endpointsStored={} "
                         + " trustAnchorBytes={} trustAnchorId={} endpointManifestVersion={} "
                         + "endpointManifestEntries={}",
                 shortHex(op.channelId()),
@@ -357,7 +357,7 @@ public final class ClprOpenChannelHandler extends AbstractClprHandler {
     }
 
     private static byte[] buildChannelContext(
-            final ClprLedgerConfiguration peerConfig, final ClprOpenChannelTransactionBody op) {
+            final ClprLedgerConfiguration peerConfig, final ClprCreateChannelTransactionBody op) {
         final byte[] serviceAddressBytes = peerConfig.serviceAddress().toByteArray();
         final byte[] connIdRaw = op.channelId().toByteArray();
         final byte[] connId32 = new byte[32];
@@ -406,7 +406,7 @@ public final class ClprOpenChannelHandler extends AbstractClprHandler {
             return verifier.verifyConfig(configProofBytes, channelId, endpointManifestProofBytes, context);
         } catch (final HandleException e) {
             log.debug(
-                    "[ClprOpenChannel] verifyConfig FAILED channelId={} verifierContract={} status={} "
+                    "[ClprCreateChannel] verifyConfig FAILED channelId={} verifierContract={} status={} "
                             + "configProofBytes={} configProofHash={} configProofPrefix={}",
                     shortHex(channelId),
                     verifierContract,

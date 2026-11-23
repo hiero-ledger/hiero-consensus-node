@@ -6,7 +6,7 @@ import static com.hedera.services.bdd.junit.TestTags.CLPR;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteConnector;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprOpenChannel;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCreateChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprUpdateLedgerConfiguration;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
@@ -62,7 +62,7 @@ public class ClprSendMessageSuite {
                             contractCreate(CLPR_CONTRACT),
                             cryptoCreate("caller").balance(ONE_HUNDRED_HBARS),
                             // §5.1 commit-reveal channel setup
-                            clprOpenChannel()
+                            clprCreateChannel()
                                     .channelId(crypto.channelId())
                                     .salt(crypto.salt())
                                     .peerVerifier(crypto.peerVerifier())
@@ -149,7 +149,7 @@ public class ClprSendMessageSuite {
                             contractCreate(CLPR_CONTRACT),
                             cryptoCreate("caller").balance(ONE_HUNDRED_HBARS),
                             // Create ACTIVE channel but do NOT register any connector
-                            clprOpenChannel()
+                            clprCreateChannel()
                                     .channelId(crypto.channelId())
                                     .salt(crypto.salt())
                                     .peerVerifier(crypto.peerVerifier())

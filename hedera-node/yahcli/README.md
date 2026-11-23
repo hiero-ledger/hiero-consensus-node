@@ -1016,12 +1016,12 @@ yahcli clpr generate-channel-identity --local-chain-id "$CHAIN_A" --local-servic
 Use the output ID and salt on both ledgers. For each Hiero ledger, submit its verifier contract ID, the other ledger’s verifier address, and proofs fetched from the other ledger.
 
 ```sh
-yahcli -n "$NETWORK_A" clpr open-channel --channel-id "$(jq -r .channelId channel.json)" \
+yahcli -n "$NETWORK_A" clpr create-channel --channel-id "$(jq -r .channelId channel.json)" \
   --salt "$(jq -r .salt channel.json)" --verifier-contract "$LOCAL_CONTRACT_ID" \
   --peer-verifier "$VERIFIER_B" --config-proof peer-config.bin --endpoint-manifest-proof peer-manifest.bin
 ```
 
-Admin may close a channel with `clpr close-channel --channel-id <hex>`.
+Admin may close a channel with `clpr delete-channel --channel-id <hex>`.
 
 ### Connector lifecycle
 

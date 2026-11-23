@@ -13,7 +13,7 @@ import static com.hedera.services.bdd.spec.HapiSpec.networkHapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.clprGetEndpointManifest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.clprGetLedgerConfiguration;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteConnector;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprOpenChannel;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCreateChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprSubmitBundle;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprUpdateLedgerConfiguration;
@@ -1196,7 +1196,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
             final int maxQueueDepth) {
         final AtomicReference<ByteString> proofA = new AtomicReference<>();
         final AtomicReference<ByteString> proofB = new AtomicReference<>();
-        // Manifest-only mode: openChannel and the verifyConfig probes both require each
+        // Manifest-only mode: createChannel and the verifyConfig probes both require each
         // ledger's endpoint-manifest StateProof, so capture and thread them like the HAPI TLS overload.
         final AtomicReference<ByteString> manifestProofA = new AtomicReference<>();
         final AtomicReference<ByteString> manifestProofB = new AtomicReference<>();
@@ -1245,7 +1245,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
      * As {@link #setupBothNetworks(SubProcessNetwork, SubProcessNetwork, int, int, ClprCrypto,
      * int, int)} but additionally captures each ledger's manifest {@code StateProof} via the
      * {@code clprGetEndpointManifest} HAPI query and threads it into the peer's
-     * {@code ClprOpenChannel} as {@code endpoint_manifest_proof_bytes} (required, since the
+     * {@code ClprCreateChannel} as {@code endpoint_manifest_proof_bytes} (required, since the
      * manifest-aware verifier ABI rejects an empty manifest proof). Dial targets, including each
      * network's HAPI TLS port and certificate, come from the captured manifests.
      *
@@ -1440,7 +1440,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                         // just-installed throttles. clprGetLedgerConfiguration proves against a SIGNED block
                         // that lags committed state, so an early capture can carry an empty trust anchor (the
                         // ledger_id isn't in the proven config yet) or a PRIOR install's throttles — either of
-                        // which would make the peer's clprOpenChannel verifyConfig revert. Decoding in
+                        // which would make the peer's clprCreateChannel verifyConfig revert. Decoding in
                         // process (rather than calling the verifier precompile) gives the same guarantee
                         // without the 6 KB call-size limit the config+manifest proofs would exceed.
                         if (captured != null
@@ -1546,11 +1546,11 @@ public abstract class HieroToHieroBase implements LifecycleTest {
      * True when the config {@link com.hedera.hapi.block.stream.StateProof} decodes to a
      * {@code ClprLedgerConfiguration} that carries a populated {@code initial_trust_anchor} and the
      * just-installed throttles — i.e. the proof is committed and current, so the peer's
-     * {@code clprOpenChannel} verifyConfig will accept it.
+     * {@code clprCreateChannel} verifyConfig will accept it.
      *
      * <p>{@code clprGetLedgerConfiguration} proves against a SIGNED block that lags committed state, so an
      * early capture can carry an empty trust anchor (the ledger_id isn't in the proven config yet) or a
-     * PRIOR install's throttles on a shared network. Both would make the peer's openChannel verifyConfig
+     * PRIOR install's throttles on a shared network. Both would make the peer's createChannel verifyConfig
      * revert. This is decoded in-process (see {@link ClprTestProofs#decodeLedgerConfig}) rather than via a
      * verifier-precompile call, so it is not subject to the 6 KB contract-call size limit that the
      * config+manifest proofs together would exceed.
@@ -1572,7 +1572,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
      * and the system-contract caller; fund the connector; then run the channel + connector
      * commit-reveal. The peer's config StateProof is read at execution time via {@link
      * com.hedera.services.bdd.spec.utilops.UtilVerbs#sourcing sourcing} so phase 2 has populated
-     * the reference before this networkHapiTest builds its clprOpenChannel op.
+     * the reference before this networkHapiTest builds its clprCreateChannel op.
      *
      * <p>All contractCreate + clprXxx ops live in a single {@code networkHapiTest} so contract IDs
      * (PassThroughAuth, ClprSystemContract, ClprLedgerVerifier) remain visible to the later
@@ -1606,7 +1606,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                         uploadInitCode(CLPR_CONTRACT),
                         contractCreate(CLPR_CONTRACT),
                         sourcing(() -> {
-                            var op = clprOpenChannel()
+                            var op = clprCreateChannel()
                                     .channelId(crypto.channelId)
                                     .salt(crypto.channelSalt)
                                     .peerVerifier(ClprCrypto.CLPR_SERVICE_ADDRESS)

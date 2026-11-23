@@ -3,7 +3,7 @@ package com.hedera.services.bdd.suites.clpr;
 
 import static com.hedera.services.bdd.junit.TestTags.MULTINETWORK;
 import static com.hedera.services.bdd.spec.HapiSpec.networkHapiTest;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCloseChannel;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprDeleteChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprUpdateLedgerConfiguration;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
@@ -58,7 +58,7 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
      * can't cascade across peers. Re-enable the close tests after those land. See
      * {@code clpr-service-spec.md} §2.1.1 and §4.2 step 5b.
      */
-    private static final String CLOSE_CHANNEL_DISABLED_REASON =
+    private static final String DELETE_CHANNEL_DISABLED_REASON =
             "Disabled: §4.2 step 5b close handshake collapses; peer stuck";
 
     @MultiNetworkHapiTest({@Network("ledgerA"), @Network("ledgerB")})
@@ -226,11 +226,11 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
                                 awaitAckedMessage(ledgerA, crypto.channelId, messageCount))));
     }
 
-    @Disabled(CLOSE_CHANNEL_DISABLED_REASON)
+    @Disabled(DELETE_CHANNEL_DISABLED_REASON)
     @MultiNetworkHapiTest({@Network("ledgerA"), @Network("ledgerB")})
     @DisplayName("Send rejected after admin close: post-close sendMessage on A reverts")
     Stream<DynamicTest> sendRejectedAfterClose(final SubProcessNetwork ledgerA, final SubProcessNetwork ledgerB) {
-        // After clprCloseChannel, the local channel is no longer ACTIVE (CLOSING / DRAINED).
+        // After clprDeleteChannel, the local channel is no longer ACTIVE (CLOSING / DRAINED).
         // The ClprServiceApiImpl.sendMessage path rejects with CLPR_INVALID_CHANNEL_STATUS,
         // which surfaces through the Solidity require() as CONTRACT_REVERT_EXECUTED.
         final var crypto = new ClprCrypto(ledgerA, ledgerB);
@@ -248,7 +248,7 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
                                         uploadInitCode(CLPR_CONTRACT),
                                         contractCreate(CLPR_CONTRACT),
                                         // Admin closes the channel on A.
-                                        clprCloseChannel()
+                                        clprDeleteChannel()
                                                 .channelId(crypto.channelId)
                                                 .payingWith(GENESIS),
                                         // Subsequent send must revert — channel is no longer ACTIVE.
@@ -266,17 +266,17 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
                                 .orElseThrow())));
     }
 
-    @Disabled(CLOSE_CHANNEL_DISABLED_REASON)
+    @Disabled(DELETE_CHANNEL_DISABLED_REASON)
     @MultiNetworkHapiTest({@Network("ledgerA"), @Network("ledgerB")})
     @DisplayName("Close handshake from ACTIVE: A→CLOSING propagates to B via drain handshake")
-    Stream<DynamicTest> closeChannelDrainHandshakeFromActive(
+    Stream<DynamicTest> deleteChannelDrainHandshakeFromActive(
             final SubProcessNetwork ledgerA, final SubProcessNetwork ledgerB) {
         final var crypto = new ClprCrypto(ledgerA, ledgerB);
         final int portA = ledgerA.nodes().getFirst().getGrpcPort();
         final int portB = ledgerB.nodes().getFirst().getGrpcPort();
 
         return multiNetworkHapiTest(
-                "closeChannelDrainHandshakeFromActive",
+                "deleteChannelDrainHandshakeFromActive",
                 Stream.concat(
                         setupBothNetworks(ledgerA, ledgerB, portA, portB, crypto),
                         Stream.of(
@@ -304,7 +304,7 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
                                 networkHapiTest(
                                                 "Admin closes channel on A",
                                                 ledgerA,
-                                                clprCloseChannel()
+                                                clprDeleteChannel()
                                                         .channelId(crypto.channelId)
                                                         .payingWith(GENESIS)
                                                         .hasKnownStatus(SUCCESS))
@@ -483,7 +483,7 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
                                 awaitAckedMessage(ledgerA, crypto.channelId, messageCount))));
     }
 
-    @Disabled(CLOSE_CHANNEL_DISABLED_REASON)
+    @Disabled(DELETE_CHANNEL_DISABLED_REASON)
     @MultiNetworkHapiTest({@Network("ledgerA"), @Network("ledgerB")})
     @DisplayName("Regression: in-flight bundle round-trips cleanly while channel is closing")
     Stream<DynamicTest> bundleRoundTripDuringCloseHandshake(
@@ -527,7 +527,7 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
                                 // 2. Close the channel on A — A enters CLOSING and will drain.
                                 networkHapiTest(
                                                 ledgerA,
-                                                clprCloseChannel()
+                                                clprDeleteChannel()
                                                         .channelId(crypto.channelId)
                                                         .payingWith(GENESIS)
                                                         .hasKnownStatus(SUCCESS))
@@ -650,13 +650,13 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
                                 awaitAckedMessage(ledgerA, crypto.channelId, messageCount))));
     }
 
-    @Disabled(CLOSE_CHANNEL_DISABLED_REASON)
+    @Disabled(DELETE_CHANNEL_DISABLED_REASON)
     @MultiNetworkHapiTest({@Network("ledgerA"), @Network("ledgerB")})
     @DisplayName("Close while multi-message bundle is in flight: 5 messages drain cleanly to non-ACTIVE")
     Stream<DynamicTest> closeWhileMultiMessageBundleInFlight(
             final SubProcessNetwork ledgerA, final SubProcessNetwork ledgerB) {
         // Spec §4.2 step 5a peer-state cascade applied mid-loop: A enqueues 5 messages
-        // atomically, then immediately submits clprCloseChannel. Depending on whether the
+        // atomically, then immediately submits clprDeleteChannel. Depending on whether the
         // close lands before or after A's first sync tick:
         //   (a) Tick first → all 5 ship while ACTIVE → B processes normally → A drains to CLOSED.
         //   (b) Close first → A transitions ACTIVE → CLOSING before the bundle ships → bundle
@@ -689,7 +689,7 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
                                                                 BigInteger.valueOf(messageCount))
                                                         .gas(GAS)
                                                         .payingWith("callerA"),
-                                                clprCloseChannel()
+                                                clprDeleteChannel()
                                                         .channelId(crypto.channelId)
                                                         .payingWith(GENESIS)
                                                         .hasKnownStatus(SUCCESS))

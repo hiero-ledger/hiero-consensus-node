@@ -134,7 +134,7 @@ class CantonProofVerifierConfigTest {
     @Nested
     class ConfigProofView {
         @Test
-        void rootActionMustBeOpenChannel() {
+        void rootActionMustBeCreateChannel() {
             assertRejects("WrongAction", new Cfg().choice("SendMessage"));
             assertRejects("WrongAction", new Cfg().entity("Channel"));
             // UpdateEndpointManifest is only accepted in a manifest proof, never as the config.
@@ -328,7 +328,7 @@ class CantonProofVerifierConfigTest {
         }
 
         @Test
-        void manifestProofMayAlsoComeFromOpenChannel() {
+        void manifestProofMayAlsoComeFromCreateChannel() {
             final var tx = new Cfg().contractManifestHash(MANIFEST_HASH);
             assertThat(verify(new Cfg(), tx.manifestProof(MANIFEST_BYTES))
                             .manifest()
@@ -343,7 +343,7 @@ class CantonProofVerifierConfigTest {
                     "WrongAction",
                     cfg,
                     new Cfg().choice("SendMessage").entity("Channel").contractManifestHash(MANIFEST_HASH));
-            // OpenChannel on the Channel template is neither accepted choice of its entity.
+            // CreateChannel on the Channel template is neither accepted choice of its entity.
             assertRejectsManifest(
                     "WrongAction", cfg, new Cfg().entity("Channel").contractManifestHash(MANIFEST_HASH));
         }
@@ -461,7 +461,7 @@ class CantonProofVerifierConfigTest {
      */
     private static final class Cfg {
         private int vpdVersion = 31;
-        private String choice = "OpenChannel";
+        private String choice = "CreateChannel";
         private String entity = "ClprApp";
         private String informee = APP;
         private long appWeight = 1;

@@ -1894,7 +1894,7 @@ enum HederaFunctionality {
     /**
      * Initiate graceful closure of a CLPR Channel.
      */
-    ClprCloseChannel = 120;
+    ClprDeleteChannel = 120;
 
     /**
      * Get the current CLPR ledger configuration.
@@ -1942,8 +1942,8 @@ enum HederaFunctionality {
      */
     ClprEvictPeerEndpoint = 130;
 
-    /** Open a CLPR channel in a single transaction. */
-    ClprOpenChannel = 131;
+    /** Create a CLPR channel in a single transaction. */
+    ClprCreateChannel = 131;
 }
 
 /**

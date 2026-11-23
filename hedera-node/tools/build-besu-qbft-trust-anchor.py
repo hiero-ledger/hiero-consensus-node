@@ -31,7 +31,7 @@ The proto definition lived at:
       clpr_ledger_configuration.proto
 
 By default the throttles field is omitted (valid proto3), which produces a
-config the receiving ledger will reject — ClprOpenChannel requires it so
+config the receiving ledger will reject — ClprCreateChannel requires it so
 the sync orchestrator has rate limits. Supply it via:
   --throttles-json     '{"max_messages_per_bundle":100, ...}'
 or
@@ -193,7 +193,7 @@ def encode_throttles(t: dict) -> bytes:
     """Serialize a ClprThrottles message. Missing keys default to 0 (proto3
     default-value semantics — the field is omitted from the wire format).
     But: presence of the throttles sub-message is required by the handler
-    (ClprOpenChannel rejects configs where throttles is null), so we
+    (ClprCreateChannel rejects configs where throttles is null), so we
     always emit at least the wrapper, even if all inner values are 0."""
     payload = b"".join([
         pb_uint32(THR_MAX_MESSAGES_PER_BUNDLE,    int(t.get("max_messages_per_bundle", 0))),
@@ -304,7 +304,7 @@ def main(argv=None) -> int:
     if throttles is None:
         # Not fatal here (the tool's job is to encode whatever it's given), but the
         # receiving ledger will reject. Loudly warn so the operator notices.
-        print("WARNING: ClprOpenChannel rejects configs without throttles.", file=sys.stderr)
+        print("WARNING: ClprCreateChannel rejects configs without throttles.", file=sys.stderr)
 
     trust_anchor = build_trust_anchor(validator20, service20, code_hash32)
     config = build_clpr_ledger_configuration(

@@ -154,7 +154,7 @@ dev Besu = the same deployer key).
 - `cast keccak "$(cast code $CLPR_SERVICE)"` for the code hash.
 - Reads Besu’s chain ID and throttles from the deployed service’s `getLedgerConfiguration()`. For a Besu `eip155:1337` ↔ Hiero `eip155:298` channel, the proof carries `eip155:1337`.
 - Passes that configuration to `hedera-node/tools/build-besu-qbft-config-payload.py` to build the QBFT configuration proof.
-3. `open-channel` uses the shared ID and salt, the EVM verifier address, and the peer config proof.
+3. `create-channel` uses the shared ID and salt, the EVM verifier address, and the peer config proof.
 
 6. Connector identity bundle via `sign-clpr-connector-identity.py` using
    `CONNECTOR_PK=0xc044ec` + `salt=0` (matches `CreateConnector.s.sol`).

@@ -799,12 +799,12 @@
         },
 
         {
-          "name": "ClprOpenChannel",
+          "name": "ClprCreateChannel",
           "baseFee": 10000000,
           "extras": []
         },
         {
-          "name": "ClprCloseChannel",
+          "name": "ClprDeleteChannel",
           "baseFee": 10000000,
           "extras": []
         },

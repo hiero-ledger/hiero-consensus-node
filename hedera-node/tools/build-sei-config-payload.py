@@ -140,7 +140,7 @@ def main(argv=None):
         chain_id = args.chain_id or f"cosmos:{network}"
         throttles = load_config_json(args.config_json)
         if throttles is None:
-            print("WARNING: ClprOpenChannel rejects configs without throttles.", file=sys.stderr)
+            print("WARNING: ClprCreateChannel rejects configs without throttles.", file=sys.stderr)
 
         validator_set = fetch_validator_set(args.tm_rpc, validator_height)
         ledger_config = build_ledger_configuration(

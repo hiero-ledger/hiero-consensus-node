@@ -40,9 +40,9 @@ public final class ClprServiceImpl implements ClprService {
                         HederaFunctionality.CLPR_UPDATE_LEDGER_CONFIGURATION,
                         TransactionBody.DataOneOfType.CLPR_UPDATE_LEDGER_CONFIGURATION),
                 new ClprFeeCalculator(
-                        HederaFunctionality.CLPR_OPEN_CHANNEL, TransactionBody.DataOneOfType.CLPR_OPEN_CHANNEL),
+                        HederaFunctionality.CLPR_CREATE_CHANNEL, TransactionBody.DataOneOfType.CLPR_CREATE_CHANNEL),
                 new ClprFeeCalculator(
-                        HederaFunctionality.CLPR_CLOSE_CHANNEL, TransactionBody.DataOneOfType.CLPR_CLOSE_CHANNEL),
+                        HederaFunctionality.CLPR_DELETE_CHANNEL, TransactionBody.DataOneOfType.CLPR_DELETE_CHANNEL),
                 new ClprFeeCalculator(
                         HederaFunctionality.CLPR_REGISTER_CONNECTOR,
                         TransactionBody.DataOneOfType.CLPR_REGISTER_CONNECTOR),

@@ -27,18 +27,18 @@ import "services/transaction.proto";
  * independent ledger networks using the Cross Ledger Protocol.
  */
 service ClprService {
-    /** Open a channel using a ClprOpenChannelTransactionBody. */
-    rpc openChannel (Transaction) returns (TransactionResponse);
+    /** Create a channel using a ClprCreateChannelTransactionBody. */
+    rpc createChannel (Transaction) returns (TransactionResponse);
 
     /**
-     * Close a cross-ledger channel.
+     * Request deletion of a cross-ledger channel.
      * <p>
      * Initiates graceful closure of a CLPR channel.
      * Requires the CLPR admin key.<br/>
      * The request body MUST be a
-     * [ClprCloseChannelTransactionBody](#com.hedera.hapi.node.clpr.ClprCloseChannelTransactionBody)
+     * [ClprDeleteChannelTransactionBody](#com.hedera.hapi.node.clpr.ClprDeleteChannelTransactionBody)
      */
-    rpc closeChannel (Transaction) returns (TransactionResponse);
+    rpc deleteChannel (Transaction) returns (TransactionResponse);
 
     /**
      * Remove a peer endpoint from a channel's cached endpoint manifest.
@@ -113,7 +113,7 @@ service ClprService {
      * <p>
      * Public read (no admin authorization). The response carries the manifest singleton and
      * a StateProof suitable as {@code endpoint_manifest_proof_bytes} for a peer's
-     * {@code ClprOpenChannel} (spec PR #332).<br/>
+     * {@code ClprCreateChannel} (spec PR #332).<br/>
      * The request body MUST be a
      * [ClprGetEndpointManifestQuery](#com.hedera.hapi.node.clpr.ClprGetEndpointManifestQuery)<br/>
      * The response body SHALL be a

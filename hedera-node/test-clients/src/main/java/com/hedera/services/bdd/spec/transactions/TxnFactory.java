@@ -13,11 +13,11 @@ import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecSetup;
 import com.hedera.services.bdd.spec.utilops.mod.BodyMutation;
 import com.hederahashgraph.api.proto.java.AtomicBatchTransactionBody;
-import com.hederahashgraph.api.proto.java.ClprCloseChannelTransactionBody;
 import com.hederahashgraph.api.proto.java.ClprCompleteConnectorTransactionBody;
+import com.hederahashgraph.api.proto.java.ClprCreateChannelTransactionBody;
+import com.hederahashgraph.api.proto.java.ClprDeleteChannelTransactionBody;
 import com.hederahashgraph.api.proto.java.ClprDeregisterConnectorTransactionBody;
 import com.hederahashgraph.api.proto.java.ClprEvictPeerEndpointTransactionBody;
-import com.hederahashgraph.api.proto.java.ClprOpenChannelTransactionBody;
 import com.hederahashgraph.api.proto.java.ClprRegisterConnectorTransactionBody;
 import com.hederahashgraph.api.proto.java.ClprSubmitBundleTransactionBody;
 import com.hederahashgraph.api.proto.java.ClprUpdateLedgerConfigurationTransactionBody;
@@ -350,7 +350,7 @@ public class TxnFactory {
         return builder -> {};
     }
 
-    public Consumer<ClprCloseChannelTransactionBody.Builder> defaultDefClprCloseChannelTransactionBody() {
+    public Consumer<ClprDeleteChannelTransactionBody.Builder> defaultDefClprDeleteChannelTransactionBody() {
         return builder -> {};
     }
 
@@ -358,7 +358,7 @@ public class TxnFactory {
         return builder -> {};
     }
 
-    public Consumer<ClprOpenChannelTransactionBody.Builder> defaultDefClprOpenChannelTransactionBody() {
+    public Consumer<ClprCreateChannelTransactionBody.Builder> defaultDefClprCreateChannelTransactionBody() {
         return builder -> {};
     }
 

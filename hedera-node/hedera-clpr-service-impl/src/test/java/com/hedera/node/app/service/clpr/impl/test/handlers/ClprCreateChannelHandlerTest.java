@@ -27,7 +27,7 @@ import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.FeeData;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
-import com.hedera.hapi.node.clpr.ClprOpenChannelTransactionBody;
+import com.hedera.hapi.node.clpr.ClprCreateChannelTransactionBody;
 import com.hedera.hapi.node.state.clpr.ClprChannel;
 import com.hedera.hapi.node.state.clpr.ClprChannelStatus;
 import com.hedera.hapi.node.state.clpr.ClprEndpoint;
@@ -44,7 +44,7 @@ import com.hedera.node.app.service.clpr.ClprChannelLifecycle;
 import com.hedera.node.app.service.clpr.ReadableLedgerConfigurationStore;
 import com.hedera.node.app.service.clpr.impl.ClprGasAccounting;
 import com.hedera.node.app.service.clpr.impl.WritableChannelStore;
-import com.hedera.node.app.service.clpr.impl.handlers.ClprOpenChannelHandler;
+import com.hedera.node.app.service.clpr.impl.handlers.ClprCreateChannelHandler;
 import com.hedera.node.app.service.clpr.impl.test.verifier.PassThroughClprVerifier;
 import com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierFactory;
 import com.hedera.node.app.service.clpr.impl.verifier.VerifiedConfig;
@@ -86,7 +86,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class ClprOpenChannelHandlerTest {
+class ClprCreateChannelHandlerTest {
 
     private static final AccountID PAYER_ID =
             AccountID.newBuilder().shardNum(0).realmNum(0).accountNum(1001).build();
@@ -191,12 +191,12 @@ class ClprOpenChannelHandlerTest {
     @Mock
     private WritableStates writableStates;
 
-    private ClprOpenChannelHandler subject;
+    private ClprCreateChannelHandler subject;
     private WritableChannelStore channelStore;
 
     @BeforeEach
     void setUp() {
-        subject = new ClprOpenChannelHandler(verifierFactory, channelLifecycle);
+        subject = new ClprCreateChannelHandler(verifierFactory, channelLifecycle);
         lenient().when(verifierFactory.getVerifier(any())).thenReturn(new PassThroughClprVerifier());
 
         // Channel state
@@ -217,7 +217,7 @@ class ClprOpenChannelHandlerTest {
 
     @Test
     void rejectsWrongChannelIdLength() {
-        final var op = ClprOpenChannelTransactionBody.newBuilder()
+        final var op = ClprCreateChannelTransactionBody.newBuilder()
                 .channelId(Bytes.wrap(new byte[16]))
                 .salt(SALT)
                 .peerVerifier(PEER_VERIFIER)
@@ -233,7 +233,7 @@ class ClprOpenChannelHandlerTest {
 
     @Test
     void rejectsWrongSaltLength() {
-        final var op = ClprOpenChannelTransactionBody.newBuilder()
+        final var op = ClprCreateChannelTransactionBody.newBuilder()
                 .channelId(Bytes.wrap(new byte[32]))
                 .salt(Bytes.wrap(new byte[31]))
                 .verifierContract(VERIFIER_CONTRACT_ID)
@@ -248,7 +248,7 @@ class ClprOpenChannelHandlerTest {
 
     @Test
     void rejectsMissingVerifierContract() {
-        final var op = ClprOpenChannelTransactionBody.newBuilder()
+        final var op = ClprCreateChannelTransactionBody.newBuilder()
                 .channelId(Bytes.wrap(new byte[32]))
                 .salt(SALT)
                 .peerVerifier(PEER_VERIFIER)
@@ -263,7 +263,7 @@ class ClprOpenChannelHandlerTest {
 
     @Test
     void rejectsEmptyConfigProofBytes() {
-        final var op = ClprOpenChannelTransactionBody.newBuilder()
+        final var op = ClprCreateChannelTransactionBody.newBuilder()
                 .channelId(Bytes.wrap(new byte[32]))
                 .salt(SALT)
                 .peerVerifier(PEER_VERIFIER)
@@ -330,7 +330,7 @@ class ClprOpenChannelHandlerTest {
 
     @Test
     void rejectsInvalidConfigProof() {
-        final var op = ClprOpenChannelTransactionBody.newBuilder()
+        final var op = ClprCreateChannelTransactionBody.newBuilder()
                 .channelId(CHANNEL_ID)
                 .salt(SALT)
                 .peerVerifier(PEER_VERIFIER)
@@ -378,7 +378,7 @@ class ClprOpenChannelHandlerTest {
     @MethodSource("builtInVerifiers")
     void storesFixedFingerprintForBuiltInVerifier(final ContractID verifierId, final Bytes expectedFingerprint) {
         final var op = validOpenTxn()
-                .clprOpenChannelOrThrow()
+                .clprCreateChannelOrThrow()
                 .copyBuilder()
                 .verifierContract(verifierId)
                 .channelId(channelIdForVerifier(verifierId))
@@ -414,7 +414,7 @@ class ClprOpenChannelHandlerTest {
         // 0x170 is not a built-in verifier: without a smart-contract account it is rejected like any other address
         final var seiVerifierId = verifierContractId(0x170L, useEvmAddress);
         final var op = validOpenTxn()
-                .clprOpenChannelOrThrow()
+                .clprCreateChannelOrThrow()
                 .copyBuilder()
                 .verifierContract(seiVerifierId)
                 .channelId(channelIdForVerifier(seiVerifierId))
@@ -432,7 +432,7 @@ class ClprOpenChannelHandlerTest {
     void storesDeployedBytecodeHashForCustomVerifier(final boolean useEvmAddress) {
         final var verifierId = verifierContractId(5001L, useEvmAddress);
         final var op = validOpenTxn()
-                .clprOpenChannelOrThrow()
+                .clprCreateChannelOrThrow()
                 .copyBuilder()
                 .verifierContract(verifierId)
                 .channelId(channelIdForVerifier(verifierId))
@@ -495,7 +495,7 @@ class ClprOpenChannelHandlerTest {
                         .accountId(Bytes.wrap(new byte[] {1, 2, 3}))
                         .build()))
                 .build();
-        final var op = ClprOpenChannelTransactionBody.newBuilder()
+        final var op = ClprCreateChannelTransactionBody.newBuilder()
                 .channelId(CHANNEL_ID)
                 .salt(SALT)
                 .peerVerifier(PEER_VERIFIER)
@@ -627,7 +627,7 @@ class ClprOpenChannelHandlerTest {
         // yields an empty manifest, which ClprEndpointManifest explicitly permits at version >= 1
         // (genesis creates exactly that); later manifest-update bundles populate it. So the
         // channel is accepted ACTIVE with an empty stored manifest — NOT rejected.
-        final var op = ClprOpenChannelTransactionBody.newBuilder()
+        final var op = ClprCreateChannelTransactionBody.newBuilder()
                 .channelId(CHANNEL_ID)
                 .salt(SALT)
                 .peerVerifier(PEER_VERIFIER)
@@ -650,8 +650,8 @@ class ClprOpenChannelHandlerTest {
     @Test
     void handleRollsBackAllStateOnInvalidManifestProof() {
         // Invalid endpoint_manifest_proof_bytes → verifier throws → no Channel persisted
-        // (spec: "Invalid proof → openChannel fails; no partial state written").
-        final var op = ClprOpenChannelTransactionBody.newBuilder()
+        // An invalid proof must leave channel state untouched.
+        final var op = ClprCreateChannelTransactionBody.newBuilder()
                 .channelId(CHANNEL_ID)
                 .salt(SALT)
                 .peerVerifier(PEER_VERIFIER)
@@ -674,7 +674,7 @@ class ClprOpenChannelHandlerTest {
     @Test
     void doesNotNotifyLifecycleWhenHandleFails() {
         final var op = validOpenTxn()
-                .clprOpenChannelOrThrow()
+                .clprCreateChannelOrThrow()
                 .copyBuilder()
                 .peerVerifier(Bytes.fromHex("ff"))
                 .build();
@@ -773,10 +773,10 @@ class ClprOpenChannelHandlerTest {
     }
 
     @Test
-    void openChannelAcceptsCantonBuiltInVerifier() {
+    void createChannelAcceptsCantonBuiltInVerifier() {
         final var cantonCid = ContractID.newBuilder().contractNum(0x173L).build();
         final var op = validOpenTxn()
-                .clprOpenChannelOrThrow()
+                .clprCreateChannelOrThrow()
                 .copyBuilder()
                 .verifierContract(cantonCid)
                 .channelId(channelIdForVerifier(cantonCid))
@@ -833,7 +833,7 @@ class ClprOpenChannelHandlerTest {
     }
 
     private TransactionBody validOpenTxnWithPeerConfig(final ClprLedgerConfiguration peerConfig) {
-        final var op = ClprOpenChannelTransactionBody.newBuilder()
+        final var op = ClprCreateChannelTransactionBody.newBuilder()
                 .channelId(CHANNEL_ID)
                 .salt(SALT)
                 .peerVerifier(PEER_VERIFIER)
@@ -844,7 +844,7 @@ class ClprOpenChannelHandlerTest {
     }
 
     private TransactionBody validOpenTxnWithManifest(final ClprEndpointManifest peerManifest) {
-        final var op = ClprOpenChannelTransactionBody.newBuilder()
+        final var op = ClprCreateChannelTransactionBody.newBuilder()
                 .channelId(CHANNEL_ID)
                 .salt(SALT)
                 .peerVerifier(PEER_VERIFIER)
@@ -886,10 +886,10 @@ class ClprOpenChannelHandlerTest {
                 .build();
     }
 
-    private TransactionBody txnWith(final ClprOpenChannelTransactionBody op) {
+    private TransactionBody txnWith(final ClprCreateChannelTransactionBody op) {
         return TransactionBody.newBuilder()
                 .transactionID(TransactionID.newBuilder().accountID(PAYER_ID))
-                .clprOpenChannel(op)
+                .clprCreateChannel(op)
                 .build();
     }
 }

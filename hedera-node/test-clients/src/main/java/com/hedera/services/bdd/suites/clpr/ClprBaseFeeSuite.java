@@ -4,7 +4,7 @@ package com.hedera.services.bdd.suites.clpr;
 import static com.hedera.services.bdd.junit.ContextRequirement.PROPERTY_OVERRIDES;
 import static com.hedera.services.bdd.junit.TestTags.CLPR;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprOpenChannel;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCreateChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprSubmitBundle;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -40,7 +40,7 @@ import org.junit.jupiter.api.Tag;
  *       TODO: add a success-path test in {@code ClprSubmitBundleSuite} to confirm the
  *       base fee is also charged (not zero, not the endpoint-penalty amount) after a
  *       valid proof verification and message dispatch.</li>
- *   <li>{@code openChannel} — charge the base fee when the verifier does not exist.</li>
+ *   <li>{@code createChannel} — charge the base fee when the verifier does not exist.</li>
  *   <li>{@code registerConnector} — failure path against an unknown channel, exercising the full
  *       fee charged for a handler-stage failure without channel setup.</li>
  * </ul>
@@ -99,12 +99,12 @@ public class ClprBaseFeeSuite {
     }
 
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
-    final Stream<DynamicTest> openChannelChargesConfiguredBaseFee() {
-        final var txn = "clprOpenChannelBaseFeeTxn";
+    final Stream<DynamicTest> createChannelChargesConfiguredBaseFee() {
+        final var txn = "clprCreateChannelBaseFeeTxn";
         return hapiTest(
                 overriding("fees.simpleFeesEnabled", "true"),
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                clprOpenChannel()
+                clprCreateChannel()
                         .channelId(new byte[32])
                         .salt(new byte[32])
                         .peerVerifier(new byte[20])

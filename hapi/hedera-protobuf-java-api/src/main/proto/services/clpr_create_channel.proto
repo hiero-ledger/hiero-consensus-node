@@ -10,10 +10,10 @@ option java_multiple_files = true;
 import "services/basic_types.proto";
 
 /**
- * Open a CLPR channel in one transaction. The channel ID commits to both
+ * Create a CLPR channel in one transaction. The channel ID commits to both
  * ledgers, both service addresses, both verifier addresses, and a salt.
  */
-message ClprOpenChannelTransactionBody {
+message ClprCreateChannelTransactionBody {
     /** Expected 32-byte channel ID, also supplied to the verifier. */
     bytes channel_id = 1;
     /** Exactly 32 bytes distinguishing channels with identical endpoints. */

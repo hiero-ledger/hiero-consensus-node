@@ -56,7 +56,7 @@ public class GetLedgerConfigurationCommand implements Callable<Integer> {
             paramLabel = "<path>",
             description = "If set, writes the raw serialized configuration_state_proof bytes to this file. "
                     + "The same bytes are also surfaced (base64) under configurationStateProof in the JSON output. "
-                    + "Suitable as input to open-channel --config-proof when the peer ledger uses the "
+                    + "Suitable as input to create-channel --config-proof when the peer ledger uses the "
                     + "verifier contract that accepts a StateProof (e.g. one that delegates to "
                     + "the CLPR system contract precompile's verifyConfig operation).")
     String proofPath;

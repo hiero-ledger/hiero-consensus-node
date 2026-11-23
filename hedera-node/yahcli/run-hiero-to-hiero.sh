@@ -13,7 +13,7 @@
 # Deploy PingPong on each network first via ./setup-clpr-ping-pong.sh, then
 # pass the resulting ids in as PINGPONG_A / PINGPONG_B.
 #
-# Both `open-channel` calls target the fixed verifier contract
+# Both `create-channel` calls target the fixed verifier contract
 # ${VERIFIER_CONTRACT} (default 0.0.366). Override via env var if needed.
 # Each call passes the peer's ledger-configuration and endpoint-manifest
 # state proofs; the Hiero TSS verifier (0.0.366) requires both.
@@ -228,7 +228,7 @@ yh "update-ledger-configuration on ${NET_A}" "${LOG_DIR}/02a-update-cfg.log" \
     clpr update-ledger-configuration --config-file "${CONFIG_A}"
 
 # === [4/10] pull each network's state proofs ===============================
-# open-channel needs two proofs from the peer: its ledger configuration and
+# create-channel needs two proofs from the peer: its ledger configuration and
 # its endpoint manifest (the endpoints the channel dials).
 header "[4/10] get-ledger-configuration + get-endpoint-manifest state proof bytes"
 yh "get-ledger-configuration on ${NET_B}" "${LOG_DIR}/03b-get-cfg.log" \
@@ -265,18 +265,18 @@ yh "derive shared channel ID" "${LOG_DIR}/derive-channel.log" \
 CHANNEL_ID=$(read_json_field "${CHANNEL_FILE}" channelId)
 CHANNEL_SALT=$(read_json_field "${CHANNEL_FILE}" salt)
 
-header "[6/10] open-channel — both sides use verifier ${VERIFIER_CONTRACT}"
-yh "open-channel on ${NET_A} via verifier ${VERIFIER_CONTRACT}" \
+header "[6/10] create-channel — both sides use verifier ${VERIFIER_CONTRACT}"
+yh "create-channel on ${NET_A} via verifier ${VERIFIER_CONTRACT}" \
     "${LOG_DIR}/06a-complete-conn.log" \
     -n "${NET_A}" -p "${PAYER}" \
-    clpr open-channel --channel-id "${CHANNEL_ID}" --salt "${CHANNEL_SALT}" --peer-verifier "${VERIFIER_ADDRESS_B}" \
+    clpr create-channel --channel-id "${CHANNEL_ID}" --salt "${CHANNEL_SALT}" --peer-verifier "${VERIFIER_ADDRESS_B}" \
         --verifier-contract "${VERIFIER_CONTRACT}" --config-proof "${PROOF_B}" \
         --endpoint-manifest-proof "${MANIFEST_PROOF_B}"
 
-yh "open-channel on ${NET_B} via verifier ${VERIFIER_CONTRACT}" \
+yh "create-channel on ${NET_B} via verifier ${VERIFIER_CONTRACT}" \
     "${LOG_DIR}/06b-complete-conn.log" \
     -n "${NET_B}" -p "${PAYER}" \
-    clpr open-channel --channel-id "${CHANNEL_ID}" --salt "${CHANNEL_SALT}" --peer-verifier "${VERIFIER_ADDRESS_A}" \
+    clpr create-channel --channel-id "${CHANNEL_ID}" --salt "${CHANNEL_SALT}" --peer-verifier "${VERIFIER_ADDRESS_A}" \
         --verifier-contract "${VERIFIER_CONTRACT}" --config-proof "${PROOF_A}" \
         --endpoint-manifest-proof "${MANIFEST_PROOF_A}"
 
