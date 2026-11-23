@@ -17,6 +17,7 @@ import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategor
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.CHILD;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
 import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
+import static com.hedera.node.app.workflows.prehandle.PreHandleResult.Status.UNKNOWN_FAILURE;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -153,7 +154,7 @@ public class DispatchProcessor {
             }
             chargeCreator(dispatch, validation);
         } else {
-            final var fees = chargePayer(dispatch, validation, false);
+            final var fees = chargePayer(dispatch, validation, failedPreHandleUnexpectedly(dispatch, validation));
             if (!alreadyFailed(dispatch, validation)) {
                 tryHandle(dispatch, validation, fees, hollowAccountCompletionsDetails, blockFull);
             }
@@ -360,6 +361,21 @@ public class DispatchProcessor {
         // amounts are cleared, so the payer re-charge that follows does not double-count the node fee.
         feeAccumulator.reverseAccumulatedNodeFees();
         feeAccumulator.resetRefundableFees();
+    }
+
+    /**
+     * Returns whether the given dispatch failed its pre-handle with an unexpected exception. Such a failure is a
+     * bug in our software, not in the transaction, so as when its handler throws an unexpected exception, the
+     * payer is charged only the network and node fees.
+     *
+     * @param dispatch the dispatch
+     * @param validation the validation of the charging scenario
+     * @return whether the dispatch failed its pre-handle unexpectedly
+     */
+    private static boolean failedPreHandleUnexpectedly(
+            @NonNull final Dispatch dispatch, @NonNull final FeeCharging.Validation validation) {
+        return validation.maybeErrorStatus() != null
+                && dispatch.preHandleResult().status() == UNKNOWN_FAILURE;
     }
 
     /**

@@ -5,8 +5,10 @@ import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATABLE;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTopicInfo;
@@ -19,6 +21,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.deleteTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileUpdate;
@@ -29,6 +32,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.systemFileDelet
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.mutateAccount;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.freezeAbort;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordFeeAmount;
@@ -66,6 +70,7 @@ import static com.hedera.services.bdd.suites.hip423.LongTermScheduleUtils.transf
 import static com.hedera.services.bdd.suites.hip423.LongTermScheduleUtils.triggerSchedule;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AUTHORIZATION_FAILED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.FAIL_INVALID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FILE_ID;
@@ -75,6 +80,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOPIC_
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PAYER_ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
+import com.hedera.hapi.node.base.Key;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.RepeatableHapiTest;
 import com.hedera.services.bdd.junit.TargetEmbeddedMode;
@@ -1165,6 +1171,55 @@ public class RepeatableScheduleLongTermExecutionTest {
                             SUCCESS,
                             triggeredTx.getResponseRecord().getReceipt().getStatus(),
                             SCHEDULED_TRANSACTION_MUST_NOT_SUCCEED);
+                })));
+    }
+
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    final Stream<DynamicTest> scheduleWhosePreHandleFailsUnexpectedlyFailsAloneAndPaysNoServiceFee() {
+        final var brokenTarget = "brokenTarget";
+        final var healthyTarget = "healthyTarget";
+        final var brokenSchedule = "brokenSchedule";
+        final var healthySchedule = "healthySchedule";
+        final var brokenCreate = "brokenCreate";
+        final var healthyCreate = "healthyCreate";
+        return hapiTest(flattened(
+                cryptoCreate(PAYING_ACCOUNT).balance(ONE_HUNDRED_HBARS).via(PAYER_TXN),
+                cryptoCreate(brokenTarget),
+                cryptoCreate(healthyTarget),
+                // Two schedules of the same shape expiring in the same second, the broken one first
+                scheduleCreate(brokenSchedule, cryptoUpdate(brokenTarget).entityMemo("updated"))
+                        .designatingPayer(PAYING_ACCOUNT)
+                        .payingWith(PAYING_ACCOUNT)
+                        .alsoSigningWith(brokenTarget)
+                        .waitForExpiry()
+                        .withRelativeExpiry(PAYER_TXN, EXPIRY_OFFSET_SECS)
+                        .via(brokenCreate),
+                scheduleCreate(healthySchedule, cryptoUpdate(healthyTarget).entityMemo("updated"))
+                        .designatingPayer(PAYING_ACCOUNT)
+                        .payingWith(PAYING_ACCOUNT)
+                        .alsoSigningWith(healthyTarget)
+                        .waitForExpiry()
+                        .withRelativeExpiry(PAYER_TXN, EXPIRY_OFFSET_SECS)
+                        .via(healthyCreate),
+                // An account without a key makes the broken schedule's pre-handle throw an unchecked
+                // exception (Account.keyOrThrow()), standing in for a software bug in that path
+                mutateAccount(brokenTarget, account -> account.key((Key) null)),
+                triggerSchedule(healthySchedule, SCAN_TRIGGER_SLEEP_SECS),
+                getScheduleInfo(brokenSchedule).hasCostAnswerPrecheck(INVALID_SCHEDULE_ID),
+                getTxnRecord(brokenCreate).scheduled().hasPriority(recordWith().status(FAIL_INVALID)),
+                getTxnRecord(healthyCreate).scheduled().hasPriority(recordWith().status(SUCCESS)),
+                getAccountInfo(healthyTarget).has(accountWith().memo("updated")),
+                withOpContext((spec, opLog) -> {
+                    final var broken = getTxnRecord(brokenCreate).scheduled();
+                    final var healthy = getTxnRecord(healthyCreate).scheduled();
+                    allRunFor(spec, broken, healthy);
+                    final var brokenFee = broken.getResponseRecord().getTransactionFee();
+                    final var healthyFee = healthy.getResponseRecord().getTransactionFee();
+                    opLog.info("Failed schedule fee {}, executed schedule fee {}", brokenFee, healthyFee);
+                    // The payer of the failed schedule is charged the network and node fees, not the service fee
+                    Assertions.assertTrue(brokenFee > 0, "The failed schedule's payer must still be charged");
+                    Assertions.assertTrue(
+                            brokenFee < healthyFee, "The failed schedule's payer must not be charged the service fee");
                 })));
     }
 }

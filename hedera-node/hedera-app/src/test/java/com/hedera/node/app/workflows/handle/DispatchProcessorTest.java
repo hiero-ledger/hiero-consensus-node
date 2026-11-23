@@ -14,6 +14,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ENTITY_NOT_ALLOWED_TO_DELETE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
@@ -28,6 +29,7 @@ import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.Se
 import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newCreatorError;
 import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newPayerDuplicateError;
 import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newPayerError;
+import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newPayerUniqueError;
 import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newSuccess;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -47,6 +49,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.token.Account;
@@ -83,6 +86,7 @@ import com.hedera.node.app.workflows.handle.steps.PlatformStateUpdates;
 import com.hedera.node.app.workflows.handle.steps.SystemFileUpdates;
 import com.hedera.node.app.workflows.handle.throttle.DispatchUsageManager;
 import com.hedera.node.app.workflows.handle.throttle.ThrottleException;
+import com.hedera.node.app.workflows.prehandle.PreHandleResult;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
@@ -190,6 +194,9 @@ class DispatchProcessorTest {
 
     @Mock
     private Details hollowAccountCompletionsDetails;
+
+    private static final PreHandleResult PRE_HANDLE_SUCCESS = new PreHandleResult(
+            null, null, PreHandleResult.Status.SO_FAR_SO_GOOD, SUCCESS, null, null, null, null, null, null, 0);
 
     private DispatchProcessor subject;
 
@@ -989,6 +996,7 @@ class DispatchProcessorTest {
                         INSUFFICIENT_ACCOUNT_BALANCE,
                         UNABLE_TO_PAY_SERVICE_FEE,
                         NO_DUPLICATE));
+        given(dispatch.preHandleResult()).willReturn(PRE_HANDLE_SUCCESS);
         given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
         given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
         given(dispatch.txnCategory()).willReturn(USER);
@@ -1012,6 +1020,7 @@ class DispatchProcessorTest {
         given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
         given(dispatchValidator.validateFeeChargingScenario(dispatch))
                 .willReturn(newPayerDuplicateError(CREATOR_ACCOUNT_ID, PAYER));
+        given(dispatch.preHandleResult()).willReturn(PRE_HANDLE_SUCCESS);
         given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
         given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
         given(dispatch.txnCategory()).willReturn(USER);
@@ -1028,6 +1037,64 @@ class DispatchProcessorTest {
         verifyNoInteractions(dispatcher);
         verify(opWorkflowMetrics, never()).incrementThrottled(any());
         assertFinished();
+    }
+
+    @Test
+    void scheduledTxnWhosePreHandleFailedUnexpectedlyIsNotChargedTheServiceFee() {
+        givenScheduledTxnThatFailedPreHandle(PreHandleResult.unknownFailure(), FAIL_INVALID);
+
+        subject.processDispatch(dispatch);
+
+        verifyTrackedFeePayments();
+        // A pre-handle that throws unexpectedly is a bug in our software, so as when the handler throws one,
+        // the payer is charged only the network and node fees
+        verify(feeAccumulator)
+                .chargeFee(PAYER_ACCOUNT_ID, FEES.withoutServiceComponent().totalFee(), null);
+        verify(feeAccumulator, never()).chargeFee(PAYER_ACCOUNT_ID, FEES.totalFee(), null);
+        verify(recordBuilder).status(FAIL_INVALID);
+        verifyNoInteractions(dispatcher);
+        assertFinished();
+    }
+
+    @Test
+    void scheduledTxnWhosePreHandleFailedIsChargedTheFullFee() {
+        givenScheduledTxnThatFailedPreHandle(
+                new PreHandleResult(
+                        null,
+                        null,
+                        PreHandleResult.Status.PRE_HANDLE_FAILURE,
+                        INVALID_ACCOUNT_ID,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        0),
+                INVALID_ACCOUNT_ID);
+
+        subject.processDispatch(dispatch);
+
+        verifyTrackedFeePayments();
+        verify(feeAccumulator).chargeFee(PAYER_ACCOUNT_ID, FEES.totalFee(), null);
+        verify(recordBuilder).status(INVALID_ACCOUNT_ID);
+        verifyNoInteractions(dispatcher);
+        assertFinished();
+    }
+
+    private void givenScheduledTxnThatFailedPreHandle(
+            @NonNull final PreHandleResult preHandleResult, @NonNull final ResponseCodeEnum status) {
+        given(dispatch.fees()).willReturn(FEES);
+        given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
+        given(dispatchValidator.validateFeeChargingScenario(dispatch))
+                .willReturn(newPayerUniqueError(CREATOR_ACCOUNT_ID, PAYER, status));
+        given(dispatch.preHandleResult()).willReturn(preHandleResult);
+        given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
+        given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
+        given(dispatch.txnCategory()).willReturn(HandleContext.TransactionCategory.SCHEDULED);
+        doCallRealMethod().when(dispatch).charge(any(), any(), any());
+        doCallRealMethod().when(dispatch).category();
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
     }
 
     @Test
