@@ -16,7 +16,7 @@ import org.hiero.consensus.gossip.impl.network.ConnectionTracker;
 import org.hiero.consensus.gossip.impl.network.NetworkUtils;
 import org.hiero.consensus.gossip.impl.network.PeerInfo;
 import org.hiero.consensus.main.model.NodeId;
-import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.main.model.KeysAndCerts;
 import org.hiero.consensus.model.roster.RosterWrapper;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.params.ParameterizedTest;

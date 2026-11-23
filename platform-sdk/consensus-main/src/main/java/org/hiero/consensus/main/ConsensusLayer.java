@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus;
+package org.hiero.consensus.main;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import org.hiero.consensus.main.model.QuiescenceCommand;
 import org.hiero.consensus.main.model.Round;
-import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 
 /**
  * The public API of the consensus layer. The consensus layer is responsible for producing rounds consisting of

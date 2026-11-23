@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus;
+package org.hiero.consensus.main;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
@@ -12,9 +12,10 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.io.RecycleBin;
+import org.hiero.consensus.main.model.ConsensusLayerRosterInputs;
+import org.hiero.consensus.main.model.KeysAndCerts;
 import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.main.model.RunningEventHashOverride;
-import org.hiero.consensus.model.node.KeysAndCerts;
 
 /**
  * This record contains all the required and optional inputs when creating the {@link ConsensusLayer}.

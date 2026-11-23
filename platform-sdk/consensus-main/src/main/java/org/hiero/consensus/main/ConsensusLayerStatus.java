@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus;
+package org.hiero.consensus.main;
 
 import org.hiero.base.UniqueId;
 

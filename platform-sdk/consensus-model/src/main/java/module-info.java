@@ -3,9 +3,7 @@ module org.hiero.consensus.model {
     exports org.hiero.consensus.model.event;
     exports org.hiero.consensus.model.gossip;
     exports org.hiero.consensus.model.hashgraph;
-    exports org.hiero.consensus.model.node;
     exports org.hiero.consensus.model.notification;
-    exports org.hiero.consensus.model.quiescence;
     exports org.hiero.consensus.model.roster;
     exports org.hiero.consensus.model.sequence.map;
     exports org.hiero.consensus.model.sequence.set;

@@ -15,7 +15,7 @@ import java.time.Duration;
 import java.util.Random;
 import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.quiescence.QuiescenceCommand;
+import org.hiero.consensus.main.model.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.sloth.fixtures.AsyncNodeActions;
 import org.hiero.sloth.fixtures.Node;
