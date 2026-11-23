@@ -696,11 +696,13 @@ public class HashLeafFlusherTest {
             startBlockedFlush(flusher, ds);
             // The next batch becomes due while the first flush is running. No more producer calls after that
             addLeaves(flusher, 100, INTERVAL).await();
+            // Let finish() claim the due batch before the background flush can submit it.
+            final Producer finish = start(flusher::finish);
+            finish.awaitBlocked();
             ds.open();
-            // finish() waits for the first flush, then flushes the due batch in the final flush
-            flusher.finish();
+            finish.await();
             assertEquals(2, ds.saves.get());
-            assertTrue(ds.saveThreads.contains(Thread.currentThread()), "The final flush must run in finish()");
+            assertTrue(ds.saveThreads.contains(finish.thread()), "The final flush must run in finish()");
             assertLeavesPresent(ds, 1, INTERVAL);
             assertLeavesPresent(ds, 100, INTERVAL);
         }
