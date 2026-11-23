@@ -208,7 +208,7 @@ PBJ, along with unit tests and serialization and deserialization logic in multip
 Each service instance must define the states that it supports, across each release of the service. This is done by
 using `Schema`s, and the `SchemaRegistry`. When a `Service` instance is created, it is given a `SchemaRegistry`
 instance, which has been scoped to just this service module. Through this interface, the service is able to `register`
-multiple `Schema`s. Our design for `Schema`s is based on the concepts used with (Flyway)[https://flywaydb.org/].
+multiple `Schema`s. Our design for `Schema`s is based on the concepts used with [Flyway](https://flywaydb.org/).
 
 Each `Schema` defines a version number, the set of states that are created within that schema, and the set of
 states that should be dropped as part of this `Schema`. A schema's version only orders it among the other schemas of
