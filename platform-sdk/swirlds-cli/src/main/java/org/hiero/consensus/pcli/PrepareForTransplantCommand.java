@@ -10,6 +10,7 @@ import java.nio.file.Path;
 import java.util.Scanner;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.io.SimpleRecycleBin;
+import org.hiero.consensus.model.event.EventHashFactory;
 import picocli.CommandLine;
 
 @CommandLine.Command(
@@ -62,6 +63,8 @@ public class PrepareForTransplantCommand extends AbstractCommand {
                 return RETURN_CODE_PROMPT_NO;
             }
         }
+
+        EventHashFactory.initialize(1L);
 
         final Configuration configuration =
                 ConfigurationBuilder.create().autoDiscoverExtensions().build();
