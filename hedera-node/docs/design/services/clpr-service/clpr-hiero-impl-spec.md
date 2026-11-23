@@ -332,10 +332,10 @@ Initial schema: `V0650ClprSchema` (version `0.65.0`, matching the anticipated re
 
 ### 2.3.1 Singletons
 
-|        State Key        |           Type            |                                                                                                                                     Description                                                                                                                                      |
-|-------------------------|---------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `LEDGER_CONFIGURATION`  | `ClprLedgerConfiguration` | This ledger's local CLPR configuration (chain_id, protocol_version, throttles, timestamp). Created at genesis with `chain_id` = `eip155:<contracts.chainId>` and `protocol_version` from `clpr.protocolVersion`. The `chain_id` and `protocol_version` are immutable after creation. |
-| `LOCAL_LEDGER_METADATA` | `ClprLocalLedgerMetadata` | Local metadata: generated ledger ID, roster hash used for current config, next short ledger ID. Exists in prototype.                                                                                                                                                                 |
+|        State Key        |           Type            |                                                                                                                                                                                                        Description                                                                                                                                                                                                         |
+|-------------------------|---------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `LEDGER_CONFIGURATION`  | `ClprLedgerConfiguration` | This ledger's local CLPR configuration (chain_id, protocol_version, throttles, timestamp). Created at genesis with `chain_id` = `eip155:<contracts.chainId>` and `protocol_version` from `clpr.protocolVersion`. The `chain_id` and `protocol_version` are immutable after creation, except that post-upgrade setup replaces a `chain_id` outside the `eip155` namespace (such as the 0.79 default `hiero:localnet`) once. |
+| `LOCAL_LEDGER_METADATA` | `ClprLocalLedgerMetadata` | Local metadata: generated ledger ID, roster hash used for current config, next short ledger ID. Exists in prototype.                                                                                                                                                                                                                                                                                                       |
 
 ### 2.3.2 Key-Value Stores
 
@@ -468,7 +468,8 @@ migration path:
 3. New state stores (`CHANNELS`, `CONNECTORS`, `CONNECTOR_INDEX`) are created empty.
 4. The `LEDGER_CONFIGURATION` singleton is created with `chain_id` = `eip155:<contracts.chainId>` and
    `protocol_version` from `clpr.protocolVersion`. The `chain_id` and `protocol_version` are immutable after creation —
-   they can never be changed via `ClprUpdateLedgerConfiguration`.
+   they can never be changed via `ClprUpdateLedgerConfiguration`. Post-upgrade setup replaces a stored `chain_id`
+   outside the `eip155` namespace (such as the 0.79 default `hiero:localnet`) with `eip155:<contracts.chainId>` once.
    **Decision:** The prototype state structure was intentionally simplified for early development. The migration
    drops prototype-specific fields that do not map to the cross-platform spec (e.g., `next_ledger_short_id`
    in `ClprLocalLedgerMetadata` becomes unused once Channels have proper 32-byte IDs).

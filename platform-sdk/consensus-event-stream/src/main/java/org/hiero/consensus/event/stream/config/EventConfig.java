@@ -25,4 +25,4 @@ public record EventConfig(
         String eventsLogDir,
 
         @ConfigProperty(defaultValue = "true") boolean enableEventStreaming,
-        @ConfigProperty(defaultValue = "true") boolean enableEventCutover) {}
+        @ConfigProperty(defaultValue = "false") boolean enableEventCutover) {}

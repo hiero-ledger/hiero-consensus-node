@@ -7,7 +7,7 @@ import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.se
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthAccountCreationWithKeyAndCodeDelegation;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthHollowAccountCreation;
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.DISPATCH_ONLY_NOOP_FEE_CHARGING;
-import static com.hedera.node.app.spi.workflows.DispatchOptions.setupDispatch;
+import static com.hedera.node.app.spi.workflows.DispatchOptions.reversibleSetupDispatch;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.stepDispatch;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 import static java.util.Objects.requireNonNull;
@@ -154,7 +154,7 @@ public class HandleHederaNativeOperations implements HederaNativeOperations {
      */
     @Override
     public @NonNull ResponseCodeEnum createHollowAccount(@NonNull final Bytes evmAddress) {
-        final var dispatchOpts = setupDispatch(
+        final var dispatchOpts = reversibleSetupDispatch(
                 context.payer(),
                 TransactionBody.newBuilder()
                         .cryptoCreateAccount(synthHollowAccountCreation(evmAddress, unlimitedAutoAssociationsEnabled()))

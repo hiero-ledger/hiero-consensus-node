@@ -86,4 +86,33 @@ class DispatchOptionsTest {
         final var maybeFeeCharging = options.dispatchMetadata().getMetadata(CUSTOM_FEE_CHARGING, FeeCharging.class);
         assertTrue(maybeFeeCharging.isEmpty());
     }
+
+    @Test
+    void setupDispatchRecordIsRemovedOnRollback() {
+        final var options = DispatchOptions.setupDispatch(
+                AccountID.DEFAULT,
+                TransactionBody.DEFAULT,
+                StreamBuilder.class,
+                null,
+                HandleContext.ConsensusThrottling.ON);
+
+        assertEquals(HandleContext.TransactionCategory.PRECEDING, options.category());
+        assertEquals(StreamBuilder.ReversingBehavior.REMOVABLE, options.reversingBehavior());
+    }
+
+    @Test
+    void reversibleSetupDispatchRecordIsKeptOnRollback() {
+        final var options = DispatchOptions.reversibleSetupDispatch(
+                AccountID.DEFAULT,
+                TransactionBody.DEFAULT,
+                StreamBuilder.class,
+                DISPATCH_ONLY_NOOP_FEE_CHARGING,
+                HandleContext.ConsensusThrottling.ON);
+
+        assertEquals(HandleContext.TransactionCategory.PRECEDING, options.category());
+        assertEquals(StreamBuilder.ReversingBehavior.REVERSIBLE, options.reversingBehavior());
+        assertEquals(DispatchOptions.Commit.WITH_PARENT, options.commit());
+        assertSame(DISPATCH_ONLY_NOOP_FEE_CHARGING, options.customFeeCharging());
+        assertNull(options.effectiveKeyVerifier());
+    }
 }

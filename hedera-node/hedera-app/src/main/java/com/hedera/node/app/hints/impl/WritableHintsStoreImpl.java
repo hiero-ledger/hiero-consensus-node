@@ -34,6 +34,7 @@ import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
@@ -142,9 +143,12 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
     }
 
     @Override
-    public HintsConstruction setPreprocessingStartTime(final long constructionId, @NonNull final Instant now) {
+    public HintsConstruction setPreprocessingStartTime(
+            final long constructionId, @NonNull final Instant now, @Nullable final Long rosterWeight) {
         requireNonNull(now);
-        return updateOrThrow(constructionId, b -> b.preprocessingStartTime(asTimestamp(now)));
+        return updateOrThrow(
+                constructionId,
+                b -> b.preprocessingStartTime(asTimestamp(now)).preprocessingRosterWeight(rosterWeight));
     }
 
     @Override

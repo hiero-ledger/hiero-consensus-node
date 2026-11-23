@@ -13,9 +13,13 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
+import com.hedera.cryptography.tss.TSS;
 import com.hedera.cryptography.wraps.SchnorrKeys;
 import com.hedera.hapi.node.state.history.History;
+import com.hedera.node.app.hapi.utils.blocks.NativeTssVerifier;
 import com.hedera.node.app.hints.HintsService;
+import com.hedera.node.app.hints.impl.HintsControllerImpl;
+import com.hedera.node.app.hints.impl.HintsLibraryImpl;
 import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.config.data.NodesConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -360,6 +364,83 @@ class HistoryLibraryImplTest {
         // But not in the chain of trust of any other ledger id
         final var otherLedgerId = subject.computeWrapsMessage(target.addressBook(), targetVerificationKey);
         assertFalse(subject.verifyCompressedProof(incrementalProof.compressed(), otherLedgerId, targetVerificationKey));
+    }
+
+    @Test
+    void compositeBlockProofRequiresStrictMajorityOfTheFullRoster() {
+        final var library = new HintsLibraryImpl();
+        final var initialCrs = library.newCrs((short) 8);
+        final var entropy = new byte[32];
+        entropy[0] = 1;
+        final var crs = HintsControllerImpl.decodeCrsUpdate(
+                        initialCrs.length(), library.updateCrs(initialCrs, Bytes.wrap(entropy)))
+                .crs();
+        final var message = Bytes.wrap("block signed by a sparse hinTS scheme");
+        final var keys = new TreeMap<Integer, Bytes>();
+        final var hints = new TreeMap<Integer, Bytes>();
+        for (final int party : new int[] {1, 3, 4}) {
+            keys.put(party, library.newBlsPrivateKey());
+            hints.put(party, library.computeHints(crs, keys.get(party), party, 8));
+        }
+        // Party 2 has a listed weight of two and no key. Parties 1, 3 and 4 can sign.
+        final var weights = new TreeMap<>(Map.of(1, 10L, 2, 2L, 3, 1L, 4, 7L));
+        final var output = library.preprocess(crs, hints, weights, 8);
+        assertNotNull(output);
+        final var ak = Bytes.wrap(output.aggregationKey());
+        final var vk = Bytes.wrap(output.verificationKey());
+        final var first = library.signBls(message, keys.get(1));
+        final var ten = library.aggregateSignatures(crs, ak, vk, Map.of(1, first));
+        assertNotNull(ten);
+        assertFalse(library.verifyAggregate(ten, message, vk, 1, 2));
+        final var eleven =
+                library.aggregateSignatures(crs, ak, vk, Map.of(1, first, 3, library.signBls(message, keys.get(3))));
+        assertNotNull(eleven);
+        assertTrue(library.verifyAggregate(eleven, message, vk, 1, 2));
+
+        final var network = TestNetwork.withWeights(10L, 2L, 1L, 7L);
+        final var book = network.addressBook();
+        final var signers = Set.of(0L, 2L);
+        weights.remove(2);
+        final var legacy = library.preprocess(crs, hints, weights, 8);
+        final var ledgerId = subject.computeWrapsMessage(book, legacy.verificationKey());
+        final var genesis = subject.constructGenesisWrapsProof(
+                subject.hashAddressBook(book),
+                legacy.verificationKey(),
+                network.sign(ledgerId, signers),
+                signers,
+                book);
+        assertNotNull(genesis);
+        final var rotation = subject.computeWrapsMessage(book, output.verificationKey());
+        final var successor = subject.constructIncrementalWrapsProof(
+                ledgerId,
+                genesis.uncompressed(),
+                book,
+                book,
+                output.verificationKey(),
+                network.sign(rotation, signers),
+                signers);
+        assertNotNull(successor);
+
+        final var verifier = new NativeTssVerifier();
+        final var ledger = Bytes.wrap(ledgerId);
+        final var legacyTen = library.aggregateSignatures(
+                crs, Bytes.wrap(legacy.aggregationKey()), Bytes.wrap(legacy.verificationKey()), Map.of(1, first));
+        assertNotNull(legacyTen);
+        final var historical = Bytes.wrap(
+                TSS.composeSignature(legacy.verificationKey(), legacyTen.toByteArray(), genesis.compressed()));
+        final var atHalf =
+                Bytes.wrap(TSS.composeSignature(output.verificationKey(), ten.toByteArray(), successor.compressed()));
+        final var aboveHalf = Bytes.wrap(
+                TSS.composeSignature(output.verificationKey(), eleven.toByteArray(), successor.compressed()));
+        final var wrongProof =
+                Bytes.wrap(TSS.composeSignature(output.verificationKey(), eleven.toByteArray(), genesis.compressed()));
+        final var wrongSignature =
+                Bytes.wrap(TSS.composeSignature(legacy.verificationKey(), eleven.toByteArray(), genesis.compressed()));
+        assertTrue(verifier.verifyTss(ledger, historical, message));
+        assertTrue(verifier.verifyTss(ledger, aboveHalf, message));
+        assertFalse(verifier.verifyTss(ledger, atHalf, message));
+        assertFalse(verifier.verifyTss(ledger, wrongProof, message));
+        assertFalse(verifier.verifyTss(ledger, wrongSignature, message));
     }
 
     @Test

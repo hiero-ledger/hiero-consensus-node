@@ -8,6 +8,7 @@ import com.esaulpaugh.headlong.rlp.RLPDecoder;
 import com.esaulpaugh.headlong.rlp.RLPItem;
 import com.esaulpaugh.headlong.rlp.RLPList;
 import com.google.protobuf.ByteString;
+import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.service.clpr.impl.verifier.ProofException;
 import com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumSyncCommitteeProofVerifier;
@@ -166,7 +167,7 @@ class SyncCommitteeProofsTest {
         channelId[0] = 0x42;
         final byte[] context = channelContext(channelId);
         final var verifier = new EthereumSyncCommitteeProofVerifier(NativeBlsSignatureVerifier.INSTANCE);
-        final byte[] anchor = verifier.verifyConfigPayload(SyncCommitteeProofs.configPayload())
+        final byte[] anchor = verifier.verifyConfigPayload(SyncCommitteeProofs.configPayload(), new byte[0])
                 .ledgerConfiguration()
                 .initialTrustAnchor()
                 .toByteArray();
@@ -190,7 +191,7 @@ class SyncCommitteeProofsTest {
     void tamperedAccountProofStillFailsWithCanonicalChannelKeys() {
         final byte[] channelId = new byte[32];
         final var verifier = new EthereumSyncCommitteeProofVerifier(NativeBlsSignatureVerifier.INSTANCE);
-        final byte[] anchor = verifier.verifyConfigPayload(SyncCommitteeProofs.configPayload())
+        final byte[] anchor = verifier.verifyConfigPayload(SyncCommitteeProofs.configPayload(), new byte[0])
                 .ledgerConfiguration()
                 .initialTrustAnchor()
                 .toByteArray();
@@ -198,6 +199,34 @@ class SyncCommitteeProofsTest {
 
         assertThatThrownBy(() -> verifier.verifyBundle(bundle, anchor, channelContext(channelId)))
                 .isInstanceOf(ProofException.class);
+    }
+
+    /** The config manifest proof must pass the production verifier, real BLS included, which returns its manifest. */
+    @Test
+    @DisplayName("given a config manifest proof, then the production verifier returns its manifest")
+    void givenConfigManifestProof_thenProductionVerifierReturnsManifest() {
+        final var verifier = new EthereumSyncCommitteeProofVerifier(NativeBlsSignatureVerifier.INSTANCE);
+        final byte[] proof = SyncCommitteeProofs.configManifestProof(SyncCommitteeProofs.manifestBytes(1L, 2));
+
+        final ClprEndpointManifest manifest = verifier.verifyConfigPayload(SyncCommitteeProofs.configPayload(), proof)
+                .endpointManifest();
+
+        assertThat(manifest.version()).isEqualTo(1L);
+        assertThat(manifest.serviceAddress().toByteArray()).isEqualTo(SyncCommitteeProofs.SERVICE_ADDRESS);
+        assertThat(manifest.endpoints()).hasSize(2);
+    }
+
+    /** A proven manifest of another service address must still fail the production verifier's §4.8 check. */
+    @Test
+    @DisplayName("given a config manifest proof of another service address, then the production verifier rejects it")
+    void givenConfigManifestProofOfAnotherServiceAddress_thenProductionVerifierRejectsIt() {
+        final var verifier = new EthereumSyncCommitteeProofVerifier(NativeBlsSignatureVerifier.INSTANCE);
+        final byte[] proof =
+                SyncCommitteeProofs.configManifestProof(SyncCommitteeProofs.manifestBytesBadServiceAddress());
+
+        assertThatThrownBy(() -> verifier.verifyConfigPayload(SyncCommitteeProofs.configPayload(), proof))
+                .isInstanceOf(ProofException.class)
+                .hasMessageContaining("endpoint-manifest service_address does not match");
     }
 
     /**
@@ -220,7 +249,7 @@ class SyncCommitteeProofsTest {
                 topList(bundle).elements().get(1).asRLPList().elements();
         assertThat(delivery.get(7).asRLPList().elements()).hasSize(5);
         final var verifier = new EthereumSyncCommitteeProofVerifier(NativeBlsSignatureVerifier.INSTANCE);
-        final byte[] anchor = verifier.verifyConfigPayload(SyncCommitteeProofs.configPayload())
+        final byte[] anchor = verifier.verifyConfigPayload(SyncCommitteeProofs.configPayload(), new byte[0])
                 .ledgerConfiguration()
                 .initialTrustAnchor()
                 .toByteArray();

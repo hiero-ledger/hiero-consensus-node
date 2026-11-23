@@ -808,6 +808,8 @@ public class HollowAccountFinalizationSuite {
                             parentAsserts -> parentAsserts.transfers(noCreditAboveNumber(ignore -> spec.registry()
                                     .getAccountID(SECP_256K1_SOURCE_KEY)
                                     .getAccountNum())),
+                            // the rolled back hollow creation is kept, ahead of the two replayed completions
+                            recordWith().revertedAccountCreation(),
                             recordWith().status(SUCCESS),
                             recordWith().status(SUCCESS));
                     // assert that the payer has been finalized

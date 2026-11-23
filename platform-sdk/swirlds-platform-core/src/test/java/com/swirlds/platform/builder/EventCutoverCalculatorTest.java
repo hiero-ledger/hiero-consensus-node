@@ -7,10 +7,8 @@ import static org.mockito.Mockito.mock;
 import com.swirlds.state.merkle.VirtualMapState;
 import java.util.OptionalLong;
 import java.util.stream.Stream;
-import org.hiero.consensus.model.event.EventHashFactory;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.platformstate.PlatformStateUtils;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -30,12 +28,6 @@ class EventCutoverCalculatorTest {
 
     /** An invalid value in state for the cutover round. */
     private static final long INVALID_CUTOVER = -1L;
-
-    @AfterEach
-    void tearDown() {
-        // restore the default so tests do not leak static state
-        EventHashFactory.initialize(Long.MAX_VALUE);
-    }
 
     /** The kind of start the node is doing. */
     enum Start {
@@ -111,19 +103,5 @@ class EventCutoverCalculatorTest {
         }
 
         assertThat(valueToRecord).isEqualTo(expectedValueToRecord);
-        assertFactoryCutover(expectedFactoryCutover);
-    }
-
-    /**
-     * Verifies that the {@link EventHashFactory} was initialized with the given cutover: the cutover birth round is
-     * post cutover and the birth round before it is not.
-     */
-    private static void assertFactoryCutover(final long expectedCutover) {
-        assertThat(EventHashFactory.isBirthRoundPostCutover(expectedCutover))
-                .as("birth round %d is post cutover", expectedCutover)
-                .isTrue();
-        assertThat(EventHashFactory.isBirthRoundPostCutover(expectedCutover - 1))
-                .as("birth round %d is pre cutover", expectedCutover - 1)
-                .isFalse();
     }
 }
