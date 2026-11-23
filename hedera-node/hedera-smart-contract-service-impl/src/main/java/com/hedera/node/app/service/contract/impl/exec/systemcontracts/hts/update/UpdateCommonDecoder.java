@@ -20,6 +20,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.Dispat
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.utils.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.utils.TokenExpiryWrapper;
+import com.hedera.node.app.service.contract.impl.exec.utils.TokenKeyBuilder;
 import com.hedera.node.app.service.contract.impl.exec.utils.TokenKeyUtils;
 import com.hedera.node.app.service.contract.impl.exec.utils.TokenKeyWrapper;
 import com.hedera.node.app.service.contract.impl.exec.utils.TokenTransactionBodyWrapper;
@@ -118,7 +119,8 @@ public abstract class UpdateCommonDecoder {
         }
 
         try {
-            final var preemptingStatus = TokenKeyUtils.addTokenKeys(tokenKeys, withMetadata, txnBodyBuilder);
+            final var preemptingStatus =
+                    TokenKeyUtils.addTokenKeys(tokenKeys, withMetadata, TokenKeyBuilder.of(txnBodyBuilder));
             if (withMetadata) {
                 final Bytes tokenMetadata = hederaToken.size() > 9 ? Bytes.wrap((byte[]) hederaToken.get(9)) : null;
                 if (tokenMetadata != null && tokenMetadata.length() > 0) {
@@ -148,7 +150,8 @@ public abstract class UpdateCommonDecoder {
         try {
             final var txnBodyBuilder = TokenUpdateTransactionBody.newBuilder();
             txnBodyBuilder.token(tokenId);
-            final var preemptingStatus = TokenKeyUtils.addTokenKeys(tokenKeys, withMetadata, txnBodyBuilder);
+            final var preemptingStatus =
+                    TokenKeyUtils.addTokenKeys(tokenKeys, withMetadata, TokenKeyBuilder.of(txnBodyBuilder));
             return new TokenTransactionBodyWrapper(
                     TransactionBody.newBuilder().tokenUpdate(txnBodyBuilder).build(), preemptingStatus);
         } catch (final IllegalArgumentException ignore) {

@@ -11,6 +11,7 @@ import com.hedera.node.app.service.contract.impl.exec.utils.TokenCreateWrapper;
 import com.hedera.node.app.service.contract.impl.exec.utils.TokenCreateWrapper.FixedFeeWrapper;
 import com.hedera.node.app.service.contract.impl.exec.utils.TokenCreateWrapper.FractionalFeeWrapper;
 import com.hedera.node.app.service.contract.impl.exec.utils.TokenCreateWrapper.RoyaltyFeeWrapper;
+import com.hedera.node.app.service.contract.impl.exec.utils.TokenKeyBuilder;
 import com.hedera.node.app.service.contract.impl.exec.utils.TokenKeyUtils;
 import com.hedera.node.app.service.contract.impl.exec.utils.TokenTransactionBodyWrapper;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -53,8 +54,8 @@ public class CreateSyntheticTxnFactory {
         }
 
         // Set keys if they exist
-        final var preemptingStatus =
-                TokenKeyUtils.addTokenKeys(tokenCreateWrapper.getTokenKeys(), withMetadata, txnBodyBuilder);
+        final var preemptingStatus = TokenKeyUtils.addTokenKeys(
+                tokenCreateWrapper.getTokenKeys(), withMetadata, TokenKeyBuilder.of(txnBodyBuilder));
 
         // Set expiry details
         setExpiry(tokenCreateWrapper, txnBodyBuilder);

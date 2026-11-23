@@ -12,6 +12,7 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.token.TokenCreateTransactionBody;
 import com.hedera.hapi.node.token.TokenUpdateTransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.utils.KeyValueWrapper;
+import com.hedera.node.app.service.contract.impl.exec.utils.TokenKeyBuilder;
 import com.hedera.node.app.service.contract.impl.exec.utils.TokenKeyUtils;
 import com.hedera.node.app.service.contract.impl.exec.utils.TokenKeyWrapper;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -36,8 +37,8 @@ class TokenKeyUtilsTest {
         final var update = TokenUpdateTransactionBody.newBuilder();
         final var create = TokenCreateTransactionBody.newBuilder();
 
-        assertNull(TokenKeyUtils.addTokenKeys(List.of(), false, update));
-        assertNull(TokenKeyUtils.addTokenKeys(List.of(), true, create));
+        assertNull(TokenKeyUtils.addTokenKeys(List.of(), false, TokenKeyBuilder.of(update)));
+        assertNull(TokenKeyUtils.addTokenKeys(List.of(), true, TokenKeyBuilder.of(create)));
 
         assertEquals(TokenUpdateTransactionBody.DEFAULT, update.build());
         assertEquals(TokenCreateTransactionBody.DEFAULT, create.build());
@@ -58,7 +59,7 @@ class TokenKeyUtilsTest {
                         entry(PAUSE, KEY_A),
                         entry(METADATA, KEY_B)),
                 true,
-                builder);
+                TokenKeyBuilder.of(builder));
 
         assertNull(status);
         final var body = builder.build();
@@ -87,7 +88,7 @@ class TokenKeyUtilsTest {
                         entry(PAUSE, KEY_A),
                         entry(METADATA, KEY_B)),
                 true,
-                builder);
+                TokenKeyBuilder.of(builder));
 
         assertNull(status);
         final var body = builder.build();
@@ -105,7 +106,8 @@ class TokenKeyUtilsTest {
     void oneEntryMaySetSeveralRoles() {
         final var builder = TokenUpdateTransactionBody.newBuilder();
 
-        assertNull(TokenKeyUtils.addTokenKeys(List.of(entry(ADMIN | SUPPLY | PAUSE, KEY_A)), false, builder));
+        assertNull(TokenKeyUtils.addTokenKeys(
+                List.of(entry(ADMIN | SUPPLY | PAUSE, KEY_A)), false, TokenKeyBuilder.of(builder)));
 
         final var body = builder.build();
         assertEquals(KEY_A, body.adminKey());
@@ -120,8 +122,8 @@ class TokenKeyUtilsTest {
         final var create = TokenCreateTransactionBody.newBuilder();
         final var entries = List.of(entry(SUPPLY, KEY_A), entry(SUPPLY, KEY_B));
 
-        assertNull(TokenKeyUtils.addTokenKeys(entries, false, update));
-        assertNull(TokenKeyUtils.addTokenKeys(entries, false, create));
+        assertNull(TokenKeyUtils.addTokenKeys(entries, false, TokenKeyBuilder.of(update)));
+        assertNull(TokenKeyUtils.addTokenKeys(entries, false, TokenKeyBuilder.of(create)));
 
         assertEquals(KEY_B, update.build().supplyKey());
         assertEquals(KEY_B, create.build().supplyKey());
@@ -132,8 +134,12 @@ class TokenKeyUtilsTest {
         final var update = TokenUpdateTransactionBody.newBuilder();
         final var create = TokenCreateTransactionBody.newBuilder();
 
-        assertEquals(INVALID_TRANSACTION_BODY, TokenKeyUtils.addTokenKeys(List.of(entry(0, KEY_A)), false, update));
-        assertEquals(INVALID_TRANSACTION_BODY, TokenKeyUtils.addTokenKeys(List.of(entry(0, KEY_A)), true, create));
+        assertEquals(
+                INVALID_TRANSACTION_BODY,
+                TokenKeyUtils.addTokenKeys(List.of(entry(0, KEY_A)), false, TokenKeyBuilder.of(update)));
+        assertEquals(
+                INVALID_TRANSACTION_BODY,
+                TokenKeyUtils.addTokenKeys(List.of(entry(0, KEY_A)), true, TokenKeyBuilder.of(create)));
 
         assertEquals(TokenUpdateTransactionBody.DEFAULT, update.build());
         assertEquals(TokenCreateTransactionBody.DEFAULT, create.build());
@@ -145,11 +151,13 @@ class TokenKeyUtilsTest {
             final var entries = List.of(entry(1 << bit, KEY_A));
             assertEquals(
                     INVALID_TRANSACTION_BODY,
-                    TokenKeyUtils.addTokenKeys(entries, true, TokenUpdateTransactionBody.newBuilder()),
+                    TokenKeyUtils.addTokenKeys(
+                            entries, true, TokenKeyBuilder.of(TokenUpdateTransactionBody.newBuilder())),
                     "bit " + bit);
             assertEquals(
                     INVALID_TRANSACTION_BODY,
-                    TokenKeyUtils.addTokenKeys(entries, false, TokenCreateTransactionBody.newBuilder()),
+                    TokenKeyUtils.addTokenKeys(
+                            entries, false, TokenKeyBuilder.of(TokenCreateTransactionBody.newBuilder())),
                     "bit " + bit);
         }
     }
@@ -160,8 +168,10 @@ class TokenKeyUtilsTest {
         final var withoutMetadata = TokenCreateTransactionBody.newBuilder();
         final var entries = List.of(entry(METADATA, KEY_A));
 
-        assertNull(TokenKeyUtils.addTokenKeys(entries, true, withMetadata));
-        assertEquals(INVALID_TRANSACTION_BODY, TokenKeyUtils.addTokenKeys(entries, false, withoutMetadata));
+        assertNull(TokenKeyUtils.addTokenKeys(entries, true, TokenKeyBuilder.of(withMetadata)));
+        assertEquals(
+                INVALID_TRANSACTION_BODY,
+                TokenKeyUtils.addTokenKeys(entries, false, TokenKeyBuilder.of(withoutMetadata)));
 
         assertEquals(KEY_A, withMetadata.build().metadataKey());
         assertFalse(withoutMetadata.build().hasMetadataKey());
@@ -171,7 +181,8 @@ class TokenKeyUtilsTest {
     void metadataBitNextToADefinedBitIsIgnoredWithoutMetadata() {
         final var builder = TokenUpdateTransactionBody.newBuilder();
 
-        assertNull(TokenKeyUtils.addTokenKeys(List.of(entry(SUPPLY | METADATA, KEY_A)), false, builder));
+        assertNull(TokenKeyUtils.addTokenKeys(
+                List.of(entry(SUPPLY | METADATA, KEY_A)), false, TokenKeyBuilder.of(builder)));
 
         final var body = builder.build();
         assertEquals(KEY_A, body.supplyKey());
@@ -182,7 +193,8 @@ class TokenKeyUtilsTest {
     void undefinedBitNextToADefinedBitIsIgnored() {
         final var builder = TokenCreateTransactionBody.newBuilder();
 
-        assertNull(TokenKeyUtils.addTokenKeys(List.of(entry(SUPPLY | 0x100, KEY_A)), false, builder));
+        assertNull(
+                TokenKeyUtils.addTokenKeys(List.of(entry(SUPPLY | 0x100, KEY_A)), false, TokenKeyBuilder.of(builder)));
 
         assertEquals(KEY_A, builder.build().supplyKey());
     }
@@ -194,7 +206,8 @@ class TokenKeyUtilsTest {
         // The caller does not dispatch on a rejection, so the valid entry being applied to the builder is harmless
         assertEquals(
                 INVALID_TRANSACTION_BODY,
-                TokenKeyUtils.addTokenKeys(List.of(entry(SUPPLY, KEY_A), entry(0x100, KEY_B)), false, builder));
+                TokenKeyUtils.addTokenKeys(
+                        List.of(entry(SUPPLY, KEY_A), entry(0x100, KEY_B)), false, TokenKeyBuilder.of(builder)));
     }
 
     @Test
@@ -205,11 +218,11 @@ class TokenKeyUtilsTest {
         assertThrows(
                 IllegalArgumentException.class,
                 () -> TokenKeyUtils.addTokenKeys(
-                        List.of(invalidValue), false, TokenUpdateTransactionBody.newBuilder()));
+                        List.of(invalidValue), false, TokenKeyBuilder.of(TokenUpdateTransactionBody.newBuilder())));
         assertThrows(
                 IllegalArgumentException.class,
                 () -> TokenKeyUtils.addTokenKeys(
-                        List.of(invalidValue), false, TokenCreateTransactionBody.newBuilder()));
+                        List.of(invalidValue), false, TokenKeyBuilder.of(TokenCreateTransactionBody.newBuilder())));
     }
 
     @Test

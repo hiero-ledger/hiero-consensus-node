@@ -9,8 +9,6 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.as
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
-import com.hedera.hapi.node.token.TokenCreateTransactionBody;
-import com.hedera.hapi.node.token.TokenUpdateTransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -77,12 +75,10 @@ public final class TokenKeyUtils {
      * An entry whose key type has no defined bit (including zero) would select no key, so it is reported to the
      * caller. An empty list is not an error, since nothing was asked for, and undefined bits next to a defined one
      * are ignored.
-     * <p>
-     * Duplicated for {@link TokenCreateTransactionBody.Builder} below; keep the two in sync.
      *
      * @param tokenKeys the decoded key entries
      * @param withMetadata whether the metadata key bit is defined, which it is only at the 0x16c address
-     * @param builder the update body builder to set the keys on
+     * @param builder the wrapper of the create or update body builder to set the keys on
      * @return {@link ResponseCodeEnum#INVALID_TRANSACTION_BODY} if some entry selects no key, otherwise null
      * @throws IllegalArgumentException if an entry has an empty key value
      */
@@ -90,67 +86,7 @@ public final class TokenKeyUtils {
     public static ResponseCodeEnum addTokenKeys(
             @NonNull final List<TokenKeyWrapper> tokenKeys,
             final boolean withMetadata,
-            @NonNull final TokenUpdateTransactionBody.Builder builder) {
-        final var definedKeyTypes = withMetadata ? KEY_TYPES_16C : KEY_TYPES_167;
-        ResponseCodeEnum status = null;
-        for (final var tokenKeyWrapper : tokenKeys) {
-            final var key = tokenKeyWrapper.key().asGrpc();
-            if (Key.DEFAULT.equals(key)) {
-                throw new IllegalArgumentException();
-            }
-            if (tokenKeyWrapper.selectsNoKey(definedKeyTypes)) {
-                status = INVALID_TRANSACTION_BODY;
-            } else {
-                if (tokenKeyWrapper.isUsedForAdminKey()) {
-                    builder.adminKey(key);
-                }
-                if (tokenKeyWrapper.isUsedForKycKey()) {
-                    builder.kycKey(key);
-                }
-                if (tokenKeyWrapper.isUsedForFreezeKey()) {
-                    builder.freezeKey(key);
-                }
-                if (tokenKeyWrapper.isUsedForWipeKey()) {
-                    builder.wipeKey(key);
-                }
-                if (tokenKeyWrapper.isUsedForSupplyKey()) {
-                    builder.supplyKey(key);
-                }
-                if (tokenKeyWrapper.isUsedForFeeScheduleKey()) {
-                    builder.feeScheduleKey(key);
-                }
-                if (tokenKeyWrapper.isUsedForPauseKey()) {
-                    builder.pauseKey(key);
-                }
-                if (withMetadata && tokenKeyWrapper.isUsedForMetadataKey()) {
-                    builder.metadataKey(key);
-                }
-            }
-        }
-        return status;
-    }
-
-    /**
-     * Sets on the builder each key whose bit is set in the key type of an entry. Entries apply in order, so for
-     * repeated bits the last entry wins, and bits that select no key are ignored.
-     * <p>
-     * An entry whose key type has no defined bit (including zero) would select no key, so it is reported to the
-     * caller. An empty list is not an error, since nothing was asked for, and undefined bits next to a defined one
-     * are ignored.
-     * <p>
-     * Duplicated for {@link TokenUpdateTransactionBody.Builder} above; keep the two in sync.
-     *
-     * @param tokenKeys the decoded key entries
-     * @param withMetadata whether the metadata key bit is defined, which it is only at the 0x16c address
-     * @param builder the create body builder to set the keys on
-     * @return {@link ResponseCodeEnum#INVALID_TRANSACTION_BODY} if some entry selects no key, otherwise null
-     * @throws IllegalArgumentException if an entry has an empty key value
-     */
-    @Nullable
-    public static ResponseCodeEnum addTokenKeys(
-            @NonNull final List<TokenKeyWrapper> tokenKeys,
-            final boolean withMetadata,
-            @NonNull final TokenCreateTransactionBody.Builder builder) {
+            @NonNull final TokenKeyBuilder builder) {
         final var definedKeyTypes = withMetadata ? KEY_TYPES_16C : KEY_TYPES_167;
         ResponseCodeEnum status = null;
         for (final var tokenKeyWrapper : tokenKeys) {
