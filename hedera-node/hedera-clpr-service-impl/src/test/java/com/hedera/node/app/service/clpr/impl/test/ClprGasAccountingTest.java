@@ -318,8 +318,8 @@ class ClprGasAccountingTest {
         assertThat(subject.prepayVerifier(PARENT, 100)).isTrue();
         subject.settleVerifierWithGasUsage(PARENT, 100, gasResult(40));
 
-        verify(context).tryToCharge(PARENT, TOTAL_GAS * GAS_PRICE);
-        assertThat(subject.availableApplicationGas(TOTAL_GAS)).isEqualTo(900);
+        verify(context).tryToCharge(PARENT, BUNDLE_GAS * GAS_PRICE);
+        assertThat(subject.availableApplicationGas(Long.MAX_VALUE)).isEqualTo(BUNDLE_GAS - 100);
     }
 
     @Test
@@ -354,7 +354,7 @@ class ClprGasAccountingTest {
     void rejectsSignedOfferThatDoesNotCoverBaseBytesAndGasEscrowBeforeCharging() {
         final long baseFee = 200;
         final long byteFee = 100;
-        givenUserDispatch(baseFee + byteFee, baseFee + byteFee + TOTAL_GAS * GAS_PRICE - 1);
+        givenUserDispatch(baseFee + byteFee, baseFee + byteFee + BUNDLE_GAS * GAS_PRICE - 1);
         final var subject = ClprGasAccounting.forContext(context);
 
         assertThatThrownBy(() -> subject.prepayVerifier(PARENT, 100))
@@ -368,91 +368,9 @@ class ClprGasAccountingTest {
     }
 
     @Test
-    void reservingRollbackFeeRejectsAnInsufficientOfferWithoutCollectingThePenalty() {
-        final long alreadyCharged = 300;
-        final long penalty = 1_000;
-        givenUserDispatch(alreadyCharged, alreadyCharged + penalty - 1);
-        final var subject = ClprGasAccounting.forContext(context);
-
-        assertThatThrownBy(() -> subject.reserveRollbackFee(penalty))
-                .isInstanceOfSatisfying(
-                        HandleException.class,
-                        failure -> assertThat(failure.getStatus()).isEqualTo(INSUFFICIENT_TX_FEE));
-
-        assertThat(payments).isEmpty();
-        assertThat(recordedFee).hasValue(alreadyCharged);
-        assertThat(balances.get(PARENT)).isEqualTo(INITIAL_BALANCE - alreadyCharged);
-    }
-
-    @Test
-    void gasEscrowRequiresSignedHeadroomForTheFullPossiblePenalty() {
-        final long alreadyCharged = 300;
-        final long penalty = 1_000;
-        givenUserDispatch(alreadyCharged, alreadyCharged + TOTAL_GAS * GAS_PRICE + penalty - 1);
-        final var subject = ClprGasAccounting.forContext(context);
-        subject.reserveRollbackFee(penalty);
-
-        assertThatThrownBy(() -> subject.prepayVerifier(PARENT, 100))
-                .isInstanceOfSatisfying(
-                        HandleException.class,
-                        failure -> assertThat(failure.getStatus()).isEqualTo(INSUFFICIENT_TX_FEE));
-
-        assertThat(payments).isEmpty();
-        assertThat(recordedFee).hasValue(alreadyCharged);
-    }
-
-    @Test
-    void successfulFinalRecordFitsBaseBytesGasAndFullPenaltyAtTheSignedOfferBoundary() {
-        final long alreadyCharged = 300;
-        final long penalty = 1_000;
-        final long offered = alreadyCharged + TOTAL_GAS * GAS_PRICE + penalty;
-        givenUserDispatch(alreadyCharged, offered);
-        final var subject = ClprGasAccounting.forContext(context);
-        subject.reserveRollbackFee(penalty);
-        assertThat(payments).isEmpty();
-        assertThat(subject.prepayVerifier(PARENT, 100)).isTrue();
-        subject.settleVerifierWithGasUsage(PARENT, 100, gasResult(100));
-        assertThat(subject.prepay(CONNECTOR_A, 900)).isTrue();
-        subject.settleWithGasUsage(CONNECTOR_A, 900, gasResult(900));
-
-        assertThat(context.tryToCharge(PARENT, penalty)).isTrue();
-        subject.refundUnusedGas();
-
-        assertThat(recordedFee).hasValue(offered);
-        assertThat(balances.get(PARENT)).isEqualTo(INITIAL_BALANCE - offered);
-        assertThat(payments).containsExactly("1001:6000", "1001:1000");
-    }
-
-    @Test
-    void rollbackFinalRecordFitsRechargedBaseBytesGasAndFullPenaltyAtTheSignedOfferBoundary() {
-        final long alreadyCharged = 300;
-        final long penalty = 1_000;
-        final long offered = alreadyCharged + TOTAL_GAS * GAS_PRICE + penalty;
-        givenUserDispatch(alreadyCharged, offered);
-        final var subject = ClprGasAccounting.forContext(context);
-        subject.reserveRollbackFee(penalty);
-        assertThat(subject.prepayVerifier(PARENT, 100)).isTrue();
-        subject.settleVerifierWithGasUsage(PARENT, 100, gasResult(100));
-        assertThat(subject.prepay(CONNECTOR_A, 900)).isTrue();
-        subject.settleWithGasUsage(CONNECTOR_A, 900, gasResult(900));
-        final var original = new HandleException(
-                CLPR_BUNDLE_VERIFICATION_FAILED, (fees, rollback) -> rollback.tryToCharge(PARENT, penalty));
-        final var failure = subject.preservingChargesOnRollback(original);
-        recordedFee.set(alreadyCharged);
-        balances.put(PARENT, INITIAL_BALANCE - alreadyCharged);
-        payments.clear();
-
-        failure.maybeReplay(mock(FeeCharging.Context.class), context);
-
-        assertThat(recordedFee).hasValue(offered);
-        assertThat(balances.get(PARENT)).isEqualTo(INITIAL_BALANCE - offered);
-        assertThat(payments).containsExactly("1001:6000", "1001:1000");
-    }
-
-    @Test
     void successfulFinalRecordIncludesBaseBytesAndActualGasWithinSignedOffer() {
         final long alreadyCharged = 300;
-        final long offered = alreadyCharged + TOTAL_GAS * GAS_PRICE;
+        final long offered = alreadyCharged + BUNDLE_GAS * GAS_PRICE;
         givenUserDispatch(alreadyCharged, offered);
         final var subject = ClprGasAccounting.forContext(context);
         assertThat(subject.prepayVerifier(PARENT, 100)).isTrue();
@@ -472,7 +390,7 @@ class ClprGasAccountingTest {
     @Test
     void rollbackFinalRecordIncludesRechargedBaseBytesAndActualGasWithinSignedOffer() {
         final long alreadyCharged = 300;
-        final long offered = alreadyCharged + TOTAL_GAS * GAS_PRICE;
+        final long offered = alreadyCharged + BUNDLE_GAS * GAS_PRICE;
         givenUserDispatch(alreadyCharged, offered);
         final var subject = ClprGasAccounting.forContext(context);
         assertThat(subject.prepayVerifier(PARENT, 100)).isTrue();

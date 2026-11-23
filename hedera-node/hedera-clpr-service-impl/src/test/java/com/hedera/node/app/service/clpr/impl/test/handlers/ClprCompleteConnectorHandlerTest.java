@@ -546,6 +546,13 @@ class ClprCompleteConnectorHandlerTest {
         setupHandleContext(
                 txnWith(validOpBuilder().lockedStake(offeredTinybars).build()),
                 HederaTestConfigBuilder.create().withValue("clpr.enabled", true).getOrCreateConfig());
+        // The payer can cover whatever stake it offers, so only the USD minimum decides the outcome.
+        lenient()
+                .when(accountStore.getAccountById(PAYER_ID))
+                .thenReturn(Account.newBuilder()
+                        .accountId(PAYER_ID)
+                        .tinybarBalance(offeredTinybars)
+                        .build());
         when(exchangeRateInfo.activeRate(Instant.EPOCH))
                 .thenReturn(ExchangeRate.newBuilder()
                         .hbarEquiv(hbarEquiv)

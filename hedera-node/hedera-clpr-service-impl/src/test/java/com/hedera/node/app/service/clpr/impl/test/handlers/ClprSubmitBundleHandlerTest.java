@@ -12,7 +12,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NO_PROGRESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_PAYLOAD_TOO_LARGE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_RUNNING_HASH_MISMATCH;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CONNECTORS_STATE_ID;
@@ -1707,57 +1706,16 @@ class ClprSubmitBundleHandlerTest {
     }
 
     @Test
-    void insufficientPenaltyHeadroomRejectsTheBundleBeforeVerifierExecution() {
-        final long alreadyCharged = 300;
-        final long penalty = 5_000_000;
-        putChannel(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH);
-        setupHandleContext(
-                validSingleDataBundle()
-                        .copyBuilder()
-                        .transactionFee(alreadyCharged + penalty - 1)
-                        .build(),
-                true);
-        final var builder = handleContext.savepointStack().getBaseBuilder(StreamBuilder.class);
-        given(builder.isUserDispatch()).willReturn(true);
-        given(builder.transactionFee()).willReturn(alreadyCharged);
-
-        assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
-                .has(responseCode(INSUFFICIENT_TX_FEE));
-
-        verify(verifierFactory, never()).getVerifier(any());
-        verify(handleContext, never()).tryToCharge(any(), anyLong());
-        verify(handleContext, never()).dispatch(any(DispatchOptions.class));
-        verify(tokenServiceApi, never()).transferFromTo(any(), any(), anyLong());
-    }
-
-    @Test
-    void orderingViolationChargesTheFullPenaltyWithinTheSignedOffer() {
-        final long alreadyCharged = 300;
-        final long penalty = 5_000_000;
-        final long offered = alreadyCharged + penalty;
+    void orderingViolationPausesTheChannelWithoutChargingTheSubmitter() {
         putOutboundDataMessage(1);
         putOutboundDataMessage(3);
         putChannel(ClprChannelStatus.ACTIVE, 4, 0, ZERO_HASH);
-        setupHandleContext(
-                buildBundle(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH, List.of(replyPayload(3)))
-                        .copyBuilder()
-                        .transactionFee(offered)
-                        .build(),
-                true);
-        final var recordedFee = new java.util.concurrent.atomic.AtomicLong(alreadyCharged);
-        final var builder = handleContext.savepointStack().getBaseBuilder(StreamBuilder.class);
-        given(builder.isUserDispatch()).willReturn(true);
-        given(builder.transactionFee()).willAnswer(_ -> recordedFee.get());
-        given(handleContext.tryToCharge(PAYER_ID, penalty)).willAnswer(_ -> {
-            recordedFee.addAndGet(penalty);
-            return true;
-        });
+        setupHandleContext(buildBundle(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH, List.of(replyPayload(3))), true);
 
         subject.handle(handleContext);
 
-        assertThat(recordedFee).hasValue(offered);
-        verify(handleContext).tryToCharge(PAYER_ID, penalty);
+        // The submitter relayed proven peer state, so CLPR adds no charge beyond the transaction fee.
+        verify(handleContext, never()).tryToCharge(any(), anyLong());
         verify(handleContext, never()).dispatch(any(DispatchOptions.class));
         assertThat(channelStore.getChannel(CHANNEL_ID).status()).isEqualTo(ClprChannelStatus.PAUSED);
     }

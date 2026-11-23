@@ -245,8 +245,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
 
         // Complete node validation before any state mutation or application dispatch. The
         // validator is independent of handling so endpoints can reuse it with locally verified content.
-        final var validated =
-                verifyAndValidateBundle(context, channel, ledgerConfig, expectedManifestVersion != null);
+        final var validated = verifyAndValidateBundle(context, channel, ledgerConfig, expectedManifestVersion != null);
         final var bundleContent = validated.content();
         final var metadata = bundleContent.metadata();
         final var newTrustAnchor = bundleContent.newTrustAnchor();

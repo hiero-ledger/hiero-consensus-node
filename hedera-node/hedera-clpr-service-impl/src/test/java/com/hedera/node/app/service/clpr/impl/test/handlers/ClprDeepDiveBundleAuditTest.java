@@ -2596,6 +2596,7 @@ class ClprDeepDiveBundleAuditTest {
             final var config = HederaTestConfigBuilder.create()
                     .withValue("clpr.enabled", true)
                     .withValue("clpr.verifierGasLimit", 1000L)
+                    .withValue("clpr.submitBundleGasLimit", 1000L)
                     .withValue("contracts.maxGasPerTransaction", 1000L)
                     .getOrCreateConfig();
             given(handleContext.configuration()).willReturn(config);
