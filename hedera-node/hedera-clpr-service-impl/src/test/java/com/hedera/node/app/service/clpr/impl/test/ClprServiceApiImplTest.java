@@ -69,6 +69,8 @@ import org.mockito.quality.Strictness;
 @MockitoSettings(strictness = Strictness.LENIENT)
 class ClprServiceApiImplTest {
 
+    private static final ClprThrottles DEFAULT_THROTTLES =
+            ClprThrottles.newBuilder().maxSyncBytes(4 * 1024 * 1024).build();
     private static final Bytes CHANNEL_ID = Bytes.wrap(new byte[32]);
     private static final Bytes CONNECTOR_CONTRACT = Bytes.wrap(new byte[20]);
     private static final Bytes TARGET_APP = Bytes.wrap(new byte[] {10, 20, 30});
@@ -162,7 +164,8 @@ class ClprServiceApiImplTest {
 
     @Test
     void legacyPeerCannotAdmitDataAboveTheHieroSenderLimit() {
-        final var legacy = ClprThrottles.newBuilder()
+        final var legacy = DEFAULT_THROTTLES
+                .copyBuilder()
                 .maxMessagePayloadBytes(1_048_576)
                 .maxQueueDepth(100)
                 .build();
@@ -181,15 +184,20 @@ class ClprServiceApiImplTest {
         verifyNoInteractions(channelWriteStore, messageQueueStore);
     }
 
-    @Test
-    void reducedCalldataLimitBoundsNewDataAtItsSerializedSize() {
-        final int budget = 22 * 1024;
+    @ParameterizedTest
+    @ValueSource(ints = {64, 32_768})
+    void reducedCalldataLimitBoundsNewDataAtItsSerializedSize(final int anchorSize) {
         final var config = HederaTestConfigBuilder.create()
                 .withValue("jumboTransactions.ethereumMaxCallDataSize", 64 * 1024)
                 .getOrCreateConfig();
         given(configuration.getConfigData(JumboTransactionsConfig.class))
                 .willReturn(config.getConfigData(JumboTransactionsConfig.class));
-        given(channelReadStore.getChannel(CHANNEL_ID)).willReturn(createChannel(ClprChannelStatus.ACTIVE));
+        final var channel = createChannel(ClprChannelStatus.ACTIVE)
+                .copyBuilder()
+                .trustAnchor(Bytes.wrap(new byte[anchorSize]))
+                .build();
+        given(channelReadStore.getChannel(CHANNEL_ID)).willReturn(channel);
+        final int budget = anchorSize == 64 ? 22 * 1024 : (62 - 23) * 1024 - channel.protobufSize();
         given(configStore.getConfiguration()).willReturn(createLedgerConfig(CONFIG_TIMESTAMP, 65_536, 100));
         given(connectorStore.getConnector(new ClprConnectorKey(CHANNEL_ID, CONNECTOR_CONTRACT)))
                 .willReturn(createConnector());
@@ -232,7 +240,8 @@ class ClprServiceApiImplTest {
     @DisplayName("should validate payload size against peer's limit, not local")
     void rejectsWhenPayloadExceedsPeerLimit() {
         // Local config allows 1000 bytes; peer only allows 10. Even the 11-byte data alone cannot fit.
-        final var peerThrottles = ClprThrottles.newBuilder()
+        final var peerThrottles = DEFAULT_THROTTLES
+                .copyBuilder()
                 .maxMessagePayloadBytes(10)
                 .maxQueueDepth(100)
                 .build();
@@ -356,7 +365,8 @@ class ClprServiceApiImplTest {
     void rejectsWhenQueueFull() {
         final var channel = createChannelWithQueue(ClprChannelStatus.ACTIVE, 10, 0)
                 .copyBuilder()
-                .peerThrottles(ClprThrottles.newBuilder().maxQueueDepth(100).build())
+                .peerThrottles(
+                        DEFAULT_THROTTLES.copyBuilder().maxQueueDepth(100).build())
                 .build();
         final var connector = createConnector();
         given(channelReadStore.getChannel(CHANNEL_ID)).willReturn(channel);
@@ -375,7 +385,7 @@ class ClprServiceApiImplTest {
     void rejectsWhenPeerReplyCapacityIsFull() {
         final var channel = createChannelWithQueue(ClprChannelStatus.ACTIVE, 16, 5)
                 .copyBuilder()
-                .peerThrottles(ClprThrottles.newBuilder().maxQueueDepth(10).build())
+                .peerThrottles(DEFAULT_THROTTLES.copyBuilder().maxQueueDepth(10).build())
                 .build();
         given(channelReadStore.getChannel(CHANNEL_ID)).willReturn(channel);
         given(configStore.getConfiguration()).willReturn(createLedgerConfig(CONFIG_TIMESTAMP, 1024, 100));
@@ -620,7 +630,7 @@ class ClprServiceApiImplTest {
         final var staleTimestamp = Timestamp.newBuilder().seconds(500).nanos(0).build();
         final var channel = createChannelWithTimestamp(ClprChannelStatus.ACTIVE, 9, 0, staleTimestamp)
                 .copyBuilder()
-                .peerThrottles(ClprThrottles.newBuilder().maxQueueDepth(10).build())
+                .peerThrottles(DEFAULT_THROTTLES.copyBuilder().maxQueueDepth(10).build())
                 .build();
         final var connector = createConnector();
         given(channelReadStore.getChannel(CHANNEL_ID)).willReturn(channel);
@@ -739,7 +749,7 @@ class ClprServiceApiImplTest {
                         0,
                         Timestamp.newBuilder().seconds(500).build())
                 .copyBuilder()
-                .peerThrottles(ClprThrottles.newBuilder().maxQueueDepth(1))
+                .peerThrottles(DEFAULT_THROTTLES.copyBuilder().maxQueueDepth(1))
                 .build();
         final Map<Long, ClprMessageValue> queue = new HashMap<>();
         final var liveChannel = useLiveQueue(initial, queue);
@@ -772,7 +782,7 @@ class ClprServiceApiImplTest {
     void controlsAndRepliesConsumeLocalSlotsButNotPeerDataCredit() {
         final var initial = createChannelWithQueue(ClprChannelStatus.ACTIVE, 6, 0)
                 .copyBuilder()
-                .peerThrottles(ClprThrottles.newBuilder().maxQueueDepth(2))
+                .peerThrottles(DEFAULT_THROTTLES.copyBuilder().maxQueueDepth(2))
                 .build();
         final Map<Long, ClprMessageValue> queue = new HashMap<>(Map.of(
                 1L,
@@ -801,7 +811,7 @@ class ClprServiceApiImplTest {
         liveChannel.set(liveChannel
                 .get()
                 .copyBuilder()
-                .peerThrottles(ClprThrottles.newBuilder().maxQueueDepth(100))
+                .peerThrottles(DEFAULT_THROTTLES.copyBuilder().maxQueueDepth(100))
                 .build());
         given(configStore.getConfiguration()).willReturn(createLedgerConfig(CONFIG_TIMESTAMP, 1024, 7));
         assertThatThrownBy(() -> subject.sendMessage(CHANNEL_ID, CONNECTOR_CONTRACT, TARGET_APP, SENDER, MESSAGE_DATA))
@@ -814,7 +824,7 @@ class ClprServiceApiImplTest {
     void sharedDataScanPreservesConnectorQuota() {
         final var initial = createChannelWithQueue(ClprChannelStatus.ACTIVE, 4, 0)
                 .copyBuilder()
-                .peerThrottles(ClprThrottles.newBuilder().maxQueueDepth(10))
+                .peerThrottles(DEFAULT_THROTTLES.copyBuilder().maxQueueDepth(10))
                 .build();
         useLiveQueue(
                 initial,
@@ -918,7 +928,8 @@ class ClprServiceApiImplTest {
                 .ackedMessageId(0)
                 .sentRunningHash(INITIAL_RUNNING_HASH)
                 .lastConfigTimestamp(CONFIG_TIMESTAMP)
-                .peerThrottles(ClprThrottles.newBuilder()
+                .peerThrottles(DEFAULT_THROTTLES
+                        .copyBuilder()
                         .maxMessagePayloadBytes(0)
                         .maxQueueDepth(100)
                         .build())
@@ -955,12 +966,12 @@ class ClprServiceApiImplTest {
         return switch (limitSource) {
             case PEER ->
                 channel.copyBuilder()
-                        .peerThrottles(ClprThrottles.newBuilder().maxMessagePayloadBytes(maxPayloadBytes))
+                        .peerThrottles(DEFAULT_THROTTLES.copyBuilder().maxMessagePayloadBytes(maxPayloadBytes))
                         .build();
             case LOCAL_WITHOUT_PEER_THROTTLES -> channel;
             case LOCAL_WITH_UNSET_PEER_LIMIT ->
                 channel.copyBuilder()
-                        .peerThrottles(ClprThrottles.newBuilder().maxMessagePayloadBytes(0))
+                        .peerThrottles(DEFAULT_THROTTLES.copyBuilder().maxMessagePayloadBytes(0))
                         .build();
         };
     }
@@ -1076,7 +1087,8 @@ class ClprServiceApiImplTest {
             final Timestamp timestamp, final int maxPayloadBytes, final int maxQueueDepth) {
         return ClprLedgerConfiguration.newBuilder()
                 .timestamp(timestamp)
-                .throttles(ClprThrottles.newBuilder()
+                .throttles(DEFAULT_THROTTLES
+                        .copyBuilder()
                         .maxMessagePayloadBytes(maxPayloadBytes)
                         .maxQueueDepth(maxQueueDepth)
                         .build())

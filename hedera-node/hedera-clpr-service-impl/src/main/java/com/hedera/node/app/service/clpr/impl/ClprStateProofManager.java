@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl;
 
-import static com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator.CLPR_SYNC_ENVELOPE_OVERHEAD_BYTES;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.ENDPOINT_MANIFEST_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.LEDGER_CONFIGURATION_STATE_ID;
@@ -127,9 +126,8 @@ public class ClprStateProofManager {
 
     /** Wire framing and the verifier ABI wrap the same proof independently. Both envelopes must fit. */
     public long maxBundlePayloadBytes(@NonNull final ClprThrottles peerThrottles) {
-        final long wireBudget = Math.max(CLPR_SYNC_ENVELOPE_OVERHEAD_BYTES, peerThrottles.maxSyncBytes())
-                - CLPR_SYNC_ENVELOPE_OVERHEAD_BYTES;
-        return Math.min(wireBudget, ClprThrottlesValidator.senderProofBudget(configProvider.getConfiguration()));
+        return ClprThrottlesValidator.senderProofBudget(
+                configProvider.getConfiguration(), peerThrottles.maxSyncBytes());
     }
 
     /**

@@ -316,12 +316,19 @@ including the trust anchor, channel context and ABI padding. Each native or comp
 both the peer's wire budget and the smaller of the local consensus calldata limit and 128 KiB.
 At default settings the largest proof is 126 KiB. Sync resumes at the first unreceived message.
 Prevalidation checks the complete encoded call against the receiver's configured calldata limit.
-Hiero caps new DATA and replies at 64 KiB. Within the local proof budget it reserves 40 KiB
-for one message's proof overhead, including the 16 KiB cached peer manifest, the native TSS
-signature, both Merkle paths, channel fields and framing. A 64 KiB calldata limit therefore
-allows a 22 KiB serialized payload. At or below 42 KiB there is no room for new DATA or an
-application result. Inbound DATA then receives the minimum error reply without dispatching the application.
-Allow at least 42 KiB plus 15 bytes to budget for an empty error reply at every message ID.
+Hiero caps new DATA and replies at 64 KiB. For a single message, the sender reserves
+23 KiB for the native TSS signature, both Merkle paths and framing. It also reserves the
+larger of 17 KiB and the serialized channel size, including the cached peer manifest,
+trust anchor and channel context. With a 64 KiB calldata limit and a channel of at most
+17 KiB, up to 22 KiB remains for the serialized payload. Each additional byte of channel
+state reduces this allowance by one byte. When an application result exceeds the budget,
+its effects roll back. If even the minimum reply cannot fit, inbound DATA receives the
+minimum error reply without dispatching the application.
+Channel completion and authenticated anchor or manifest growth must leave space for a
+15-byte terminal reply when the channel exceeds 17 KiB. If growth lowers the payload
+budget, the sender checks unreceived queue entries against the new budget. The peer
+can acknowledge entries in the same bundle. When an entry exceeds the budget or more
+than 1,000 entries still need checking, the update can be retried after delivery advances.
 The advertised sync limit retains its separate 64 KiB wire headroom requirement. Peers with different calldata
 limits must coordinate the smaller bound. The default verifier allowance is 8,000,000 gas.
 Admission requires that much gas throttle headroom. Operators using a custom EVM verifier or
@@ -401,8 +408,10 @@ Reverted callbacks still pay for gas consumed. Gas is reported before rollback c
 without an EVM outcome bills zero gas; a reverted execution pays its reported gas.
 
 Verification and callbacks share the transaction cap. After a successful verifier call, gas
-left in its root frame can fund callbacks. The reservation covers intrinsic gas plus pre-refund execution,
-subject to the calldata floor, and the verifier fee owed. A verifier without a usage report consumes its
+left in its root frame can fund callbacks. When consensus reserved verifier gas, the amount
+returned to the callback budget is also limited to what the throttle released. The throttle
+retains the verifier's reported gas usage, including the EVM refund floor. An exempt or
+unthrottled parent keeps enough of its fee escrow to pay the capped verifier fee. A verifier without a usage report consumes its
 full grant. Each remaining callback receives at most
 `min(maxGasPerMessage, remainingGas / remainingCallbackPayloads)`. Skipped callbacks release
 their share. An issued callback grant consumes its full execution capacity.

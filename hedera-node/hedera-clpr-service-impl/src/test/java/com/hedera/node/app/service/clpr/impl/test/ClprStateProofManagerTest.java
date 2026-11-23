@@ -13,6 +13,7 @@ import static org.mockito.Mockito.lenient;
 import com.hedera.hapi.block.stream.MerklePath;
 import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.state.clpr.ClprChannel;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.hapi.node.state.clpr.ClprMessageKey;
 import com.hedera.hapi.node.state.clpr.ClprSyncPayload;
@@ -107,7 +108,8 @@ class ClprStateProofManagerTest {
         final var peer =
                 ClprThrottles.newBuilder().maxSyncBytes(4 * 1024 * 1024).build();
         assertThat(manager.maxBundlePayloadBytes(peer)).isEqualTo(proofBudget);
-        assertThat(ClprThrottlesValidator.senderPayloadBudget(config)).isEqualTo(payloadBudget);
+        assertThat(ClprThrottlesValidator.senderPayloadBudget(config, ClprChannel.DEFAULT, peer.maxSyncBytes()))
+                .isEqualTo(payloadBudget);
     }
 
     @Test

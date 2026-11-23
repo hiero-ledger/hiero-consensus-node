@@ -1776,9 +1776,15 @@ class ClprSubmitBundleHandlerTest {
         }
 
         @ParameterizedTest
-        @ValueSource(ints = {0, 1})
-        void reducedCalldataLimitBoundsTheSerializedApplicationReply(final int extraByte) {
+        @CsvSource({"64,0", "64,1", "32768,0", "32768,1"})
+        void reducedCalldataLimitBoundsTheSerializedApplicationReply(final int anchorSize, final int extraByte) {
             givenChannelWithPeerPayloadLimit(65_536);
+            final var channel = channelStore
+                    .getChannel(CHANNEL_ID)
+                    .copyBuilder()
+                    .trustAnchor(Bytes.wrap(new byte[anchorSize]))
+                    .build();
+            channelStore.put(channel);
             setupHandleContext(validSingleDataBundle(), true, 100, 65_536, 1_048_576L);
             given(handleContext.configuration())
                     .willReturn(HederaTestConfigBuilder.create()
@@ -1786,7 +1792,7 @@ class ClprSubmitBundleHandlerTest {
                             .withValue("jumboTransactions.ethereumMaxCallDataSize", 64 * 1024)
                             .getOrCreateConfig());
             putConnector();
-            final int budget = 22 * 1024;
+            final int budget = anchorSize == 64 ? 22 * 1024 : (62 - 23) * 1024 - channel.protobufSize();
             final int overhead = serializedReplySize(Bytes.wrap(new byte[budget])) - budget;
             final var replyData = Bytes.wrap(new byte[budget - overhead + extraByte]);
             assertThat(serializedReplySize(replyData)).isEqualTo(budget + extraByte);
@@ -1799,8 +1805,10 @@ class ClprSubmitBundleHandlerTest {
                         messageQueueStore.getMessage(CHANNEL_ID, 0).payload().messageReplyOrThrow();
                 assertThat(reply.status()).isEqualTo(ClprMessageReplyStatus.SUCCESS);
                 assertThat(reply.messageReplyData()).isEqualTo(replyData);
+                verify(applicationStack).commit();
             } else {
                 assertApplicationErrorResponse();
+                verify(applicationStack).rollback();
             }
         }
 
@@ -3015,6 +3023,44 @@ class ClprSubmitBundleHandlerTest {
         final var updated = channelStore.getChannel(CHANNEL_ID);
         assertThat(updated.trustAnchor()).isEqualTo(Bytes.wrap(new byte[] {1, 2, 3, 4}));
         assertThat(updated.trustAnchorId()).isEqualTo(Bytes.wrap(new byte[] {5, 6, 7, 8}));
+    }
+
+    @ParameterizedTest
+    @CsvSource({"1024, 0, true", "12288, 0, false", "12288, 1, true"})
+    void largerAnchorMustFitTheUnreceivedQueue(final int replyBytes, final long received, final boolean fits) {
+        putChannel(ClprChannelStatus.ACTIVE, 2, 0, ZERO_HASH);
+        final var previous = channelStore.getChannel(CHANNEL_ID);
+        final var queued = ClprMessagePayload.newBuilder()
+                .messageReply(
+                        ClprMessageReply.newBuilder().messageId(1).messageReplyData(Bytes.wrap(new byte[replyBytes])))
+                .build();
+        putOutboundSlot(1, queued);
+        final var rotation = ClprBundleContent.newBuilder()
+                .metadata(ClprQueueMetadata.newBuilder()
+                        .nextMessageId(1)
+                        .sentRunningHash(ZERO_HASH)
+                        .receivedMessageId(received)
+                        .status(ClprChannelStatus.ACTIVE))
+                .newTrustAnchor(Bytes.wrap(new byte[32 * 1024]))
+                .newTrustAnchorId(Bytes.fromHex("02"))
+                .build();
+        setupHandleContext(bundleTxn(rotation), true);
+        given(handleContext.configuration())
+                .willReturn(HederaTestConfigBuilder.create()
+                        .withValue("clpr.enabled", true)
+                        .withValue("jumboTransactions.ethereumMaxCallDataSize", 64 * 1024)
+                        .getOrCreateConfig());
+
+        if (fits) {
+            subject.handle(handleContext);
+            final var updated = channelStore.getChannel(CHANNEL_ID);
+            assertThat(updated.trustAnchor()).isEqualTo(rotation.newTrustAnchor());
+            assertThat(updated.ackedMessageId()).isEqualTo(received);
+        } else {
+            assertThatThrownBy(() -> subject.handle(handleContext)).has(responseCode(CLPR_QUEUE_FULL));
+            assertThat(channelStore.getChannel(CHANNEL_ID)).isEqualTo(previous);
+            assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1).payload()).isEqualTo(queued);
+        }
     }
 
     @Test

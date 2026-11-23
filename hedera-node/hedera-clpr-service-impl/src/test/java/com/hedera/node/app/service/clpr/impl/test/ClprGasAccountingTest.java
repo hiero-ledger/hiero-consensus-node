@@ -302,6 +302,27 @@ class ClprGasAccountingTest {
         assertThat(subject.availableApplicationGas(1)).isZero();
     }
 
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void callbackCapacityReflectsTheConsensusReservationWhileBillingStaysCapped(final boolean reserved) {
+        given(context.configuration())
+                .willReturn(HederaTestConfigBuilder.create()
+                        .withValue("contracts.maxGasPerTransaction", 15_000_000L)
+                        .getOrCreateConfig());
+        if (reserved) {
+            context.dispatchMetadata().putMetadata(DispatchMetadata.Type.CLPR_GAS_RESERVATION, context.body());
+        }
+        balances.put(PARENT, 15_000_000L * GAS_PRICE);
+        final var subject = ClprGasAccounting.forContext(context);
+        assertThat(subject.prepayVerifier(PARENT, 8_000_000)).isTrue();
+        final var usage = gasResult(6_400_000); // 20% maximum refund on an 8M grant
+        usage.recordUnspentGas(7_900_000);
+        assertThat(subject.settleVerifierWithGasUsage(PARENT, 8_000_000, usage)).isEqualTo(300_000 * GAS_PRICE);
+        assertThat(subject.availableApplicationGas(15_000_000)).isEqualTo(reserved ? 8_600_000 : 14_700_000);
+        subject.refundUnusedGas();
+        assertThat(recordedFee).hasValue(300_000 * GAS_PRICE);
+    }
+
     @Test
     void rejectsSignedOfferThatDoesNotCoverBaseBytesAndGasEscrowBeforeCharging() {
         final long baseFee = 200;

@@ -5,6 +5,7 @@ import static com.hedera.node.app.service.clpr.ClprEndpointServiceDefinition.MAX
 import static com.hedera.node.app.service.clpr.impl.ClprPeerManifestPolicy.MAX_STORED_MANIFEST_BYTES;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.state.clpr.ClprChannel;
 import com.hedera.hapi.node.state.clpr.ClprThrottles;
 import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.swirlds.config.api.Configuration;
@@ -29,9 +30,11 @@ public final class ClprThrottlesValidator {
     /** Covers the verifier selector, three dynamic arguments, trust anchor, channel context and word padding. */
     public static final int VERIFIER_CALL_OVERHEAD_BYTES = 2 * 1024;
 
-    // In addition to the cached manifest, allow 14 KiB for the 13,712-byte native TSS signature
-    // and 10 KiB for both Merkle paths, other channel fields and protobuf framing.
-    private static final int SINGLE_MESSAGE_PROOF_OVERHEAD_BYTES = MAX_STORED_MANIFEST_BYTES + (14 + 10) * 1024;
+    // A full cached manifest and 1 KiB of ordinary channel fields fit the original 40 KiB reserve.
+    // Larger channels pay for their entire serialized leaf, including the verifier's anchor and context.
+    private static final int TYPICAL_CHANNEL_BYTES = MAX_STORED_MANIFEST_BYTES + 1024;
+    // Includes the native signature (13,712 bytes), both paths, framing and growth of counters/hashes.
+    private static final int SINGLE_MESSAGE_PATHS_AND_SIGNATURE_BYTES = (14 + 9) * 1024;
 
     /** Conservative wire framing reserve above the serialized StateProof. */
     static final long CLPR_SYNC_ENVELOPE_OVERHEAD_BYTES = 114L;
@@ -55,17 +58,31 @@ public final class ClprThrottlesValidator {
 
     private ClprThrottlesValidator() {}
 
-    /** Proof bytes available after reserving the verifier's ABI arguments in the consensus call. */
-    static int senderProofBudget(@NonNull final Configuration configuration) {
+    /** Wire framing and the verifier ABI wrap the same proof independently. Both envelopes must fit. */
+    static long senderProofBudget(@NonNull final Configuration configuration, final long maxSyncBytes) {
         final int calldata =
                 configuration.getConfigData(JumboTransactionsConfig.class).ethereumMaxCallDataSize();
-        return Math.clamp(calldata, VERIFIER_CALL_OVERHEAD_BYTES, VERIFIABLE_SYNC_BYTES) - VERIFIER_CALL_OVERHEAD_BYTES;
+        final long callBudget = Math.clamp(calldata, VERIFIER_CALL_OVERHEAD_BYTES, VERIFIABLE_SYNC_BYTES)
+                - VERIFIER_CALL_OVERHEAD_BYTES;
+        final long wireBudget =
+                Math.max(maxSyncBytes, CLPR_SYNC_ENVELOPE_OVERHEAD_BYTES) - CLPR_SYNC_ENVELOPE_OVERHEAD_BYTES;
+        return Math.min(callBudget, wireBudget);
     }
 
-    /** Serialized DATA or reply bytes available after reserving the proof that carries one message. */
-    public static long senderPayloadBudget(@NonNull final Configuration configuration) {
+    /** Payload bytes left in both envelopes once the channel and one message's proof have been reserved. */
+    public static long senderPayloadBudget(
+            @NonNull final Configuration configuration, @NonNull final ClprChannel channel, final long maxSyncBytes) {
+        final long proofBudget = senderProofBudget(configuration, maxSyncBytes);
+        final long channelBytes = Math.max(TYPICAL_CHANNEL_BYTES, channel.protobufSize());
         return Math.clamp(
-                senderProofBudget(configuration) - SINGLE_MESSAGE_PROOF_OVERHEAD_BYTES, 0, MAX_MESSAGE_PAYLOAD_BYTES);
+                proofBudget - SINGLE_MESSAGE_PATHS_AND_SIGNATURE_BYTES - channelBytes, 0, MAX_MESSAGE_PAYLOAD_BYTES);
+    }
+
+    /** Large verifier state must leave room for at least the fixed-size terminal reply. */
+    public static boolean channelFitsSingleMessageProof(
+            @NonNull final Configuration configuration, @NonNull final ClprChannel channel, final long maxSyncBytes) {
+        return channel.protobufSize() <= TYPICAL_CHANNEL_BYTES
+                || senderPayloadBudget(configuration, channel, maxSyncBytes) >= MIN_MESSAGE_PAYLOAD_BYTES;
     }
 
     /** Applies the implementation ceilings before the caller restores any previously advertised floors. */

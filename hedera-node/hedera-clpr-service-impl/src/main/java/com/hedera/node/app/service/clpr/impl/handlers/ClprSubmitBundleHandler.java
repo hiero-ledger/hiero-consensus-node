@@ -12,8 +12,10 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_SERVICE_ACCOUNT_ID;
 import static com.hedera.node.app.service.clpr.impl.ClprBundleValidator.hasNewerManifestProof;
+import static com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator.MAX_MESSAGES_PER_BUNDLE;
 import static com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator.MIN_PROOF_OVERHEAD_BYTES;
 import static com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator.VERIFIABLE_SYNC_BYTES;
+import static com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator.channelFitsSingleMessageProof;
 import static com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator.senderPayloadBudget;
 import static com.hedera.node.app.spi.authorization.SystemPrivilege.AUTHORIZED;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.stepDispatch;
@@ -76,6 +78,7 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.data.ClprConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.ByteBuffer;
@@ -341,7 +344,20 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                         shortHex(newTrustAnchorId));
                 updatedBuilder = updatedBuilder.trustAnchor(newTrustAnchor).trustAnchorId(newTrustAnchorId);
             }
-            channel = updatedBuilder.build();
+            final var updated = updatedBuilder.build();
+            if (updated.protobufSize() > channel.protobufSize()) {
+                final long syncBytes = channel.peerThrottlesOrElse(throttles).maxSyncBytes();
+                validateTrue(
+                        channelFitsSingleMessageProof(configuration, updated, syncBytes),
+                        CLPR_BUNDLE_VERIFICATION_FAILED);
+                final long newBudget = senderPayloadBudget(configuration, updated, syncBytes);
+                if (newBudget < senderPayloadBudget(configuration, channel, syncBytes)) {
+                    // A receipt in this same proof covers slots even if their reply is outstanding.
+                    final long received = metadata == null ? channel.ackedMessageId() : metadata.receivedMessageId();
+                    validateQueuedPayloadsFit(channel, received, newBudget, messageQueueStore);
+                }
+            }
+            channel = updated;
             channelStore.put(channel);
         }
 
@@ -517,13 +533,13 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         var peerConfigTimestamp = channel.peerConfigTimestamp();
         var peerThrottles = channel.peerThrottles();
         // A later control message can lower the budget used to build proofs for these replies.
-        var finalReplyPayloadLimit = Math.min(
-                senderPayloadBudget(context.configuration()),
-                maxSerializedReplyBytesAfterBundle(throttles, peerThrottles, newMessages));
+        var finalReplyPayloadLimit =
+                maxSerializedReplyBytesAfterBundle(configuration, channel, throttles, peerThrottles, newMessages);
         if (hasDeferredMessages) {
             finalReplyPayloadLimit = Math.min(
                     finalReplyPayloadLimit,
-                    maxSerializedReplyBytesAfterBundle(throttles, peerThrottles, validated.newMessages()));
+                    maxSerializedReplyBytesAfterBundle(
+                            configuration, channel, throttles, peerThrottles, validated.newMessages()));
         }
         var receivedMessageId = channel.receivedMessageId();
         boolean bundleDecodeFailure = false;
@@ -673,8 +689,9 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                             continue;
                         }
 
-                        final long replyPayloadLimit =
-                                Math.min(finalReplyPayloadLimit, maxSerializedReplyBytes(throttles, peerThrottles));
+                        final long replyPayloadLimit = Math.min(
+                                finalReplyPayloadLimit,
+                                maxSerializedReplyBytes(configuration, channel, throttles, peerThrottles));
                         final var emptyError =
                                 replyPayload(receivedMessageId, ClprMessageReplyStatus.APPLICATION_ERROR, Bytes.EMPTY);
                         final int minimumReplyBytes = ClprMessagePayload.PROTOBUF.measureRecord(emptyError);
@@ -1415,19 +1432,40 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         return bytes.length() <= 32 ? bytes.toHex() : bytes.slice(0, 32).toHex() + "...";
     }
 
+    private static void validateQueuedPayloadsFit(
+            @NonNull final ClprChannel channel,
+            final long received,
+            final long budget,
+            @NonNull final WritableMessageQueueStore queue) {
+        final long lastQueued = channel.nextMessageId() - 1;
+        // Bound consensus reads for a growing anchor/manifest. Retry once the peer receives more slots.
+        validateTrue(lastQueued - received <= MAX_MESSAGES_PER_BUNDLE, CLPR_QUEUE_FULL);
+        for (long id = received + 1; id <= lastQueued; id++) {
+            final var slot = queue.getMessage(channel.channelId(), id);
+            validateTrue(slot != null && slot.hasPayload(), CLPR_INTERNAL_STATE_CORRUPTION);
+            validateTrue(slot.payloadOrThrow().protobufSize() <= budget, CLPR_QUEUE_FULL);
+        }
+    }
+
     /** Budget for the entire serialized reply payload, including message id, status, and protobuf framing. */
     private static long maxSerializedReplyBytes(
-            @NonNull final ClprThrottles localThrottles, @Nullable final ClprThrottles peerThrottles) {
+            @NonNull final Configuration configuration,
+            @NonNull final ClprChannel channel,
+            @NonNull final ClprThrottles localThrottles,
+            @Nullable final ClprThrottles peerThrottles) {
         final var destination = peerThrottles == null ? localThrottles : peerThrottles;
         // A peer can advertise a higher cap, but it cannot raise the local state limit.
         final long payloadLimit = Math.min(
                 localThrottles.maxMessagePayloadBytes(),
                 ClprThrottlesUtils.effectiveMaxPayloadBytes(peerThrottles, localThrottles));
         final long syncLimit = Math.clamp(destination.maxSyncBytes(), MIN_PROOF_OVERHEAD_BYTES, VERIFIABLE_SYNC_BYTES);
-        return Math.max(0, Math.min(payloadLimit, syncLimit - MIN_PROOF_OVERHEAD_BYTES));
+        final long proofLimit = senderPayloadBudget(configuration, channel, destination.maxSyncBytes());
+        return Math.min(proofLimit, Math.min(payloadLimit, syncLimit - MIN_PROOF_OVERHEAD_BYTES));
     }
 
     private static long maxSerializedReplyBytesAfterBundle(
+            @NonNull final Configuration configuration,
+            @NonNull final ClprChannel channel,
             @NonNull final ClprThrottles localThrottles,
             @Nullable final ClprThrottles peerThrottles,
             @NonNull final List<ClprMessagePayload> newMessages) {
@@ -1436,11 +1474,11 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                 final var config =
                         payload.controlOrThrow().configUpdateOrThrow().configuration();
                 if (config != null && config.hasThrottles()) {
-                    return maxSerializedReplyBytes(localThrottles, config.throttlesOrThrow());
+                    return maxSerializedReplyBytes(configuration, channel, localThrottles, config.throttlesOrThrow());
                 }
             }
         }
-        return maxSerializedReplyBytes(localThrottles, peerThrottles);
+        return maxSerializedReplyBytes(configuration, channel, localThrottles, peerThrottles);
     }
 
     @Nullable

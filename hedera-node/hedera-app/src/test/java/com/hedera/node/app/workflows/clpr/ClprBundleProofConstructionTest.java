@@ -163,9 +163,20 @@ class ClprBundleProofConstructionTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"65536, SHA_256, false", "98304, SHA_384, false", "43023, SHA_384, true"})
-    void nativeProofPacksBudgetSizedPayloadWithFullCachedManifest(
-            final int calldataLimit, final DigestType digest, final boolean emptyErrorReply) throws Exception {
+    @CsvSource({
+        "65536, SHA_256, false, 64, true",
+        "98304, SHA_384, false, 64, true",
+        "43023, SHA_384, true, 64, true",
+        "65536, SHA_384, false, 32768, false",
+        "98304, SHA_384, false, 32768, true"
+    })
+    void nativeProofPacksBudgetSizedPayloadWithChannelLeaf(
+            final int calldataLimit,
+            final DigestType digest,
+            final boolean emptyErrorReply,
+            final int anchorSize,
+            final boolean fullManifest)
+            throws Exception {
         final var config = new VersionedConfigImpl(
                 HederaTestConfigBuilder.create()
                         .withValue("jumboTransactions.ethereumMaxCallDataSize", calldataLimit)
@@ -173,16 +184,17 @@ class ClprBundleProofConstructionTest {
                         .getOrCreateConfig(),
                 0);
         final var manager = new ClprStateProofManager(snapshotProvider, tssVerifier, () -> config, proofSupport);
-        final var anchor = Bytes.wrap(new byte[64]);
+        final var anchor = Bytes.wrap(new byte[anchorSize]);
         final var channel = channel(1, 4 * 1024 * 1024)
                 .copyBuilder()
-                .endpointManifest(fullCachedManifest())
+                .endpointManifest(fullManifest ? fullCachedManifest() : ClprEndpointManifest.DEFAULT)
                 .trustAnchor(anchor)
                 .channelContext(Bytes.wrap(new byte[52]))
                 .sentRunningHash(Bytes.wrap(new byte[32]))
                 .receivedRunningHash(Bytes.wrap(new byte[32]))
                 .build();
-        final int budget = Math.toIntExact(senderPayloadBudget(config));
+        final int budget = Math.toIntExact(senderPayloadBudget(
+                config, channel, channel.peerThrottlesOrThrow().maxSyncBytes()));
         final var payload = emptyErrorReply
                 ? ClprMessagePayload.newBuilder()
                         .messageReply(ClprMessageReply.newBuilder()

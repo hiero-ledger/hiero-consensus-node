@@ -102,11 +102,12 @@ public class ClprServiceApiImpl implements ClprServiceApi {
         // Step 5: Build and validate the entire serialized Data payload, including metadata,
         // against the peer's limit — the destination is authoritative
         // for its own max_message_payload_bytes.
-        final var localThrottles = ledgerConfig.throttles();
+        final var localThrottles = ledgerConfig.throttlesOrThrow();
         final var peerThrottles = channel.peerThrottles();
+        final long maxSyncBytes = channel.peerThrottlesOrElse(localThrottles).maxSyncBytes();
         final var effectiveMaxPayload = Math.min(
-                ClprThrottlesUtils.effectiveMaxPayloadBytes(peerThrottles, requireNonNull(localThrottles)),
-                ClprThrottlesValidator.senderPayloadBudget(configuration));
+                ClprThrottlesUtils.effectiveMaxPayloadBytes(peerThrottles, localThrottles),
+                ClprThrottlesValidator.senderPayloadBudget(configuration, channel, maxSyncBytes));
         final var clprMessage = ClprMessage.newBuilder()
                 .connectorId(connector.connectorId())
                 .targetApplication(targetApplication)
