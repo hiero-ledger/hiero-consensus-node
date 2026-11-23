@@ -198,10 +198,20 @@ public class V0780ClprSchema extends Schema<SemanticVersion> {
     }
 
     /**
-     * Migrates stored chain IDs outside the eip155 namespace to the configured EVM chain ID on upgrade.
+     * Replaces a stored chain ID outside the {@code eip155} namespace with {@code eip155:<contracts.chainId>}.
+     *
+     * <p>HCN 0.79 seeded the default {@code hiero:localnet}; later versions derive the ID from the network's
+     * EVM chain ID. Only the chain ID changes. The timestamp is kept because CLPR was not enabled on
+     * production networks before 0.80, so no channel holds the earlier configuration.
+     *
+     * @param writableStates the CLPR writable states
+     * @param configuration the active application configuration
      */
     public static void migrateLegacyChainId(
             @NonNull final WritableStates writableStates, @NonNull final Configuration configuration) {
+        requireNonNull(writableStates);
+        requireNonNull(configuration);
+
         final var ledger = writableStates.<ClprLedgerConfiguration>getSingleton(LEDGER_CONFIGURATION_STATE_ID);
         final var existing = ledger.get();
         if (existing != null && !existing.chainId().startsWith(EIP155_PREFIX)) {
