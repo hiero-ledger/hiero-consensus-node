@@ -12,6 +12,7 @@ import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.spec.SpecOperation;
 import java.security.SecureRandom;
+import java.util.HexFormat;
 import java.util.function.Function;
 import org.hiero.base.crypto.Ed25519;
 
@@ -100,6 +101,11 @@ final class ClprChannelCrypto {
 
     byte[] channelId() {
         return channelId;
+    }
+
+    /** The channel ID as CLPR handlers log it, to bind expected log lines to this channel. */
+    String channelIdHex() {
+        return HexFormat.of().formatHex(channelId);
     }
 
     byte[] publicKey() {

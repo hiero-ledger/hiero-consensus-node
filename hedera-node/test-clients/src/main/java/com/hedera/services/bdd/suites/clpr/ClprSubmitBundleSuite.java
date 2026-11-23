@@ -15,6 +15,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.expectLogProblems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -29,6 +30,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSA
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.support.validators.ExpectedLogProblems.LogProblem;
 import com.hederahashgraph.api.proto.java.*;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Disabled;
@@ -82,12 +84,15 @@ public class ClprSubmitBundleSuite {
 
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
     final Stream<DynamicTest> rejectsChannelNotFound() {
-        return hapiTest(clprSubmitBundle()
-                .channelId(new byte[32])
-                .bundlePayload(new byte[] {1})
-                .endpointNodeId(0L)
-                .payingWith(GENESIS)
-                .hasKnownStatus(CLPR_CHANNEL_NOT_FOUND));
+        return hapiTest(
+                expectLogProblems(LogProblem.of(
+                        "DispatchProcessor", "[CLPR-DISPATCH] HandleException", "status=CLPR_CHANNEL_NOT_FOUND")),
+                clprSubmitBundle()
+                        .channelId(new byte[32])
+                        .bundlePayload(new byte[] {1})
+                        .endpointNodeId(0L)
+                        .payingWith(GENESIS)
+                        .hasKnownStatus(CLPR_CHANNEL_NOT_FOUND));
     }
 
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
@@ -95,6 +100,12 @@ public class ClprSubmitBundleSuite {
         return hapiTest(ClprChannelCrypto.withVerifier(
                 VERIFIER_CONTRACT, "hiero:testing", CLPR_SERVICE_ADDRESS_20, crypto -> {
                     return blockingOrder(
+                            expectLogProblems(
+                                    LogProblem.of(
+                                            "DispatchProcessor",
+                                            "[CLPR-DISPATCH] HandleException",
+                                            "status=CLPR_BUNDLE_VERIFICATION_FAILED"),
+                                    LogProblem.of("EvmClprVerifier", "Verifier dispatchRaw failed")),
                             clprUpdateLedgerConfiguration()
                                     .configuration(defaultLedgerConfig())
                                     .payingWith(GENESIS),
@@ -161,6 +172,9 @@ public class ClprSubmitBundleSuite {
                                     .build())
                             .build();
                     return blockingOrder(
+                            uploadInitCode(CONNECTOR_CONTRACT),
+                            // Funded so the delivered message is dispatched instead of answered CONNECTOR_UNDERFUNDED
+                            contractCreate(CONNECTOR_CONTRACT).balance(ONE_HUNDRED_HBARS),
                             overriding("clpr.minLockedStake", "100"),
                             clprUpdateLedgerConfiguration()
                                     .configuration(defaultLedgerConfig())
@@ -184,7 +198,7 @@ public class ClprSubmitBundleSuite {
                                     .signatureScheme(ClprSignatureScheme.ED25519)
                                     .salt(crypto.connectorSalt())
                                     .channelId(crypto.channelId())
-                                    .connectorContract(VERIFIER_CONTRACT)
+                                    .connectorContract(CONNECTOR_CONTRACT)
                                     .adminKeyName(GENESIS)
                                     .lockedStake(100_000_000L)
                                     .payingWith(GENESIS),
@@ -239,6 +253,10 @@ public class ClprSubmitBundleSuite {
                             .addMessages(helloMessage)
                             .build();
                     return blockingOrder(
+                            expectLogProblems(LogProblem.of(
+                                    "ClprSubmitBundleHandler",
+                                    "step10 DATA connector NOT_FOUND",
+                                    "conn=" + crypto.channelIdHex())),
                             clprUpdateLedgerConfiguration()
                                     .configuration(defaultLedgerConfig())
                                     .payingWith(GENESIS),
@@ -289,6 +307,10 @@ public class ClprSubmitBundleSuite {
                                     .build())
                             .build();
                     return blockingOrder(
+                            expectLogProblems(LogProblem.of(
+                                    "ClprSubmitBundleHandler",
+                                    "step10 DATA connector NOT_FOUND",
+                                    "conn=" + crypto.channelIdHex())),
                             overriding("clpr.minLockedStake", "100"),
                             clprUpdateLedgerConfiguration()
                                     .configuration(defaultLedgerConfig())
@@ -369,6 +391,10 @@ public class ClprSubmitBundleSuite {
                                     .build())
                             .build();
                     return blockingOrder(
+                            expectLogProblems(LogProblem.of(
+                                    "ClprSubmitBundleHandler",
+                                    "step10 DATA connector NOT_FOUND",
+                                    "conn=" + crypto.channelIdHex())),
                             // Initial config
                             clprUpdateLedgerConfiguration()
                                     .configuration(defaultLedgerConfig())

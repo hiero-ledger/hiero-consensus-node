@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Assertions;
@@ -63,16 +64,15 @@ public class LogValidationOp extends UtilOp {
                     Assertions.fail("Could not read swirlds.log for node '" + node.getName() + "' " + e);
                 }
             }
-            // A node added after genesis initialization will not have admin key override logs
-            if (node.getNodeId() >= genesisSize) {
-                return;
-            }
             try {
-                final var overrideNodeAdminKeys =
-                        parseEd25519NodeAdminKeysFrom(node.getExternalPath(NODE_ADMIN_KEYS_JSON)
+                // Only nodes that existed at genesis log the admin key overrides; a node added later is still
+                // validated, just without expecting them
+                final var overrideNodeAdminKeys = node.getNodeId() < genesisSize
+                        ? parseEd25519NodeAdminKeysFrom(node.getExternalPath(NODE_ADMIN_KEYS_JSON)
                                 .toAbsolutePath()
                                 .normalize()
-                                .toString());
+                                .toString())
+                        : Map.<Long, Key>of();
                 new HgcaaLogValidator(
                                 node.getExternalPath(APPLICATION_LOG)
                                         .toAbsolutePath()
@@ -88,9 +88,16 @@ public class LogValidationOp extends UtilOp {
     }
 
     private List<HederaNode> nodesToValidate(@NonNull final HapiSpec spec) {
-        return scope == Scope.ANY_NODE
-                ? List.of(spec.targetNetworkOrThrow().nodes().getFirst())
-                : spec.targetNetworkOrThrow().nodes();
+        final var network = spec.targetNetworkOrThrow();
+        if (scope == Scope.ANY_NODE) {
+            return List.of(network.nodes().getFirst());
+        }
+        // Also validate nodes a test removed from the network; their logs cover the run until they left
+        final var nodes = new ArrayList<HederaNode>(network.nodes());
+        if (network instanceof SubProcessNetwork subProcessNetwork) {
+            nodes.addAll(subProcessNetwork.departedNodes());
+        }
+        return nodes;
     }
 
     private static Map<Long, Key> parseEd25519NodeAdminKeysFrom(@NonNull final String loc) {

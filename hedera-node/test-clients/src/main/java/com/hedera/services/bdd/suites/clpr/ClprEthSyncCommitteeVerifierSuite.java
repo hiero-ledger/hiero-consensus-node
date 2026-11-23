@@ -13,10 +13,12 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprUpdateLedge
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.expectLogProblems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.CLPR_SERVICE_ADDRESS_20;
@@ -33,6 +35,7 @@ import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.node.app.service.clpr.ClprService;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
+import com.hedera.services.bdd.junit.support.validators.ExpectedLogProblems.LogProblem;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.suites.clpr.ethereum.SyncCommitteeProofs;
@@ -147,6 +150,14 @@ public class ClprEthSyncCommitteeVerifierSuite {
                     SyncCommitteeProofs.CHAIN_ID,
                     SyncCommitteeProofs.serviceAddress());
             return blockingOrder(
+                    expectLogProblems(
+                            LogProblem.of(
+                                    "EthereumVerifyConfigCall", "[EthereumVerifier] verifyConfig: config rejected"),
+                            LogProblem.of("EvmClprVerifier", "Verifier dispatchRaw failed"),
+                            LogProblem.of(
+                                    "ClprCreateChannelHandler",
+                                    "verifyConfig FAILED",
+                                    "channelId=" + crypto.channelIdHex())),
                     // Two 512-key committees make the verifier calldata ~50 KB, whose EIP-7623 floor exceeds the
                     // 2M default verifier gas (#28392).
                     overriding("clpr.verifierGasLimit", "5000000"),
@@ -179,6 +190,14 @@ public class ClprEthSyncCommitteeVerifierSuite {
             final var content = SyncCommitteeProofs.singleMessageBundleContent(firstMessage(crypto));
 
             return blockingOrder(flattened(
+                    expectLogProblems(
+                            LogProblem.of(
+                                    "EthereumVerifyBundleCall", "[EthereumVerifier] verifyBundle: proof rejected"),
+                            LogProblem.of("EvmClprVerifier", "Verifier dispatchRaw failed"),
+                            LogProblem.of(
+                                    "DispatchProcessor",
+                                    "[CLPR-DISPATCH] HandleException",
+                                    "status=CLPR_BUNDLE_VERIFICATION_FAILED")),
                     setupChannelWithEthereumVerifier(crypto, SyncCommitteeProofs.configPayload()),
                     clprSubmitBundle()
                             .channelId(crypto.channelId())
@@ -213,6 +232,14 @@ public class ClprEthSyncCommitteeVerifierSuite {
             final var content = SyncCommitteeProofs.singleMessageBundleContent(firstMessage(crypto));
 
             return blockingOrder(flattened(
+                    expectLogProblems(
+                            LogProblem.of(
+                                    "EthereumVerifyBundleCall", "[EthereumVerifier] verifyBundle: proof rejected"),
+                            LogProblem.of("EvmClprVerifier", "Verifier dispatchRaw failed"),
+                            LogProblem.of(
+                                    "DispatchProcessor",
+                                    "[CLPR-DISPATCH] HandleException",
+                                    "status=CLPR_BUNDLE_VERIFICATION_FAILED")),
                     setupChannelWithEthereumVerifier(crypto, SyncCommitteeProofs.configPayload()),
                     clprSubmitBundle()
                             .channelId(crypto.channelId())
@@ -416,6 +443,16 @@ public class ClprEthSyncCommitteeVerifierSuite {
                     SyncCommitteeProofs.CHAIN_ID,
                     SyncCommitteeProofs.serviceAddress());
             return blockingOrder(
+                    expectLogProblems(
+                            LogProblem.of(
+                                    "EthereumVerifyConfigCall",
+                                    "[EthereumVerifier] verifyConfig: config rejected",
+                                    "endpoint-manifest service_address does not match"),
+                            LogProblem.of("EvmClprVerifier", "Verifier dispatchRaw failed"),
+                            LogProblem.of(
+                                    "ClprCreateChannelHandler",
+                                    "verifyConfig FAILED",
+                                    "channelId=" + crypto.channelIdHex())),
                     overriding("clpr.verifierGasLimit", "5000000"),
                     clprUpdateLedgerConfiguration()
                             .configuration(localLedgerConfig())
@@ -459,7 +496,8 @@ public class ClprEthSyncCommitteeVerifierSuite {
             overriding("clpr.verifierGasLimit", "5000000"),
             clprUpdateLedgerConfiguration().configuration(localLedgerConfig()).payingWith(GENESIS),
             uploadInitCode(CONNECTOR_CONTRACT),
-            contractCreate(CONNECTOR_CONTRACT),
+            // Funded so delivered messages are dispatched instead of answered CONNECTOR_UNDERFUNDED
+            contractCreate(CONNECTOR_CONTRACT).balance(ONE_HUNDRED_HBARS),
             clprCreateChannel()
                     .channelId(crypto.channelId())
                     .salt(crypto.salt())

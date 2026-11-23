@@ -3,6 +3,7 @@ package com.hedera.services.bdd.suites.clpr;
 
 import static com.hedera.node.app.info.DiskStartupNetworks.OVERRIDE_NETWORK_JSON;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.DATA_CONFIG_DIR;
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.NODE_ADMIN_KEYS_JSON;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.WORKING_DIR;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.allNodes;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
@@ -51,6 +52,8 @@ import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.ClprChannelId;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
@@ -90,6 +93,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -102,6 +106,7 @@ import java.util.function.ToIntFunction;
 import java.util.regex.MatchResult;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
@@ -207,8 +212,8 @@ public abstract class HieroToHieroBase implements LifecycleTest {
     static final int MAX_ENROLLMENT_ROTATIONS = 3;
     /** How long to wait for one enrollment rotation's hinTS scheme and history proof. */
     static final Duration ROTATION_TSS_TIMEOUT = Duration.ofMinutes(5);
-    /** Balance given to each added node's account, which pays for the bundles that node submits. */
-    static final long ADDED_NODE_ACCOUNT_FUNDING = 100_000_000_000L;
+    /** Balance given to each node's account, which pays for the bundles and other CLPR transactions it submits. */
+    static final long NODE_ACCOUNT_FUNDING = 100_000_000_000L;
     /** How long an upgrade that adds a node waits for every node to be ACTIVE (a new node first reconnects). */
     static final Duration ROSTER_CHANGE_TO_ACTIVE_TIMEOUT = Duration.ofMinutes(5);
     /** How long to wait for a node to export the candidate roster after {@code PREPARE_UPGRADE}. */
@@ -631,7 +636,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                     .exposingCreatedIdTo(createdId ->
                             assertEquals(nodeId, createdId, "node id of the node created on " + network.name())));
             // The node pays for the bundles it submits from its own account
-            ops.add(cryptoTransfer(tinyBarsFromTo(GENESIS, String.valueOf(accountNum), ADDED_NODE_ACCOUNT_FUNDING)));
+            ops.add(cryptoTransfer(tinyBarsFromTo(GENESIS, String.valueOf(accountNum), NODE_ACCOUNT_FUNDING)));
             preRestartOps.add(FakeNmt.addNode(nodeId));
         }
         for (final long nodeId : nodeIds) {
@@ -853,6 +858,8 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                         .havingHash(upgradeFileHashAt(FAKE_UPGRADE_ZIP_LOC))),
                 confirmFreezeAndShutdown(),
                 blockingOrder(preRestartOps),
+                // Each node re-applies its node-admin-keys.json on every upgrade, so drop the keys of departed nodes
+                doAdhoc(() -> dropDepartedNodeAdminKeys(network)),
                 // FakeNmt writes an override-network.json for every node not starting from genesis, which makes
                 // the restarted nodes adopt the harness's roster through the override path. Drop it, so they adopt
                 // the candidate roster from state through canAdoptRoster, as a mainnet upgrade does.
@@ -948,6 +955,40 @@ public abstract class HieroToHieroBase implements LifecycleTest {
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    /** Funds the account of every node of {@code network} with {@link #NODE_ACCOUNT_FUNDING}. */
+    private static SpecOperation fundNodeAccounts(final SubProcessNetwork network) {
+        return blockingOrder(network.nodes().stream()
+                .map(node -> cryptoTransfer(tinyBarsFromTo(
+                        GENESIS, String.valueOf(node.getAccountId().accountNumOrThrow()), NODE_ACCOUNT_FUNDING)))
+                .toArray(SpecOperation[]::new));
+    }
+
+    /**
+     * Removes the admin keys of nodes no longer in {@code network} from each node's {@code node-admin-keys.json}.
+     * The file is also the upgrade's node admin key file, so each node re-applies it on every upgrade, and a key for
+     * a deleted node fails as {@code INVALID_NODE_ID}.
+     */
+    private static void dropDepartedNodeAdminKeys(final SubProcessNetwork network) {
+        final Set<String> nodeIds = network.nodes().stream()
+                .map(node -> String.valueOf(node.getNodeId()))
+                .collect(Collectors.toSet());
+        final var mapper = new ObjectMapper();
+        network.nodes().forEach(node -> {
+            final var adminKeysJson = node.getExternalPath(NODE_ADMIN_KEYS_JSON);
+            try {
+                if (!Files.exists(adminKeysJson)
+                        || !(mapper.readTree(adminKeysJson.toFile()) instanceof ObjectNode adminKeys)) {
+                    return;
+                }
+                if (adminKeys.properties().removeIf(entry -> !nodeIds.contains(entry.getKey()))) {
+                    mapper.writerWithDefaultPrettyPrinter().writeValue(adminKeysJson.toFile(), adminKeys);
+                }
+            } catch (final IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        });
     }
 
     private static void deleteOverrideNetwork(final HederaNode node) {
@@ -1396,7 +1437,8 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                             awaitWrapsSyncPoint(network);
                             Thread.sleep(POST_SYNC_POINT_SETTLE.toMillis());
                         }),
-                        cryptoTransfer(tinyBarsFromTo(GENESIS, "3", 100_000_000_000L)),
+                        // Every node submits the peer's bundles and other CLPR transactions, paid by its own account
+                        fundNodeAccounts(network),
                         clprUpdateLedgerConfiguration()
                                 .configuration(buildLedgerConfig(ownChainId, maxMessagesPerBundle, maxQueueDepth))
                                 .payingWith(GENESIS))

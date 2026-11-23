@@ -16,6 +16,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.expectLogProblems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -37,6 +38,7 @@ import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.node.app.service.clpr.ClprService;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
+import com.hedera.services.bdd.junit.support.validators.ExpectedLogProblems.LogProblem;
 import com.hederahashgraph.api.proto.java.ClprChannelStatus;
 import com.hederahashgraph.api.proto.java.ClprLedgerConfiguration;
 import com.hederahashgraph.api.proto.java.ClprMessage;
@@ -90,6 +92,10 @@ public class ClprOrchestratorSubmitTest {
                     final var bundleBytes = Bytes.wrap(
                             toBundleProofBytes(ClprChannelStatus.ACTIVE, 0L, 0L, new byte[32], List.of(probe)));
                     return blockingOrder(
+                            expectLogProblems(LogProblem.of(
+                                    "ClprSubmitBundleHandler",
+                                    "step10 DATA connector NOT_FOUND",
+                                    "conn=" + crypto.channelIdHex())),
                             overriding("clpr.minLockedStake", String.valueOf(MIN_LOCKED_STAKE)),
                             // Fund the self node's account (account 3 in embedded) so the inbound
                             // ClprSubmitBundle transaction — submitted by the node and paying with its

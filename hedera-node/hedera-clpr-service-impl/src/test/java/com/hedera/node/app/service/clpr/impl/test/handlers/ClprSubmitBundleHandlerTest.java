@@ -734,6 +734,28 @@ class ClprSubmitBundleHandlerTest {
     }
 
     @Test
+    @DisplayName("target without a contract gets APPLICATION_ERROR with empty data, without reading an EVM result")
+    void targetWithoutContractRepliesApplicationErrorWithoutReadingEvmResult() {
+        putChannel(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH);
+        final var bundle = buildBundle(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH, List.of(dataPayload()));
+        setupHandleContext(bundle, true);
+        putConnector();
+
+        // The EVM never ran, so the stream builder has no result and would throw if asked for one
+        lenient().when(dispatchResult.status()).thenReturn(ResponseCodeEnum.INVALID_CONTRACT_ID);
+        lenient().when(dispatchResult.getEvmCallResult()).thenThrow(new NullPointerException());
+
+        subject.handle(handleContext);
+
+        final var response = messageQueueStore.getMessage(CHANNEL_ID, 0);
+        assertThat(response).isNotNull();
+        assertThat(response.payload().messageReplyOrThrow().status())
+                .isEqualTo(ClprMessageReplyStatus.APPLICATION_ERROR);
+        assertThat(response.payload().messageReplyOrThrow().messageReplyData()).isEqualTo(Bytes.EMPTY);
+        verify(dispatchResult, never()).getEvmCallResult();
+    }
+
+    @Test
     @DisplayName("null EVM result defaults to empty response data")
     void nullEvmResultDefaultsToEmpty() {
         putChannel(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH);

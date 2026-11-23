@@ -6,6 +6,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_DECODE_FAIL
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INTERNAL_STATE_CORRUPTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES;
@@ -377,7 +378,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
             case ReplyValidation.AckedThrough(final long lastAckedMessageId) -> newAckedMessageId = lastAckedMessageId;
             case ReplyValidation.OrderingViolated(final long expectedMessageId, final long repliedMessageId) -> {
                 // A protocol violation by the submitting node, handled by pausing the channel and penalizing it
-                log.info(
+                log.warn(
                         "[ClprSubmitBundle] step8 reply out of order conn={} expectedMsgId={} repliedMsgId={} "
                                 + "currentStatus={}",
                         channelId,
@@ -543,7 +544,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                     // isn't the remote connector that lied, maybe it was the remote ledger itself, in which case
                     // we probably should take some action because this channel is faulty.
                     if (connector == null) {
-                        log.debug(
+                        log.warn(
                                 "[ClprSubmitBundle] step10 DATA connector NOT_FOUND conn={} receivedMsgId={} "
                                         + "connectorId={} -> CONNECTOR_NOT_FOUND reply",
                                 channelId,
@@ -584,7 +585,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                 worstCaseCharge);
                         if (connectorAccount == null || connectorAccount.tinybarBalance() < worstCaseCharge) {
                             // Insufficient balance — slash, enqueue CONNECTOR_UNDERFUNDED, skip dispatch
-                            log.debug(
+                            log.warn(
                                     "[ClprSubmitBundle] step10 DATA connector underfunded conn={} "
                                             + "receivedMsgId={} connectorContract={} accountPresent={} "
                                             + "balance={} required={} -> CONNECTOR_UNDERFUNDED reply",
@@ -688,20 +689,31 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                     appContractId,
                                     result.status());
                             Bytes rawEvmResult = null;
-                            try {
-                                rawEvmResult = result.getEvmCallResult();
-                            } catch (final Exception ignored) {
-                                // getEvmCallResult() throws when the child dispatch did not produce
-                                // an EVM result record (e.g. the target address has no bytecode).
-                                // Treat as empty return data — the reply status is set by result.status().
+                            if (result.status() == INVALID_CONTRACT_ID) {
+                                // The target has no contract, so the EVM never ran and there is no result to
+                                // read. The peer's message gets an APPLICATION_ERROR reply with no data.
                                 log.debug(
-                                        "[ClprSubmitBundle] step10 DATA dispatch produced no EVM result conn={} "
-                                                + "receivedMsgId={} target={} reason={}: {}",
+                                        "[ClprSubmitBundle] step10 DATA target has no contract conn={} "
+                                                + "receivedMsgId={} target={}",
                                         channelId,
                                         receivedMessageId,
-                                        appContractId,
-                                        ignored.getClass().getSimpleName(),
-                                        ignored.getMessage());
+                                        appContractId);
+                            } else {
+                                try {
+                                    rawEvmResult = result.getEvmCallResult();
+                                } catch (final Exception e) {
+                                    // The EVM ran, so a missing result is unexpected. Treat it as empty return
+                                    // data — the reply status is set by result.status().
+                                    log.warn(
+                                            "[ClprSubmitBundle] step10 DATA dispatch produced no EVM result conn={} "
+                                                    + "receivedMsgId={} target={} status={} reason={}: {}",
+                                            channelId,
+                                            receivedMessageId,
+                                            appContractId,
+                                            result.status(),
+                                            e.getClass().getSimpleName(),
+                                            e.getMessage());
+                                }
                             }
                             if (result.status() == SUCCESS) {
                                 replyStatus = ClprMessageReplyStatus.SUCCESS;
@@ -849,7 +861,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                             ? null
                             : originalPayload.hasMessage() ? originalPayload.message() : null;
                     if (origDataMsg == null) {
-                        log.debug(
+                        log.warn(
                                 "[ClprSubmitBundle] step10 MESSAGE_REPLY has no original DATA message "
                                         + "conn={} replyTargetId={} originalPayloadKind={}; skipping app callback",
                                 channelId,

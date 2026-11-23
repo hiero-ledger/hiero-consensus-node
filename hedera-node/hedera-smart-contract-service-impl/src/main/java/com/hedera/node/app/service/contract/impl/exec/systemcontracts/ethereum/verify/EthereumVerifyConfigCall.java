@@ -84,7 +84,7 @@ public class EthereumVerifyConfigCall extends AbstractCall {
 
         final ClprLedgerConfiguration parsed = verified.ledgerConfiguration();
         if (parsed.initialTrustAnchor().length() == 0) {
-            log.debug(
+            log.warn(
                     "[EthereumVerifier] verifyConfig: proven config has empty initial_trust_anchor; rejecting chainId={}",
                     parsed.chainId());
             return fail();
@@ -104,7 +104,7 @@ public class EthereumVerifyConfigCall extends AbstractCall {
         try {
             verified = verifier.verifyConfigPayload(configPayload, manifestProofBytes);
         } catch (final ProofException e) {
-            log.info("[EthereumVerifier] verifyConfig: config rejected: {}", e.getMessage());
+            log.warn("[EthereumVerifier] verifyConfig: config rejected: {}", e.getMessage());
             return null;
         } catch (final Exception e) {
             log.warn("[EthereumVerifier] verifyConfig: unexpected error", e);
