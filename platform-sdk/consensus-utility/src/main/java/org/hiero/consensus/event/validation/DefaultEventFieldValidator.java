@@ -35,6 +35,7 @@ public class DefaultEventFieldValidator implements EventFieldValidator {
     private static final Logger logger = LogManager.getLogger(DefaultEventFieldValidator.class);
 
     private static final Duration MINIMUM_LOG_PERIOD = Duration.ofMinutes(1);
+    private static final int DEFAULT_EVENT_DIGEST_LENGTH = DEFAULT_EVENT_DIGEST_TYPE.digestLength();
 
     private final TransactionLimits transactionLimits;
 
@@ -146,7 +147,7 @@ public class DefaultEventFieldValidator implements EventFieldValidator {
         final List<EventDescriptor> parents = gossipEvent.parents();
         for (int i = 0, parentSize = parents.size(); i < parentSize; i++) {
             final EventDescriptor parent = parents.get(i);
-            if (parent.hash().length() != DEFAULT_EVENT_DIGEST_TYPE.digestLength()) {
+            if (parent.hash().length() != DEFAULT_EVENT_DIGEST_LENGTH) {
                 fieldLengthLogger.error(
                         EXCEPTION.getMarker(),
                         "Event parent descriptor has a hash that is the wrong length in event {}. Expected {}, but was {}",

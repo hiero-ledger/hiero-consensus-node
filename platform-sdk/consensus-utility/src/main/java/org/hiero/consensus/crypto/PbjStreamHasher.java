@@ -29,7 +29,8 @@ public class PbjStreamHasher implements EventHasher {
     /** The initial size of the buffer, enough for the core and the parents of a typical event. */
     private static final int INITIAL_BUFFER_SIZE = 1024;
 
-    private final MessageDigest eventDigest = DigestType.SHA_256.buildDigest();
+    /** The digest for the event hash */
+    private final MessageDigest eventDigest = DEFAULT_EVENT_DIGEST_TYPE.buildDigest();
 
     /** The digest for the transactions. */
     private final MessageDigest transactionDigest = DigestType.SHA_384.buildDigest();
