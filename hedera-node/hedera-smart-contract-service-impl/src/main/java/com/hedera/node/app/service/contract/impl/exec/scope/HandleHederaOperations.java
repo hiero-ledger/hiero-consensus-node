@@ -50,7 +50,6 @@ import com.hedera.node.app.service.contract.impl.state.WritableContractStateStor
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.ContractChangeSummary;
-import com.hedera.node.app.service.token.api.FeeStreamBuilder;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.token.records.CryptoUpdateStreamBuilder;
 import com.hedera.node.app.spi.throttle.ThrottleAdviser;
@@ -230,27 +229,6 @@ public class HandleHederaOperations implements HederaOperations {
     public void collectHtsFee(@NonNull final AccountID payerId, final long amount) {
         requireNonNull(payerId);
         context.tryToCharge(payerId, amount);
-    }
-
-    @Override
-    public boolean collectClprFee(@NonNull final AccountID payerId, final long amount) {
-        final var storeFactory = context.storeFactory();
-        final var payer = storeFactory.readableStore(ReadableAccountStore.class).getAccountById(payerId);
-        if (payer == null || payer.tinybarBalance() < amount) {
-            return false;
-        }
-        final var api = storeFactory.serviceApi(TokenServiceApi.class);
-        final var builder = context.savepointStack().getBaseBuilder(ContractOperationStreamBuilder.class);
-        // A callback suppresses the token API's immediate record update. EVM frame savepoints
-        // roll back the balance changes, and the root updater records only committed charges.
-        return api.chargeFee(payerId, amount, builder, (_, _) -> {}).totalFee() == amount;
-    }
-
-    @Override
-    public void recordClprFees(final long amount) {
-        final var builder =
-                (FeeStreamBuilder) context.savepointStack().getBaseBuilder(ContractOperationStreamBuilder.class);
-        builder.transactionFee(Math.addExact(builder.transactionFee(), amount));
     }
 
     @Override

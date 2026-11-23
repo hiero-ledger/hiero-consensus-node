@@ -40,7 +40,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.upgrade.BuildUpgradeZipOp.FAKE_UPGRADE_ZIP_LOC;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
@@ -1799,7 +1798,6 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                                                             crypto.connectorId,
                                                             new byte[20],
                                                             "probe".getBytes(StandardCharsets.UTF_8))
-                                                    .sending(ONE_HBAR)
                                                     .gas(GAS)
                                                     .payingWith("probeCaller")
                                                     .hasKnownStatus(ResponseCodeEnum.CONTRACT_REVERT_EXECUTED));
@@ -1851,7 +1849,6 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                                                         crypto.connectorId,
                                                         new byte[20],
                                                         "active-probe".getBytes(StandardCharsets.UTF_8))
-                                                .sending(ONE_HBAR)
                                                 .gas(GAS)
                                                 .payingWith("activeProbeCaller")
                                                 .hasKnownStatus(ResponseCodeEnum.SUCCESS));
@@ -1873,9 +1870,13 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                         crypto.connectorId,
                         new byte[20],
                         data.getBytes(StandardCharsets.UTF_8))
-                .sending(ONE_HBAR)
                 .gas(GAS)
                 .payingWith(caller);
+    }
+
+    /** Leaves room for each send's gas-priced fee and the batch's Solidity bookkeeping. */
+    static long gasForMessageBatch(final int messageCount) {
+        return 500_000L + 1_500_000L * messageCount;
     }
 
     // ── Config helpers ────────────────────────────────────────────────────────

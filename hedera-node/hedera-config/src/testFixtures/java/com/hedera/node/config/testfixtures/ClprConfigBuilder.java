@@ -37,6 +37,7 @@ public final class ClprConfigBuilder {
     private long sendMessageFeeTinycents = 1_000_000_000L;
     private int sendMessageIncludedBytes = 1024;
     private long verifierGasLimit = 300_000L;
+    private long submitBundleGasLimit = 50_000_000L;
     private boolean verifyProofsAtSender = true;
     private String peerEndpointsFile = "data/clpr/peer-endpoints.json";
     private long nodeSubmitBundleMaxFee = 1_000_000_000L;
@@ -173,6 +174,11 @@ public final class ClprConfigBuilder {
         return this;
     }
 
+    public ClprConfigBuilder submitBundleGasLimit(final long submitBundleGasLimit) {
+        this.submitBundleGasLimit = submitBundleGasLimit;
+        return this;
+    }
+
     public ClprConfigBuilder nodeSubmitBundleMaxFee(final long nodeSubmitBundleMaxFee) {
         this.nodeSubmitBundleMaxFee = nodeSubmitBundleMaxFee;
         return this;
@@ -246,6 +252,7 @@ public final class ClprConfigBuilder {
                 sendMessageFeeTinycents,
                 sendMessageIncludedBytes,
                 verifierGasLimit,
+                submitBundleGasLimit,
                 nodeSubmitBundleMaxFee,
                 verifyProofsAtSender,
                 peerEndpointsFile,

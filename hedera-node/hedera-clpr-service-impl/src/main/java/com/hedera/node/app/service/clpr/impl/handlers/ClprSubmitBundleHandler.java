@@ -5,9 +5,11 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.AUTHORIZATION_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_DECODE_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INTERNAL_STATE_CORRUPTION;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CONSENSUS_GAS_EXHAUSTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.THROTTLED_AT_CONSENSUS;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.hapi.utils.fee.FeeConstants.tinycentsToTinybars;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES;
@@ -25,6 +27,7 @@ import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCus
 import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.TupleType;
+import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
 import com.hedera.hapi.node.state.clpr.ClprChannel;
@@ -68,6 +71,7 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.data.ClprConfig;
+import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -170,10 +174,6 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         final var deferredPeerEndpoints = new DeferredPeerEndpoints();
         final var gasAccounting = ClprGasAccounting.forContext(context);
         try {
-            if (!recoveringManifest) {
-                gasAccounting.reserveRollbackFee(
-                        context.configuration().getConfigData(ClprConfig.class).endpointMisbehaviorPenaltyTinybars());
-            }
             handleBundle(context, deferredPeerEndpoints, gasAccounting);
             gasAccounting.refundUnusedGas();
             deferredPeerEndpoints.seedInto(channelLifecycle);
@@ -478,13 +478,18 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         if (pendingCallbacks > 0 && !gasAccounting.reserveParentGas()) {
             throw new HandleException(INSUFFICIENT_PAYER_BALANCE);
         }
+        final var contractsConfig = configuration.getConfigData(ContractsConfig.class);
+        // A callback is one EVM transaction even when its bundle has a larger total allowance.
+        final long maxEvmGas = contractsConfig.throttleThrottleByGas()
+                ? Math.min(contractsConfig.maxGasPerTransaction(), contractsConfig.maxGasPerSec())
+                : contractsConfig.maxGasPerTransaction();
+        final long maxCallbackGas = Math.min(Math.max(0, throttles.maxGasPerMessage()), Math.max(0, maxEvmGas));
         for (int i = 0; i < newMessages.size(); i++) {
             final var payload = newMessages.get(i);
             final long callbackGasLimit;
             if (payload.hasMessage() || payload.hasMessageReply()) {
                 callbackGasLimit = Math.min(
-                        throttles.maxGasPerMessage(),
-                        gasAccounting.availableApplicationGas(Long.MAX_VALUE) / pendingCallbacks);
+                        maxCallbackGas, gasAccounting.availableApplicationGas(Long.MAX_VALUE) / pendingCallbacks);
                 pendingCallbacks--;
             } else {
                 callbackGasLimit = 0;
@@ -548,12 +553,8 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                 receivedMessageId, ClprMessageReplyStatus.CONNECTOR_NOT_FOUND, Bytes.EMPTY);
                     } else {
                         final long gasLimit = callbackGasLimit;
-                        if (gasLimit == 0) {
-                            // The bundle has spent its transaction-wide gas budget. A later callback
-                            // must not consume more shared EVM capacity, even when its connector can pay.
-                            outbound.enqueueReply(
-                                    receivedMessageId, ClprMessageReplyStatus.APPLICATION_ERROR, Bytes.EMPTY);
-                            continue;
+                        if (gasLimit <= 0) {
+                            throw new HandleException(CONSENSUS_GAS_EXHAUSTED);
                         }
                         // Endpoint compensation remains separate from the network fee for EVM work.
                         final var endpointCharge =
@@ -675,6 +676,9 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                     NOOP_SIGNED_TX_CUSTOMIZER,
                                     callbackMetadata(gasUsage),
                                     ON));
+                            if (isCapacityFailure(result.status())) {
+                                throw new HandleException(result.status());
+                            }
                             log.debug(
                                     "[ClprSubmitBundle] step10 DATA dispatch RETURNED conn={} receivedMsgId={} "
                                             + "target={} status={}",
@@ -746,6 +750,9 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                 }
                             }
                         } catch (final HandleException e) {
+                            if (isCapacityFailure(e.getStatus())) {
+                                throw e;
+                            }
                             log.warn(
                                     "[ClprSubmitBundle] step10 DATA dispatch HandleException conn={} "
                                             + "receivedMsgId={} target={} status={} message={}",
@@ -864,6 +871,9 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                             ? null
                             : callbackAccounts.getContractById(callbackConnector.connectorContractOrThrow());
                     final long gasLimit = callbackGasLimit;
+                    if (senderAddress.length() > 0 && callbackAccount != null && gasLimit <= 0) {
+                        throw new HandleException(CONSENSUS_GAS_EXHAUSTED);
+                    }
                     if (senderAddress.length() > 0
                             && callbackAccount != null
                             && gasLimit > 0
@@ -903,18 +913,24 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                         }
                         final var gasUsage = new ContractGasUsage();
                         try {
-                            context.dispatch(stepDispatch(
+                            final var gasResult = context.dispatch(stepDispatch(
                                     callbackAccount.accountIdOrThrow(),
                                     syntheticBody,
                                     HookDispatchStreamBuilder.class,
                                     NOOP_SIGNED_TX_CUSTOMIZER,
                                     callbackMetadata(gasUsage),
                                     ON));
+                            if (isCapacityFailure(gasResult.status())) {
+                                throw new HandleException(gasResult.status());
+                            }
                             log.debug(
                                     "[ClprSubmitBundle] onClprResponse dispatch SUCCESS to sender={} replyTargetId={}",
                                     senderAddress,
                                     replyTargetId);
                         } catch (final HandleException e) {
+                            if (isCapacityFailure(e.getStatus())) {
+                                throw e;
+                            }
                             // Best-effort: callback failure does not stop bundle processing. Log so we can
                             // see when an application's onClprResponse rejected or reverted.
                             log.warn(
@@ -998,6 +1014,9 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                 // Empty-oneof payloads with no variant set are not expected; the hash check
                 // in Step 6 already rejected them via the chain mismatch path.
             } catch (final HandleException he) {
+                if (isCapacityFailure(he.getStatus())) {
+                    throw he;
+                }
                 log.warn(
                         "[ClprSubmitBundle] step10 HandleException while processing slot conn={} newIndex={} "
                                 + "receivedMsgId={} kind={} currentStatus={} reason={}: {}",
@@ -1156,6 +1175,10 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
             log.debug("[ClprSubmitBundle] notifying lifecycle channel closed conn={}", channelId);
             channelLifecycle.onChannelClosed(channelId);
         }
+    }
+
+    private static boolean isCapacityFailure(@NonNull final ResponseCodeEnum status) {
+        return status == THROTTLED_AT_CONSENSUS || status == CONSENSUS_GAS_EXHAUSTED;
     }
 
     /**
