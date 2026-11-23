@@ -54,10 +54,6 @@ KEEP_NETWORK="${KEEP_NETWORK:-true}"
 
 LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH:-${REPO_ROOT}/hedera-node/data}"
 SOLO_UPGRADE_TIMEOUT_SECS="${SOLO_UPGRADE_TIMEOUT_SECS:-1800}"
-# How long to let a TSS-enabled baseline run before upgrading it, so its hinTS/CRS
-# state is past genesis initialization. Set to 0 to skip.
-BASELINE_TSS_SETTLE_SECS="${BASELINE_TSS_SETTLE_SECS:-300}"
-
 # Solo's default mirror node can be too old for the baseline, so use the CITR pin.
 CITR_ENV_FILE="${REPO_ROOT}/.github/workflows/support/citr/.citr-env"
 MIRROR_NODE_VERSION="${MIRROR_NODE_VERSION:-$({ sed -n 's/^citr-mirror-node-version=//p' "${CITR_ENV_FILE}" 2>/dev/null | head -n 1; } || true)}"
@@ -277,6 +273,30 @@ compute_versions() {
   log "Migration target           : ${TARGET_VERSION} (local build at ${LOCAL_BUILD_PATH})"
 }
 
+# Solo's default application.properties sets blockStream.streamMode=RECORDS next to
+# tss.hintsEnabled=true. In RECORDS mode the node skips all TSS work, so a TSS-enabled
+# baseline never advances its genesis hinTS state, which the upgrade target then
+# rejects as "legacy" state (V079HintsSchema). Override the stream mode so TSS runs:
+#   baseline < 0.80  : BOTH   (block stream alongside the record stream)
+#   baseline >= 0.80 : BLOCKS (block stream only) with real, not mock, signatures
+# Only called for baselines that keep TSS on; sets BASELINE_APP_PROPS.
+configure_baseline_stream_mode() {
+  local label="${DEPLOY_VERSION_LABEL#v}"
+  local series
+  series="$(cut -d. -f1,2 <<<"${label}")"
+
+  BASELINE_APP_PROPS="${WORK_DIR}/baseline-application.properties"
+  if [[ "$(printf '%s\n' "0.80" "${series}" | sort -V | head -n 1)" == "0.80" ]]; then
+    printf '%s\n' \
+      "blockStream.streamMode=BLOCKS" \
+      "tss.forceMockSignatures=false" > "${BASELINE_APP_PROPS}"
+    log "Baseline ${series} >= 0.80: deploying with blockStream.streamMode=BLOCKS, tss.forceMockSignatures=false"
+  else
+    printf '%s\n' "blockStream.streamMode=BOTH" > "${BASELINE_APP_PROPS}"
+    log "Baseline ${series} < 0.80: deploying with blockStream.streamMode=BOTH"
+  fi
+}
+
 # Reads the baseline's TSS library (hedera-cryptography) version and, when it is
 # older than MIN_MIGRATABLE_TSS_LIBRARY_VERSION, writes node properties that keep
 # TSS off on the baseline. Leaves the baseline's own defaults when the version
@@ -299,6 +319,7 @@ configure_baseline_tss() {
   if [[ "$(printf '%s\n' "${MIN_MIGRATABLE_TSS_LIBRARY_VERSION}" "${crypto_version}" | sort -V | head -n 1)" \
       == "${MIN_MIGRATABLE_TSS_LIBRARY_VERSION}" ]]; then
     log "Baseline TSS library ${crypto_version}: keeping the baseline's TSS defaults"
+    configure_baseline_stream_mode
     return 0
   fi
 
@@ -491,19 +512,6 @@ deploy_baseline() {
   wait "${_web3_patch_pid}" 2>/dev/null || true
 }
 
-# Lets a TSS-enabled baseline run for a while before it is upgraded. Upgrading
-# immediately restarts the nodes on genesis-initialized hinTS state (populated CRS,
-# ceremonyId == 0), which V079HintsSchema.restart() rejects as "legacy" state.
-# Skipped when the baseline runs with TSS off.
-wait_for_baseline_tss_settle() {
-  if [[ -n "${BASELINE_APP_PROPS}" || "${BASELINE_TSS_SETTLE_SECS}" -le 0 ]]; then
-    log "Skipping baseline TSS settle wait"
-    return 0
-  fi
-  log "Letting the baseline run ${BASELINE_TSS_SETTLE_SECS}s before upgrade so its TSS state settles"
-  sleep "${BASELINE_TSS_SETTLE_SECS}"
-}
-
 # === Step 3 ====================================================================
 # Upgrade the running consensus network to the local build (current branch
 # checkout), then verify each CN is actually running the local build's
@@ -659,7 +667,6 @@ create_cluster               # Step 2 (prereq: kind cluster)
 configure_solo               #         solo init + cluster-ref + deployment
 setup_cluster_prereqs        #         MinIO operator
 deploy_baseline              #         CN @ prev_tag + MN with pinger
-wait_for_baseline_tss_settle #         let baseline TSS state settle
 upgrade_to_local            # Step 3 (CN upgrade to local build)
 step4_crypto_create_smoke    # Step 4 + 4a (CryptoCreate via SDK + MN log scan)
 
