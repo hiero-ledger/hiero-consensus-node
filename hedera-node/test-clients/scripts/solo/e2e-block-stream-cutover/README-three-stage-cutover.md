@@ -35,7 +35,11 @@ compress day archives, run Block Node `blocks wrap`, parse `jumpstart.bin`, and 
 into a generated stage 2 properties file. Both current-block hashes are injected to require the
 CN's disk hash match check. A standard-library Python verifier checks overlap, contiguous entries,
 and both hashes on every node before upgrading. A second offline wrap reaches the migration
-block and verifies the previous root, subtree hashes, and leaf count on every node. The BN
+block and verifies the previous root, subtree hashes, and leaf count on every node. While the
+migration vote is in progress, CNs do not stream the wrapped record blocks they close, because
+their chain values are not agreed yet. Every block a node skips must be at or below the
+finalization block, and all nodes must skip the same blocks. Zero skipped blocks is valid, since
+every vote can reach consensus in the first block after the upgrade. The BN
 (`BLOCK_NODE_CHART_VERSION`) is deployed only after the jumpstart + TSS upgrade and remains at that version through cutover
 unless `BLOCK_NODE_UPGRADE_VERSION` explicitly requests a different version.
 
