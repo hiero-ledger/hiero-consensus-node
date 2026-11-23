@@ -13,8 +13,8 @@ import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.clpr.EthereumPosBeaconBlockHeader;
 import com.hedera.hapi.node.state.clpr.EthereumPosCommitteeAnchor;
 import com.hedera.hapi.node.state.clpr.EthereumPosLedgerConfigurationPayload;
+import com.hedera.hapi.node.state.clpr.EthereumPosNonSignerProof;
 import com.hedera.hapi.node.state.clpr.EthereumPosSyncAggregate;
-import com.hedera.hapi.node.state.clpr.EthereumPosSyncCommittee;
 import com.hedera.hapi.node.state.clpr.EthereumPosTrustAnchor;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.service.clpr.impl.verifier.Rlp;
@@ -121,10 +121,29 @@ final class EthereumBundleFixtures {
         byte[] nonSignerEntry(final int index) {
             final List<byte[]> parts = new ArrayList<>();
             parts.add(uncompressedKeys[index]);
+            parts.addAll(List.of(pubkeyBranch(index)));
+            return concat(parts.toArray(new byte[0][]));
+        }
+
+        /** The non-signer proof of member {@code index} as the config payload carries it. */
+        EthereumPosNonSignerProof nonSignerProof(final int index) {
+            final List<Bytes> branch = new ArrayList<>();
+            for (final byte[] sibling : pubkeyBranch(index)) {
+                branch.add(Bytes.wrap(sibling));
+            }
+            return EthereumPosNonSignerProof.newBuilder()
+                    .pubkey(Bytes.wrap(uncompressedKeys[index]))
+                    .branch(branch)
+                    .build();
+        }
+
+        /** The bottom-up siblings of member {@code index}'s key leaf under {@link #pubkeysRoot}. */
+        private byte[][] pubkeyBranch(final int index) {
+            final List<byte[]> siblings = new ArrayList<>();
             byte[][] level = leaves;
             int position = index;
             while (level.length > 1) {
-                parts.add(level[position ^ 1]);
+                siblings.add(level[position ^ 1]);
                 final byte[][] next = new byte[level.length / 2][];
                 for (int i = 0; i < next.length; i++) {
                     next[i] = sha256(level[2 * i], level[2 * i + 1]);
@@ -132,7 +151,7 @@ final class EthereumBundleFixtures {
                 level = next;
                 position >>= 1;
             }
-            return concat(parts.toArray(new byte[0][]));
+            return siblings.toArray(new byte[0][]);
         }
 
         /**
@@ -556,6 +575,7 @@ final class EthereumBundleFixtures {
         byte[] codeHash = CODE_HASH;
         byte[][] currentBranchOverride;
         byte[][] nextBranchOverride;
+        List<EthereumPosNonSignerProof> nonSignerProofsOverride; // null → derived from current and bits
 
         ConfigBuilder(
                 final SyncCommitteePreset preset, final long period, final Committee current, final Committee next) {
@@ -582,7 +602,7 @@ final class EthereumBundleFixtures {
 
         EthereumPosLedgerConfigurationPayload build() {
             return EthereumPosLedgerConfigurationPayload.newBuilder()
-                    .syncCommittee(committee(current))
+                    .syncCommittee(trustedCommittee(current))
                     .ledgerConfiguration(ClprLedgerConfiguration.newBuilder()
                             .chainId("eip155:1")
                             .serviceAddress(Bytes.wrap(SERVICE_ADDRESS))
@@ -612,7 +632,7 @@ final class EthereumBundleFixtures {
                             .bits(Bytes.wrap(bits))
                             .signature(Bytes.wrap(signature))
                             .build())
-                    .nextSyncCommittee(committee(next))
+                    .nextSyncCommittee(trustedCommittee(next))
                     .nextSyncCommitteeBranch(branch(
                             nextBranchOverride != null
                                     ? nextBranchOverride
@@ -620,6 +640,8 @@ final class EthereumBundleFixtures {
                                             Map.of(NEXT_SYNC_COMMITTEE_GINDEX, next.hashTreeRoot()),
                                             NEXT_SYNC_COMMITTEE_GINDEX)))
                     .codeHash(Bytes.wrap(codeHash))
+                    .syncAggregateNonSignerProofs(
+                            nonSignerProofsOverride != null ? nonSignerProofsOverride : nonSignerProofs(current, bits))
                     .build();
         }
 
@@ -629,15 +651,15 @@ final class EthereumBundleFixtures {
                     .toByteArray();
         }
 
-        private static EthereumPosSyncCommittee committee(final Committee committee) {
-            final List<Bytes> keys = new ArrayList<>();
-            for (final byte[] key : committee.compressedKeys) {
-                keys.add(Bytes.wrap(key));
+        /** The non-signer proofs of {@code committee} for the clear bits of {@code bits}, in ascending index order. */
+        static List<EthereumPosNonSignerProof> nonSignerProofs(final Committee committee, final byte[] bits) {
+            final List<EthereumPosNonSignerProof> proofs = new ArrayList<>();
+            for (int i = 0; i < bits.length * 8; i++) {
+                if (((bits[i / 8] >>> (i % 8)) & 1) == 0) {
+                    proofs.add(committee.nonSignerProof(i));
+                }
             }
-            return EthereumPosSyncCommittee.newBuilder()
-                    .pubkeys(keys)
-                    .aggregatePubkey(Bytes.wrap(committee.compressedAggregate))
-                    .build();
+            return proofs;
         }
 
         private static EthereumPosBeaconBlockHeader header(

@@ -4,10 +4,10 @@ package com.hedera.node.app.service.clpr.impl.verifier.ethereum;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hedera.cryptography.hints.HintsLibraryBridge;
-import com.hedera.node.app.service.clpr.impl.verifier.ethereum.PeerLedgerConfigPayload.CommitteeKeys;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Objects;
@@ -19,9 +19,8 @@ import org.junit.jupiter.api.Test;
 /**
  * Tests the verifier's own BLS inputs against real Ethereum mainnet data: the sync committee of period 1895 and two of
  * its sync aggregates, one signed by all 512 members and one by 506. The signing roots are computed by {@link Ssz}, the
- * keys decompressed by {@link G1Compression} and the non-signers read by {@link CommitteeKeys#nonSignerPubkeys}, then
- * handed to {@link NativeBlsSignatureVerifier}: a signature verifies only if every one of them matches what the
- * committee signed and what the library expects.
+ * keys decompressed by {@link G1Compression}, then handed to {@link NativeBlsSignatureVerifier}: a signature verifies only
+ * if every one of them matches what the committee signed and what the library expects.
  *
  * <p>The library's own checks (tampered or malformed signatures, invalid keys) are tested in hiero-cryptography's
  * {@code EthereumBlsBridgeTest}.
@@ -79,9 +78,19 @@ class NativeBlsSignatureVerifierTest {
         return Ssz.computeSigningRoot(aggregate.attestedRoot32(), domain32);
     }
 
-    /** The keys of the members that did not sign {@code aggregate}, as the config path reads them. */
+    /**
+     * The decompressed keys of the members that did not sign {@code aggregate}, in committee order.
+     */
     private static List<byte[]> nonSignerPubkeys(final SignedRoot aggregate) {
-        return SAMPLE.committee().nonSignerPubkeys(new SyncAggregate(aggregate.bits(), signature256(aggregate)));
+        final SyncAggregate syncAggregate = new SyncAggregate(aggregate.bits(), signature256(aggregate));
+        final List<byte[]> nonSignerPubkeys = new ArrayList<>();
+        for (int index = 0; index < SAMPLE.pubkeys48().length; index++) {
+            if (!syncAggregate.hasSigned(index)) {
+                nonSignerPubkeys.add(
+                        G1Compression.decompress(SAMPLE.pubkeys48()[index], "committee.publicKey." + index));
+            }
+        }
+        return nonSignerPubkeys;
     }
 
     /** {@code aggregate}'s signature in the EIP-2537 encoding, converted from the beacon chain's compressed one. */
@@ -91,7 +100,7 @@ class NativeBlsSignatureVerifierTest {
 
     private static boolean verify(final SignedRoot aggregate, final List<byte[]> nonSignerPubkeys) {
         final byte[] aggregatePubkey =
-                G1Compression.decompress(SAMPLE.committee().aggregatePubkey48(), "committee.aggregatePublicKey");
+                G1Compression.decompress(SAMPLE.aggregatePubkey48(), "committee.aggregatePublicKey");
         return NativeBlsSignatureVerifier.INSTANCE.verifySyncAggregate(
                 aggregatePubkey, nonSignerPubkeys, signingRoot(aggregate), signature256(aggregate));
     }
@@ -101,14 +110,16 @@ class NativeBlsSignatureVerifierTest {
      *
      * @param forkVersion4            the fork version of the signing domain
      * @param genesisValidatorsRoot32 the genesis validators root of the signing domain
-     * @param committee               the committee's compressed keys and aggregate
+     * @param pubkeys48               the committee's compressed keys, in committee order
+     * @param aggregatePubkey48       the committee's compressed aggregate key
      * @param full                    the aggregate signed by every member
      * @param partial                 the aggregate signed by all but six members
      */
     private record MainnetSample(
             byte[] forkVersion4,
             byte[] genesisValidatorsRoot32,
-            CommitteeKeys committee,
+            byte[][] pubkeys48,
+            byte[] aggregatePubkey48,
             SignedRoot full,
             SignedRoot partial) {
 
@@ -126,7 +137,8 @@ class NativeBlsSignatureVerifierTest {
             return new MainnetSample(
                     hexValue(properties, "domain.forkVersion"),
                     hexValue(properties, "domain.genesisValidatorsRoot"),
-                    new CommitteeKeys(pubkeys48, hexValue(properties, "committee.aggregatePublicKey")),
+                    pubkeys48,
+                    hexValue(properties, "committee.aggregatePublicKey"),
                     SignedRoot.load(properties, "full"),
                     SignedRoot.load(properties, "partial"));
         }

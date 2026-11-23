@@ -13,9 +13,17 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * {@code altair.yaml}, and {@code SLOTS_PER_EPOCH} in its {@code phase0.yaml}. The public networks (mainnet and the
  * testnets) use {@code mainnet}; local devnets usually use {@code minimal}.
  *
- * <p>A channel's preset is fixed by {@code verifyConfig}, from the size of the trusted initial committee, and stored
- * in the trust anchor. Bundles never choose it: a bundle able to pick a smaller committee could lower the number of
- * keys an attacker must control to forge a signature.
+ * <p>A channel's preset is fixed by {@code verifyConfig}, from the length of the participation bits of the config's
+ * signed update (one bit per member of the trusted initial committee), and stored in the trust anchor. Bundles never
+ * choose it: a bundle able to pick a smaller committee could lower the number of keys an attacker must control to
+ * forge a signature.
+ *
+ * <p>{@code verifyConfig} does not prove the preset against the committee. A non-signer proof binds it indirectly, as
+ * its branch must have the preset's depth to reach the committee's keys root, but an update signed by every member
+ * carries no proof, so a committee of one preset can be anchored under the other. Such an anchor computes the wrong
+ * periods and leaves the channel unusable, but it cannot make a forged signature verify: every signature is still
+ * checked against the committee's own aggregate key. The party approving the configuration must check the preset, as
+ * it checks the anchor header.
  */
 enum SyncCommitteePreset {
     /**
@@ -44,19 +52,19 @@ enum SyncCommitteePreset {
     }
 
     /**
-     * Returns the preset whose committee has {@code committeeSize} members.
+     * Returns the preset whose participation {@code Bitvector} is {@code participationBytes} bytes long.
      *
-     * @throws com.hedera.node.app.service.clpr.impl.verifier.ProofException if no supported preset has that size
+     * @throws com.hedera.node.app.service.clpr.impl.verifier.ProofException if no supported preset has that length
      */
     @NonNull
-    static SyncCommitteePreset forCommitteeSize(final int committeeSize) {
+    static SyncCommitteePreset fromParticipationBytes(final int participationBytes) {
         for (final SyncCommitteePreset preset : values()) {
-            if (preset.committeeSize == committeeSize) {
+            if (preset.participationBytes() == participationBytes) {
                 return preset;
             }
         }
-        throw EthProofs.fail("unsupported sync committee size " + committeeSize + "; expected " + MAINNET.committeeSize
-                + " (mainnet) or " + MINIMAL.committeeSize + " (minimal)");
+        throw EthProofs.fail("unsupported sync aggregate bits length of " + participationBytes + " bytes; expected "
+                + MAINNET.participationBytes() + " (mainnet) or " + MINIMAL.participationBytes() + " (minimal)");
     }
 
     /**
@@ -85,7 +93,7 @@ enum SyncCommitteePreset {
     }
 
     /** The length in bytes of the participation {@code Bitvector}. */
-    int bitsLength() {
+    int participationBytes() {
         return committeeSize / Byte.SIZE;
     }
 

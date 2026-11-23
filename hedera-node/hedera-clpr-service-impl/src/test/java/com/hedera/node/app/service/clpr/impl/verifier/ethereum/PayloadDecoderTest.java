@@ -6,6 +6,7 @@ import static com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBu
 import static com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBundleFixtures.FORK_VERSION;
 import static com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBundleFixtures.GENESIS_VALIDATORS_ROOT;
 import static com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBundleFixtures.SERVICE_ADDRESS;
+import static com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBundleFixtures.bitsWithout;
 import static com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBundleFixtures.bundle;
 import static com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBundleFixtures.manifestCommitmentSlot;
 import static com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBundleFixtures.zeroBranch;
@@ -14,6 +15,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.hedera.hapi.node.state.clpr.EthereumPosLedgerConfigurationPayload;
+import com.hedera.hapi.node.state.clpr.EthereumPosNonSignerProof;
 import com.hedera.node.app.service.clpr.impl.verifier.ProofException;
 import com.hedera.node.app.service.clpr.impl.verifier.Rlp;
 import com.hedera.node.app.service.clpr.impl.verifier.ethereum.BundlePayload.MessageDelivery;
@@ -256,14 +258,16 @@ class PayloadDecoderTest {
         @DisplayName("given a valid mainnet config, then decodeConfig reads the bootstrap, the update, the domain and"
                 + " the code hash")
         void givenValidMainnetConfig_thenDecodesEveryField() {
+            final int firstNonSignerIndex = 3;
+            final int secondNonSignerIndex = 17;
             final ConfigBuilder builder = config();
+            builder.bits = bitsWithout(MAINNET, firstNonSignerIndex, secondNonSignerIndex);
 
             final PeerLedgerConfigPayload payload = PayloadDecoder.decodeConfig(builder.serialize());
 
             assertThat(payload.preset()).isEqualTo(MAINNET);
             assertThat(payload.slot()).isEqualTo(builder.anchorSlot);
-            assertThat(payload.current().pubkeys48().length).isEqualTo(MAINNET.committeeSize());
-            assertThat(payload.current().pubkeys48()[0]).isEqualTo(COMMITTEE.compressedKeys[0]);
+            assertThat(payload.current().pubkeysRoot32()).isEqualTo(COMMITTEE.pubkeysRoot);
             assertThat(payload.current().aggregatePubkey48()).isEqualTo(COMMITTEE.compressedAggregate);
             assertThat(payload.anchorHeader().slot()).isEqualTo(builder.anchorSlot);
             assertThat(payload.anchorHeader().stateRoot32()).isEqualTo(builder.anchorStateRoot());
@@ -271,7 +275,13 @@ class PayloadDecoderTest {
             assertThat(payload.updateHeader().slot()).isEqualTo(builder.updateSlot);
             assertThat(payload.syncAggregate().bits()).isEqualTo(builder.bits);
             assertThat(payload.syncAggregate().signature()).isEqualTo(builder.signature);
-            assertThat(payload.next().pubkeys48()[0]).isEqualTo(NEXT_COMMITTEE.compressedKeys[0]);
+            assertThat(payload.nonSignerProofs()).hasSize(2);
+            assertThat(payload.nonSignerProofs().getFirst().pubkey128())
+                    .isEqualTo(COMMITTEE.uncompressedKeys[firstNonSignerIndex]);
+            assertThat(payload.nonSignerProofs().getFirst().branch()).hasDimensions(9, 32);
+            assertThat(payload.nonSignerProofs().getLast().pubkey128())
+                    .isEqualTo(COMMITTEE.uncompressedKeys[secondNonSignerIndex]);
+            assertThat(payload.next().pubkeysRoot32()).isEqualTo(NEXT_COMMITTEE.pubkeysRoot);
             assertThat(payload.next().aggregatePubkey48()).isEqualTo(NEXT_COMMITTEE.compressedAggregate);
             assertThat(payload.nextBranch().length).isEqualTo(11);
             assertThat(payload.genesisValidatorsRoot32()).isEqualTo(GENESIS_VALIDATORS_ROOT);
@@ -279,6 +289,62 @@ class PayloadDecoderTest {
             assertThat(payload.codeHash32()).isEqualTo(CODE_HASH);
             assertThat(payload.ledgerConfiguration().serviceAddress().toByteArray())
                     .isEqualTo(SERVICE_ADDRESS);
+        }
+
+        @Test
+        @DisplayName("given 5-byte participation bits, then decodeConfig rejects the unsupported preset")
+        void givenFiveByteBits_thenThrowsProofException() {
+            final ConfigBuilder builder = config();
+            builder.bits = new byte[5];
+            builder.nonSignerProofsOverride = List.of();
+
+            assertConfigRejected(builder.serialize(), "unsupported sync aggregate bits length of 5 bytes");
+        }
+
+        @Test
+        @DisplayName("given a 31-byte next-committee pubkeys root, then decodeConfig rejects the payload")
+        void givenShortNextPubkeysRoot_thenThrowsProofException() {
+            final EthereumPosLedgerConfigurationPayload config = config().build();
+            final byte[] payload = serialize(config.copyBuilder()
+                    .nextSyncCommittee(config.nextSyncCommitteeOrThrow()
+                            .copyBuilder()
+                            .pubkeysRoot(Bytes.wrap(new byte[31]))
+                            .build())
+                    .build());
+
+            assertConfigRejected(payload, "next_sync_committee.pubkeys_root must be 32 bytes, got 31");
+        }
+
+        @Test
+        @DisplayName("given a non-signer proof with a compressed 48-byte key, then decodeConfig rejects the payload")
+        void givenCompressedNonSignerKey_thenThrowsProofException() {
+            final ConfigBuilder builder = config();
+            final List<EthereumPosNonSignerProof> proofs =
+                    new ArrayList<>(builder.build().syncAggregateNonSignerProofs());
+            proofs.set(
+                    1,
+                    proofs.get(1)
+                            .copyBuilder()
+                            .pubkey(Bytes.wrap(COMMITTEE.compressedKeys[17]))
+                            .build());
+            builder.nonSignerProofsOverride = proofs;
+
+            assertConfigRejected(
+                    builder.serialize(), "sync_aggregate_non_signer_proofs[1].pubkey must be 128 bytes, got 48");
+        }
+
+        @Test
+        @DisplayName("given a non-signer branch one node short, then decodeConfig rejects the payload")
+        void givenShortNonSignerBranch_thenThrowsProofException() {
+            final ConfigBuilder builder = config();
+            final EthereumPosNonSignerProof proof =
+                    builder.build().syncAggregateNonSignerProofs().getFirst();
+            builder.nonSignerProofsOverride = List.of(
+                    proof.copyBuilder().branch(proof.branch().subList(0, 8)).build(),
+                    builder.build().syncAggregateNonSignerProofs().getLast());
+
+            assertConfigRejected(
+                    builder.serialize(), "sync_aggregate_non_signer_proofs[0].branch must have 9 nodes, got 8");
         }
 
         @Test

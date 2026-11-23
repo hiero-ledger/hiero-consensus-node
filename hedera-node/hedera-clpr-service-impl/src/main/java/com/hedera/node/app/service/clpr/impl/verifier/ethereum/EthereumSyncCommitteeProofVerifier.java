@@ -13,7 +13,6 @@ import com.hedera.node.app.service.clpr.impl.verifier.Rlp;
 import com.hedera.node.app.service.clpr.impl.verifier.ethereum.BundlePayload.CommitteeRotation;
 import com.hedera.node.app.service.clpr.impl.verifier.ethereum.BundlePayload.FinalizedExecution;
 import com.hedera.node.app.service.clpr.impl.verifier.ethereum.BundlePayload.MessageDelivery;
-import com.hedera.node.app.service.clpr.impl.verifier.ethereum.BundlePayload.NonSignerProof;
 import com.hedera.node.app.service.clpr.impl.verifier.ethereum.BundlePayload.ServiceAccountProof;
 import com.hedera.node.app.service.clpr.impl.verifier.ethereum.BundlePayload.SignedHeader;
 import com.hedera.node.app.service.clpr.impl.verifier.ethereum.Ssz.SszMerkleBranch;
@@ -158,8 +157,10 @@ public final class EthereumSyncCommitteeProofVerifier {
      * <p>The payload carries a light-client bootstrap and a signed update. The verifier opens the current committee
      * under the anchor header's state root, opens the next committee under the update header's state root, requires
      * both aggregate keys to be valid BLS public keys, and checks that the current committee signed the update header,
-     * which lies in the anchor header's period. The anchor then trusts both committees from the anchor header's period
-     * on, pins the service contract's code hash, and takes the preset from the committee size.
+     * which lies in the anchor header's period. The committees are carried as their keys root and aggregate key, so the
+     * keys of the members that did not sign the update are each proven against the current committee's keys root, as
+     * in a bundle. The anchor then trusts both committees from the anchor header's period on, pins the service
+     * contract's code hash, and takes the preset from the length of the update's participation bits.
      *
      * <p>The endpoint-manifest proof is verified under that anchor as a bundle delivery is, without the Channel slots:
      * the committee of its signature slot's period signed its attested header, whose state names a finalized header;
@@ -205,14 +206,14 @@ public final class EthereumSyncCommitteeProofVerifier {
         }
         final long period = preset.periodOf(anchorHeader.slot());
         requirePeriod(payload.updateHeader().slot(), period, preset, "update header slot");
-        final SyncCommittee currentCommittee = payload.current().toSyncCommittee();
+        final SyncCommittee currentCommittee = payload.current();
         verifyCommitteeBranch(
                 currentCommittee,
                 payload.currentBranch(),
                 Gloas.CURRENT_SYNC_COMMITTEE,
                 anchorHeader,
                 "current sync committee");
-        final SyncCommittee nextCommittee = payload.next().toSyncCommittee();
+        final SyncCommittee nextCommittee = payload.next();
         verifyCommitteeBranch(
                 nextCommittee,
                 payload.nextBranch(),
@@ -708,22 +709,19 @@ public final class EthereumSyncCommitteeProofVerifier {
     }
 
     /**
-     * Verifies that the current committee signed the config's update header. The payload carries the committee's full
-     * key set, so the non-signers are read from it, with no membership proofs.
+     * Verifies that the current committee signed the config's update header. The non-signers' keys are authenticated
+     * against the committee's {@code pubkeysRoot} by their membership proofs, as a bundle's are.
      *
-     * @throws ProofException if participation is below the supermajority, a non-signer key is malformed, or the BLS
-     *                        check fails
+     * @throws ProofException if participation is below the supermajority, the non-signer proofs do not match the clear
+     *                        bits or do not verify, or the BLS check fails
      */
     private void verifyUpdateSignature(
             @NonNull final PeerLedgerConfigPayload payload, @NonNull final TrustAnchor anchor) {
         final SyncAggregate syncAggregate = payload.syncAggregate();
         requireSupermajority(syncAggregate, anchor.preset());
-        verifyAggregateSignature(
-                payload.updateHeader(),
-                syncAggregate,
-                anchor.current(),
-                payload.current().nonSignerPubkeys(syncAggregate),
-                anchor);
+        final List<byte[]> nonSignerPubkeys =
+                verifyNonSigners(payload.nonSignerProofs(), syncAggregate, anchor.current(), anchor.preset());
+        verifyAggregateSignature(payload.updateHeader(), syncAggregate, anchor.current(), nonSignerPubkeys, anchor);
     }
 
     /**

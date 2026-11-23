@@ -16,9 +16,10 @@ import com.hederahashgraph.api.proto.java.ClprQueueMetadata;
 import com.hederahashgraph.api.proto.java.ClprServiceEndpoint;
 import com.hederahashgraph.api.proto.java.ClprThrottles;
 import com.hederahashgraph.api.proto.java.EthereumPosBeaconBlockHeader;
+import com.hederahashgraph.api.proto.java.EthereumPosCommitteeAnchor;
 import com.hederahashgraph.api.proto.java.EthereumPosLedgerConfigurationPayload;
+import com.hederahashgraph.api.proto.java.EthereumPosNonSignerProof;
 import com.hederahashgraph.api.proto.java.EthereumPosSyncAggregate;
-import com.hederahashgraph.api.proto.java.EthereumPosSyncCommittee;
 import java.math.BigInteger;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -27,6 +28,7 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.IntStream;
 
 /**
  * Self-contained generator for the Ethereum sync-committee verifier's wire payloads, used by
@@ -123,7 +125,18 @@ public final class SyncCommitteeProofs {
 
     /** A valid config payload whose committees have the size of {@code preset}. */
     public static byte[] configPayload(final Preset preset) {
-        return configPayload(preset, peerLedgerConfig(SERVICE_ADDRESS));
+        return configPayload(preset, peerLedgerConfig(SERVICE_ADDRESS), NO_NON_SIGNERS);
+    }
+
+    /**
+     * A valid config payload whose update is not signed by the first {@code nonSignerCount} members of the initial
+     * committee, so it carries {@code nonSignerCount} non-signer proofs.
+     */
+    public static byte[] configPayload(final Preset preset, final int nonSignerCount) {
+        return configPayload(
+                preset,
+                peerLedgerConfig(SERVICE_ADDRESS),
+                IntStream.range(0, nonSignerCount).toArray());
     }
 
     /**
@@ -133,16 +146,17 @@ public final class SyncCommitteeProofs {
      * completion handler enforces downstream.
      */
     public static byte[] configPayloadBadServiceAddress() {
-        return configPayload(Preset.MAINNET, peerLedgerConfig(generateBytes(3, 0x66)));
+        return configPayload(Preset.MAINNET, peerLedgerConfig(generateBytes(3, 0x66)), NO_NON_SIGNERS);
     }
 
     /**
      * The config payload: the bootstrap opens the initial committee under the anchor header's state root, and an update
      * header of the same period, signed by the initial committee, opens the next committee under its state root.
      *
-     * <p>Every member signs the update.
+     * <p>Every member but {@code nonSigners}, in ascending order, signs the update.
      */
-    private static byte[] configPayload(final Preset preset, final ClprLedgerConfiguration ledgerConfig) {
+    private static byte[] configPayload(
+            final Preset preset, final ClprLedgerConfiguration ledgerConfig, final int[] nonSigners) {
         final Committee current = Committee.initial(preset);
         final Committee next = Committee.next(preset);
         final long anchorSlot = preset.firstSlotOf(CONFIG_PERIOD) + 7;
@@ -155,12 +169,11 @@ public final class SyncCommitteeProofs {
         final byte[] updateBodyRoot = generateBytes(32, 0x72);
         final byte[] updateRoot =
                 beaconHeaderRoot(updateSlot, 9L, updateParentRoot, sparseRoot(updateState), updateBodyRoot);
-        final byte[] bits = new byte[preset.committeeSize / 8];
-        Arrays.fill(bits, (byte) 0xFF);
+        final byte[] bits = bitsWithout(preset, nonSigners);
         final byte[] signature =
-                current.sign(computeSigningRoot(updateRoot, FORK_VERSION, GENESIS_VALIDATORS_ROOT), NO_NON_SIGNERS);
-        return EthereumPosLedgerConfigurationPayload.newBuilder()
-                .setSyncCommittee(current.toProto())
+                current.sign(computeSigningRoot(updateRoot, FORK_VERSION, GENESIS_VALIDATORS_ROOT), nonSigners);
+        final var payload = EthereumPosLedgerConfigurationPayload.newBuilder()
+                .setSyncCommittee(current.toAnchorProto())
                 .setLedgerConfiguration(ledgerConfig)
                 .setGenesisValidatorsRoot(ByteString.copyFrom(GENESIS_VALIDATORS_ROOT))
                 .setForkVersion(ByteString.copyFrom(FORK_VERSION))
@@ -171,11 +184,13 @@ public final class SyncCommitteeProofs {
                 .setSyncAggregate(EthereumPosSyncAggregate.newBuilder()
                         .setBits(ByteString.copyFrom(bits))
                         .setSignature(ByteString.copyFrom(signature)))
-                .setNextSyncCommittee(next.toProto())
+                .setNextSyncCommittee(next.toAnchorProto())
                 .addAllNextSyncCommitteeBranch(byteStrings(sparseBranch(updateState, NEXT_SYNC_COMMITTEE_GINDEX)))
-                .setCodeHash(ByteString.copyFrom(CODE_HASH))
-                .build()
-                .toByteArray();
+                .setCodeHash(ByteString.copyFrom(CODE_HASH));
+        for (final int index : nonSigners) {
+            payload.addSyncAggregateNonSignerProofs(current.nonSignerProof(index));
+        }
+        return payload.build().toByteArray();
     }
 
     private static EthereumPosBeaconBlockHeader protoHeader(
@@ -236,6 +251,19 @@ public final class SyncCommitteeProofs {
      * {@code keccak256(manifestBytes)} at slot 18.
      */
     public static byte[] configManifestProof(final byte[] manifestBytes) {
+        return configManifestProof(manifestBytes, NON_SIGNERS);
+    }
+
+    /**
+     * A {@link #configManifestProof(byte[])} whose header is not signed by the first {@code nonSignerCount} members of
+     * the initial committee, so it carries {@code nonSignerCount} non-signer entries.
+     */
+    public static byte[] configManifestProof(final byte[] manifestBytes, final int nonSignerCount) {
+        return configManifestProof(
+                manifestBytes, IntStream.range(0, nonSignerCount).toArray());
+    }
+
+    private static byte[] configManifestProof(final byte[] manifestBytes, final int[] nonSigners) {
         final Delivery delivery = new Delivery(
                 Preset.MAINNET,
                 CONFIG_PERIOD,
@@ -243,6 +271,7 @@ public final class SyncCommitteeProofs {
                 new byte[32],
                 ClprBundleContent.getDefaultInstance());
         delivery.manifestBytes = manifestBytes;
+        delivery.nonSigners = nonSigners;
         final List<Object> items = delivery.toRlpItems();
         final List<Object> proof = new ArrayList<>(items.subList(0, DELIVERY_INDEX_STORAGE_PROOF));
         proof.addAll(items.subList(DELIVERY_INDEX_MANIFEST_PROOF, items.size()));
@@ -448,8 +477,12 @@ public final class SyncCommitteeProofs {
         final byte[] bodyRoot = generateBytes(32, 0x62);
         return List.of(
                 header(attestedSlot, 11L, parentRoot, stateRoot, bodyRoot),
-                syncAggregate(signer, preset, beaconHeaderRoot(attestedSlot, 11L, parentRoot, stateRoot, bodyRoot)),
-                signer.nonSignerEntries(),
+                syncAggregate(
+                        signer,
+                        preset,
+                        beaconHeaderRoot(attestedSlot, 11L, parentRoot, stateRoot, bodyRoot),
+                        NON_SIGNERS),
+                signer.nonSignerEntries(NON_SIGNERS),
                 header(finalizedSlot, 5L, finalizedParentRoot, finalizedStateRoot, finalizedBodyRoot),
                 byteList(sparseBranch(state, FINALIZED_ROOT_GINDEX)),
                 List.of(next.pubkeysRoot, next.uncompressedAggregate),
@@ -472,6 +505,7 @@ public final class SyncCommitteeProofs {
         private boolean tamperAccountProof;
         private boolean signOtherRoot;
         private byte[] manifestBytes;
+        private int[] nonSigners = NON_SIGNERS;
 
         private Delivery(
                 final Preset preset,
@@ -548,8 +582,8 @@ public final class SyncCommitteeProofs {
             return List.of(
                     header(attestedSlot, 7L, attestedParentRoot, attestedStateRoot, attestedBodyRoot),
                     minimalBE(attestedSlot + 1), // signature slot
-                    syncAggregate(signer, preset, signedRoot),
-                    signer.nonSignerEntries(),
+                    syncAggregate(signer, preset, signedRoot, nonSigners),
+                    signer.nonSignerEntries(nonSigners),
                     List.of(
                             header(finalizedSlot, 3L, finalizedParentRoot, finalizedStateRoot, finalizedBodyRoot),
                             byteList(sparseBranch(finalizedBody, EXECUTION_BLOCK_HASH_GINDEX)),
@@ -564,16 +598,22 @@ public final class SyncCommitteeProofs {
     }
 
     /**
-     * {@code signer}'s sync aggregate over an attested header: every member signs except {@link #NON_SIGNERS}.
+     * {@code signer}'s sync aggregate over an attested header: every member signs except {@code nonSigners}.
      */
-    private static Object syncAggregate(final Committee signer, final Preset preset, final byte[] attestedRoot) {
+    private static Object syncAggregate(
+            final Committee signer, final Preset preset, final byte[] attestedRoot, final int[] nonSigners) {
+        final byte[] signingRoot = computeSigningRoot(attestedRoot, FORK_VERSION, GENESIS_VALIDATORS_ROOT);
+        return List.of(bitsWithout(preset, nonSigners), signer.sign(signingRoot, nonSigners));
+    }
+
+    /** A participation bitvector of {@code preset} with every member set except {@code nonSigners}. */
+    private static byte[] bitsWithout(final Preset preset, final int[] nonSigners) {
         final byte[] bits = new byte[preset.committeeSize / 8];
         Arrays.fill(bits, (byte) 0xFF);
-        for (final int index : NON_SIGNERS) {
+        for (final int index : nonSigners) {
             bits[index / 8] &= (byte) ~(1 << (index % 8));
         }
-        final byte[] signingRoot = computeSigningRoot(attestedRoot, FORK_VERSION, GENESIS_VALIDATORS_ROOT);
-        return List.of(bits, signer.sign(signingRoot, NON_SIGNERS));
+        return bits;
     }
 
     // ── Storage-slot layout and packing (mirrors the ClprService Channel struct) ──
@@ -699,7 +739,6 @@ public final class SyncCommitteeProofs {
         private static final BigInteger HALF_FIELD_MODULUS = FIELD_MODULUS.shiftRight(1);
 
         final byte[][] uncompressedKeys;
-        final byte[][] compressedKeys;
         final byte[] uncompressedAggregate;
         final byte[] compressedAggregate;
         final byte[] pubkeysRoot;
@@ -709,13 +748,11 @@ public final class SyncCommitteeProofs {
         private Committee(final int size, final int seed) {
             secretKeys = new BigInteger[size];
             uncompressedKeys = new byte[size][];
-            compressedKeys = new byte[size][];
             leaves = new byte[size][];
             for (int i = 0; i < size; i++) {
                 secretKeys[i] = BigInteger.valueOf(seed).shiftLeft(Integer.SIZE).add(BigInteger.valueOf(i + 1L));
                 uncompressedKeys[i] = BlsSigner.publicKey(secretKeys[i]);
-                compressedKeys[i] = compress(uncompressedKeys[i]);
-                leaves[i] = pubkeyChunk(compressedKeys[i]);
+                leaves[i] = pubkeyChunk(compress(uncompressedKeys[i]));
             }
             // The aggregate of the public keys is the public key of the sum of the secret keys.
             uncompressedAggregate = BlsSigner.publicKey(sumOfSecretKeys(NO_NON_SIGNERS));
@@ -738,14 +775,12 @@ public final class SyncCommitteeProofs {
             return new Committee(preset.committeeSize, 5);
         }
 
-        /** The committee as the config payload carries it: its compressed keys and aggregate. */
-        EthereumPosSyncCommittee toProto() {
-            final var committee =
-                    EthereumPosSyncCommittee.newBuilder().setAggregatePubkey(ByteString.copyFrom(compressedAggregate));
-            for (final byte[] key : compressedKeys) {
-                committee.addPubkeys(ByteString.copyFrom(key));
-            }
-            return committee.build();
+        /** The committee as the config payload carries it: its keys root and compressed aggregate. */
+        EthereumPosCommitteeAnchor toAnchorProto() {
+            return EthereumPosCommitteeAnchor.newBuilder()
+                    .setPubkeysRoot(ByteString.copyFrom(pubkeysRoot))
+                    .setAggregatePubkey(ByteString.copyFrom(compressedAggregate))
+                    .build();
         }
 
         /** {@code hash_tree_root(SyncCommittee)} — mirrors {@code SyncCommittee.hashTreeRoot()}. */
@@ -772,25 +807,42 @@ public final class SyncCommitteeProofs {
             return sum.mod(BlsSigner.SUBGROUP_ORDER);
         }
 
-        /** One {@code key128 ‖ siblings} entry per {@link #NON_SIGNERS} member, in ascending index order. */
-        List<Object> nonSignerEntries() {
+        /** One {@code key128 ‖ siblings} entry per {@code nonSigners} member, in ascending index order. */
+        List<Object> nonSignerEntries(final int[] nonSigners) {
             final List<Object> entries = new ArrayList<>();
-            for (final int index : NON_SIGNERS) {
+            for (final int index : nonSigners) {
                 final List<byte[]> parts = new ArrayList<>(List.of(uncompressedKeys[index]));
-                byte[][] level = leaves;
-                int position = index;
-                while (level.length > 1) {
-                    parts.add(level[position ^ 1]);
-                    final byte[][] next = new byte[level.length / 2][];
-                    for (int i = 0; i < next.length; i++) {
-                        next[i] = sha256(level[2 * i], level[2 * i + 1]);
-                    }
-                    level = next;
-                    position >>= 1;
-                }
+                parts.addAll(pubkeyBranch(index));
                 entries.add(concat(parts));
             }
             return entries;
+        }
+
+        /** The non-signer proof of member {@code index} as the config payload carries it. */
+        EthereumPosNonSignerProof nonSignerProof(final int index) {
+            final var proof =
+                    EthereumPosNonSignerProof.newBuilder().setPubkey(ByteString.copyFrom(uncompressedKeys[index]));
+            for (final byte[] sibling : pubkeyBranch(index)) {
+                proof.addBranch(ByteString.copyFrom(sibling));
+            }
+            return proof.build();
+        }
+
+        /** The bottom-up siblings of member {@code index}'s key leaf under {@link #pubkeysRoot}. */
+        private List<byte[]> pubkeyBranch(final int index) {
+            final List<byte[]> siblings = new ArrayList<>();
+            byte[][] level = leaves;
+            int position = index;
+            while (level.length > 1) {
+                siblings.add(level[position ^ 1]);
+                final byte[][] next = new byte[level.length / 2][];
+                for (int i = 0; i < next.length; i++) {
+                    next[i] = sha256(level[2 * i], level[2 * i + 1]);
+                }
+                level = next;
+                position >>= 1;
+            }
+            return siblings;
         }
 
         /** ZCash compression: {@code x} with the compression flag and, when {@code y > (p-1)/2}, the sign flag. */

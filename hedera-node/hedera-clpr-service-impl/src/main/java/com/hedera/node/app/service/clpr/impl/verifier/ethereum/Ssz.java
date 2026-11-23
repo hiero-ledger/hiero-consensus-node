@@ -43,7 +43,7 @@ final class Ssz {
      * Per-thread reusable SHA-256 digest. {@link MessageDigest} is stateful and not thread-safe, so it cannot be shared
      * across threads via a plain static field; a {@link ThreadLocal} gives each thread its own instance while still
      * avoiding a fresh {@code getInstance} provider lookup and allocation on every hash. A single verify call performs
-     * ~1k hashes (dominated by {@link SyncCommittee#fromPubkeys} for a mainnet committee), so reuse matters.
+     * ~1k hashes, so reuse matters.
      */
     private static final ThreadLocal<MessageDigest> SHA_256 = ThreadLocal.withInitial(() -> {
         try {

@@ -10,27 +10,6 @@ option java_multiple_files = true;
 import "services/state/clpr/clpr_ledger_configuration.proto";
 
 /**
- * An Ethereum beacon-chain sync committee: the member BLS public keys plus
- * their precomputed aggregate.
- *
- * The member count MUST be one of the supported consensus presets: 512
- * (mainnet) or 32 (minimal).
- */
-message EthereumPosSyncCommittee {
-    /**
-     * The committee member public keys, in committee order.<br/>
-     * Each key MUST be a 48-byte compressed BLS12-381 G1 point.
-     */
-    repeated bytes pubkeys = 1;
-
-    /**
-     * The aggregate of all member public keys.<br/>
-     * This MUST be a 48-byte compressed BLS12-381 G1 point.
-     */
-    bytes aggregate_pubkey = 2;
-}
-
-/**
  * A protobuf form of an Ethereum beacon block header,
  */
 message EthereumPosBeaconBlockHeader {
@@ -81,6 +60,30 @@ message EthereumPosSyncAggregate {
 }
 
 /**
+ * The key of a sync-committee member that did NOT sign a `SyncAggregate`,
+ * with its SSZ inclusion branch under the committee's `pubkeys_root`.
+ *
+ * The member's committee index is not carried: it is the position of the
+ * clear participation bit the proof belongs to. The branch is folded along
+ * that index, so only the key the beacon state holds at that index verifies.
+ */
+message EthereumPosNonSignerProof {
+    /**
+     * The member's public key.<br/>
+     * This MUST be a 128-byte EIP-2537 uncompressed BLS12-381 G1 point.
+     */
+    bytes pubkey = 1;
+
+    /**
+     * The SSZ branch of the member's key leaf under the committee's
+     * `pubkeys_root`, bottom-up.<br/>
+     * Each sibling MUST be 32 bytes. The depth MUST be log2 of the committee
+     * size: 9 for the mainnet preset, 5 for the minimal preset.
+     */
+    repeated bytes branch = 2;
+}
+
+/**
  * The ledger configuration payload of an Ethereum proof-of-stake ledger,
  * as passed to the Ethereum verifier's `verifyConfig`.
  *
@@ -91,6 +94,15 @@ message EthereumPosSyncAggregate {
  * `update_header`. It then seeds the trust anchor with the period of
  * `anchor_header.slot`, both committees and `code_hash`.
  *
+ * The committees are carried in their trust-anchor form, not as full key
+ * sets: the committee branches commit only to `pubkeys_root` and the
+ * aggregate key, and the signature check needs only the non-signers' keys,
+ * each proven against `pubkeys_root`. Carrying only the non-signers' keys
+ * keeps the payload small: a supermajority must sign, and in practice almost
+ * every member does.
+ *
+ * The consensus preset is selected by the length of `sync_aggregate.bits`.
+ *
  * The anchor header itself is not authenticated: the party completing the
  * channel is trusted to supply the bootstrap and chain-pinning fields of the
  * intended Ethereum network.
@@ -98,10 +110,9 @@ message EthereumPosSyncAggregate {
 message EthereumPosLedgerConfigurationPayload {
     /**
      * The current sync committee, of the period of `anchor_header.slot`.<br/>
-     * Its full key set lets the verifier find the non-signers of
-     * `sync_aggregate`.
+     * This committee signed `update_header`.
      */
-    EthereumPosSyncCommittee sync_committee = 1;
+    EthereumPosCommitteeAnchor sync_committee = 1;
 
     /**
      * The platform-neutral CLPR configuration of the source ledger.<br/>
@@ -158,7 +169,7 @@ message EthereumPosLedgerConfigurationPayload {
     /**
      * The next sync committee, of the period after `anchor_header`'s.
      */
-    EthereumPosSyncCommittee next_sync_committee = 10;
+    EthereumPosCommitteeAnchor next_sync_committee = 10;
 
     /**
      * The SSZ branch of `next_sync_committee` under
@@ -174,12 +185,21 @@ message EthereumPosLedgerConfigurationPayload {
      * account proof of every later bundle MUST carry this code hash.
      */
     bytes code_hash = 12;
+
+    /**
+     * The proofs of the members of `sync_committee` that did not sign
+     * `update_header`.<br/>
+     * There MUST be exactly one proof per clear bit of `sync_aggregate.bits`,
+     * in committee order.
+     */
+    repeated EthereumPosNonSignerProof sync_aggregate_non_signer_proofs = 13;
 }
 
 /**
  * A sync committee as an `EthereumPosTrustAnchor` holds it: the SSZ root of
  * its member keys and its aggregate key. The member keys themselves are not
- * stored; bundles prove each non-signer's key against `pubkeys_root`.
+ * stored; bundles and the config payload prove each non-signer's key against
+ * `pubkeys_root`.
  */
 message EthereumPosCommitteeAnchor {
     /**

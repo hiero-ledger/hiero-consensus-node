@@ -13,24 +13,24 @@ import org.junit.jupiter.params.provider.ValueSource;
 class SyncCommitteePresetTest {
 
     @Test
-    @DisplayName("given 512 members, then forCommitteeSize returns the mainnet preset")
-    void given512Members_thenForCommitteeSizeReturnsMainnet() {
-        assertThat(SyncCommitteePreset.forCommitteeSize(512)).isEqualTo(SyncCommitteePreset.MAINNET);
+    @DisplayName("given 64-byte bits, then fromParticipationBytes returns the mainnet preset")
+    void given64ByteBits_thenFromParticipationBytesReturnsMainnet() {
+        assertThat(SyncCommitteePreset.fromParticipationBytes(64)).isEqualTo(SyncCommitteePreset.MAINNET);
     }
 
     @Test
-    @DisplayName("given 32 members, then forCommitteeSize returns the minimal preset")
-    void given32Members_thenForCommitteeSizeReturnsMinimal() {
-        assertThat(SyncCommitteePreset.forCommitteeSize(32)).isEqualTo(SyncCommitteePreset.MINIMAL);
+    @DisplayName("given 4-byte bits, then fromParticipationBytes returns the minimal preset")
+    void given4ByteBits_thenFromParticipationBytesReturnsMinimal() {
+        assertThat(SyncCommitteePreset.fromParticipationBytes(4)).isEqualTo(SyncCommitteePreset.MINIMAL);
     }
 
-    @ParameterizedTest(name = "{0} members")
-    @ValueSource(ints = {0, 1, 16, 64, 511, 1024})
-    @DisplayName("given an unsupported size, then forCommitteeSize rejects it")
-    void givenUnsupportedSize_thenForCommitteeSizeThrows(final int size) {
-        assertThatThrownBy(() -> SyncCommitteePreset.forCommitteeSize(size))
+    @ParameterizedTest(name = "{0} bytes")
+    @ValueSource(ints = {0, 1, 3, 5, 32, 63, 65, 128})
+    @DisplayName("given an unsupported bits length, then fromParticipationBytes rejects it")
+    void givenUnsupportedBitsLength_thenFromParticipationBytesThrows(final int participationBytes) {
+        assertThatThrownBy(() -> SyncCommitteePreset.fromParticipationBytes(participationBytes))
                 .isInstanceOf(ProofException.class)
-                .hasMessageContaining("unsupported sync committee size " + size);
+                .hasMessageContaining("unsupported sync aggregate bits length of " + participationBytes + " bytes");
     }
 
     @Test
@@ -53,7 +53,7 @@ class SyncCommitteePresetTest {
     @DisplayName("given the mainnet preset, then its derived sizes match the consensus spec")
     void givenMainnet_thenDerivedSizesMatchSpec() {
         final SyncCommitteePreset mainnet = SyncCommitteePreset.MAINNET;
-        assertThat(mainnet.bitsLength()).isEqualTo(64);
+        assertThat(mainnet.participationBytes()).isEqualTo(64);
         assertThat(mainnet.pubkeysBranchDepth()).isEqualTo(9);
         assertThat(mainnet.periodOf(8191)).isZero();
         assertThat(mainnet.periodOf(8192)).isEqualTo(1);
@@ -63,7 +63,7 @@ class SyncCommitteePresetTest {
     @DisplayName("given the minimal preset, then its derived sizes match the consensus spec")
     void givenMinimal_thenDerivedSizesMatchSpec() {
         final SyncCommitteePreset minimal = SyncCommitteePreset.MINIMAL;
-        assertThat(minimal.bitsLength()).isEqualTo(4);
+        assertThat(minimal.participationBytes()).isEqualTo(4);
         assertThat(minimal.pubkeysBranchDepth()).isEqualTo(5);
         assertThat(minimal.periodOf(63)).isZero();
         assertThat(minimal.periodOf(64)).isEqualTo(1);

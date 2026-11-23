@@ -30,9 +30,10 @@ import com.hedera.hapi.node.state.clpr.ClprEndpoint;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.clpr.EthereumPosBeaconBlockHeader;
+import com.hedera.hapi.node.state.clpr.EthereumPosCommitteeAnchor;
 import com.hedera.hapi.node.state.clpr.EthereumPosLedgerConfigurationPayload;
+import com.hedera.hapi.node.state.clpr.EthereumPosNonSignerProof;
 import com.hedera.hapi.node.state.clpr.EthereumPosSyncAggregate;
-import com.hedera.hapi.node.state.clpr.EthereumPosSyncCommittee;
 import com.hedera.hapi.node.state.clpr.EthereumPosTrustAnchor;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.service.clpr.impl.verifier.ProofException;
@@ -1043,56 +1044,75 @@ class EthereumSyncCommitteeProofVerifierTest {
         void givenMissingMessageField_thenThrowsProofException(final String field) {
             final var builder = config().build().copyBuilder();
             switch (field) {
-                case "sync_committee" -> builder.syncCommittee((EthereumPosSyncCommittee) null);
+                case "sync_committee" -> builder.syncCommittee((EthereumPosCommitteeAnchor) null);
                 case "ledger_configuration" -> builder.ledgerConfiguration((ClprLedgerConfiguration) null);
                 case "anchor_header" -> builder.anchorHeader((EthereumPosBeaconBlockHeader) null);
                 case "update_header" -> builder.updateHeader((EthereumPosBeaconBlockHeader) null);
                 case "sync_aggregate" -> builder.syncAggregate((EthereumPosSyncAggregate) null);
-                default -> builder.nextSyncCommittee((EthereumPosSyncCommittee) null);
+                default -> builder.nextSyncCommittee((EthereumPosCommitteeAnchor) null);
             }
             assertConfigRejected(serialize(builder.build()), "configPayload has no " + field);
         }
 
         @Test
-        @DisplayName("given a committee of 64 members, then verifyConfigPayload rejects the payload")
-        void givenUnsupportedCommitteeSize_thenThrowsProofException() {
-            final var config = config().build();
-            final byte[] payload = serialize(config.copyBuilder()
-                    .syncCommittee(config.syncCommitteeOrThrow()
-                            .copyBuilder()
-                            .pubkeys(config.syncCommitteeOrThrow().pubkeys().subList(0, 64))
-                            .build())
-                    .build());
-            assertConfigRejected(payload, "unsupported sync committee size 64");
+        @DisplayName("given 8-byte participation bits, then verifyConfigPayload rejects the payload")
+        void givenBitsOfUnsupportedLength_thenThrowsProofException() {
+            final ConfigBuilder builder = config();
+            builder.bits = new byte[8];
+            builder.nonSignerProofsOverride = List.of();
+            assertConfigRejected(builder.serialize(), "unsupported sync aggregate bits length of 8 bytes");
+        }
+
+        @ParameterizedTest(name = "{0} proofs")
+        @ValueSource(ints = {1, 3})
+        @DisplayName("given a non-signer proof count other than the clear bits, then verifyConfigPayload rejects it")
+        void givenNonSignerProofCountOtherThanClearBits_thenThrowsProofException(final int proofCount) {
+            final ConfigBuilder builder = config();
+            builder.nonSignerProofsOverride = IntStream.of(3, 17, 17)
+                    .limit(proofCount)
+                    .mapToObj(COMMITTEE::nonSignerProof)
+                    .toList();
+            assertConfigRejected(
+                    builder.serialize(),
+                    "expected 2 non-signer proofs (one per clear participation bit), got " + proofCount);
         }
 
         @Test
-        @DisplayName("given a next committee of another preset's size, then verifyConfigPayload rejects the payload")
-        void givenNextCommitteeOfAnotherSize_thenThrowsProofException() {
-            final var config = config().build();
-            final byte[] payload = serialize(config.copyBuilder()
-                    .nextSyncCommittee(config.nextSyncCommitteeOrThrow()
-                            .copyBuilder()
-                            .pubkeys(config.nextSyncCommitteeOrThrow().pubkeys().subList(0, 32))
-                            .build())
-                    .build());
-            assertConfigRejected(payload, "next_sync_committee has 32 keys; the MAINNET preset expects 512");
+        @DisplayName("given non-signer proofs out of committee order, then verifyConfigPayload rejects the payload")
+        void givenNonSignerProofsOutOfOrder_thenThrowsProofException() {
+            // Each proof is folded along the index of its clear bit, so a genuine proof in another position fails
+            final ConfigBuilder builder = config();
+            builder.nonSignerProofsOverride = List.of(COMMITTEE.nonSignerProof(17), COMMITTEE.nonSignerProof(3));
+            assertConfigRejected(
+                    builder.serialize(),
+                    "non-signer pubkey at committee index 3 is not the trusted committee's member at that index");
         }
 
         @Test
-        @DisplayName("given an uncompressed member key, then verifyConfigPayload rejects the payload")
-        void givenUncompressedKey_thenThrowsProofException() {
-            final var config = config().build();
-            final List<Bytes> keys =
-                    new ArrayList<>(config.syncCommitteeOrThrow().pubkeys());
-            keys.set(5, Bytes.wrap(COMMITTEE.uncompressedKeys[5]));
-            final byte[] payload = serialize(config.copyBuilder()
-                    .syncCommittee(config.syncCommitteeOrThrow()
-                            .copyBuilder()
-                            .pubkeys(keys)
-                            .build())
-                    .build());
-            assertConfigRejected(payload, "sync_committee.pubkeys[5] must be 48 bytes, got 128");
+        @DisplayName("given a forged non-signer key on a genuine branch, then verifyConfigPayload rejects the payload")
+        void givenForgedNonSignerKey_thenThrowsProofException() {
+            // The q = aggregate − K attack: a relay-chosen key passed as a non-signer must fail membership.
+            final ConfigBuilder builder = config();
+            final EthereumPosNonSignerProof forged = COMMITTEE
+                    .nonSignerProof(3)
+                    .copyBuilder()
+                    .pubkey(Bytes.wrap(NEXT_COMMITTEE.uncompressedKeys[3]))
+                    .build();
+            builder.nonSignerProofsOverride = List.of(forged, COMMITTEE.nonSignerProof(17));
+            assertConfigRejected(
+                    builder.serialize(),
+                    "non-signer pubkey at committee index 3 is not the trusted committee's member at that index");
+        }
+
+        @Test
+        @DisplayName("given non-signer proofs of the next committee, then verifyConfigPayload rejects the payload")
+        void givenNonSignerProofsOfNextCommittee_thenThrowsProofException() {
+            final ConfigBuilder builder = config();
+            builder.nonSignerProofsOverride =
+                    List.of(NEXT_COMMITTEE.nonSignerProof(3), NEXT_COMMITTEE.nonSignerProof(17));
+            assertConfigRejected(
+                    builder.serialize(),
+                    "non-signer pubkey at committee index 3 is not the trusted committee's member at that index");
         }
 
         @Test
@@ -1199,14 +1219,18 @@ class EthereumSyncCommitteeProofVerifierTest {
         @DisplayName("given a valid config, then BLS receives the current aggregate, the decompressed non-signers, the"
                 + " update's signing root and the signature")
         void givenValidConfig_thenBlsReceivesCurrentCommitteeUpdateSignature() {
+            final int firstNonSigner = 3;
+            final int secondNonSigner = 17;
             final ConfigBuilder builder = config();
+            builder.bits = bitsWithout(MAINNET, firstNonSigner, secondNonSigner);
             builder.signature = deterministicBytes(256, 0x5B);
 
             verifyConfig(builder.serialize());
 
             assertThat(bls.lastAggregatePubkey).isEqualTo(COMMITTEE.uncompressedAggregate);
             assertThat(bls.lastNonSignerPubkeys)
-                    .containsExactly(COMMITTEE.uncompressedKeys[3], COMMITTEE.uncompressedKeys[17]);
+                    .containsExactly(
+                            COMMITTEE.uncompressedKeys[firstNonSigner], COMMITTEE.uncompressedKeys[secondNonSigner]);
             assertThat(bls.lastMessage).isEqualTo(signingRoot(builder.updateRoot()));
             assertThat(bls.lastSignature).isEqualTo(builder.signature);
         }

@@ -53,11 +53,12 @@ class SyncCommitteeProofsTest {
             final var payload =
                     EthereumPosLedgerConfigurationPayload.parseFrom(SyncCommitteeProofs.configPayload(preset));
 
-            assertThat(payload.getSyncCommittee().getPubkeysList())
-                    .hasSize(preset.committeeSize)
-                    .allSatisfy(key -> assertThat(key.size()).isEqualTo(48));
+            assertThat(payload.getSyncCommittee().getPubkeysRoot().size()).isEqualTo(32);
             assertThat(payload.getSyncCommittee().getAggregatePubkey().size()).isEqualTo(48);
-            assertThat(payload.getNextSyncCommittee().getPubkeysList()).hasSize(preset.committeeSize);
+            assertThat(payload.getNextSyncCommittee().getPubkeysRoot().size()).isEqualTo(32);
+            assertThat(payload.getNextSyncCommittee().getAggregatePubkey().size())
+                    .isEqualTo(48);
+            assertThat(payload.getSyncAggregateNonSignerProofsList()).isEmpty();
             assertThat(payload.getAnchorHeader().getSlot()).isEqualTo(payload.getSlot());
             assertThat(payload.getCurrentSyncCommitteeBranchList()).hasSize(11);
             assertThat(payload.getNextSyncCommitteeBranchList()).hasSize(11);
@@ -69,6 +70,21 @@ class SyncCommitteeProofsTest {
             assertThat(payload.getLedgerConfiguration().getServiceAddress().toByteArray())
                     .isEqualTo(SyncCommitteeProofs.SERVICE_ADDRESS);
         }
+    }
+
+    @Test
+    @DisplayName("given 3 non-signers, then configPayload clears their bits and carries one proof for each")
+    void givenThreeNonSigners_thenConfigPayloadCarriesTheirProofs() throws Exception {
+        final var payload =
+                EthereumPosLedgerConfigurationPayload.parseFrom(SyncCommitteeProofs.configPayload(Preset.MAINNET, 3));
+
+        assertThat(payload.getSyncAggregate().getBits().byteAt(0)).isEqualTo((byte) 0xF8);
+        assertThat(payload.getSyncAggregateNonSignerProofsList()).hasSize(3).allSatisfy(proof -> {
+            assertThat(proof.getPubkey().size()).isEqualTo(128);
+            assertThat(proof.getBranchList())
+                    .hasSize(9)
+                    .allSatisfy(sibling -> assertThat(sibling.size()).isEqualTo(32));
+        });
     }
 
     @Test

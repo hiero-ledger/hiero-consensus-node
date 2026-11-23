@@ -3,19 +3,18 @@ package com.hedera.node.app.service.clpr.impl.verifier.ethereum;
 
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.clpr.EthereumPosBeaconBlockHeader;
+import com.hedera.hapi.node.state.clpr.EthereumPosCommitteeAnchor;
 import com.hedera.hapi.node.state.clpr.EthereumPosLedgerConfigurationPayload;
+import com.hedera.hapi.node.state.clpr.EthereumPosNonSignerProof;
 import com.hedera.hapi.node.state.clpr.EthereumPosSyncAggregate;
-import com.hedera.hapi.node.state.clpr.EthereumPosSyncCommittee;
 import com.hedera.node.app.service.clpr.impl.verifier.ProofException;
 import com.hedera.node.app.service.clpr.impl.verifier.Rlp;
 import com.hedera.node.app.service.clpr.impl.verifier.ethereum.BundlePayload.CommitteeRotation;
 import com.hedera.node.app.service.clpr.impl.verifier.ethereum.BundlePayload.FinalizedExecution;
 import com.hedera.node.app.service.clpr.impl.verifier.ethereum.BundlePayload.MessageDelivery;
 import com.hedera.node.app.service.clpr.impl.verifier.ethereum.BundlePayload.NextCommittee;
-import com.hedera.node.app.service.clpr.impl.verifier.ethereum.BundlePayload.NonSignerProof;
 import com.hedera.node.app.service.clpr.impl.verifier.ethereum.BundlePayload.ServiceAccountProof;
 import com.hedera.node.app.service.clpr.impl.verifier.ethereum.BundlePayload.SignedHeader;
-import com.hedera.node.app.service.clpr.impl.verifier.ethereum.PeerLedgerConfigPayload.CommitteeKeys;
 import com.hedera.node.app.service.clpr.impl.verifier.evm.ClprContractStorage;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -169,10 +168,11 @@ final class PayloadDecoder {
     }
 
     /**
-     * Decodes a protobuf {@code EthereumPosLedgerConfigurationPayload} and checks its structure: two committees of the
-     * same supported preset size with 48-byte keys, the anchor and update headers, the sync aggregate, both committee
-     * branches at the Gloas depth, a 32-byte genesis validators root, a 4-byte fork version, a 32-byte code hash, and a
-     * ledger configuration with a 20-byte service address.
+     * Decodes a protobuf {@code EthereumPosLedgerConfigurationPayload} and checks its structure: the sync aggregate,
+     * whose bits length selects a supported preset, two committees with a 32-byte keys root and a 48-byte aggregate key,
+     * the update's non-signer proofs with 128-byte keys and branches at the preset's depth, the anchor and update
+     * headers, both committee branches at the Gloas depth, a 32-byte genesis validators root, a 4-byte fork version, a
+     * 32-byte code hash, and a ledger configuration with a 20-byte service address.
      *
      * @throws ProofException if the payload is not well-formed
      */
@@ -193,15 +193,15 @@ final class PayloadDecoder {
         requirePresent(payload.hasUpdateHeader(), "update_header");
         requirePresent(payload.hasSyncAggregate(), "sync_aggregate");
         requirePresent(payload.hasNextSyncCommittee(), "next_sync_committee");
-        final SyncCommitteePreset preset = SyncCommitteePreset.forCommitteeSize(
-                payload.syncCommitteeOrThrow().pubkeys().size());
+        final SyncCommitteePreset preset = SyncCommitteePreset.fromParticipationBytes(
+                (int) payload.syncAggregateOrThrow().bits().length());
         final ClprLedgerConfiguration ledgerConfiguration = payload.ledgerConfigurationOrThrow();
         fixedBytes(
                 ledgerConfiguration.serviceAddress(), SERVICE_ADDRESS_LENGTH, "ledger_configuration.service_address");
         return new PeerLedgerConfigPayload(
                 payload.slot(),
                 preset,
-                toCommitteeKeys(payload.syncCommitteeOrThrow(), preset, "sync_committee"),
+                toSyncCommittee(payload.syncCommitteeOrThrow(), "sync_committee"),
                 toBeaconHeader(payload.anchorHeaderOrThrow(), "anchor_header"),
                 toBranch(
                         payload.currentSyncCommitteeBranch(),
@@ -209,7 +209,8 @@ final class PayloadDecoder {
                         "current_sync_committee_branch"),
                 toBeaconHeader(payload.updateHeaderOrThrow(), "update_header"),
                 toSyncAggregate(payload.syncAggregateOrThrow(), preset, "sync_aggregate"),
-                toCommitteeKeys(payload.nextSyncCommitteeOrThrow(), preset, "next_sync_committee"),
+                toNonSignerProofs(payload.syncAggregateNonSignerProofs(), preset),
+                toSyncCommittee(payload.nextSyncCommitteeOrThrow(), "next_sync_committee"),
                 toBranch(
                         payload.nextSyncCommitteeBranch(),
                         Gloas.NEXT_SYNC_COMMITTEE.depth(),
@@ -386,7 +387,7 @@ final class PayloadDecoder {
             @NonNull final Rlp.Item item, @NonNull final SyncCommitteePreset preset, @NonNull final String name) {
         final List<Rlp.Item> fields = list(item, SYNC_AGGREGATE_FIELDS, name + " [bits, signature]");
         return new SyncAggregate(
-                fixedBytes(fields.get(SYNC_AGGREGATE_INDEX_BITS), preset.bitsLength(), name + ".bits"),
+                fixedBytes(fields.get(SYNC_AGGREGATE_INDEX_BITS), preset.participationBytes(), name + ".bits"),
                 fixedBytes(
                         fields.get(SYNC_AGGREGATE_INDEX_SIGNATURE),
                         SyncAggregate.SIGNATURE_LENGTH,
@@ -523,22 +524,15 @@ final class PayloadDecoder {
         }
     }
 
-    /** A committee of {@code preset}'s size, with 48-byte member keys and a 48-byte aggregate. */
+    /**
+     * A committee with a 32-byte keys root and a 48-byte aggregate key.
+     */
     @NonNull
-    private static CommitteeKeys toCommitteeKeys(
-            @NonNull final EthereumPosSyncCommittee committee,
-            @NonNull final SyncCommitteePreset preset,
-            @NonNull final String name) {
-        if (committee.pubkeys().size() != preset.committeeSize()) {
-            throw EthProofs.fail(name + " has " + committee.pubkeys().size() + " keys; the " + preset
-                    + " preset expects " + preset.committeeSize());
-        }
-        final byte[][] pubkeys = new byte[preset.committeeSize()][];
-        for (int i = 0; i < pubkeys.length; i++) {
-            pubkeys[i] = fixedBytes(committee.pubkeys().get(i), Ssz.BLS_PUBKEY_LENGTH, name + ".pubkeys[" + i + "]");
-        }
-        return new CommitteeKeys(
-                pubkeys, fixedBytes(committee.aggregatePubkey(), Ssz.BLS_PUBKEY_LENGTH, name + ".aggregate_pubkey"));
+    private static SyncCommittee toSyncCommittee(
+            @NonNull final EthereumPosCommitteeAnchor committee, @NonNull final String name) {
+        return new SyncCommittee(
+                fixedBytes(committee.pubkeysRoot(), HASH_LENGTH, name + ".pubkeys_root"),
+                fixedBytes(committee.aggregatePubkey(), Ssz.BLS_PUBKEY_LENGTH, name + ".aggregate_pubkey"));
     }
 
     /** A beacon header with 32-byte roots. */
@@ -574,8 +568,26 @@ final class PayloadDecoder {
             @NonNull final SyncCommitteePreset preset,
             @NonNull final String name) {
         return new SyncAggregate(
-                fixedBytes(aggregate.bits(), preset.bitsLength(), name + ".bits"),
+                fixedBytes(aggregate.bits(), preset.participationBytes(), name + ".bits"),
                 fixedBytes(aggregate.signature(), SyncAggregate.SIGNATURE_LENGTH, name + ".signature"));
+    }
+
+    /**
+     * Non-signer proofs with 128-byte uncompressed keys and branches of {@code preset}'s keys-tree depth.
+     */
+    @NonNull
+    private static List<NonSignerProof> toNonSignerProofs(
+            @NonNull final List<EthereumPosNonSignerProof> proofs, @NonNull final SyncCommitteePreset preset) {
+        final List<NonSignerProof> out = new ArrayList<>(proofs.size());
+        for (int i = 0; i < proofs.size(); i++) {
+            final EthereumPosNonSignerProof proof = proofs.get(i);
+            final String proofName = "sync_aggregate_non_signer_proofs[" + i + "]";
+            final NonSignerProof nonSignerProof = new NonSignerProof(
+                    fixedBytes(proof.pubkey(), G1Compression.UNCOMPRESSED_LENGTH, proofName + ".pubkey"),
+                    toBranch(proof.branch(), preset.pubkeysBranchDepth(), proofName + ".branch"));
+            out.add(nonSignerProof);
+        }
+        return List.copyOf(out);
     }
 
     // -----------------------------------------------------------------------------------

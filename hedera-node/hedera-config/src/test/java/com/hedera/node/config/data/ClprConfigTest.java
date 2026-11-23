@@ -40,4 +40,13 @@ class ClprConfigTest {
         // need ~1.2M gas to cover their EIP-7623 calldata floor
         assertThat(config.verifierGasLimit()).isGreaterThanOrEqualTo(1_200_000L);
     }
+
+    @Test
+    void verifierGasLimitDoesNotExceedMaxGasPerTransaction() {
+        final var configuration = HederaTestConfigBuilder.createConfig();
+        // EvmClprVerifier rejects a verifier dispatch above contracts.maxGasPerTransaction
+        assertThat(configuration.getConfigData(ClprConfig.class).verifierGasLimit())
+                .isLessThanOrEqualTo(
+                        configuration.getConfigData(ContractsConfig.class).maxGasPerTransaction());
+    }
 }
