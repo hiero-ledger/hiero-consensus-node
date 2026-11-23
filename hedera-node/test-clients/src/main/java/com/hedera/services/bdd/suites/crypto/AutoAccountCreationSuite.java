@@ -24,6 +24,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdateAliased;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.sortedCryptoTransfer;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAirdrop;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
@@ -71,6 +72,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenSupplyType.FINITE;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
+import static org.hiero.base.utility.CommonUtils.unhex;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -1066,6 +1068,34 @@ public class AutoAccountCreationSuite {
     }
 
     @HapiTest
+    final Stream<DynamicTest> ecdsaKeyAliasNotOnTheCurveIsRejected() {
+        // 33 bytes with a valid parity prefix, but x = 5 is not the x-coordinate of any secp256k1 point
+        final var offCurveAlias = Key.newBuilder()
+                .setECDSASecp256K1(ByteString.copyFrom(
+                        unhex("020000000000000000000000000000000000000000000000000000000000000005")))
+                .build()
+                .toByteString();
+
+        return hapiTest(
+                cryptoCreate(PAYER).balance(INITIAL_BALANCE * ONE_HBAR),
+                tokenCreate("offCurveToken").treasury(PAYER).initialSupply(1_000L),
+                cryptoTransfer(tinyBarsFromTo(PAYER, offCurveAlias, ONE_HBAR))
+                        .payingWith(PAYER)
+                        .hasKnownStatus(INVALID_ALIAS_KEY),
+                cryptoTransfer(moving(1, "offCurveToken").between(PAYER, offCurveAlias))
+                        .payingWith(PAYER)
+                        .hasKnownStatus(INVALID_ALIAS_KEY),
+                tokenAirdrop(moving(1, "offCurveToken").between(PAYER, offCurveAlias))
+                        .payingWith(PAYER)
+                        .hasKnownStatus(INVALID_ALIAS_KEY),
+                cryptoCreate("offCurveAliasAccount")
+                        .key(PAYER)
+                        .alias(offCurveAlias)
+                        .hasPrecheck(INVALID_ALIAS_KEY),
+                getAliasedAccountInfo(offCurveAlias).hasCostAnswerPrecheck(INVALID_ACCOUNT_ID));
+    }
+
+    @HapiTest
     final Stream<DynamicTest> autoAccountCreationsHappyPath() {
         final var creationTime = new AtomicLong();
         final var simpleTransferFee = 333333L;
@@ -1420,8 +1450,8 @@ public class AutoAccountCreationSuite {
                 }),
                 doingContextual(spec -> {
                     /* hollow account created with nft transfer as expected */
-                    var cryptoTransferWithLazyCreate = cryptoTransfer(
-                                    (s, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
+                    var cryptoTransferWithLazyCreate = cryptoTransfer((s, b) ->
+                                    b.addTokenTransfers(TokenTransferList.newBuilder()
                                             .setToken(nftId.get())
                                             .addNftTransfers(ocWith(
                                                     accountIdFromEvmAddress(spec, partyAlias.get()),

@@ -94,9 +94,8 @@ public final class AliasUtils {
     }
 
     /**
-     * Given some alias, determine whether it is a key alias. If the alias is a valid protobuf-encoded key, then it is a
-     * key alias. This method does not check whether the key is valid, only whether the alias is a valid
-     * protobuf-encoded key.
+     * Given some alias, determine whether it is a key alias: a protobuf-encoded ED25519 key, or a compressed
+     * ECDSA(secp256k1) key that is a point on the curve.
      * @param alias The alias to check
      * @return True if the alias is a key alias
      */
@@ -106,7 +105,9 @@ public final class AliasUtils {
         if (!isValid(key)) return false;
         if (key.hasEcdsaSecp256k1()) {
             final var ecdsa = key.ecdsaSecp256k1OrThrow();
-            return ecdsa.length() == ECDSA_SECP256K1_ALIAS_SIZE && alias.matchesPrefix(ECDSA_KEY_ALIAS_PREFIX);
+            return ecdsa.length() == ECDSA_SECP256K1_ALIAS_SIZE
+                    && alias.matchesPrefix(ECDSA_KEY_ALIAS_PREFIX)
+                    && isOnCurve(ecdsa);
         } else if (key.hasEd25519()) {
             return key.ed25519OrThrow().length() == ED25519_ALIAS_SIZE;
         }
@@ -146,12 +147,23 @@ public final class AliasUtils {
         // or ED25519 key length as a short circuit in case of very long aliases (no point parsing those).
         try {
             final var key = Key.PROTOBUF.parseStrict(alias.toReadableSequentialData());
-            return (key.hasEcdsaSecp256k1() || key.hasEd25519()) /* && isValid(key)*/;
+            return (key.hasEd25519() && isValid(key))
+                    || (key.hasEcdsaSecp256k1() && isValid(key) && isOnCurve(key.ecdsaSecp256k1OrThrow()));
         } catch (final Exception e) {
             // There are many possible exceptions thrown here, both checked (IOException) and unchecked. See the
             // documentation for ReadableStreamingData as well as the parse method for all the various exceptions.
             return false;
         }
+    }
+
+    /**
+     * Returns whether the given compressed ECDSA(secp256k1) key bytes name a point on the curve. Only such a key has
+     * an EVM address, so a key alias that is not on the curve cannot be used to create an account.
+     * @param ecdsaKey the compressed key bytes
+     * @return whether the key is a point on the secp256k1 curve
+     */
+    private static boolean isOnCurve(@NonNull final Bytes ecdsaKey) {
+        return EthSigsUtils.isValidPubKey(ecdsaKey.toByteArray());
     }
 
     /**

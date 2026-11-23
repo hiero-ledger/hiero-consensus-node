@@ -3,6 +3,8 @@ package com.hedera.node.app.hapi.utils;
 
 import static org.hiero.base.utility.CommonUtils.unhex;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
@@ -20,5 +22,15 @@ class EthSigsUtilsTest {
 
         // failed recovery
         assertArrayEquals(new byte[0], EthSigsUtils.recoverAddressFromPubKey(TRUFFLE0_PRIVATE_ECDSA_KEY));
+    }
+
+    @Test
+    void recognizesPointsOnTheCurve() {
+        assertTrue(EthSigsUtils.isValidPubKey(TRUFFLE0_PUBLIC_ECDSA_KEY));
+        // x = 5 is not the x-coordinate of any secp256k1 point
+        assertFalse(EthSigsUtils.isValidPubKey(
+                unhex("020000000000000000000000000000000000000000000000000000000000000005")));
+        assertFalse(EthSigsUtils.isValidPubKey(new byte[33]));
+        assertFalse(EthSigsUtils.isValidPubKey(new byte[0]));
     }
 }

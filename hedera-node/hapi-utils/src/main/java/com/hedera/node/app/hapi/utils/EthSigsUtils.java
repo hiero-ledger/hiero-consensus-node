@@ -38,6 +38,19 @@ public final class EthSigsUtils {
     }
 
     /**
+     * Returns whether the given bytes encode a point on the secp256k1 curve, compressed or uncompressed.
+     * @param pubKeyBytes The public key bytes.
+     * @return Whether the bytes parse as a secp256k1 public key.
+     */
+    public static boolean isValidPubKey(@NonNull final byte[] pubKeyBytes) {
+        requireNonNull(pubKeyBytes);
+        final byte[] pubKey = new byte[Libsecp256k1.PUBLIC_KEY_BYTES];
+        return LIBSECP256K1.secp256k1EcPubkeyParse(
+                        MemorySegment.ofArray(pubKey), MemorySegment.ofArray(pubKeyBytes), pubKeyBytes.length)
+                == 1;
+    }
+
+    /**
      * Recover the address from a public key.
      * @param pubKeyBytes The public key bytes.
      * @return The address.
