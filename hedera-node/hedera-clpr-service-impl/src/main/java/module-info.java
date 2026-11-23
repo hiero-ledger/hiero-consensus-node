@@ -39,6 +39,7 @@ module com.hedera.node.app.service.clpr.impl {
     requires org.hiero.consensus.roster;
     requires com.google.common;
     requires com.sun.jna;
+    requires org.antlr.antlr4.runtime;
     requires org.apache.logging.log4j;
     requires org.hyperledger.besu.internal.crypto;
     requires org.hyperledger.besu.nativelib.secp256k1;
