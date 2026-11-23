@@ -15,10 +15,10 @@ import com.hedera.services.bdd.spec.utilops.mod.BodyMutation;
 import com.hederahashgraph.api.proto.java.AtomicBatchTransactionBody;
 import com.hederahashgraph.api.proto.java.ClprCloseChannelTransactionBody;
 import com.hederahashgraph.api.proto.java.ClprCompleteChannelTransactionBody;
-import com.hederahashgraph.api.proto.java.ClprDeregisterConnectorTransactionBody;
+import com.hederahashgraph.api.proto.java.ClprCreateConnectorTransactionBody;
+import com.hederahashgraph.api.proto.java.ClprDeleteConnectorTransactionBody;
 import com.hederahashgraph.api.proto.java.ClprEvictPeerEndpointTransactionBody;
 import com.hederahashgraph.api.proto.java.ClprRegisterChannelTransactionBody;
-import com.hederahashgraph.api.proto.java.ClprRegisterConnectorTransactionBody;
 import com.hederahashgraph.api.proto.java.ClprSubmitBundleTransactionBody;
 import com.hederahashgraph.api.proto.java.ClprUpdateLedgerConfigurationTransactionBody;
 import com.hederahashgraph.api.proto.java.ConsensusCreateTopicTransactionBody;
@@ -366,11 +366,11 @@ public class TxnFactory {
         return builder -> {};
     }
 
-    public Consumer<ClprRegisterConnectorTransactionBody.Builder> defaultDefClprRegisterConnectorTransactionBody() {
+    public Consumer<ClprCreateConnectorTransactionBody.Builder> defaultDefClprCreateConnectorTransactionBody() {
         return builder -> {};
     }
 
-    public Consumer<ClprDeregisterConnectorTransactionBody.Builder> defaultDefClprDeregisterConnectorTransactionBody() {
+    public Consumer<ClprDeleteConnectorTransactionBody.Builder> defaultDefClprDeleteConnectorTransactionBody() {
         return builder -> {};
     }
 

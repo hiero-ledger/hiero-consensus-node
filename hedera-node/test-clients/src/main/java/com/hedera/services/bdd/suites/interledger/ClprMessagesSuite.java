@@ -3,8 +3,8 @@ package com.hedera.services.bdd.suites.interledger;
 
 import static com.hedera.services.bdd.spec.HapiSpec.networkHapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteChannel;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCreateConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterChannel;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprUpdateLedgerConfiguration;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
@@ -225,7 +225,7 @@ public class ClprMessagesSuite {
                                         manifestProofForNetB.get().toByteArray())
                                 .payingWith(GENESIS)
                                 .via("completeChannelB")),
-                        clprRegisterConnector()
+                        clprCreateConnector()
                                 .connectorId(connectorId.toByteArray())
                                 .secp256k1Identity(CONNECTOR_SECRET_KEY)
                                 .salt(CONNECTOR_SALT.toByteArray())
@@ -234,7 +234,7 @@ public class ClprMessagesSuite {
                                 .adminKeyName(GENESIS)
                                 .lockedStake(MIN_STAKE)
                                 .payingWith(GENESIS)
-                                .via("registerConnectorB"),
+                                .via("createConnectorB"),
                         withOpContext((spec, opLog) ->
                                 echoContractIdRef.set(spec.registry().getContractId(ECHO_APP))))
                 .findFirst()
@@ -288,7 +288,7 @@ public class ClprMessagesSuite {
                                         manifestProofForNetA.get().toByteArray())
                                 .payingWith(GENESIS)
                                 .via("completeChannelA")),
-                        clprRegisterConnector()
+                        clprCreateConnector()
                                 .connectorId(connectorId.toByteArray())
                                 .secp256k1Identity(CONNECTOR_SECRET_KEY)
                                 .salt(CONNECTOR_SALT.toByteArray())
@@ -297,7 +297,7 @@ public class ClprMessagesSuite {
                                 .adminKeyName(GENESIS)
                                 .lockedStake(MIN_STAKE)
                                 .payingWith(GENESIS)
-                                .via("registerConnectorA"),
+                                .via("createConnectorA"),
                         withOpContext((spec, opLog) ->
                                 sourceAppIdRef.set(spec.registry().getContractId(SOURCE_APP))))
                 .findFirst()

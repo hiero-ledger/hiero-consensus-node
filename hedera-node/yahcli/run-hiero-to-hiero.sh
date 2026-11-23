@@ -8,7 +8,7 @@
 # output so re-runs don't need any hand-editing.
 #
 # PingPong plays three roles per network: connector contract (registered via
-# `register-connector`), wrapper that invokes the CLPR precompile (via the
+# `create-connector`), wrapper that invokes the CLPR precompile (via the
 # `serve()` method), and CLPR application (via onClprMessage/onClprResponse).
 # Deploy PingPong on each network first via ./setup-clpr-ping-pong.sh, then
 # pass the resulting ids in as PINGPONG_A / PINGPONG_B.
@@ -300,18 +300,18 @@ CONNECTOR_ID=$(read_json_field "${CONNECTOR_FILE}" "connectorId")
     || die "no connectorId in ${CONNECTOR_FILE}"
 echo "  CONNECTOR_ID:         ${CONNECTOR_ID}"
 
-# === [8/9] register-connector (PingPong is the connector contract) ========
-header "[8/9] register-connector on both networks — connector contract is PingPong"
-yh "register-connector on ${NET_A} via PingPong ${PINGPONG_A}" \
-    "${LOG_DIR}/10a-register-connector.log" \
+# === [8/9] create-connector (PingPong is the connector contract) ========
+header "[8/9] create-connector on both networks — connector contract is PingPong"
+yh "create-connector on ${NET_A} via PingPong ${PINGPONG_A}" \
+    "${LOG_DIR}/10a-create-connector.log" \
     -n "${NET_A}" -p "${PAYER}" \
-    clpr register-connector --channel-id "${CHANNEL_ID}" --identity "${CONNECTOR_FILE}" \
+    clpr create-connector --channel-id "${CHANNEL_ID}" --identity "${CONNECTOR_FILE}" \
         --connector-contract "${PINGPONG_A}" \
         --locked-stake "${LOCKED_STAKE}"
-yh "register-connector on ${NET_B} via PingPong ${PINGPONG_B}" \
-    "${LOG_DIR}/10b-register-connector.log" \
+yh "create-connector on ${NET_B} via PingPong ${PINGPONG_B}" \
+    "${LOG_DIR}/10b-create-connector.log" \
     -n "${NET_B}" -p "${PAYER}" \
-    clpr register-connector --channel-id "${CHANNEL_ID}" --identity "${CONNECTOR_FILE}" \
+    clpr create-connector --channel-id "${CHANNEL_ID}" --identity "${CONNECTOR_FILE}" \
         --connector-contract "${PINGPONG_B}" \
         --locked-stake "${LOCKED_STAKE}"
 

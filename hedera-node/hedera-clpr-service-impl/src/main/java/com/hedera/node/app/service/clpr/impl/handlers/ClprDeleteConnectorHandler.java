@@ -26,26 +26,26 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 
 /**
- * Handler for {@link HederaFunctionality#CLPR_DEREGISTER_CONNECTOR} transactions.
+ * Handler for {@link HederaFunctionality#CLPR_DELETE_CONNECTOR} transactions.
  *
  * <p>Removes a Connector from the CLPR Service and returns any locked stake
  * to the explicitly specified stake_recipient. Requires the connector's admin_key to sign.
- * The channel and connector ID pair remains registered.
+ * The channel and connector ID pair stays in the registration history.
  */
 @Singleton
-public class ClprDeregisterConnectorHandler extends AbstractClprHandler {
+public class ClprDeleteConnectorHandler extends AbstractClprHandler {
 
     private final EntityIdFactory entityIdFactory;
 
     @Inject
-    public ClprDeregisterConnectorHandler(@NonNull final EntityIdFactory entityIdFactory) {
+    public ClprDeleteConnectorHandler(@NonNull final EntityIdFactory entityIdFactory) {
         this.entityIdFactory = requireNonNull(entityIdFactory);
     }
 
     @Override
     public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
         requireNonNull(context);
-        final var op = context.body().clprDeregisterConnectorOrThrow();
+        final var op = context.body().clprDeleteConnectorOrThrow();
         validateTruePreCheck(op.channelId().length() == CHANNEL_ID_LENGTH, INVALID_TRANSACTION_BODY);
         validateTruePreCheck(op.connectorId().length() == CHANNEL_ID_LENGTH, INVALID_TRANSACTION_BODY);
         validateTruePreCheck(op.hasStakeRecipient(), INVALID_TRANSACTION_BODY);
@@ -54,7 +54,7 @@ public class ClprDeregisterConnectorHandler extends AbstractClprHandler {
     @Override
     public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
         requireNonNull(context);
-        final var op = context.body().clprDeregisterConnectorOrThrow();
+        final var op = context.body().clprDeleteConnectorOrThrow();
         final var connectorStore = context.createStore(ReadableConnectorStore.class);
         final var key = new ClprConnectorKey(op.channelId(), op.connectorId());
         final var connector = connectorStore.getConnector(key);
@@ -65,7 +65,7 @@ public class ClprDeregisterConnectorHandler extends AbstractClprHandler {
 
     @Override
     protected void doHandle(@NonNull final HandleContext context) throws HandleException {
-        final var op = context.body().clprDeregisterConnectorOrThrow();
+        final var op = context.body().clprDeleteConnectorOrThrow();
         final var clprConfig = context.configuration().getConfigData(ClprConfig.class);
         final var key = new ClprConnectorKey(op.channelId(), op.connectorId());
         final var storeFactory = context.storeFactory();

@@ -8,9 +8,9 @@ import static com.hedera.services.bdd.junit.TestTags.CLPR;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCloseChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteChannel;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprDeregisterConnector;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCreateConnector;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprDeleteConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterChannel;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
@@ -37,7 +37,7 @@ import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.HapiSpec;
-import com.hedera.services.bdd.spec.transactions.clpr.HapiClprRegisterConnector;
+import com.hedera.services.bdd.spec.transactions.clpr.HapiClprCreateConnector;
 import com.hederahashgraph.api.proto.java.ClprLedgerConfiguration;
 import com.hederahashgraph.api.proto.java.ClprSignatureScheme;
 import com.hederahashgraph.api.proto.java.ClprThrottles;
@@ -127,8 +127,8 @@ public class ClprChannelCommitRevealSuite {
     }
 
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
-    @DisplayName("A connector ID cannot be registered twice on a channel, including after deregistration")
-    final Stream<DynamicTest> connectorCannotBeReRegisteredOnSameChannel() {
+    @DisplayName("A connector ID cannot be used twice on a channel, including after deletion")
+    final Stream<DynamicTest> connectorCannotBeRecreatedOnSameChannel() {
         final var crypto = new ClprChannelCrypto();
         return hapiTest(
                 overriding("clpr.enabled", "true"),
@@ -145,19 +145,19 @@ public class ClprChannelCommitRevealSuite {
                         .configProofBytes(defaultConfigProofBytes())
                         .payingWith(GENESIS)
                         .hasKnownStatus(SUCCESS),
-                registerConnector(crypto).payingWith(GENESIS).signedBy(GENESIS).hasKnownStatus(INVALID_SIGNATURE),
-                registerConnector(crypto).payingWith(GENESIS).hasKnownStatus(SUCCESS),
+                createConnector(crypto).payingWith(GENESIS).signedBy(GENESIS).hasKnownStatus(INVALID_SIGNATURE),
+                createConnector(crypto).payingWith(GENESIS).hasKnownStatus(SUCCESS),
                 // Connector exists
-                registerConnector(crypto).payingWith(GENESIS).hasKnownStatus(CLPR_CONNECTOR_ALREADY_EXISTS),
-                clprDeregisterConnector()
+                createConnector(crypto).payingWith(GENESIS).hasKnownStatus(CLPR_CONNECTOR_ALREADY_EXISTS),
+                clprDeleteConnector()
                         .channelId(crypto.channelId())
                         .connectorId(crypto.connectorId())
                         .adminKey(GENESIS)
                         .stakeRecipient(GENESIS)
                         .payingWith(GENESIS)
                         .hasKnownStatus(SUCCESS),
-                // Deregistering preserves this channel and connector ID pair
-                registerConnector(crypto).payingWith(GENESIS).hasKnownStatus(CLPR_CONNECTOR_ALREADY_EXISTS));
+                // Deleting the connector preserves its registration history
+                createConnector(crypto).payingWith(GENESIS).hasKnownStatus(CLPR_CONNECTOR_ALREADY_EXISTS));
     }
 
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
@@ -394,8 +394,8 @@ public class ClprChannelCommitRevealSuite {
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
-    private static HapiClprRegisterConnector registerConnector(final ClprChannelCrypto crypto) {
-        return clprRegisterConnector()
+    private static HapiClprCreateConnector createConnector(final ClprChannelCrypto crypto) {
+        return clprCreateConnector()
                 .connectorId(crypto.connectorId())
                 .ed25519Identity(crypto.seed())
                 .salt(crypto.connectorSalt())

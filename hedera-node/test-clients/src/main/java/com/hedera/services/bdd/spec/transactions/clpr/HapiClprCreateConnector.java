@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.transactions.clpr;
 
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprRegisterConnector;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprCreateConnector;
 
 import com.google.common.base.MoreObjects;
 import com.google.protobuf.ByteString;
@@ -10,7 +10,7 @@ import com.hedera.node.app.hapi.utils.keys.Secp256k1Utils;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.keys.SigControl;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
-import com.hederahashgraph.api.proto.java.ClprRegisterConnectorTransactionBody;
+import com.hederahashgraph.api.proto.java.ClprCreateConnectorTransactionBody;
 import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Key;
@@ -23,9 +23,9 @@ import java.util.function.Function;
 import org.hiero.base.utility.CommonUtils;
 
 /**
- * HAPI spec operation for {@code ClprRegisterConnector} transactions.
+ * HAPI spec operation for {@code ClprCreateConnector} transactions.
  */
-public class HapiClprRegisterConnector extends HapiTxnOp<HapiClprRegisterConnector> {
+public class HapiClprCreateConnector extends HapiTxnOp<HapiClprCreateConnector> {
 
     private byte[] connectorId;
     private Key identityKey;
@@ -38,14 +38,14 @@ public class HapiClprRegisterConnector extends HapiTxnOp<HapiClprRegisterConnect
     private Optional<String> adminKeyName = Optional.empty();
     private long lockedStake;
 
-    public HapiClprRegisterConnector() {}
+    public HapiClprCreateConnector() {}
 
-    public HapiClprRegisterConnector connectorId(final byte[] connectorId) {
+    public HapiClprCreateConnector connectorId(final byte[] connectorId) {
         this.connectorId = connectorId;
         return this;
     }
 
-    public HapiClprRegisterConnector ed25519Identity(final byte[] seed) {
+    public HapiClprCreateConnector ed25519Identity(final byte[] seed) {
         final var privateKey = Ed25519Utils.keyFrom(seed);
         identityKey = Key.newBuilder()
                 .setEd25519(ByteString.copyFrom(privateKey.getAbyte()))
@@ -54,7 +54,7 @@ public class HapiClprRegisterConnector extends HapiTxnOp<HapiClprRegisterConnect
         return this;
     }
 
-    public HapiClprRegisterConnector secp256k1Identity(final byte[] scalar) {
+    public HapiClprCreateConnector secp256k1Identity(final byte[] scalar) {
         final var privateKey = Secp256k1Utils.readECKeyFrom(scalar);
         identityKey = Key.newBuilder()
                 .setECDSASecp256K1(ByteString.copyFrom(Secp256k1Utils.extractEcdsaPublicKey(privateKey)))
@@ -67,56 +67,56 @@ public class HapiClprRegisterConnector extends HapiTxnOp<HapiClprRegisterConnect
         return identityKey;
     }
 
-    public HapiClprRegisterConnector salt(final byte[] salt) {
+    public HapiClprCreateConnector salt(final byte[] salt) {
         this.salt = salt;
         return this;
     }
 
-    public HapiClprRegisterConnector channelId(final byte[] channelId) {
+    public HapiClprCreateConnector channelId(final byte[] channelId) {
         this.channelId = channelId;
         return this;
     }
 
-    public HapiClprRegisterConnector connectorContract(final String contractName) {
+    public HapiClprCreateConnector connectorContract(final String contractName) {
         this.connectorContractName = Optional.of(contractName);
         return this;
     }
 
-    public HapiClprRegisterConnector connectorContractId(final ContractID contractId) {
+    public HapiClprCreateConnector connectorContractId(final ContractID contractId) {
         this.connectorContractId = Optional.of(contractId);
         return this;
     }
 
-    public HapiClprRegisterConnector adminKey(final Key key) {
+    public HapiClprCreateConnector adminKey(final Key key) {
         this.adminKeyValue = Optional.of(key);
         return this;
     }
 
-    public HapiClprRegisterConnector adminKeyName(final String keyName) {
+    public HapiClprCreateConnector adminKeyName(final String keyName) {
         this.adminKeyName = Optional.of(keyName);
         return this;
     }
 
-    public HapiClprRegisterConnector lockedStake(final long lockedStake) {
+    public HapiClprCreateConnector lockedStake(final long lockedStake) {
         this.lockedStake = lockedStake;
         return this;
     }
 
     @Override
     public HederaFunctionality type() {
-        return ClprRegisterConnector;
+        return ClprCreateConnector;
     }
 
     @Override
-    protected HapiClprRegisterConnector self() {
+    protected HapiClprCreateConnector self() {
         return this;
     }
 
     @Override
     protected Consumer<TransactionBody.Builder> opBodyDef(final HapiSpec spec) throws Throwable {
-        final ClprRegisterConnectorTransactionBody opBody = spec.txns()
-                .<ClprRegisterConnectorTransactionBody, ClprRegisterConnectorTransactionBody.Builder>body(
-                        ClprRegisterConnectorTransactionBody.class, b -> {
+        final ClprCreateConnectorTransactionBody opBody = spec.txns()
+                .<ClprCreateConnectorTransactionBody, ClprCreateConnectorTransactionBody.Builder>body(
+                        ClprCreateConnectorTransactionBody.class, b -> {
                             if (connectorId != null) b.setConnectorId(ByteString.copyFrom(connectorId));
                             if (identityKey != null) b.setIdentityKey(identityKey);
                             if (salt != null) b.setSalt(ByteString.copyFrom(salt));
@@ -131,7 +131,7 @@ public class HapiClprRegisterConnector extends HapiTxnOp<HapiClprRegisterConnect
                             }
                             b.setLockedStake(lockedStake);
                         });
-        return b -> b.setClprRegisterConnector(opBody);
+        return b -> b.setClprCreateConnector(opBody);
     }
 
     @Override

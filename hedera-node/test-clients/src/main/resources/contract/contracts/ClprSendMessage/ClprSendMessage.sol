@@ -6,7 +6,7 @@ pragma solidity ^0.8.0;
  * system contract precompile at 0x16e.
  *
  * Intended to be deployed once per ledger and registered as the connector_contract on
- * a CLPR Connector (see ClprRegisterConnector). When the wrapper invokes the precompile,
+ * a CLPR Connector (see ClprCreateConnector). When the wrapper invokes the precompile,
  * `msg.sender` is the wrapper address, which the precompile authorizes as the registered
  * connector for the given channelId.
  */

@@ -90,20 +90,20 @@ side-effects.
   `CLPR_PEER_ENDPOINT_NOT_FOUND`.
 - The manifest version is unchanged, so a later manifest-advancing bundle can list the endpoint again.
 
-### `ClprRegisterConnectorHandler`
+### `ClprCreateConnectorHandler`
 
-The payer and the identity key sign a single `CLPR_REGISTER_CONNECTOR` transaction.
+The payer and the identity key sign a single `CLPR_CREATE_CONNECTOR` transaction.
 The expected connector ID must equal `keccak256(publicKey ‖ salt)`, using the raw
 32-byte Ed25519 key or the 64-byte secp256k1 coordinates and a 32-byte salt.
 The handler checks the channel, local contract, minimum stake, and payer balance,
 then transfers the stake and records the connector under `(channel_id, connector_id)`.
 An existing or previously used pair returns `CLPR_CONNECTOR_ALREADY_EXISTS`.
 
-### `ClprDeregisterConnectorHandler`
+### `ClprDeleteConnectorHandler`
 
-Deregistration requires the admin and stake recipient signatures and zero in-flight
+Deletion requires the admin and stake recipient signatures and zero in-flight
 messages. It removes the active binding and returns the remaining stake to the
-recipient. The channel and connector ID pair stays recorded after deregistration or a ban.
+recipient. The channel and connector ID pair stays recorded after deletion or a ban.
 
 ### `ClprSubmitBundleHandler`
 

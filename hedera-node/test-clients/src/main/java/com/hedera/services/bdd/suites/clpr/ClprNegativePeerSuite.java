@@ -8,8 +8,8 @@ import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.CLPR;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteChannel;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCreateConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterChannel;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprSubmitBundle;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprUpdateLedgerConfiguration;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
@@ -224,7 +224,7 @@ public class ClprNegativePeerSuite {
                     .verifierContract(VERIFIER_CONTRACT)
                     .configProofBytes(toConfigProofBytes(config))
                     .payingWith(GENESIS),
-            clprRegisterConnector()
+            clprCreateConnector()
                     .connectorId(crypto.connectorId())
                     .ed25519Identity(crypto.seed())
                     .salt(crypto.connectorSalt())

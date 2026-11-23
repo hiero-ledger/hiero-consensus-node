@@ -24,7 +24,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.TransactionID;
-import com.hedera.hapi.node.clpr.ClprRegisterConnectorTransactionBody;
+import com.hedera.hapi.node.clpr.ClprCreateConnectorTransactionBody;
 import com.hedera.hapi.node.state.clpr.ClprChannel;
 import com.hedera.hapi.node.state.clpr.ClprChannelStatus;
 import com.hedera.hapi.node.state.clpr.ClprConnector;
@@ -37,7 +37,7 @@ import com.hedera.node.app.hapi.utils.keys.Ed25519Utils;
 import com.hedera.node.app.service.clpr.impl.ReadableChannelStoreImpl;
 import com.hedera.node.app.service.clpr.impl.WritableConnectorRegistrationStore;
 import com.hedera.node.app.service.clpr.impl.WritableConnectorStore;
-import com.hedera.node.app.service.clpr.impl.handlers.ClprRegisterConnectorHandler;
+import com.hedera.node.app.service.clpr.impl.handlers.ClprCreateConnectorHandler;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.entityid.impl.AppEntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
@@ -62,7 +62,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class ClprRegisterConnectorHandlerTest {
+class ClprCreateConnectorHandlerTest {
 
     private static final AccountID PAYER_ID =
             AccountID.newBuilder().shardNum(0).realmNum(0).accountNum(1001).build();
@@ -115,7 +115,7 @@ class ClprRegisterConnectorHandlerTest {
     @Mock
     private TokenServiceApi tokenServiceApi;
 
-    private ClprRegisterConnectorHandler subject;
+    private ClprCreateConnectorHandler subject;
     private WritableConnectorStore connectorStore;
     private WritableConnectorRegistrationStore registrations;
     private ReadableChannelStoreImpl channelStore;
@@ -126,7 +126,7 @@ class ClprRegisterConnectorHandlerTest {
     void setUp() {
         final var config = HederaTestConfigBuilder.createConfig();
         final EntityIdFactory idFactory = new AppEntityIdFactory(config);
-        subject = new ClprRegisterConnectorHandler(idFactory);
+        subject = new ClprCreateConnectorHandler(idFactory);
 
         final var ecdsaPublicKey64 = ECDSASecp256k1.derivePublicKey(SECRET_KEY);
         identityKey = Key.newBuilder()
@@ -213,7 +213,7 @@ class ClprRegisterConnectorHandlerTest {
     @Test
     @DisplayName("should reject missing connector_contract")
     void rejectsMissingContract() throws PreCheckException {
-        final var op = ClprRegisterConnectorTransactionBody.newBuilder()
+        final var op = ClprCreateConnectorTransactionBody.newBuilder()
                 .connectorId(ECDSA_CONNECTOR_ID)
                 .identityKey(identityKey)
                 .salt(SALT)
@@ -231,7 +231,7 @@ class ClprRegisterConnectorHandlerTest {
     @Test
     @DisplayName("should reject missing admin_key")
     void rejectsMissingAdminKey() throws PreCheckException {
-        final var op = ClprRegisterConnectorTransactionBody.newBuilder()
+        final var op = ClprCreateConnectorTransactionBody.newBuilder()
                 .connectorId(ECDSA_CONNECTOR_ID)
                 .identityKey(identityKey)
                 .salt(SALT)
@@ -278,7 +278,7 @@ class ClprRegisterConnectorHandlerTest {
     }
 
     @Test
-    void canRegisterTheSameIdentityOnAnotherChannel() {
+    void canCreateConnectorWithSameIdentityOnAnotherChannel() {
         final var otherChannel = Bytes.wrap(new byte[32]);
         final var channels = writableStates.<ProtoBytes, ClprChannel>get(CHANNELS_STATE_ID);
         channels.put(
@@ -399,8 +399,8 @@ class ClprRegisterConnectorHandlerTest {
     }
 
     @Test
-    @DisplayName("should register the connector when the payer balance exactly covers the stake")
-    void registersConnectorSuccessfully() {
+    @DisplayName("should create the connector when the payer balance exactly covers the stake")
+    void createsConnectorSuccessfully() {
         setupSmartContractMock();
         setupHandleContext(validTxn(), true);
 
@@ -419,8 +419,8 @@ class ClprRegisterConnectorHandlerTest {
     }
 
     @Test
-    @DisplayName("should register connector with ED25519 signature scheme on success")
-    void registersConnectorWithEd25519Successfully() throws PreCheckException {
+    @DisplayName("should create the connector with ED25519 signature scheme on success")
+    void createsConnectorWithEd25519Successfully() throws PreCheckException {
         final var ed25519PublicKey = Ed25519Utils.extractEd25519PublicKey(Ed25519Utils.keyFrom(SECRET_KEY));
         setupSmartContractMock();
         final var op = validOpBuilder()
@@ -459,8 +459,8 @@ class ClprRegisterConnectorHandlerTest {
 
     // ── helpers ───────────────────────────────────────────────────────────────
 
-    private ClprRegisterConnectorTransactionBody.Builder validOpBuilder() {
-        return ClprRegisterConnectorTransactionBody.newBuilder()
+    private ClprCreateConnectorTransactionBody.Builder validOpBuilder() {
+        return ClprCreateConnectorTransactionBody.newBuilder()
                 .connectorId(ECDSA_CONNECTOR_ID)
                 .identityKey(identityKey)
                 .salt(SALT)
@@ -474,10 +474,10 @@ class ClprRegisterConnectorHandlerTest {
         return txnWith(validOpBuilder().build());
     }
 
-    private TransactionBody txnWith(final ClprRegisterConnectorTransactionBody op) {
+    private TransactionBody txnWith(final ClprCreateConnectorTransactionBody op) {
         return TransactionBody.newBuilder()
                 .transactionID(TransactionID.newBuilder().accountID(PAYER_ID))
-                .clprRegisterConnector(op)
+                .clprCreateConnector(op)
                 .build();
     }
 

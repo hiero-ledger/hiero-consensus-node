@@ -17,7 +17,7 @@ import picocli.CommandLine.ParentCommand;
 @Command(
         name = "generate-connector-identity",
         subcommands = {HelpCommand.class},
-        description = "Generates a key pair, salt, and connector ID for register-connector.")
+        description = "Generates a key pair, salt, and connector ID for create-connector.")
 public class GenerateConnectorIdentityCommand implements Callable<Integer> {
 
     private static final int SALT_LEN = 32;

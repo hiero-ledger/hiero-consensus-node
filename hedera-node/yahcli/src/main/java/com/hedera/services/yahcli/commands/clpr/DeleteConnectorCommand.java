@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.yahcli.commands.clpr;
 
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprDeregisterConnector;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprDeleteConnector;
 import static com.hedera.services.yahcli.config.ConfigUtils.configFrom;
 
 import com.hedera.services.yahcli.suites.ClprTxnSuite;
@@ -12,16 +12,16 @@ import picocli.CommandLine.Option;
 import picocli.CommandLine.ParentCommand;
 
 /**
- * Submits a {@code ClprDeregisterConnector} HAPI transaction to remove a connector from a
+ * Submits a {@code ClprDeleteConnector} HAPI transaction to remove a connector from a
  * channel and unlock its staked funds to the supplied {@code --stake-recipient}
  * account. Required inputs are {@code --channel-id}, {@code --connector-id}, and the
  * stake recipient.
  */
 @Command(
-        name = "deregister-connector",
+        name = "delete-connector",
         subcommands = {HelpCommand.class},
-        description = "Submits a ClprDeregisterConnector transaction.")
-public class DeregisterConnectorCommand implements Callable<Integer> {
+        description = "Submits a ClprDeleteConnector transaction.")
+public class DeleteConnectorCommand implements Callable<Integer> {
 
     @ParentCommand
     ClprCommand clprCommand;
@@ -50,13 +50,12 @@ public class DeregisterConnectorCommand implements Callable<Integer> {
     @Override
     public Integer call() throws Exception {
         final var config = configFrom(clprCommand.getYahcli());
-        final var op = clprDeregisterConnector()
+        final var op = clprDeleteConnector()
                 .channelId(ClprArgs.requiredBytes("channel-id", channelIdHex))
                 .connectorId(ClprArgs.requiredBytes("connector-id", connectorIdHex))
                 .stakeRecipient(ClprArgs.parseAccountId(stakeRecipient));
-        final var delegate = new ClprTxnSuite(config, "ClprDeregisterConnector", op);
+        final var delegate = new ClprTxnSuite(config, "ClprDeleteConnector", op);
         delegate.runSuiteSync();
-        return ClprOutcome.reportTxn(
-                config, delegate, op, "deregistered CLPR connector", "could not deregister CLPR connector");
+        return ClprOutcome.reportTxn(config, delegate, op, "deleted CLPR connector", "could not delete CLPR connector");
     }
 }

@@ -5,11 +5,11 @@ import static com.hedera.node.app.hapi.utils.sysfiles.validation.ExpectedCustomT
 import static com.hedera.node.app.hapi.utils.sysfiles.validation.ExpectedCustomThrottles.CLPR_OPS;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprCloseChannel;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprCompleteChannel;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprDeregisterConnector;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprCreateConnector;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprDeleteConnector;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprEvictPeerEndpoint;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprGetLedgerConfiguration;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprRegisterChannel;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprRegisterConnector;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprSubmitBundle;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprUpdateLedgerConfiguration;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ConsensusCreateTopic;
@@ -141,8 +141,8 @@ class ExpectedCustomThrottlesTest {
         assertTrue(ACTIVE_OPS.contains(ClprEvictPeerEndpoint), "Missing ClprEvictPeerEndpoint!");
         assertTrue(ACTIVE_OPS.contains(ClprGetLedgerConfiguration), "Missing ClprGetLedgerConfiguration!");
         assertTrue(ACTIVE_OPS.contains(ClprSubmitBundle), "Missing ClprSubmitBundle!");
-        assertTrue(ACTIVE_OPS.contains(ClprRegisterConnector), "Missing ClprRegisterConnector!");
-        assertTrue(ACTIVE_OPS.contains(ClprDeregisterConnector), "Missing ClprDeregisterConnector!");
+        assertTrue(ACTIVE_OPS.contains(ClprCreateConnector), "Missing ClprCreateConnector!");
+        assertTrue(ACTIVE_OPS.contains(ClprDeleteConnector), "Missing ClprDeleteConnector!");
     }
 
     @Test

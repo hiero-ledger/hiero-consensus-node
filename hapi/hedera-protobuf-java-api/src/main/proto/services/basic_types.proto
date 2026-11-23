@@ -1917,14 +1917,14 @@ enum HederaFunctionality {
     ClprSubmitBundle = 122;
 
     /**
-     * Register a Connector on the CLPR Service.
+     * Create a Connector on the CLPR Service.
      */
-    ClprRegisterConnector = 124;
+    ClprCreateConnector = 124;
 
     /**
      * Remove a Connector from the CLPR Service.
      */
-    ClprDeregisterConnector = 125;
+    ClprDeleteConnector = 125;
 
     /**
      * Self-publish a node's CLPR endpoint into a manifest construction (spec §2.4.1 /

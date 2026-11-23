@@ -19,7 +19,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.TransactionID;
-import com.hedera.hapi.node.clpr.ClprDeregisterConnectorTransactionBody;
+import com.hedera.hapi.node.clpr.ClprDeleteConnectorTransactionBody;
 import com.hedera.hapi.node.state.clpr.ClprConnector;
 import com.hedera.hapi.node.state.clpr.ClprConnectorKey;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
@@ -28,7 +28,7 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.clpr.ReadableConnectorStore;
 import com.hedera.node.app.service.clpr.impl.WritableConnectorRegistrationStore;
 import com.hedera.node.app.service.clpr.impl.WritableConnectorStore;
-import com.hedera.node.app.service.clpr.impl.handlers.ClprDeregisterConnectorHandler;
+import com.hedera.node.app.service.clpr.impl.handlers.ClprDeleteConnectorHandler;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.entityid.impl.AppEntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
@@ -51,7 +51,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class ClprDeregisterConnectorHandlerTest {
+class ClprDeleteConnectorHandlerTest {
 
     private static final AccountID PAYER_ID =
             AccountID.newBuilder().accountNum(1001).build();
@@ -110,7 +110,7 @@ class ClprDeregisterConnectorHandlerTest {
     @Mock
     private ReadableAccountStore readableAccountStore;
 
-    private ClprDeregisterConnectorHandler subject;
+    private ClprDeleteConnectorHandler subject;
     private WritableConnectorStore connectorStore;
     private WritableConnectorRegistrationStore registrations;
 
@@ -118,7 +118,7 @@ class ClprDeregisterConnectorHandlerTest {
     void setUp() {
         final var config = HederaTestConfigBuilder.createConfig();
         final EntityIdFactory idFactory = new AppEntityIdFactory(config);
-        subject = new ClprDeregisterConnectorHandler(idFactory);
+        subject = new ClprDeleteConnectorHandler(idFactory);
 
         final var writableConnectors = MapWritableKVState.<ClprConnectorKey, ClprConnector>builder(
                         CONNECTORS_STATE_ID, "ClprService:CONNECTORS")
@@ -142,7 +142,7 @@ class ClprDeregisterConnectorHandlerTest {
     @Test
     @DisplayName("should reject when channel_id is not 32 bytes")
     void rejectsWrongChannelIdLength() {
-        final var op = ClprDeregisterConnectorTransactionBody.newBuilder()
+        final var op = ClprDeleteConnectorTransactionBody.newBuilder()
                 .channelId(Bytes.wrap(new byte[16]))
                 .connectorId(CONNECTOR_ID)
                 .stakeRecipient(STAKE_RECIPIENT_ID)
@@ -156,7 +156,7 @@ class ClprDeregisterConnectorHandlerTest {
     @Test
     @DisplayName("should reject when connector_id is not 32 bytes")
     void rejectsWrongConnectorIdLength() {
-        final var op = ClprDeregisterConnectorTransactionBody.newBuilder()
+        final var op = ClprDeleteConnectorTransactionBody.newBuilder()
                 .channelId(CHANNEL_ID)
                 .connectorId(Bytes.wrap(new byte[16]))
                 .stakeRecipient(STAKE_RECIPIENT_ID)
@@ -170,7 +170,7 @@ class ClprDeregisterConnectorHandlerTest {
     @Test
     @DisplayName("should reject when stake_recipient is missing")
     void rejectsMissingStakeRecipient() {
-        final var op = ClprDeregisterConnectorTransactionBody.newBuilder()
+        final var op = ClprDeleteConnectorTransactionBody.newBuilder()
                 .channelId(CHANNEL_ID)
                 .connectorId(CONNECTOR_ID)
                 // stake_recipient intentionally omitted
@@ -228,8 +228,8 @@ class ClprDeregisterConnectorHandlerTest {
     }
 
     @Test
-    @DisplayName("should deregister connector, retain its registration, and transfer stake")
-    void deregistersConnectorAndTransfersStake() {
+    @DisplayName("should delete the connector, retain its registration, and transfer stake")
+    void deletesConnectorAndTransfersStake() {
         putConnector();
         setupHandleContext(validTxn(), true);
 
@@ -242,8 +242,8 @@ class ClprDeregisterConnectorHandlerTest {
     }
 
     @Test
-    @DisplayName("should deregister connector without transfer when stake is zero")
-    void deregistersConnectorWithZeroStake() {
+    @DisplayName("should delete the connector without transfer when stake is zero")
+    void deletesConnectorWithZeroStake() {
         connectorStore.put(ClprConnector.newBuilder()
                 .connectorId(CONNECTOR_ID)
                 .channelId(CHANNEL_ID)
@@ -349,17 +349,17 @@ class ClprDeregisterConnectorHandlerTest {
     }
 
     private TransactionBody validTxn() {
-        return txnWith(ClprDeregisterConnectorTransactionBody.newBuilder()
+        return txnWith(ClprDeleteConnectorTransactionBody.newBuilder()
                 .channelId(CHANNEL_ID)
                 .connectorId(CONNECTOR_ID)
                 .stakeRecipient(STAKE_RECIPIENT_ID)
                 .build());
     }
 
-    private TransactionBody txnWith(final ClprDeregisterConnectorTransactionBody op) {
+    private TransactionBody txnWith(final ClprDeleteConnectorTransactionBody op) {
         return TransactionBody.newBuilder()
                 .transactionID(TransactionID.newBuilder().accountID(PAYER_ID))
-                .clprDeregisterConnector(op)
+                .clprDeleteConnector(op)
                 .build();
     }
 }

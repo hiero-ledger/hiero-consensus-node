@@ -458,9 +458,9 @@ Each registration binds the shared identity to its local PassThroughAuth contrac
 and locks the payer's stake in tinybars.
 
 ```bash
-./yahcli -n alice -p 2 clpr register-connector --identity connector.json \
+./yahcli -n alice -p 2 clpr create-connector --identity connector.json \
   --channel-id "$CHANNEL_ID" --connector-contract "$PASSTHROUGH_A" --locked-stake 100000000
-./yahcli -n bob -p 2 clpr register-connector --identity connector.json \
+./yahcli -n bob -p 2 clpr create-connector --identity connector.json \
   --channel-id "$CHANNEL_ID" --connector-contract "$PASSTHROUGH_B" --locked-stake 100000000
 ```
 

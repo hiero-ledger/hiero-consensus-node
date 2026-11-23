@@ -12,15 +12,15 @@ import "services/basic_types.proto";
 /**
  * Remove a Connector from the CLPR Service.
  *
- * Deregisters a Connector and returns any locked stake to the specified
+ * Deletes the connector and returns any locked stake to the specified
  * stake_recipient account. Requires the connector's admin_key to sign.
- * The same connector ID cannot be registered again on this channel.
+ * The same connector ID cannot be reused on this channel.
  *
  * Authority: Connector admin_key must sign.
  */
-message ClprDeregisterConnectorTransactionBody {
+message ClprDeleteConnectorTransactionBody {
     /**
-     * The 32-byte Channel ID the Connector is registered on.
+     * The 32-byte Channel ID the Connector belongs to.
      */
     bytes channel_id = 1;
 

@@ -8,8 +8,8 @@ import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.CLPR;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteChannel;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCreateConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterChannel;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprUpdateLedgerConfiguration;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -113,7 +113,7 @@ public class ClprOrchestratorSubmitTest {
                         .verifierContract(VERIFIER_CONTRACT)
                         .configProofBytes(proofBytes.toByteArray())
                         .payingWith(GENESIS),
-                clprRegisterConnector()
+                clprCreateConnector()
                         .connectorId(crypto.connectorId)
                         .ed25519Identity(Crypto.TEST_PRIVATE_KEY_SEED)
                         .salt(crypto.connectorSalt)

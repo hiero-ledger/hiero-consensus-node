@@ -249,16 +249,16 @@ CONNECTOR_CONTRACT_B=$(capture_contract_id "${LOG_DIR}/09b-create-pta.log")
 [[ -n "${CONNECTOR_CONTRACT_B}" ]] || die "could not capture connector-contract id on ${NET_B}"
 echo "  CONNECTOR_CONTRACT_A=${CONNECTOR_CONTRACT_A}  CONNECTOR_CONTRACT_B=${CONNECTOR_CONTRACT_B}"
 
-# === [10/12] register-connector ============================================
-header "[10/12] register-connector on both networks"
-yh "register-connector on ${NET_A}" "${LOG_DIR}/10a-register-connector.log" \
+# === [10/12] create-connector ============================================
+header "[10/12] create-connector on both networks"
+yh "create-connector on ${NET_A}" "${LOG_DIR}/10a-create-connector.log" \
     -n "${NET_A}" -p "${PAYER}" \
-    clpr register-connector --channel-id "${CHANNEL_ID}" --identity "${CONNECTOR_FILE}" \
+    clpr create-connector --channel-id "${CHANNEL_ID}" --identity "${CONNECTOR_FILE}" \
         --connector-contract "${CONNECTOR_CONTRACT_A}" \
         --locked-stake "${LOCKED_STAKE}"
-yh "register-connector on ${NET_B}" "${LOG_DIR}/10b-register-connector.log" \
+yh "create-connector on ${NET_B}" "${LOG_DIR}/10b-create-connector.log" \
     -n "${NET_B}" -p "${PAYER}" \
-    clpr register-connector --channel-id "${CHANNEL_ID}" --identity "${CONNECTOR_FILE}" \
+    clpr create-connector --channel-id "${CHANNEL_ID}" --identity "${CONNECTOR_FILE}" \
         --connector-contract "${CONNECTOR_CONTRACT_B}" \
         --locked-stake "${LOCKED_STAKE}"
 

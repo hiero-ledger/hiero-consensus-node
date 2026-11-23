@@ -4,8 +4,8 @@ package com.hedera.services.bdd.suites.clpr;
 import static com.hedera.services.bdd.junit.ContextRequirement.PROPERTY_OVERRIDES;
 import static com.hedera.services.bdd.junit.TestTags.CLPR;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprDeregisterConnector;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterConnector;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCreateConnector;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprDeleteConnector;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_NOT_ENABLED;
@@ -26,10 +26,10 @@ public class ClprConnectorSuite {
     @LeakyHapiTest(
             requirement = PROPERTY_OVERRIDES,
             overrides = {"clpr.enabled"})
-    final Stream<DynamicTest> rejectsRegisterWhenDisabled() {
+    final Stream<DynamicTest> rejectsCreateWhenDisabled() {
         return hapiTest(
                 overriding("clpr.enabled", "false"),
-                clprRegisterConnector()
+                clprCreateConnector()
                         .channelId(new byte[32])
                         .connectorId(new byte[32])
                         .payingWith(GENESIS)
@@ -37,8 +37,8 @@ public class ClprConnectorSuite {
     }
 
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
-    final Stream<DynamicTest> rejectsRegisterWithMalformedConnectorId() {
-        return hapiTest(clprRegisterConnector()
+    final Stream<DynamicTest> rejectsCreateWithMalformedConnectorId() {
+        return hapiTest(clprCreateConnector()
                 .channelId(new byte[32])
                 .connectorId(new byte[16]) // wrong length
                 .payingWith(GENESIS)
@@ -48,10 +48,10 @@ public class ClprConnectorSuite {
     @LeakyHapiTest(
             requirement = PROPERTY_OVERRIDES,
             overrides = {"clpr.enabled"})
-    final Stream<DynamicTest> rejectsDeregisterWhenDisabled() {
+    final Stream<DynamicTest> rejectsDeleteWhenDisabled() {
         return hapiTest(
                 overriding("clpr.enabled", "false"),
-                clprDeregisterConnector()
+                clprDeleteConnector()
                         .channelId(new byte[32])
                         .connectorId(new byte[32])
                         .stakeRecipient(GENESIS)

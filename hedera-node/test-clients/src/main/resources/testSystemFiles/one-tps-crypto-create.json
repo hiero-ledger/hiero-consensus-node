@@ -62,8 +62,8 @@
 				"ClprRegisterChannel",
 				"ClprCompleteChannel",
 				"ClprCloseChannel",
-				"ClprRegisterConnector",
-				"ClprDeregisterConnector",
+				"ClprCreateConnector",
+				"ClprDeleteConnector",
 				"ClprGetLedgerConfiguration",
 				"ClprGetEndpointManifest"
 		  ]

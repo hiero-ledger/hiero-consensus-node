@@ -33,23 +33,23 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 
 /**
- * Handler for {@link HederaFunctionality#CLPR_REGISTER_CONNECTOR} transactions.
+ * Handler for {@link HederaFunctionality#CLPR_CREATE_CONNECTOR} transactions.
  *
  */
 @Singleton
-public final class ClprRegisterConnectorHandler extends AbstractClprHandler {
+public final class ClprCreateConnectorHandler extends AbstractClprHandler {
 
     private final EntityIdFactory entityIdFactory;
 
     @Inject
-    public ClprRegisterConnectorHandler(@NonNull final EntityIdFactory entityIdFactory) {
+    public ClprCreateConnectorHandler(@NonNull final EntityIdFactory entityIdFactory) {
         this.entityIdFactory = requireNonNull(entityIdFactory);
     }
 
     @Override
     public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
         requireNonNull(context);
-        final var op = context.body().clprRegisterConnectorOrThrow();
+        final var op = context.body().clprCreateConnectorOrThrow();
         validateTruePreCheck(op.connectorId().length() == CHANNEL_ID_LENGTH, INVALID_TRANSACTION_BODY);
         validateTruePreCheck(op.channelId().length() == CHANNEL_ID_LENGTH, INVALID_TRANSACTION_BODY);
         validateTruePreCheck(op.salt().length() == CHANNEL_ID_LENGTH, INVALID_TRANSACTION_BODY);
@@ -82,13 +82,12 @@ public final class ClprRegisterConnectorHandler extends AbstractClprHandler {
 
     @Override
     public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
-        context.requireKeyOrThrow(
-                context.body().clprRegisterConnectorOrThrow().identityKey(), INVALID_TRANSACTION_BODY);
+        context.requireKeyOrThrow(context.body().clprCreateConnectorOrThrow().identityKey(), INVALID_TRANSACTION_BODY);
     }
 
     @Override
     protected void doHandle(@NonNull final HandleContext context) throws HandleException {
-        final var op = context.body().clprRegisterConnectorOrThrow();
+        final var op = context.body().clprCreateConnectorOrThrow();
         final var clprConfig = context.configuration().getConfigData(ClprConfig.class);
         final var storeFactory = context.storeFactory();
 

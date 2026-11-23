@@ -153,8 +153,8 @@ class AtomicBatchHandlerTest {
             HederaFunctionality.CLPR_CLOSE_CHANNEL,
             HederaFunctionality.CLPR_EVICT_PEER_ENDPOINT,
             HederaFunctionality.CLPR_SUBMIT_BUNDLE,
-            HederaFunctionality.CLPR_REGISTER_CONNECTOR,
-            HederaFunctionality.CLPR_DEREGISTER_CONNECTOR,
+            HederaFunctionality.CLPR_CREATE_CONNECTOR,
+            HederaFunctionality.CLPR_DELETE_CONNECTOR,
             HederaFunctionality.CLPR_ENDPOINT_PUBLICATION,
             HederaFunctionality.CLPR_MAINTENANCE);
     private final AccountID payerId1 = AccountID.newBuilder().accountNum(1001).build();

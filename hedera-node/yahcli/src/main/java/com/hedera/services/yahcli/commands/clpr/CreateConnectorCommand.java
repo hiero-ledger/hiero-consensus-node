@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.yahcli.commands.clpr;
 
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterConnector;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCreateConnector;
 import static com.hedera.services.yahcli.config.ConfigUtils.configFrom;
 
 import com.google.protobuf.ByteString;
@@ -19,12 +19,12 @@ import picocli.CommandLine.HelpCommand;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.ParentCommand;
 
-/** Registers a channel-scoped connector binding signed by the payer and the connector identity. */
+/** Creates a channel-scoped connector binding signed by the payer and the connector identity. */
 @Command(
-        name = "register-connector",
+        name = "create-connector",
         subcommands = {HelpCommand.class},
-        description = "Registers a connector on a channel using its identity bundle and private key.")
-public class RegisterConnectorCommand implements Callable<Integer> {
+        description = "Creates a connector on a channel using its identity bundle and private key.")
+public class CreateConnectorCommand implements Callable<Integer> {
 
     @ParentCommand
     ClprCommand clprCommand;
@@ -43,7 +43,7 @@ public class RegisterConnectorCommand implements Callable<Integer> {
             paramLabel = "<shard.realm.num>",
             required = true,
             description = "Connector contract id (e.g. the PassThroughAuth deployment on this ledger). Required: "
-                    + "ClprRegisterConnectorHandler.pureChecks rejects transactions missing a connector contract.")
+                    + "ClprCreateConnectorHandler.pureChecks rejects transactions missing a connector contract.")
     String connectorContract;
 
     @Option(
@@ -78,7 +78,7 @@ public class RegisterConnectorCommand implements Callable<Integer> {
         final var scheme =
                 GenerateChannelIdentityCommand.ClprIdentityCrypto.normalizeScheme(bundle.get("signatureScheme"));
         final var key = readIdentityKey(keyPath != null ? keyPath : Path.of(identityPath + ".key"));
-        final var op = clprRegisterConnector()
+        final var op = clprCreateConnector()
                 .connectorId(ClprArgs.requiredBytes("connector-id", bundle.get("connectorId")))
                 .salt(ClprArgs.requiredBytes("salt", bundle.get("salt")))
                 .channelId(ClprArgs.requiredBytes("channel-id", channelIdHex))
@@ -107,10 +107,9 @@ public class RegisterConnectorCommand implements Callable<Integer> {
             op.adminKey(publicKey);
         }
 
-        final var delegate = new ClprTxnSuite(config, "ClprRegisterConnector", op);
+        final var delegate = new ClprTxnSuite(config, "ClprCreateConnector", op);
         delegate.runSuiteSync();
-        return ClprOutcome.reportTxn(
-                config, delegate, op, "registered CLPR connector", "could not register CLPR connector");
+        return ClprOutcome.reportTxn(config, delegate, op, "created CLPR connector", "could not create CLPR connector");
     }
 
     static byte[] readIdentityKey(final Path path) throws IOException {

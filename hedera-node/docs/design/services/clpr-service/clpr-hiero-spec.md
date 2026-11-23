@@ -170,7 +170,7 @@ to the storage it has paid for — either at registration time (locked stake det
 slot count) or through a rent model. This aligns with Hiero's broader paid-storage
 model. The flat percentage quota is a placeholder until that paid-storage model is
 implemented. **Future work:** tie slot quota to locked stake or a separate storage
-payment at `registerConnector` time; consider consistency with the EVM implementation's
+payment at `createConnector` time; consider consistency with the EVM implementation's
 approach to the same problem.
 
 **Canonical spec note:** the canonical spec does not define per-connector queue quotas.

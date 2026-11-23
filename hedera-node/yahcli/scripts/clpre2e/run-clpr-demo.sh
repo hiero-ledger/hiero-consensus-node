@@ -65,7 +65,7 @@ PEER_LEDGER_ID_A="${PEER_LEDGER_ID_A:-deadbeefdeadbeefdeadbeefdeadbeefdeadbeefde
 PEER_LEDGER_ID_B="${PEER_LEDGER_ID_B:-feedfacefeedfacefeedfacefeedfacefeedfacefeedfacefeedfacefeedface}"
 # Hex-encoded message id for the submit-bundle smoke.
 BUNDLE_PAYLOAD_HEX="${BUNDLE_PAYLOAD_HEX:-deadbeef}"
-# Account that receives returned stake on deregister-connector (must also sign).
+# Account that receives returned stake on delete-connector (must also sign).
 STAKE_RECIPIENT="${STAKE_RECIPIENT:-0.0.2}"
 # Gas to use for contract create / call.
 STEP_GAS="${STEP_GAS:-200000}"
@@ -188,8 +188,8 @@ run_on_network() {
         -n "${net}" clpr generate-connector-identity --out "${identity_dir}/${net}.json"
 
     print_step "[7/11] register connector"
-    run_yahcli "register-connector on ${net}" \
-        -n "${net}" clpr register-connector --identity "${identity_dir}/${net}.json" \
+    run_yahcli "create-connector on ${net}" \
+        -n "${net}" clpr create-connector --identity "${identity_dir}/${net}.json" \
             --channel-id "${CHANNEL_ID_HEX}" --connector-contract "${CONNECTOR_CONTRACT:-0.0.1010}" \
             --locked-stake 100000000
 
@@ -218,9 +218,9 @@ run_on_network() {
             --bundle-payload "${BUNDLE_PAYLOAD_HEX}"
 
     # 11) Teardown: deregister the connector then close the channel.
-    print_step "[11/11] deregister-connector and close-channel"
-    run_yahcli "deregister-connector on ${net}" \
-        -n "${net}" clpr deregister-connector \
+    print_step "[11/11] delete-connector and close-channel"
+    run_yahcli "delete-connector on ${net}" \
+        -n "${net}" clpr delete-connector \
             --channel-id "${CHANNEL_ID_HEX}" \
             --connector-id "$(jq -r .connectorId "${identity_dir}/${net}.json")" \
             --stake-recipient "${STAKE_RECIPIENT}"

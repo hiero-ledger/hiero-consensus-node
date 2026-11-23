@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Derive a reusable connector identity bundle for `yahcli clpr register-connector`.
+Derive a reusable connector identity bundle for `yahcli clpr create-connector`.
 Supply a JSON object with signatureScheme (ED25519 or ECDSA_SECP256K1) and,
 optionally, a 32-byte hex salt. A missing salt is generated randomly. The ID
 is keccak256(publicKey || salt), using the raw Ed25519 point or uncompressed

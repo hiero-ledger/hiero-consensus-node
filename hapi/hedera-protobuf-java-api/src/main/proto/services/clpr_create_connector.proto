@@ -10,11 +10,11 @@ option java_multiple_files = true;
 import "services/basic_types.proto";
 
 /**
- * Register a connector on an existing channel. Both the payer and identity_key
- * must sign the transaction. A connector ID can be registered once per channel,
- * including after deregistration or a ban.
+ * Create a connector on an existing channel. Both the payer and identity_key
+ * must sign the transaction. A connector ID can be used only once per channel,
+ * including after deletion or a ban.
  */
-message ClprRegisterConnectorTransactionBody {
+message ClprCreateConnectorTransactionBody {
     /** The existing channel's 32-byte ID. */
     bytes channel_id = 2;
 
@@ -33,6 +33,6 @@ message ClprRegisterConnectorTransactionBody {
     /** Key authorizing administrative operations on this channel's connector. */
     proto.Key admin_key = 7;
 
-    /** Slashable bond in tinybars, transferred from the payer at registration. */
+    /** Slashable bond in tinybars, transferred from the payer on creation. */
     uint64 locked_stake = 8;
 }

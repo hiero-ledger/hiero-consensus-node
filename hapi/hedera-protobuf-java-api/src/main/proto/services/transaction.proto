@@ -92,8 +92,8 @@ import "services/clpr_update_ledger_configuration.proto";
 import "services/clpr_complete_channel.proto";
 import "services/clpr_register_channel.proto";
 import "services/clpr_close_channel.proto";
-import "services/clpr_register_connector.proto";
-import "services/clpr_deregister_connector.proto";
+import "services/clpr_create_connector.proto";
+import "services/clpr_delete_connector.proto";
 import "services/clpr_submit_bundle.proto";
 import "services/clpr_evict_peer_endpoint.proto";
 import "platform/event/state_signature_transaction.proto";
@@ -740,14 +740,14 @@ message TransactionBody {
         com.hedera.hapi.node.clpr.ClprSubmitBundleTransactionBody clprSubmitBundle = 86;
 
         /**
-         * Register a Connector on the CLPR Service.
+         * Create a Connector on the CLPR Service.
          */
-        com.hedera.hapi.node.clpr.ClprRegisterConnectorTransactionBody clprRegisterConnector = 88;
+        com.hedera.hapi.node.clpr.ClprCreateConnectorTransactionBody clprCreateConnector = 88;
 
         /**
          * Remove a Connector from the CLPR Service.
          */
-        com.hedera.hapi.node.clpr.ClprDeregisterConnectorTransactionBody clprDeregisterConnector = 89;
+        com.hedera.hapi.node.clpr.ClprDeleteConnectorTransactionBody clprDeleteConnector = 89;
 
         /**
          * A node self-publishes its own CLPR endpoint into a manifest construction (see

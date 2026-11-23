@@ -13,8 +13,8 @@ import static com.hedera.services.bdd.spec.HapiSpec.networkHapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.clprGetEndpointManifest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.clprGetLedgerConfiguration;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteChannel;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCreateConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterChannel;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprSubmitBundle;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprUpdateLedgerConfiguration;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
@@ -1629,7 +1629,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                             return op;
                         }),
                         // Connector registration
-                        clprRegisterConnector()
+                        clprCreateConnector()
                                 .connectorId(crypto.connectorId)
                                 .ed25519Identity(ClprCrypto.TEST_PRIVATE_KEY_SEED)
                                 .salt(crypto.connectorSalt)

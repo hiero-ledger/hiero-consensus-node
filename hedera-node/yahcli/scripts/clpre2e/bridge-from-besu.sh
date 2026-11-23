@@ -447,11 +447,11 @@ yh "contracts create PassThroughAuth" "${LOG_DIR}/08-create-pta.log" \
 CONNECTOR_CONTRACT="$(capture_contract_id "${LOG_DIR}/08-create-pta.log")"
 [[ -n "${CONNECTOR_CONTRACT}" ]] || die "could not capture PassThroughAuth contract id"
 
-# ─── [8/8] register-connector on Hiero ────────────────────────────────────
-header "[8/8] register-connector on ${NET}"
-yh "register-connector" "${LOG_DIR}/09-register-connector.log" \
+# ─── [8/8] create-connector on Hiero ────────────────────────────────────
+header "[8/8] create-connector on ${NET}"
+yh "create-connector" "${LOG_DIR}/09-create-connector.log" \
     -n "${NET}" -p "${PAYER}" \
-    clpr register-connector --channel-id "${CHANNEL_ID}" \
+    clpr create-connector --channel-id "${CHANNEL_ID}" \
         --identity "${CONNECTOR_FILE}" \
         --connector-contract "${CONNECTOR_CONTRACT}" \
         --locked-stake "${LOCKED_STAKE}"
