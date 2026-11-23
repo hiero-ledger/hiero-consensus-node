@@ -242,7 +242,8 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
                 .overriddenProperties(nodeConfiguration.overrideProperties())
                 .build();
 
-        // Start the platform. This is a unary call and throws if the server returns an error.
+        // Request the start of the platform. The node acknowledges the request before it constructs the platform,
+        // so this call throws if the node rejects the request, but not if constructing the platform fails later.
         startPlatform(startRequest, timeout);
 
         lifeCycle = RUNNING;
@@ -265,6 +266,10 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
      * Invokes the unary {@code start} RPC, retrying while the response is {@code UNAVAILABLE} and the start budget has
      * not been exhausted. This tolerates the connection to a freshly (re)started node process not being available yet;
      * any other status, or exhausting the budget, propagates the error.
+     *
+     * <p>The node acknowledges the request as soon as it has accepted it and constructs the platform afterwards. This
+     * method therefore returns while the platform is still starting, and a failure to construct or start the platform
+     * is not reported by it; the node logs such a failure instead.
      *
      * @param startRequest the request to send
      * @param timeout      the overall budget for starting the platform

@@ -116,11 +116,12 @@ public class NodeCommunicationService implements NodeCommunicationServiceInterfa
             throw new GrpcException(GrpcStatus.ALREADY_EXISTS);
         }
 
-        final Configuration platformConfig = createConfiguration(request.overriddenProperties());
+        final Configuration platformConfig =
+                wrapWithErrorHandling(() -> createConfiguration(request.overriddenProperties()));
         final Roster genesisRoster = request.rosterOrThrow();
         final SemanticVersion version = request.versionOrThrow();
-        final KeysAndCerts keysAndCerts =
-                KeysAndCertsConverter.fromProto(request.keysAndCertsOrElse(ProtoKeysAndCerts.DEFAULT));
+        final KeysAndCerts keysAndCerts = wrapWithErrorHandling(
+                () -> KeysAndCertsConverter.fromProto(request.keysAndCertsOrElse(ProtoKeysAndCerts.DEFAULT)));
 
         // The request is acknowledged by returning from this method, so the platform is constructed and started
         // on a separate thread. Platform construction is expensive, and the test harness starts nodes

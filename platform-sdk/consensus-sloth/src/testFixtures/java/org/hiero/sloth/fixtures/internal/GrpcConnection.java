@@ -151,8 +151,9 @@ public final class GrpcConnection<C extends ServiceInterface> {
     /**
      * Invokes a server-streaming call. The network connection is established by the calling thread, if there is none
      * yet. The call itself runs on a thread of its own, so this method does not wait for the stream to end. The end of
-     * the stream is reported on that thread, unless the stream ended because the network connection was closed or
-     * discarded by this object.
+     * the stream is reported on that thread through {@code onError} or {@code onComplete}. Neither of them is invoked
+     * if the stream ended because this object closed the network connection, see {@link #close()}, or discarded it
+     * after a call failed because the service was unavailable.
      *
      * @param rpc the call to invoke on the client of the service; it has to block until the stream has ended
      * @param onReply receives every reply of the service
@@ -215,6 +216,10 @@ public final class GrpcConnection<C extends ServiceInterface> {
 
     /**
      * Closes the network connection, if there is one. A later call establishes a new connection.
+     *
+     * <p>Closing the connection ends a stream that was started with {@link #callStreaming} on it. That end is not
+     * reported: neither {@code onError} nor {@code onComplete} is invoked for it. A caller that closes the connection
+     * therefore must not wait for either of them.
      */
     public synchronized void close() {
         final C clientToClose = client;

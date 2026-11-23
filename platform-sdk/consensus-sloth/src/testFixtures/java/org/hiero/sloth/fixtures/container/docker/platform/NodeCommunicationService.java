@@ -73,7 +73,7 @@ public class NodeCommunicationService implements NodeCommunicationServiceInterfa
     private volatile OutboundDispatcher dispatcher;
 
     /** Manages the consensus node */
-    private ConsensusNodeManager consensusNodeManager;
+    private volatile ConsensusNodeManager consensusNodeManager;
 
     /**
      * Constructs a {@link NodeCommunicationService} with the specified self ID.
@@ -121,15 +121,15 @@ public class NodeCommunicationService implements NodeCommunicationServiceInterfa
             throw new GrpcException(GrpcStatus.ALREADY_EXISTS);
         }
 
-        final Map<String, String> overriddenProperties = request.overriddenProperties();
-        validateOverriddenProperties(overriddenProperties);
-        final Configuration platformConfig = createConfiguration(overriddenProperties);
-        final Roster genesisRoster = request.rosterOrThrow();
-        final SemanticVersion version = request.versionOrThrow();
-        final KeysAndCerts keysAndCerts =
-                KeysAndCertsConverter.fromProto(request.keysAndCertsOrElse(ProtoKeysAndCerts.DEFAULT));
-
         try {
+            final Map<String, String> overriddenProperties = request.overriddenProperties();
+            validateOverriddenProperties(overriddenProperties);
+            final Configuration platformConfig = createConfiguration(overriddenProperties);
+            final Roster genesisRoster = request.rosterOrThrow();
+            final SemanticVersion version = request.versionOrThrow();
+            final KeysAndCerts keysAndCerts =
+                    KeysAndCertsConverter.fromProto(request.keysAndCertsOrElse(ProtoKeysAndCerts.DEFAULT));
+
             runOnPlatformThread(() -> {
                 consensusNodeManager =
                         new ConsensusNodeManager(selfId, platformConfig, genesisRoster, version, keysAndCerts);
