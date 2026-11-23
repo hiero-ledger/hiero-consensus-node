@@ -10,7 +10,6 @@ The repository is one Gradle build of about 125 JPMS modules in three main group
 - `hiero-dependency-versions/` — the platform project that declares every external library version, once.
 - `config/` — static analysis rule sets: `checkstyle/`, `pmd/` and `detekt/`.
 - `docs/` — repository-wide developer guides: `gradle-quickstart.md`, `intellij-quickstart.md`, `maintainers-guide.md` (GPG and DCO setup, development model), `branch-naming-conventions.md`, `hedera-java-style-guide.md`, `continuous-integration-testing-overview.md`, `continuous-release.md`, `glossary.md`, `clpr/`, and `superpowers/plans/` (design plans).
-- `example-apps/swirlds-platform-base-example/` — a minimal application on the base platform modules.
 - `hedera-state-validator/` — a standalone tool that validates a saved state; built and published by `816-call-build-publish-state-validator.yaml`.
 - `hiero-observability/` — `hiero-metrics`, `metrics-file-exporter` and `openmetrics-httpserver` (the metrics API and its exporters), and `local-stack/` (a Docker Compose Prometheus and Grafana stack for local runs).
 - `startup-assets/` — network startup assets; `.archive/` holds a retired genesis network file.
