@@ -157,9 +157,10 @@ public record DispatchOptions<T extends StreamBuilder>(
     }
 
     /**
-     * Returns options for a setup dispatch whose record is kept in the stream as
-     * {@link com.hedera.hapi.node.base.ResponseCodeEnum#REVERTED_SUCCESS} if the parent rolls back; so a
-     * rolled back parent still shows every record that counted toward its child record limit. Use cases include,
+     * Returns options for a setup dispatch whose record is kept in the stream if the parent rolls back; as
+     * {@link com.hedera.hapi.node.base.ResponseCodeEnum#REVERTED_SUCCESS}, or with its own status if the
+     * dispatch itself failed. So a rolled back parent still shows every record that counted toward its child
+     * record limit. Use cases include,
      * <ul>
      *     <li>Externalizing creation of a "hollow" account when an EVM transaction or a parent
      *     {@link HederaFunctionality#CRYPTO_TRANSFER} first sends value to its EVM address.</li>

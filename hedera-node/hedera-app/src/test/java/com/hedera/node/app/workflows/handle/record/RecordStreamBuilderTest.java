@@ -3,6 +3,7 @@ package com.hedera.node.app.workflows.handle.record;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.REVERTED_SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.BATCH_INNER;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.PRECEDING;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
@@ -137,5 +138,19 @@ public class RecordStreamBuilderTest {
         assertThat(record.transferListOrElse(TransferList.DEFAULT).accountAmounts())
                 .isEmpty();
         assertThat(record.transactionFee()).isZero();
+    }
+
+    @Test
+    void nullOutSideEffectFieldsKeepsFeeOfNonPrecedingBuilder() {
+        // The fee of a rolled back atomic batch inner transaction is still charged, so its record must keep it
+        final var builder = new RecordStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, BATCH_INNER)
+                .signedTx(SIGNED_TX)
+                .transactionID(TransactionID.DEFAULT)
+                .status(SUCCESS)
+                .transactionFee(100L);
+
+        builder.nullOutSideEffectFields();
+
+        assertThat(builder.build().transactionRecord().transactionFee()).isEqualTo(100L);
     }
 }

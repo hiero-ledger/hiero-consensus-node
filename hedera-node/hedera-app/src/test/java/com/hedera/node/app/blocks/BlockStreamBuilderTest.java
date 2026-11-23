@@ -13,6 +13,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.blocks.BlockItemsTranslator.BLOCK_ITEMS_TRANSLATOR;
 import static com.hedera.node.app.service.token.HookDispatchUtils.HTS_HOOKS_CONTRACT_NUM;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.BATCH_INNER;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.PRECEDING;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
@@ -827,5 +828,25 @@ public class BlockStreamBuilderTest {
         assertThat(result.transferListOrElse(TransferList.DEFAULT).accountAmounts())
                 .isEmpty();
         assertThat(result.transactionFeeCharged()).isZero();
+    }
+
+    @Test
+    void nullOutSideEffectFieldsKeepsFeeOfNonPrecedingBuilder() {
+        // The fee of a rolled back atomic batch inner transaction is still charged, so its result must keep it
+        final var builder = new BlockStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, BATCH_INNER)
+                .signedTx(signedTx)
+                .serializedSignedTx(signedTxBytes)
+                .functionality(HederaFunctionality.CRYPTO_TRANSFER)
+                .status(SUCCESS)
+                .transactionFee(100L);
+
+        builder.nullOutSideEffectFields();
+
+        final var result = builder.build(false, null).blockItems().stream()
+                .filter(BlockItem::hasTransactionResult)
+                .findFirst()
+                .orElseThrow()
+                .transactionResultOrThrow();
+        assertThat(result.transactionFeeCharged()).isEqualTo(100L);
     }
 }

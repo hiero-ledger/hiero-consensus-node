@@ -84,7 +84,7 @@ public class AutoAccountCreator {
 
         // Dispatch the auto-creation record as a preceding record; note we pass null for the
         // "verification assistant" since we have no non-payer signatures to verify here. The
-        // record is kept as REVERTED_SUCCESS if the parent rolls back.
+        // record is kept if the parent rolls back: as REVERTED_SUCCESS, or with its own failure status.
         final var streamBuilder = handleContext.dispatch(reversibleSetupDispatch(
                 handleContext.payer(),
                 syntheticCreation.build(),
