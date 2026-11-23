@@ -1781,6 +1781,47 @@ verify_live_chain_synced_to_vote() {
   log "${node}: live wrapped chain synced to finalized vote (leafCount=${synced_leaf})"
 }
 
+# While migration root hash voting is in progress, a node must not stream the wrapped record blocks
+# it closes, because their chain values are not agreed yet. The finalization line reports block N,
+# the last block closed before the finalizing vote, so that vote is handled in block N+1 and every
+# skipped block must be <= N. Zero skipped blocks is valid: every vote can reach consensus in the
+# first block after the upgrade. Block boundaries and vote handling both follow consensus time, so
+# every node must skip the same blocks.
+verify_wrb_streaming_gated_on_vote() {
+  local finalized_block="$1" node lines skipped count block
+  local reference_node="" reference_skipped="" nodes=()
+  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
+  for node in "${nodes[@]}"; do
+    lines="$(kubectl -n "${SOLO_NAMESPACE}" exec "network-${node}-0" -c root-container -- sh -c \
+      "grep -F 'because migration root hash voting is in progress' '${HAPI_PATH}/output/hgcaa.log' || true")" || {
+      echo "${node}: could not read hgcaa.log to check WRB streaming during voting" >&2
+      return 1
+    }
+    skipped="$(printf '%s\n' "${lines}" | sed -nE 's/.*Not streaming WRB for block ([0-9]+) .*/\1/p' | sort -nu)"
+    if [[ -n "${skipped}" ]]; then
+      count="$(printf '%s\n' "${skipped}" | wc -l | tr -d ' ')"
+    else
+      count=0
+    fi
+    for block in ${skipped}; do
+      if (( block > finalized_block )); then
+        echo "${node}: skipped the WRB for block ${block}, but voting finalized in block $((finalized_block + 1))" >&2
+        return 1
+      fi
+    done
+    skipped="$(printf '%s' "${skipped}" | paste -sd, -)"
+    if [[ -z "${reference_node}" ]]; then
+      reference_node="${node}"
+      reference_skipped="${skipped}"
+    elif [[ "${skipped}" != "${reference_skipped}" ]]; then
+      echo "${node}: skipped WRBs for blocks [${skipped}], but ${reference_node} skipped [${reference_skipped}]" >&2
+      return 1
+    fi
+    log "${node}: skipped ${count} WRB(s) while voting was in progress: [${skipped}]"
+  done
+  log "WRB streaming gated on the vote: every node skipped the same ${count} block(s), none after block ${finalized_block}"
+}
+
 verify_stage2_migration_votes() {
   local node expected_block nodes=()
   parse_migration_vote_from_hgcaa
@@ -1794,6 +1835,7 @@ verify_stage2_migration_votes() {
     MIGRATION_COMPARE_LOG="${GENERATED_DIR}/${node}-migration-compare.log" compare_replay_to_migration_vote
     verify_live_chain_synced_to_vote "${node}"
   done
+  verify_wrb_streaming_gated_on_vote "${expected_block}"
 }
 
 # ======================================================================================

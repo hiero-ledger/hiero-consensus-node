@@ -8,6 +8,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INSUFFICIENT_STAKE
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INVALID_CONNECTOR_CONTRACT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NOT_ENABLED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CONNECTORS_STATE_ID;
@@ -17,6 +18,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.lenient;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -49,6 +52,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.spi.WritableStates;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
+import org.hiero.base.crypto.ECDSASecp256k1;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -121,7 +125,7 @@ class ClprCompleteConnectorHandlerTest {
         final EntityIdFactory idFactory = new AppEntityIdFactory(config);
         subject = new ClprCompleteConnectorHandler(idFactory);
 
-        ecdsaPublicKey64 = CryptoTestHelpers.deriveEcdsaPublicKey(SECRET_KEY);
+        ecdsaPublicKey64 = ECDSASecp256k1.derivePublicKey(SECRET_KEY);
         derivedConnectorId =
                 CryptoTestHelpers.computeConnectorId(CHANNEL_ID.toByteArray(), ecdsaPublicKey64, SALT.toByteArray());
         ecdsaCommitment = CryptoTestHelpers.computeCommitment(derivedConnectorId.toByteArray(), ecdsaPublicKey64);
@@ -392,7 +396,29 @@ class ClprCompleteConnectorHandlerTest {
     }
 
     @Test
-    @DisplayName("should register connector, transfer stake, and keep commitment registered on success")
+    @DisplayName("should reject when the payer is one tinybar short of the requested stake")
+    void rejectsWhenPayerCannotCoverStake() {
+        commitmentStore.put(ecdsaCommitment);
+        setupSmartContractMock();
+        setupHandleContext(validTxn(), true);
+        when(accountStore.getAccountById(PAYER_ID))
+                .thenReturn(Account.newBuilder()
+                        .accountId(PAYER_ID)
+                        .tinybarBalance(VALID_STAKE - 1)
+                        .build());
+
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(INSUFFICIENT_ACCOUNT_BALANCE));
+
+        verifyNoInteractions(tokenServiceApi);
+        assertThat(connectorStore.getConnector(new ClprConnectorKey(CHANNEL_ID, derivedConnectorId)))
+                .isNull();
+        assertThat(commitmentStore.contains(ecdsaCommitment)).isTrue();
+    }
+
+    @Test
+    @DisplayName("should register the connector when the payer balance exactly covers the stake")
     void registersConnectorSuccessfully() {
         commitmentStore.put(ecdsaCommitment);
         setupSmartContractMock();
@@ -497,6 +523,12 @@ class ClprCompleteConnectorHandlerTest {
     private void setupHandleContext(final TransactionBody txn, final Configuration config) {
         lenient().when(handleContext.body()).thenReturn(txn);
         lenient().when(handleContext.payer()).thenReturn(PAYER_ID);
+        lenient()
+                .when(accountStore.getAccountById(PAYER_ID))
+                .thenReturn(Account.newBuilder()
+                        .accountId(PAYER_ID)
+                        .tinybarBalance(VALID_STAKE)
+                        .build());
         lenient().when(handleContext.configuration()).thenReturn(config);
         lenient().when(handleContext.storeFactory()).thenReturn(storeFactory);
         lenient()

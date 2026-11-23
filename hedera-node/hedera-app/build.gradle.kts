@@ -19,7 +19,6 @@ mainModuleInfo {
     runtimeOnly("io.helidon.webclient.http2")
     runtimeOnly("io.netty.transport.epoll.linux.aarch_64")
     runtimeOnly("io.netty.transport.epoll.linux.x86_64")
-    runtimeOnly("org.hyperledger.besu.nativelib.secp256k1")
 
     // Loaded reflectively at runtime; not referenced from compiled code
     // This is needed to pick up and include the native libraries for the netty epoll transport
@@ -45,7 +44,6 @@ testModuleInfo {
     requires("com.google.protobuf")
     requires("io.helidon.builder.api")
     requires("org.assertj.core")
-    requires("org.bouncycastle.provider")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
     requires("org.mockito")

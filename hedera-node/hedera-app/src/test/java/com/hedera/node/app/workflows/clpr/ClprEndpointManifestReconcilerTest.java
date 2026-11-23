@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.clpr;
 
+import static com.hedera.hapi.util.HapiUtils.endpointFor;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
@@ -29,6 +30,7 @@ import com.hedera.node.config.testfixtures.ClprConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -52,6 +54,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class ClprEndpointManifestReconcilerTest {
 
     private static final Instant NOW = Instant.parse("2026-07-30T12:00:00Z");
+
+    private static final ServiceEndpoint NODE_1_HAPI = endpointFor("10.0.0.1", 50211);
 
     @Mock
     private ClprSubmissions submissions;
@@ -88,7 +92,7 @@ class ClprEndpointManifestReconcilerTest {
                 () -> {
                     throw new IllegalStateException("local CA unavailable");
                 });
-        stubNode(1L, "host-1", 50211);
+        stubNode(1L, NODE_1_HAPI);
         given(manifestStore.get()).willReturn(manifest(1L, List.of()));
 
         subject.openConstructionOnRosterChange(NOW, rosterOf(1L), manifestStore, constructionStore, nodeStore, config);
@@ -98,26 +102,80 @@ class ClprEndpointManifestReconcilerTest {
         assertThat(captor.getValue().targetNodeIds()).containsExactly(1L);
     }
 
+    @Test
+    void dnsModePublishesAndReconcilesTheAddressBookHostnameVerbatim() {
+        final var host = "Network-Node1.test.svc.cluster.local.";
+        stubNode(1L, endpointFor(host, 50211));
+        final var dnsConfig =
+                ClprConfigBuilder.newBuilder().publishDnsEndpoints(true).build();
+        final var endpoint = selfEndpoint(1L, host, 50211);
+        subject.openConstructionIfSelfChanged(1L, manifest(1L, List.of()), null, nodeStore, dnsConfig, NOW);
+        verify(submissions).submitEndpointPublication(endpoint);
+
+        given(manifestStore.get()).willReturn(manifest(2L, List.of(endpoint)));
+        subject.openConstructionOnRosterChange(
+                NOW, rosterOf(1L), manifestStore, constructionStore, nodeStore, dnsConfig);
+        verify(constructionStore, never()).put(any());
+    }
+
+    @Test
+    void changingDnsModeRechecksAlreadySettledPublicationInAddressBookOrder() {
+        final var host = "network-node1.test.svc.cluster.local";
+        stubNode(1L, endpointFor(host, 50000), NODE_1_HAPI);
+        final var manifest = manifest(1L, List.of(selfEndpoint(1L, "10.0.0.1", 50211)));
+        subject.openConstructionIfSelfChangedUntilSettled(1L, manifest, null, nodeStore, config, NOW);
+        final var dnsConfig =
+                ClprConfigBuilder.newBuilder().publishDnsEndpoints(true).build();
+        subject.openConstructionIfSelfChangedUntilSettled(1L, manifest, null, nodeStore, dnsConfig, NOW);
+        verify(submissions).submitEndpointPublication(selfEndpoint(1L, host, 50000));
+    }
+
     @Nested
     @DisplayName("openConstructionIfSelfChanged (startup-gated self-publication)")
     class PublishSelfIfChanged {
 
         @Test
+        void replacesLegacyHostnameWithAnEndpointAcceptedByTheOutboundPolicy() {
+            stubNode(1L, endpointFor("node.example", 50000), endpointFor("8.8.8.8", 50211));
+            final var oldManifest = manifest(2L, List.of(selfEndpoint(1L, "node.example", 50000)));
+
+            subject.openConstructionIfSelfChanged(1L, oldManifest, null, nodeStore, config, NOW);
+
+            final var published = ArgumentCaptor.forClass(ClprEndpoint.class);
+            verify(submissions).submitEndpointPublication(published.capture());
+            final var endpoint = published.getValue();
+            final var service = endpoint.serviceEndpointOrThrow();
+            final var address = ClprEndpointAddressPolicy.addressFor(service.ipAddress(), service.port(), Set.of());
+            assertThat(address.getAddress().getHostAddress()).isEqualTo("8.8.8.8");
+            assertThat(address.getPort()).isEqualTo(50211);
+
+            given(manifestStore.get()).willReturn(oldManifest);
+            given(constructionStore.get())
+                    .willReturn(
+                            constructionGathering(List.of(1L), List.of(gathered(1L, endpoint)), NOW.plusSeconds(600)));
+            reconcile();
+
+            final var updatedManifest = captureWrittenManifest();
+            assertThat(updatedManifest.version()).isEqualTo(3L);
+            assertThat(updatedManifest.endpoints()).containsExactly(endpoint);
+        }
+
+        @Test
         @DisplayName("endpoint absent + no construction in flight → publishes it and reports NOT settled")
         void publishesWhenAbsentAndNoConstruction() {
-            stubNode(1L, "host-1", 50211);
+            stubNode(1L, NODE_1_HAPI);
 
             final var settled =
                     subject.openConstructionIfSelfChanged(1L, manifest(1L, List.of()), null, nodeStore, config, NOW);
 
             assertThat(settled).isEqualTo(ClprEndpointManifestReconciler.SelfPublishOutcome.PENDING);
-            verify(submissions).submitEndpointPublication(selfEndpoint(1L, "host-1", 50211));
+            verify(submissions).submitEndpointPublication(selfEndpoint(1L, "10.0.0.1", 50211));
         }
 
         @Test
         @DisplayName("endpoint absent but a construction IS in flight → publishes nothing (it fills that instead)")
         void doesNotPublishWhenConstructionInFlight() {
-            stubNode(1L, "host-1", 50211);
+            stubNode(1L, NODE_1_HAPI);
             final var inFlight = constructionGathering(List.of(1L, 2L), List.of(), NOW.plusSeconds(600));
 
             final var settled = subject.openConstructionIfSelfChanged(
@@ -130,10 +188,10 @@ class ClprEndpointManifestReconcilerTest {
         @Test
         @DisplayName("self endpoint already in manifest → publishes nothing and reports settled")
         void settledWhenSelfEndpointInManifest() {
-            stubNode(1L, "host-1", 50211);
+            stubNode(1L, NODE_1_HAPI);
 
             final var settled = subject.openConstructionIfSelfChanged(
-                    1L, manifest(2L, List.of(selfEndpoint(1L, "host-1", 50211))), null, nodeStore, config, NOW);
+                    1L, manifest(2L, List.of(selfEndpoint(1L, "10.0.0.1", 50211))), null, nodeStore, config, NOW);
 
             assertThat(settled).isEqualTo(ClprEndpointManifestReconciler.SelfPublishOutcome.SETTLED);
             verify(submissions, never()).submitEndpointPublication(any());
@@ -142,7 +200,7 @@ class ClprEndpointManifestReconcilerTest {
         @Test
         @DisplayName("retry backoff: publishes once when re-called within the retry delay")
         void publishesOnceWithinRetryDelay() {
-            stubNode(1L, "host-1", 50211);
+            stubNode(1L, NODE_1_HAPI);
 
             // Two rounds with the endpoint still absent and no construction gathering, the second just inside
             // the retry delay → the opening-publication backoff suppresses the duplicate submit.
@@ -161,7 +219,7 @@ class ClprEndpointManifestReconcilerTest {
         @Test
         @DisplayName("retry backoff: re-publishes once the retry delay elapses and no construction has opened")
         void rePublishesAfterRetryDelay() {
-            stubNode(1L, "host-1", 50211);
+            stubNode(1L, NODE_1_HAPI);
 
             // The first submit never reached consensus (endpoint still absent, no construction gathering); once
             // the retry delay elapses a fresh opening publication is issued rather than the node being suppressed.
@@ -191,8 +249,8 @@ class ClprEndpointManifestReconcilerTest {
         @Test
         @DisplayName("settled wrapper re-checks when restored state replaces the manifest")
         void rechecksAfterSettledManifestIsReplaced() {
-            stubNode(1L, "host-1", 50211);
-            final var settledManifest = manifest(2L, List.of(selfEndpoint(1L, "host-1", 50211)));
+            stubNode(1L, NODE_1_HAPI);
+            final var settledManifest = manifest(2L, List.of(selfEndpoint(1L, "10.0.0.1", 50211)));
 
             subject.openConstructionIfSelfChangedUntilSettled(1L, settledManifest, null, nodeStore, config, NOW);
             subject.openConstructionIfSelfChangedUntilSettled(
@@ -202,7 +260,7 @@ class ClprEndpointManifestReconcilerTest {
             subject.openConstructionIfSelfChangedUntilSettled(
                     1L, manifest(1L, List.of()), null, nodeStore, config, NOW.plusSeconds(2));
 
-            verify(submissions).submitEndpointPublication(selfEndpoint(1L, "host-1", 50211));
+            verify(submissions).submitEndpointPublication(selfEndpoint(1L, "10.0.0.1", 50211));
         }
     }
 
@@ -213,18 +271,18 @@ class ClprEndpointManifestReconcilerTest {
         @Test
         @DisplayName("open construction targets self and self not yet gathered → publishes self endpoint")
         void publishesIntoOpenConstructionWhenNotGathered() {
-            stubNode(1L, "host-1", 50211);
+            stubNode(1L, NODE_1_HAPI);
             final var construction = constructionGathering(List.of(1L, 2L), List.of(), NOW.plusSeconds(600));
 
             subject.contributeSelfToConstruction(1L, construction, nodeStore, config, NOW);
 
-            verify(submissions).submitEndpointPublication(selfEndpoint(1L, "host-1", 50211));
+            verify(submissions).submitEndpointPublication(selfEndpoint(1L, "10.0.0.1", 50211));
         }
 
         @Test
         @DisplayName("self already gathered in the construction → publishes nothing")
         void doesNotPublishIntoConstructionWhenAlreadyGathered() {
-            final var ep = endpoint("host-1", 50211, new byte[] {});
+            final var ep = endpoint("10.0.0.1", 50211, new byte[] {});
             final var construction =
                     constructionGathering(List.of(1L, 2L), List.of(gathered(1L, ep)), NOW.plusSeconds(600));
 
@@ -254,7 +312,7 @@ class ClprEndpointManifestReconcilerTest {
         @Test
         @DisplayName("retry backoff: publishes once when re-called within the retry delay")
         void publishesOnceWithinRetryDelay() {
-            stubNode(1L, "host-1", 50211);
+            stubNode(1L, NODE_1_HAPI);
             final var construction = constructionGathering(List.of(1L, 2L), List.of(), NOW.plusSeconds(600));
 
             // Same consensus time (and one just inside the retry delay) → the backoff suppresses the second attempt.
@@ -272,7 +330,7 @@ class ClprEndpointManifestReconcilerTest {
         @Test
         @DisplayName("retry backoff: re-publishes once the retry delay elapses and the publication has not landed")
         void rePublishesAfterRetryDelay() {
-            stubNode(1L, "host-1", 50211);
+            stubNode(1L, NODE_1_HAPI);
             final var construction = constructionGathering(List.of(1L, 2L), List.of(), NOW.plusSeconds(600));
 
             // The first submission never reached consensus (self still absent from gatheredPublications); once the
@@ -297,12 +355,42 @@ class ClprEndpointManifestReconcilerTest {
         @DisplayName("no construction in flight → reconcile is a no-op (no state writes)")
         void reconcileNoOpWhenNoConstruction() {
             given(constructionStore.get()).willReturn(null);
+            given(manifestStore.get()).willReturn(manifest(1L, List.of(endpoint("10.0.0.1", 50211, new byte[] {1}))));
 
             reconcile();
 
             verify(manifestStore, never()).put(any());
             verify(constructionStore, never()).put(any());
             verify(constructionStore, never()).clear();
+        }
+
+        @Test
+        void disablingDnsRebuildsTheManifestWithoutWaitingForAnUpgrade() {
+            final var dns = endpoint("node1.svc", 50211, new byte[] {1});
+            final var numeric = endpoint("10.0.0.2", 50211, new byte[] {2});
+            given(manifestStore.get()).willReturn(manifest(7L, List.of(dns, numeric)));
+            subject.reconcile(
+                    NOW,
+                    rosterOf(1L, 2L),
+                    manifestStore,
+                    constructionStore,
+                    ClprConfigBuilder.newBuilder().publishDnsEndpoints(true).build());
+            verify(constructionStore, never()).put(any());
+
+            reconcile();
+            final var opened = captureOpenedConstruction();
+            assertThat(opened.constructionId()).isEqualTo(8L);
+            assertThat(opened.targetNodeIds()).containsExactly(1L, 2L);
+
+            // A DNS publication already in flight when the flag changed cannot be carried into the new manifest.
+            given(constructionStore.get())
+                    .willReturn(opened.copyBuilder()
+                            .gatheredPublications(List.of(gathered(1L, dns), gathered(2L, numeric)))
+                            .build());
+            reconcile();
+            final var written = captureWrittenManifest();
+            assertThat(written.endpoints()).containsExactly(numeric);
+            assertThat(written.version()).isEqualTo(8L);
         }
 
         @Test
@@ -362,8 +450,8 @@ class ClprEndpointManifestReconcilerTest {
         void forcedCloseDropsSilentNode() {
             // Node 2 is silent (never published before the grace window closed). With carry-over removed,
             // it is simply not represented; it re-adds itself when it next self-publishes.
-            final var priorForNode2 = endpoint("host-2", 50211, new byte[] {9});
-            final var freshForNode1 = endpoint("host-1", 50211, new byte[] {1});
+            final var priorForNode2 = endpoint("10.0.0.2", 50211, new byte[] {9});
+            final var freshForNode1 = endpoint("10.0.0.1", 50211, new byte[] {1});
             given(constructionStore.get())
                     .willReturn(construction(
                             List.of(1L, 2L),
@@ -387,14 +475,14 @@ class ClprEndpointManifestReconcilerTest {
         @Test
         @DisplayName("node removed from roster (orphan in manifest) → opens a construction to prune")
         void opensConstructionOnDelete() {
-            stubNode(1L, "host-1", 50211); // roster = {1}; node 2 was removed
+            stubNode(1L, NODE_1_HAPI); // roster = {1}; node 2 was removed
             given(constructionStore.get()).willReturn(null);
             given(manifestStore.get())
                     .willReturn(manifest(
                             2L,
                             List.of(
-                                    endpoint("host-1", 50211, new byte[] {1}),
-                                    endpoint("host-2", 50211, new byte[] {2})))); // host-2 orphan
+                                    endpoint("10.0.0.1", 50211, new byte[] {1}),
+                                    endpoint("10.0.0.2", 50211, new byte[] {2})))); // 10.0.0.2 orphan
 
             subject.openConstructionOnRosterChange(
                     NOW, rosterOf(1L), manifestStore, constructionStore, nodeStore, config);
@@ -407,10 +495,10 @@ class ClprEndpointManifestReconcilerTest {
         @Test
         @DisplayName("node added to roster (missing from manifest) → opens a construction")
         void opensConstructionOnAdd() {
-            stubNode(1L, "host-1", 50211);
-            stubNode(2L, "host-2", 50211);
+            stubNode(1L, NODE_1_HAPI);
+            stubNode(2L, endpointFor("10.0.0.2", 50211));
             given(constructionStore.get()).willReturn(null);
-            given(manifestStore.get()).willReturn(manifest(4L, List.of(endpoint("host-1", 50211, new byte[] {1}))));
+            given(manifestStore.get()).willReturn(manifest(4L, List.of(endpoint("10.0.0.1", 50211, new byte[] {1}))));
 
             subject.openConstructionOnRosterChange(
                     NOW, rosterOf(1L, 2L), manifestStore, constructionStore, nodeStore, config);
@@ -422,17 +510,15 @@ class ClprEndpointManifestReconcilerTest {
         @Test
         @DisplayName("shared-IP node removed → detected via IP counts (a set would miss it)")
         void opensConstructionWhenSharedIpNodeRemoved() {
-            stubNode(1L, "host-shared", 50211); // roster = {1}; node 2 shared this IP and was removed
+            stubNode(1L, NODE_1_HAPI); // roster = {1}; node 2 shared this IP and was removed
             given(constructionStore.get()).willReturn(null);
-            // Manifest still holds both nodes' endpoints on the shared IP → counts {host-shared: 2} vs roster
-            // {host-shared:
-            // 1}.
+            // The manifest still lists both nodes on the shared IP, but the roster has only one.
             given(manifestStore.get())
                     .willReturn(manifest(
                             2L,
                             List.of(
-                                    endpoint("host-shared", 50211, new byte[] {1}),
-                                    endpoint("host-shared", 50211, new byte[] {2}))));
+                                    endpoint("10.0.0.1", 50211, new byte[] {1}),
+                                    endpoint("10.0.0.1", 50211, new byte[] {2}))));
 
             subject.openConstructionOnRosterChange(
                     NOW, rosterOf(1L), manifestStore, constructionStore, nodeStore, config);
@@ -445,8 +531,8 @@ class ClprEndpointManifestReconcilerTest {
         @DisplayName(
                 "roster composition unchanged (same IP-set) → opens nothing, leaves any in-flight construction alone")
         void noConstructionWhenCompositionUnchanged() {
-            stubNode(1L, "host-1", 50211);
-            given(manifestStore.get()).willReturn(manifest(2L, List.of(endpoint("host-1", 50211, new byte[] {1}))));
+            stubNode(1L, NODE_1_HAPI);
+            given(manifestStore.get()).willReturn(manifest(2L, List.of(endpoint("10.0.0.1", 50211, new byte[] {1}))));
 
             subject.openConstructionOnRosterChange(
                     NOW, rosterOf(1L), manifestStore, constructionStore, nodeStore, config);
@@ -458,18 +544,19 @@ class ClprEndpointManifestReconcilerTest {
         @DisplayName(
                 "in-flight construction + composition changed → replaces it (fresh target set, cleared publications)")
         void inFlightCompositionChangedReplacesConstruction() {
-            stubNode(1L, "host-1", 50211); // roster = {1}; node 2 was removed during the upgrade
+            stubNode(1L, NODE_1_HAPI); // roster = {1}; node 2 was removed during the upgrade
             // Stale in-flight construction still targets {1,2} and holds node 2's old publication.
             final var stale = constructionGathering(
                     List.of(1L, 2L),
-                    List.of(gathered(2L, endpoint("host-2", 50211, new byte[] {2}))),
+                    List.of(gathered(2L, endpoint("10.0.0.2", 50211, new byte[] {2}))),
                     NOW.plusSeconds(600));
             given(constructionStore.get()).willReturn(stale);
             given(manifestStore.get())
                     .willReturn(manifest(
                             2L,
-                            List.of(endpoint("host-1", 50211, new byte[] {1}), endpoint("host-2", 50211, new byte[] {2
-                            }))));
+                            List.of(
+                                    endpoint("10.0.0.1", 50211, new byte[] {1}),
+                                    endpoint("10.0.0.2", 50211, new byte[] {2}))));
 
             subject.openConstructionOnRosterChange(
                     NOW, rosterOf(1L), manifestStore, constructionStore, nodeStore, config);
@@ -499,7 +586,7 @@ class ClprEndpointManifestReconcilerTest {
     }
 
     private void reconcile() {
-        subject.reconcile(NOW, manifestStore, constructionStore, config);
+        subject.reconcile(NOW, rosterOf(1L, 2L), manifestStore, constructionStore, config);
     }
 
     private ClprEndpointManifest captureWrittenManifest() {
@@ -508,8 +595,8 @@ class ClprEndpointManifestReconcilerTest {
         return captor.getValue();
     }
 
-    /** Stub a full address-book node so {@code ClprEndpointBuilder.buildFor}/{@code ipAddressOf} work. */
-    private void stubNode(final long nodeId, final String host, final int port) {
+    /** Stub a full address-book node so {@code ClprEndpointBuilder.buildFor}/{@code hostOf} work. */
+    private void stubNode(final long nodeId, final ServiceEndpoint... endpoints) {
         org.mockito.Mockito.lenient()
                 .when(nodeStore.get(nodeId))
                 .thenReturn(Node.newBuilder()
@@ -517,10 +604,7 @@ class ClprEndpointManifestReconcilerTest {
                         .accountId(AccountID.newBuilder()
                                 .accountNum(3000L + nodeId)
                                 .build())
-                        .serviceEndpoint(ServiceEndpoint.newBuilder()
-                                .domainName(host)
-                                .port(port)
-                                .build())
+                        .serviceEndpoint(endpoints)
                         .grpcCertificateHash(Bytes.wrap(new byte[] {7}))
                         .build());
     }

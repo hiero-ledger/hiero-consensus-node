@@ -20,35 +20,35 @@ import java.util.List;
  * occurrence of a singular field we read is therefore rejected (stricter than Canton's last-wins, matching
  * the Solidity reference), not silently resolved to the last.
  */
-public final class CantonProto {
-    public static final int WIRE_VARINT = 0;
-    public static final int WIRE_I64 = 1;
-    public static final int WIRE_LEN = 2;
-    public static final int WIRE_I32 = 5;
+final class CantonProto {
+    static final int WIRE_VARINT = 0;
+    static final int WIRE_I64 = 1;
+    static final int WIRE_LEN = 2;
+    static final int WIRE_I32 = 5;
 
     /** Daml-LF {@code Value} oneof field numbers. */
-    public static final long VALUE_INT64 = 3;
+    static final long VALUE_INT64 = 3;
 
-    public static final long VALUE_PARTY = 7;
-    public static final long VALUE_TEXT = 8;
-    public static final long VALUE_LIST = 11;
-    public static final long VALUE_RECORD = 13;
-    public static final long VALUE_ENUM = 15;
+    static final long VALUE_PARTY = 7;
+    static final long VALUE_TEXT = 8;
+    static final long VALUE_LIST = 11;
+    static final long VALUE_RECORD = 13;
+    static final long VALUE_ENUM = 15;
 
     /** {@code VIEW_TYPE_TRANSACTION} in {@code ViewType}. */
-    public static final long VIEW_TYPE_TRANSACTION = 1;
+    static final long VIEW_TYPE_TRANSACTION = 1;
 
     private CantonProto() {}
 
     /** A half-open {@code [start, end)} window into the buffer being read. */
-    public record Range(int start, int end) {
+    record Range(int start, int end) {
         public int length() {
             return end - start;
         }
     }
 
     /** The byte range of one {@code CreatedContract}/{@code InputContract} inside a view participant data leaf. */
-    public record ContractRange(int start, int end) {
+    record ContractRange(int start, int end) {
         public int length() {
             return end - start;
         }
@@ -59,7 +59,7 @@ public final class CantonProto {
     }
 
     /** The fields of a {@code ConfirmationResultMessage}. */
-    public record Verdict(
+    record Verdict(
             long viewType,
             @NonNull byte[] synchronizerId,
             long requestId,
@@ -67,17 +67,21 @@ public final class CantonProto {
             boolean approved) {}
 
     /** What the verifier reads from a {@code ViewParticipantData} leaf. */
-    public record ParticipantData(
-            boolean isExercise, boolean rolledBack, @NonNull List<ContractRange> createdCore) {}
+    record ParticipantData(
+            boolean isExercise,
+            boolean rolledBack,
+            @NonNull List<ContractRange> createdCore,
+            @NonNull Range exerciseChoice,
+            @NonNull Range exerciseTemplateId) {}
 
     /** {@code CommonMetadata}'s synchronizer id and mediator group. */
-    public record SyncAndGroup(@NonNull byte[] synchronizerId, long group) {}
+    record SyncAndGroup(@NonNull byte[] synchronizerId, long group) {}
 
     /** The protobuf inside a Merkle leaf and its proto version. */
-    public record Versioned(@NonNull byte[] data, long version) {}
+    record Versioned(@NonNull byte[] data, long version) {}
 
     /** The parsed template id, create argument and signatories of an encoded contract (ranges into the buffer). */
-    public record Contract(
+    record Contract(
             @NonNull Range templateId,
             @NonNull List<Range> signatories,
             @NonNull Range createArg) {}
@@ -87,7 +91,7 @@ public final class CantonProto {
     /** A decoded base-128 varint ({@code uint64} held in a {@code long}) and the offset just past it. */
     record Varint(long value, int next) {}
 
-    private record Field(long number, int wireType, Range value, long scalar, int next) {}
+    record Field(long number, int wireType, Range value, long scalar, int next) {}
 
     /**
      * Reads the varint at {@code i} (which must lie before {@code end}); rejects a varint that runs past
@@ -117,7 +121,7 @@ public final class CantonProto {
      * Read the field at {@code i}: its number and wire type, the value range for LEN fields, the value for
      * VARINT fields, and the offset of the next field.
      */
-    private static Field readField(final byte[] b, int i, final int end) {
+    static Field readField(final byte[] b, int i, final int end) {
         final Varint key = readVarint(b, i, end);
         i = key.next();
         final long number = key.value() >>> 3;
@@ -149,7 +153,7 @@ public final class CantonProto {
     }
 
     /** The value range of the LEN field {@code number} in {@code r}, which must occur at most once; null if absent. */
-    private static Range find(final byte[] b, final Range r, final long number) {
+    static Range find(final byte[] b, final Range r, final long number) {
         Range value = null;
         boolean found = false;
         int i = r.start();
@@ -168,7 +172,7 @@ public final class CantonProto {
     }
 
     /** As {@link #find}, throwing when the field is absent. */
-    private static Range get(final byte[] b, final Range r, final long number) {
+    static Range get(final byte[] b, final Range r, final long number) {
         final Range value = find(b, r, number);
         if (value == null) {
             throw CantonProofException.cantonProtoMissingField("field " + number);
@@ -180,7 +184,7 @@ public final class CantonProto {
      * The VARINT field {@code number} in {@code r}, which must occur at most once, or zero (the proto3
      * default) when absent.
      */
-    private static long getVarint(final byte[] b, final Range r, final long number) {
+    static long getVarint(final byte[] b, final Range r, final long number) {
         long value = 0;
         boolean found = false;
         int i = r.start();
@@ -199,7 +203,7 @@ public final class CantonProto {
     }
 
     /** Every LEN field {@code number} in {@code r}, in order. */
-    private static List<Range> getAll(final byte[] b, final Range r, final long number) {
+    static List<Range> getAll(final byte[] b, final Range r, final long number) {
         final List<Range> out = new ArrayList<>();
         int i = r.start();
         while (i < r.end()) {
@@ -216,7 +220,7 @@ public final class CantonProto {
     }
 
     /** The field of a {@code oneof} holder {@code r}, which must hold exactly one field. */
-    private static Field onlyField(final byte[] b, final Range r) {
+    static Field onlyField(final byte[] b, final Range r) {
         final Field f = readField(b, r.start(), r.end());
         if (f.next() != r.end()) {
             throw CantonProofException.cantonProtoMalformed("oneof holder does not hold exactly one field");
@@ -224,7 +228,7 @@ public final class CantonProto {
         return f;
     }
 
-    private static Range whole(final byte[] b) {
+    static Range whole(final byte[] b) {
         return new Range(0, b.length);
     }
 
@@ -232,7 +236,7 @@ public final class CantonProto {
         return r.length() == expected.length && Arrays.equals(b, r.start(), r.end(), expected, 0, expected.length);
     }
 
-    private static byte[] copy(final byte[] b, final Range r) {
+    static byte[] copy(final byte[] b, final Range r) {
         return Arrays.copyOfRange(b, r.start(), r.end());
     }
 
@@ -246,7 +250,7 @@ public final class CantonProto {
      * 4: root_hash (34-byte multihash), 5: Verdict{1: approve}}}.
      */
     @NonNull
-    public static Verdict parseVerdict(@NonNull final byte[] typed) {
+    static Verdict parseVerdict(@NonNull final byte[] typed) {
         Range r = get(typed, whole(typed), 1);
         r = get(typed, r, 3);
         r = get(typed, r, 1);
@@ -265,7 +269,7 @@ public final class CantonProto {
 
     /** The SHA-256 digest inside a 34-byte multihash {@code 0x12 0x20 || digest}. */
     @NonNull
-    private static byte[] readMultihash(final byte[] b, final Range r) {
+    static byte[] readMultihash(final byte[] b, final Range r) {
         if (r.length() != 34 || (b[r.start()] & 0xff) != 0x12 || (b[r.start() + 1] & 0xff) != 0x20) {
             throw CantonProofException.cantonProtoMalformed("not a 34-byte sha256 multihash");
         }
@@ -279,7 +283,7 @@ public final class CantonProto {
      * {@code UntypedVersionedMessage{1: data, 2: version}}.
      */
     @NonNull
-    public static Versioned unwrapVersioned(@NonNull final byte[] leaf) {
+    static Versioned unwrapVersioned(@NonNull final byte[] leaf) {
         final Range r = whole(leaf);
         final byte[] data = copy(leaf, get(leaf, r, 1));
         final long version = getVarint(leaf, r, 2);
@@ -302,7 +306,7 @@ public final class CantonProto {
      * <p>{@code ViewCommonData{2: informees (party ids), 3: Quorum{1: PartyIndexAndWeight{1: index,
      * 2: weight}, 2: threshold}}}. A quorum entry indexes into {@code informees}.
      */
-    public static boolean isRequiredConfirmer(@NonNull final byte[] b, @NonNull final byte[] party) {
+    static boolean isRequiredConfirmer(@NonNull final byte[] b, @NonNull final byte[] party) {
         final Range r = whole(b);
         final List<Range> informees = getAll(b, r, 2);
         int partyIndex = -1;
@@ -350,14 +354,19 @@ public final class CantonProto {
      * {@code 6: ActionDescription{2: ExerciseActionDescription{2: choice, 10: template_id}}}.
      */
     @NonNull
-    public static ParticipantData parseParticipantData(@NonNull final byte[] b, final boolean protoV32) {
+    static ParticipantData parseParticipantData(@NonNull final byte[] b, final boolean protoV32) {
         final Range r = whole(b);
         // Read core inputs (field 2) for wire-type strictness parity with the reference, though unused here.
         getAll(b, r, 2);
         final List<Range> createdCore = getAll(b, r, 3);
         final Field action = onlyField(b, get(b, r, 6));
         final boolean isExercise = action.number() == 2 && action.wireType() == WIRE_LEN;
+        // As the reference, the choice and template id are the empty range unless the action is an exercise.
+        Range exerciseChoice = new Range(0, 0);
+        Range exerciseTemplateId = new Range(0, 0);
         if (isExercise) {
+            exerciseChoice = get(b, action.value(), 2);
+            exerciseTemplateId = get(b, action.value(), 10);
             // Read the exercise choice and template id for strictness parity even though they are not returned.
             get(b, action.value(), 2);
             get(b, action.value(), 10);
@@ -378,7 +387,7 @@ public final class CantonProto {
         for (final Range cr : createdCore) {
             created.add(new ContractRange(cr.start(), cr.end()));
         }
-        return new ParticipantData(isExercise, rolledBack, created);
+        return new ParticipantData(isExercise, rolledBack, created, exerciseChoice, exerciseTemplateId);
     }
 
     // ── Contracts ──────────────────────────────────────────────────────────
@@ -391,7 +400,7 @@ public final class CantonProto {
      * 5: signatories}}}.
      */
     @NonNull
-    public static Contract parseContract(@NonNull final byte[] b, @NonNull final ContractRange contractRange) {
+    static Contract parseContract(@NonNull final byte[] b, @NonNull final ContractRange contractRange) {
         final Range fat = get(b, get(b, contractRange.range(), 1), 2);
         final Range templateId = get(b, fat, 3);
         final Range createArg = get(b, fat, 4);
@@ -404,7 +413,7 @@ public final class CantonProto {
      * template {@code Module.Sub:Entity}, as the verifier expects it in a contract.
      */
     @NonNull
-    public static byte[] encodeIdentifier(
+    static byte[] encodeIdentifier(
             @NonNull final byte[] packageIdHex,
             @NonNull final byte[] moduleA,
             @NonNull final byte[] moduleB,
@@ -437,7 +446,7 @@ public final class CantonProto {
 
     /** The fields of a Daml-LF record {@code Value{13: Record{1: Field{1: Value}}}}, in declaration order. */
     @NonNull
-    public static List<Range> recordFields(@NonNull final byte[] b, @NonNull final Range value) {
+    static List<Range> recordFields(@NonNull final byte[] b, @NonNull final Range value) {
         final List<Range> wrapped = getAll(b, member(b, value, VALUE_RECORD), 1);
         final List<Range> fields = new ArrayList<>(wrapped.size());
         for (final Range w : wrapped) {
@@ -448,19 +457,19 @@ public final class CantonProto {
 
     /** The elements of a Daml-LF {@code Value{11: List{1: Value...}}}. */
     @NonNull
-    public static List<Range> listElements(@NonNull final byte[] b, @NonNull final Range value) {
+    static List<Range> listElements(@NonNull final byte[] b, @NonNull final Range value) {
         return getAll(b, member(b, value, VALUE_LIST), 1);
     }
 
     /** The UTF-8 bytes (as a range) of a Daml-LF text or party value. */
     @NonNull
-    public static Range stringValue(@NonNull final byte[] b, @NonNull final Range value, final long kind) {
+    static Range stringValue(@NonNull final byte[] b, @NonNull final Range value, final long kind) {
         return member(b, value, kind);
     }
 
     /** The constructor name of a Daml-LF {@code Value{15: Enum{1: value}}}. */
     @NonNull
-    public static Range enumValue(@NonNull final byte[] b, @NonNull final Range value) {
+    static Range enumValue(@NonNull final byte[] b, @NonNull final Range value) {
         return get(b, member(b, value, VALUE_ENUM), 1);
     }
 
@@ -483,13 +492,13 @@ public final class CantonProto {
     }
 
     /** Whether the bytes in {@code r} equal {@code expected}. */
-    public static boolean equals(@NonNull final byte[] b, @NonNull final Range r, @NonNull final byte[] expected) {
+    static boolean equals(@NonNull final byte[] b, @NonNull final Range r, @NonNull final byte[] expected) {
         return rangeEquals(b, r, expected);
     }
 
     /** Decode lowercase hex text in {@code r} into bytes. */
     @NonNull
-    public static byte[] hexValue(@NonNull final byte[] b, @NonNull final Range r) {
+    static byte[] hexValue(@NonNull final byte[] b, @NonNull final Range r) {
         final int len = r.length();
         if (len % 2 != 0) {
             throw CantonProofException.cantonProtoMalformed("odd-length hex value");

@@ -90,7 +90,8 @@ public class HistoryLibraryImpl implements HistoryLibrary {
                 null,
                 new byte[0][],
                 new byte[0][],
-                new byte[0][]);
+                new byte[0][],
+                new boolean[0]);
     }
 
     @Override
@@ -118,7 +119,8 @@ public class HistoryLibraryImpl implements HistoryLibrary {
                 currentBook.signersMask(r1NodeIds),
                 r1Messages,
                 new byte[0][],
-                new byte[0][]);
+                new byte[0][],
+                initialMessageValidity(r1Messages.length));
     }
 
     @Override
@@ -148,7 +150,8 @@ public class HistoryLibraryImpl implements HistoryLibrary {
                 currentBook.signersMask(r1NodeIds),
                 r1Messages,
                 r2Messages,
-                new byte[0][]);
+                new byte[0][],
+                initialMessageValidity(r1Messages.length));
     }
 
     @Override
@@ -176,7 +179,14 @@ public class HistoryLibraryImpl implements HistoryLibrary {
                 currentBook.signersMask(r1NodeIds),
                 r1Messages,
                 r2Messages,
-                r3Messages);
+                r3Messages,
+                initialMessageValidity(r1Messages.length));
+    }
+
+    private static boolean[] initialMessageValidity(final int signerCount) {
+        final var valid = new boolean[signerCount];
+        Arrays.fill(valid, true);
+        return valid;
     }
 
     @Override

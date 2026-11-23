@@ -1,6 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.verifier.canton;
 
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.repeat;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.utf8;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.formatHex;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.lsuAnnouncement;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.lsuOwnerSet;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.rlpList;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.rlpString;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.verdictTypedContent;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.versioned;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -19,6 +28,7 @@ import com.hedera.hapi.node.state.clpr.ClprMessageReplyStatus;
 import com.hedera.hapi.node.state.clpr.ClprMessageValue;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.service.clpr.ReadableMessageQueueStore;
+import com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.Pb;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -28,9 +38,9 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HexFormat;
 import java.util.List;
 import org.hiero.base.crypto.Ed25519;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -53,378 +63,603 @@ import org.junit.jupiter.api.Test;
  * Reject cases mutate the assembled happy-path inputs. Not byte-identical to a Solidity run.
  */
 class CantonProofVerifierBundleTest {
-    private static final HexFormat HEX = HexFormat.of();
 
-    private static final byte[] TYPED = CantonFixtures.verdictTypedContent();
+    private static final byte[] TYPED = verdictTypedContent();
     private static final CantonProto.Verdict VERDICT = CantonProto.parseVerdict(TYPED);
     private static final String SYNC = new String(VERDICT.synchronizerId(), StandardCharsets.UTF_8);
-
     private static final byte[] PACKAGE_ID = repeat((byte) 0x5a, 32);
     private static final byte[] OPERATOR = utf8("operator::1220" + "ab".repeat(32));
-    private static final byte[] SERVICE_ADDRESS = concat(PACKAGE_ID, OPERATOR);
+    private static final byte[] SERVICE_ADDRESS = CantonBytes.concat(PACKAGE_ID, OPERATOR);
     private static final String APP = "app::1220" + "cd".repeat(32);
     private static final String OTHER = "other::1220" + "ef".repeat(32);
+    private static final String ENDPOINTS = "endpoints::1220" + "ee".repeat(32);
     private static final byte[] CHANNEL_ID = repeat((byte) 0x11, 32);
-    private static final byte[] CHANNEL_CONTEXT = concat(CHANNEL_ID, SERVICE_ADDRESS);
+    private static final byte[] CHANNEL_CONTEXT = CantonBytes.concat(CHANNEL_ID, SERVICE_ADDRESS);
     private static final byte[] SUBMITTER = sha("submitter-metadata");
     private static final byte[] PARTICIPANT = sha("participant-metadata");
     private static final int GROUP = 7;
-
     private static final Med MEDIATOR = Med.of(9);
     private static final byte[] MEDIATOR_SET = MEDIATOR.set();
-
     private static final byte[] MANIFEST = ClprEndpointManifest.PROTOBUF
             .toBytes(ClprEndpointManifest.newBuilder()
                     .version(2)
                     .serviceAddress(Bytes.wrap(SERVICE_ADDRESS))
                     .build())
             .toByteArray();
-
     private static final CantonProofVerifier.OutboundLookup NO_LOOKUP = (c, m) -> {
         throw new AssertionError("outbound lookup must not be called");
     };
 
-    // ── happy paths ──────────────────────────────────────────────────────────
+    @Nested
+    class HappyPaths {
+        @Test
+        void bundleWithPayloadAndManifestIsAccepted() {
+            final var b =
+                    new Bundle().payload(data(APP, OTHER)).manifest(MANIFEST).commitManifest(MANIFEST);
+            final ClprBundleContent c = verify(b);
 
-    @Test
-    void bundleWithPayloadAndManifestIsAccepted() {
-        final var b = new Bundle().payload(data(APP, OTHER)).manifest(MANIFEST).commitManifest(MANIFEST);
-        final ClprBundleContent c = verify(b);
+            assertThat(c.metadata().nextMessageId()).isEqualTo(7);
+            assertThat(c.metadata().sentRunningHash().toByteArray()).isEqualTo(repeat((byte) 0x22, 32));
+            assertThat(c.metadata().receivedMessageId()).isEqualTo(4);
+            assertThat(c.metadata().receivedRunningHash().toByteArray()).isEqualTo(repeat((byte) 0x33, 32));
+            assertThat(c.metadata().status()).isEqualTo(ClprChannelStatus.ACTIVE);
+            assertThat(c.metadata().endpointManifestVersion()).isEqualTo(3);
+            assertThat(c.messages()).hasSize(1);
+            assertThat(c.messages().getFirst().message().sender()).isEqualTo(Bytes.wrap(utf8(APP)));
+            assertThat(c.newTrustAnchor().length()).isZero();
+            assertThat(c.newTrustAnchorId().length()).isZero();
+            assertThat(c.newEndpointManifest().version()).isEqualTo(2);
+            assertThat(c.newEndpointManifest().serviceAddress()).isEqualTo(Bytes.wrap(SERVICE_ADDRESS));
+        }
 
-        assertThat(c.metadata().nextMessageId()).isEqualTo(7);
-        assertThat(c.metadata().sentRunningHash().toByteArray()).isEqualTo(repeat((byte) 0x22, 32));
-        assertThat(c.metadata().receivedMessageId()).isEqualTo(4);
-        assertThat(c.metadata().receivedRunningHash().toByteArray()).isEqualTo(repeat((byte) 0x33, 32));
-        assertThat(c.metadata().status()).isEqualTo(ClprChannelStatus.ACTIVE);
-        assertThat(c.metadata().endpointManifestVersion()).isEqualTo(3);
-        assertThat(c.messages()).hasSize(1);
-        assertThat(c.messages().getFirst().message().sender()).isEqualTo(Bytes.wrap(utf8(APP)));
-        assertThat(c.newTrustAnchor().length()).isZero();
-        assertThat(c.newTrustAnchorId().length()).isZero();
-        assertThat(c.newEndpointManifest().version()).isEqualTo(2);
-        assertThat(c.newEndpointManifest().serviceAddress()).isEqualTo(Bytes.wrap(SERVICE_ADDRESS));
+        @Test
+        void bundleWithoutPayloadsOrManifestIsAcceptedWithNoNewAnchor() {
+            final ClprBundleContent c = verify(new Bundle());
+            assertThat(c.messages()).isEmpty();
+            assertThat(c.hasNewEndpointManifest()).isFalse();
+            assertThat(c.newTrustAnchor().length()).isZero();
+            assertThat(c.hasMetadata()).isTrue();
+        }
+
+        @Test
+        void v32ParticipantDataIsAccepted() {
+            assertThat(verify(new Bundle().vpdVersion(32)).metadata().nextMessageId())
+                    .isEqualTo(7);
+        }
+
+        @Test
+        void replyToDataSentToAppIsCheckedAgainstTheOutboundLookup() {
+            final var b = new Bundle()
+                    .writeFirst(6)
+                    .payload(reply(5, ClprMessageReplyStatus.SUCCESS, new byte[] {1}))
+                    .alsoConfirmedBy(ENDPOINTS);
+            final ClprBundleContent c =
+                    CantonProofVerifier.verifyBundle(b.proof(), b.anchor(), CHANNEL_CONTEXT, (channelId, id) -> {
+                        assertThat(channelId).isEqualTo(CHANNEL_ID);
+                        assertThat(id).isEqualTo(5);
+                        return dataPayload(OTHER, APP);
+                    });
+            assertThat(c.messages()).hasSize(1);
+            assertRejects(
+                    "ReplyTargetMismatch",
+                    () -> CantonProofVerifier.verifyBundle(
+                            b.proof(), b.anchor(), CHANNEL_CONTEXT, (cid, id) -> dataPayload(APP, OTHER)));
+        }
     }
 
-    @Test
-    void bundleWithoutPayloadsOrManifestIsAcceptedWithNoNewAnchor() {
-        final ClprBundleContent c = verify(new Bundle());
-        assertThat(c.messages()).isEmpty();
-        assertThat(c.hasNewEndpointManifest()).isFalse();
-        assertThat(c.newTrustAnchor().length()).isZero();
-        assertThat(c.hasMetadata()).isTrue();
+    /**
+     * Only {@code Channel.WriteReplies}, whose controller is the CLPR endpoint party, writes genuine REPLYs: the
+     * app's key alone can create a channel version that folds in a forged one. A bundle that carries a REPLY is
+     * therefore accepted only as the messages of one write that the endpoint party also confirmed.
+     */
+    @Nested
+    class ReplyBundles {
+        @Test
+        void aReplyTheEndpointPartyConfirmedIsAccepted() {
+            final var b = new Bundle().writeFirst(6).payload(errorReply()).alsoConfirmedBy(ENDPOINTS);
+            assertThat(verify(b).messages()).hasSize(1);
+        }
+
+        @Test
+        void repliesThatAreTheWritesOwnMessagesAreAccepted() {
+            final var b = new Bundle()
+                    .writeFirst(5)
+                    .payload(errorReply())
+                    .payload(errorReply())
+                    .alsoConfirmedBy(ENDPOINTS);
+            assertThat(verify(b).messages()).hasSize(2);
+        }
+
+        @Test
+        void aReplyThatOnlyTheAppConfirmedIsRejected() {
+            final var b = new Bundle().writeFirst(6).payload(errorReply());
+            assertRejects("RepliesNotConfirmedByEndpoints", () -> verify(b));
+        }
+
+        @Test
+        void anotherPartyConfirmingDoesNotSatisfyTheEndpointRequirement() {
+            final var b = new Bundle().writeFirst(6).payload(errorReply()).alsoConfirmedBy(OTHER);
+            assertRejects("RepliesNotConfirmedByEndpoints", () -> verify(b));
+        }
+
+        @Test
+        void anEndpointPartyThatIsAnInformeeButNotRequiredIsRejected() {
+            // The endpoint party is named and weighs 1, but the app's weight 2 alone reaches the threshold of 2,
+            // so the endpoint party is not a required confirmer.
+            final var b = new Bundle()
+                    .writeFirst(6)
+                    .payload(errorReply())
+                    .quorum(2, 0, 2)
+                    .alsoInformed(ENDPOINTS, 1, 2);
+            assertRejects("RepliesNotConfirmedByEndpoints", () -> verify(b));
+        }
+
+        @Test
+        void repliesUnderAVersionThatWroteNothingAreRejected() {
+            // writeFirstMessageId == nextMessageId: the write wrote no messages of its own.
+            final var b = new Bundle().payload(errorReply()).alsoConfirmedBy(ENDPOINTS);
+            assertRejects("RepliesFromAnotherWrite", () -> verify(b));
+        }
+
+        @Test
+        void anEarlierReplyUnderALaterSendIsRejected() {
+            // The write wrote two messages, but the bundle delivers one REPLY: it is not that write's own messages.
+            final var b = new Bundle().writeFirst(5).payload(errorReply()).alsoConfirmedBy(ENDPOINTS);
+            assertRejects("RepliesFromAnotherWrite", () -> verify(b));
+        }
+
+        @Test
+        void aForgedReplyBeforeAGenuineAnswerIsRejected() {
+            // One write's own message is the genuine REPLY; a forged one folded in earlier makes two payloads.
+            final var b = new Bundle()
+                    .writeFirst(6)
+                    .payload(errorReply())
+                    .payload(errorReply())
+                    .alsoConfirmedBy(ENDPOINTS);
+            assertRejects("RepliesFromAnotherWrite", () -> verify(b));
+        }
+
+        @Test
+        void dataOnlyBundlesNeedNoEndpointConfirmationAndMaySpanSeveralWrites() {
+            // Two DATA payloads under a write that wrote one message: accepted, and the endpoint party is absent.
+            final var b = new Bundle().writeFirst(6).payload(data(APP, OTHER)).payload(data(APP, OTHER));
+            assertThat(verify(b).messages()).hasSize(2);
+        }
+
+        /** An APPLICATION_ERROR without data: a genuine REPLY that needs no outbound-message lookup. */
+        private static byte[] errorReply() {
+            return reply(5, ClprMessageReplyStatus.APPLICATION_ERROR, new byte[0]);
+        }
     }
 
-    @Test
-    void v32ParticipantDataIsAccepted() {
-        assertThat(verify(new Bundle().vpdVersion(32)).metadata().nextMessageId())
-                .isEqualTo(7);
+    @Nested
+    class LsuCompletionWithEmptyRotations {
+        @Test
+        void firstVerdictFromSuccessorCompletesTheUpgradeAndReturnsNewAnchor() {
+            // The anchor still names another synchronizer; the verdict (request id above upgradeTime 0) names SYNC.
+            final var b = new Bundle()
+                    .anchorSync("old::1220" + "00".repeat(32) + "::35-0")
+                    .successor(SYNC, 0);
+            final ClprBundleContent c = verify(b);
+
+            final CantonAnchor.Anchor next =
+                    CantonAnchor.Anchor.decode(c.newTrustAnchor().toByteArray());
+            assertThat(next.synchronizerId()).isEqualTo(SYNC);
+            assertThat(next.successorSynchronizerId()).isEmpty();
+            assertThat(next.upgradeTime()).isZero();
+            assertThat(next.lsuSerial()).isZero();
+            assertThat(next.lastRequestId()).isEqualTo(VERDICT.requestId());
+            assertThat(next.mediatorGroup()).isEqualTo(GROUP);
+            assertThat(next.app()).isEqualTo(APP);
+            assertThat(c.newTrustAnchorId().toByteArray()).hasSize(8);
+            assertThat(new java.math.BigInteger(1, c.newTrustAnchorId().toByteArray()).longValue())
+                    .isEqualTo(VERDICT.requestId());
+        }
+
+        @Test
+        void verdictNotPastUpgradeTimeIsCheckedAgainstTheCurrentSynchronizer() {
+            // upgradeTime == requestId is not "above": the current synchronizer applies, and it is not the verdict's.
+            final var b = new Bundle()
+                    .anchorSync("old::1220" + "00".repeat(32) + "::35-0")
+                    .successor(SYNC, VERDICT.requestId());
+            assertRejects("SynchronizerMismatch", () -> verify(b));
+        }
     }
 
-    @Test
-    void replyToDataSentToAppIsCheckedAgainstTheOutboundLookup() {
-        final var b = new Bundle().payload(reply(5, ClprMessageReplyStatus.SUCCESS, new byte[] {1}));
-        final ClprBundleContent c =
-                CantonProofVerifier.verifyBundle(b.proof(), b.anchor(), CHANNEL_CONTEXT, (channelId, id) -> {
-                    assertThat(channelId).isEqualTo(CHANNEL_ID);
-                    assertThat(id).isEqualTo(5);
-                    return dataPayload(OTHER, APP);
-                });
-        assertThat(c.messages()).hasSize(1);
-        assertRejects(
-                "ReplyTargetMismatch",
-                () -> CantonProofVerifier.verifyBundle(
-                        b.proof(), b.anchor(), CHANNEL_CONTEXT, (cid, id) -> dataPayload(APP, OTHER)));
+    @Nested
+    class Rejections {
+        @Test
+        void mediatorSetNotMatchingTheAnchorIsTrustSetMismatch() {
+            final var b = new Bundle().anchorMediatorsHash(sha("some other set"));
+            assertRejects("TrustSetMismatch", () -> verify(b));
+        }
+
+        @Test
+        void wrongBundleFieldCountIsInvalidPayloadShape() {
+            final var b = new Bundle();
+            final byte[][] f = items(b.proof());
+            assertRejects(
+                    "InvalidPayloadShape",
+                    () -> CantonProofVerifier.verifyBundle(
+                            rlpList(Arrays.copyOf(f, 6)), b.anchor(), CHANNEL_CONTEXT, NO_LOOKUP));
+            assertRejects(
+                    "InvalidPayloadShape",
+                    () -> CantonProofVerifier.verifyBundle(
+                            rlpList(f[0], f[1], f[2], f[3], f[4], f[5], f[6], f[6]),
+                            b.anchor(),
+                            CHANNEL_CONTEXT,
+                            NO_LOOKUP));
+        }
+
+        @Test
+        void verdictWithWrongItemCountIsInvalidPayloadShape() {
+            final var b = new Bundle();
+            final byte[][] f = items(b.proof());
+            f[0] = rlpList(items(f[0])[0]);
+            assertRejects(
+                    "InvalidPayloadShape",
+                    () -> CantonProofVerifier.verifyBundle(rlpList(f), b.anchor(), CHANNEL_CONTEXT, NO_LOOKUP));
+        }
+
+        @Test
+        void appNotARequiredConfirmerIsApproverMissing() {
+            // The view's informees do not include the anchor's app.
+            final var b = new Bundle().informee(OTHER);
+            assertRejects("ApproverMissing", () -> verify(b));
+        }
+
+        @Test
+        void appWithSurplusWeightIsNotARequiredConfirmer() {
+            // The others alone reach the threshold without the app, so it is not required.
+            final var b = new Bundle().quorum(1, 1, 1);
+            assertRejects("ApproverMissing", () -> verify(b));
+        }
+
+        @Test
+        void manifestCommittedButAbsentIsManifestMismatch() {
+            final var b = new Bundle().commitManifest(MANIFEST);
+            assertRejects("ManifestMismatch", () -> verify(b));
+        }
+
+        @Test
+        void manifestPresentButNotCommittedIsManifestMismatch() {
+            final var b = new Bundle().manifest(MANIFEST);
+            assertRejects("ManifestMismatch", () -> verify(b));
+        }
+
+        @Test
+        void manifestNotMatchingTheCommitmentIsManifestMismatch() {
+            final byte[] other = ClprEndpointManifest.PROTOBUF
+                    .toBytes(ClprEndpointManifest.newBuilder()
+                            .version(3)
+                            .serviceAddress(Bytes.wrap(SERVICE_ADDRESS))
+                            .build())
+                    .toByteArray();
+            final var b = new Bundle().commitManifest(MANIFEST).manifest(other);
+            assertRejects("ManifestMismatch", () -> verify(b));
+        }
+
+        @Test
+        void manifestForAnotherServiceOrVersionZeroIsManifestMismatch() {
+            final byte[] otherService = ClprEndpointManifest.PROTOBUF
+                    .toBytes(ClprEndpointManifest.newBuilder()
+                            .version(2)
+                            .serviceAddress(Bytes.wrap(utf8("elsewhere")))
+                            .build())
+                    .toByteArray();
+            assertRejects(
+                    "ManifestMismatch",
+                    () -> verify(new Bundle().commitManifest(otherService).manifest(otherService)));
+            final byte[] versionZero = ClprEndpointManifest.PROTOBUF
+                    .toBytes(ClprEndpointManifest.newBuilder()
+                            .serviceAddress(Bytes.wrap(SERVICE_ADDRESS))
+                            .build())
+                    .toByteArray();
+            assertRejects(
+                    "ManifestMismatch",
+                    () -> verify(new Bundle().commitManifest(versionZero).manifest(versionZero)));
+        }
+
+        @Test
+        void malformedNonEmptyRotationsRejected() {
+            // This is a one-item list, not the required two
+            final var b = new Bundle().rotations(rlpList(rlpString(new byte[] {1})));
+            assertRejects("InvalidPayloadShape", () -> verify(b));
+        }
+
+        @Test
+        void nonEmptyRotationsAreRoutedThroughApplyRotations() {
+            // A real LsuAnnouncement rotation reaches CantonTopologyVerifier.applyRotations through verifyBundle: the
+            // owner set hashes to the anchor, but the announced successor is of a different logical synchronizer than
+            // the anchor's, so applyRotations rejects it — proving field 4 is applied, not short-circuited.
+            final byte[] ownerSet = lsuOwnerSet();
+            final byte[] rotationItem =
+                    rlpList(rlpString(lsuAnnouncement()), rlpString(new byte[0]), rlpString(new byte[0]));
+            final byte[] rotations = rlpList(rlpString(ownerSet), rlpList(rotationItem));
+            final var b = new Bundle()
+                    .anchorOwnersHash(MiscCryptoUtils.keccak256DigestOf(ownerSet))
+                    .rotations(rotations);
+            assertRejects("InvalidLsuAnnouncement", () -> verify(b));
+        }
+
+        @Test
+        void emptyRotationsAreAcceptedAsStringOrList() {
+            verify(new Bundle().rotations(new byte[] {(byte) 0x80}));
+            verify(new Bundle().rotations(new byte[] {(byte) 0xc0}));
+        }
+
+        @Test
+        void staleVerdictIsRejected() {
+            assertRejects("StaleVerdict", () -> verify(new Bundle().lastRequestId(VERDICT.requestId())));
+        }
+
+        @Test
+        void dataFromAnotherSenderIsSenderMismatch() {
+            assertRejects("SenderMismatch", () -> verify(new Bundle().payload(data(OTHER, APP))));
+        }
+
+        @Test
+        void createdIndexOutOfRangeIsWrongContract() {
+            assertRejects("WrongContract", () -> verify(new Bundle().createdIndex(new byte[] {1})));
+            // A value beyond int is out of range too, not a parse failure.
+            assertRejects("WrongContract", () -> verify(new Bundle().createdIndex(repeat((byte) 0xff, 32))));
+        }
+
+        @Test
+        void createdIndexLongerThan32BytesIsInvalidPayloadShape() {
+            assertRejects("InvalidPayloadShape", () -> verify(new Bundle().createdIndex(repeat((byte) 1, 33))));
+        }
+
+        @Test
+        void openingNotMatchingTheVerdictRootIsRootHashMismatch() {
+            final var good = new Bundle();
+            final byte[][] f = items(good.proof());
+            f[1] = new Bundle().vpdVersion(32).opening(); // another tree
+            assertRejects(
+                    "RootHashMismatch",
+                    () -> CantonProofVerifier.verifyBundle(rlpList(f), good.anchor(), CHANNEL_CONTEXT, NO_LOOKUP));
+        }
+
+        @Test
+        void channelContextForAnotherChannelIsWrongContract() {
+            final var b = new Bundle();
+            final byte[] other = CantonBytes.concat(repeat((byte) 0x12, 32), SERVICE_ADDRESS);
+            assertRejects(
+                    "WrongContract", () -> CantonProofVerifier.verifyBundle(b.proof(), b.anchor(), other, NO_LOOKUP));
+        }
+
+        @Test
+        void malformedServiceAddressIsInvalidServiceAddress() {
+            final var b = new Bundle();
+            assertRejects(
+                    "InvalidServiceAddress",
+                    () -> CantonProofVerifier.verifyBundle(
+                            b.proof(),
+                            b.anchor(),
+                            CantonBytes.concat(CHANNEL_ID, PACKAGE_ID, utf8("operator")),
+                            NO_LOOKUP));
+            assertRejects(
+                    "InvalidServiceAddress",
+                    () -> CantonProofVerifier.verifyBundle(
+                            b.proof(), b.anchor(), CantonBytes.concat(CHANNEL_ID, PACKAGE_ID), NO_LOOKUP));
+            assertRejects(
+                    "InvalidServiceAddress",
+                    () -> CantonProofVerifier.verifyBundle(b.proof(), b.anchor(), new byte[31], NO_LOOKUP));
+        }
+
+        @Test
+        void decodeServiceDerivesIdsAndHex() {
+            final var s = CantonProofVerifier.decodeService(CHANNEL_CONTEXT);
+            assertThat(s.channelId()).isEqualTo(CHANNEL_ID);
+            assertThat(s.channelIdHex()).isEqualTo(utf8("11".repeat(32)));
+            assertThat(s.packageIdHex()).isEqualTo(utf8("5a".repeat(32)));
+            assertThat(s.operator()).isEqualTo(OPERATOR);
+            assertThat(s.serviceAddress()).isEqualTo(SERVICE_ADDRESS);
+        }
     }
 
-    // ── LSU completion with empty rotations ─────────────────────────────────
+    @Nested
+    class ClprVerifierSurface {
+        @Test
+        void clprVerifierVerifyBundleReturnsContent() {
+            final var b = new Bundle().payload(data(APP, OTHER));
+            final ClprBundleContent c = new CantonProofVerifier()
+                    .verifyBundle(
+                            Bytes.wrap(b.proof()),
+                            Bytes.wrap(b.anchor()),
+                            Bytes.wrap(CHANNEL_CONTEXT),
+                            mock(HandleContext.class));
+            assertThat(c.messages()).hasSize(1);
+            assertThat(c.metadata().nextMessageId()).isEqualTo(7);
+        }
 
-    @Test
-    void firstVerdictFromSuccessorCompletesTheUpgradeAndReturnsNewAnchor() {
-        // The anchor still names another synchronizer; the verdict (request id above upgradeTime 0) names SYNC.
-        final var b = new Bundle()
-                .anchorSync("old::1220" + "00".repeat(32) + "::35-0")
-                .successor(SYNC, 0);
-        final ClprBundleContent c = verify(b);
+        @Test
+        void clprVerifierReadsTheOutboundMessageFromTheMessageQueue() {
+            final var queue = mock(ReadableMessageQueueStore.class);
+            final var storeFactory = mock(StoreFactory.class);
+            final var context = mock(HandleContext.class);
+            when(context.storeFactory()).thenReturn(storeFactory);
+            when(storeFactory.readableStore(ReadableMessageQueueStore.class)).thenReturn(queue);
+            when(queue.getMessage(any(), anyLong()))
+                    .thenReturn(ClprMessageValue.newBuilder()
+                            .payload(dataPayload(APP, OTHER))
+                            .build());
 
-        final CantonAnchor.Anchor next = CantonAnchor.decode(c.newTrustAnchor().toByteArray());
-        assertThat(next.synchronizerId()).isEqualTo(SYNC);
-        assertThat(next.successorSynchronizerId()).isEmpty();
-        assertThat(next.upgradeTime()).isZero();
-        assertThat(next.lsuSerial()).isZero();
-        assertThat(next.lastRequestId()).isEqualTo(VERDICT.requestId());
-        assertThat(next.mediatorGroup()).isEqualTo(GROUP);
-        assertThat(next.app()).isEqualTo(APP);
-        assertThat(c.newTrustAnchorId().toByteArray()).hasSize(8);
-        assertThat(new java.math.BigInteger(1, c.newTrustAnchorId().toByteArray()).longValue())
-                .isEqualTo(VERDICT.requestId());
+            final var b = new Bundle()
+                    .writeFirst(6)
+                    .payload(reply(5, ClprMessageReplyStatus.SUCCESS, new byte[] {1}))
+                    .alsoConfirmedBy(ENDPOINTS);
+            // The stored DATA message went to OTHER, but the reply comes from the anchor's app.
+            assertThatThrownBy(() -> new CantonProofVerifier()
+                            .verifyBundle(
+                                    Bytes.wrap(b.proof()),
+                                    Bytes.wrap(b.anchor()),
+                                    Bytes.wrap(CHANNEL_CONTEXT),
+                                    context))
+                    .isInstanceOf(HandleException.class)
+                    .satisfies(e -> assertThat(((HandleException) e).getStatus())
+                            .isEqualTo(ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED));
+
+            when(queue.getMessage(any(), anyLong()))
+                    .thenReturn(ClprMessageValue.newBuilder()
+                            .payload(dataPayload(OTHER, APP))
+                            .build());
+            final ClprBundleContent c = new CantonProofVerifier()
+                    .verifyBundle(Bytes.wrap(b.proof()), Bytes.wrap(b.anchor()), Bytes.wrap(CHANNEL_CONTEXT), context);
+            assertThat(c.messages()).hasSize(1);
+
+            // An absent stored message is nothing to bind: ClprService's reply ordering rejects it.
+            when(queue.getMessage(any(), anyLong())).thenReturn(null);
+            assertThat(new CantonProofVerifier()
+                            .verifyBundle(
+                                    Bytes.wrap(b.proof()), Bytes.wrap(b.anchor()), Bytes.wrap(CHANNEL_CONTEXT), context)
+                            .messages())
+                    .hasSize(1);
+        }
+
+        @Test
+        void clprVerifierMapsAnyFailureToBundleVerificationFailed() {
+            final var b = new Bundle().anchorMediatorsHash(sha("some other set"));
+            assertThatThrownBy(() -> new CantonProofVerifier()
+                            .verifyBundle(
+                                    Bytes.wrap(b.proof()),
+                                    Bytes.wrap(b.anchor()),
+                                    Bytes.wrap(CHANNEL_CONTEXT),
+                                    mock(HandleContext.class)))
+                    .isInstanceOf(HandleException.class)
+                    .satisfies(e -> assertThat(((HandleException) e).getStatus())
+                            .isEqualTo(ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED));
+            // Not even RLP: also a HandleException, not a raw runtime exception.
+            assertThatThrownBy(() -> new CantonProofVerifier()
+                            .verifyBundle(
+                                    Bytes.wrap(new byte[] {(byte) 0xff, 1}),
+                                    Bytes.wrap(b.anchor()),
+                                    Bytes.wrap(CHANNEL_CONTEXT),
+                                    mock(HandleContext.class)))
+                    .isInstanceOf(HandleException.class);
+        }
+
+        @Test
+        void clprVerifierMapsAMessageQueueThatCannotBeOpenedToBundleVerificationFailed() {
+            final var storeFactory = mock(StoreFactory.class);
+            when(storeFactory.readableStore(ReadableMessageQueueStore.class))
+                    .thenThrow(new IllegalStateException("gone"));
+            final var context = mock(HandleContext.class);
+            when(context.storeFactory()).thenReturn(storeFactory);
+            // Only a REPLY consults the queue.
+            final var b = new Bundle()
+                    .writeFirst(6)
+                    .payload(reply(5, ClprMessageReplyStatus.SUCCESS, new byte[] {1}))
+                    .alsoConfirmedBy(ENDPOINTS);
+            assertBundleVerificationFailed(b, context);
+        }
+
+        @Test
+        void clprVerifierMapsAnUnexpectedRuntimeExceptionToBundleVerificationFailed() {
+            final var queue = mock(ReadableMessageQueueStore.class);
+            when(queue.getMessage(any(), anyLong())).thenThrow(new IllegalStateException("boom"));
+            final var storeFactory = mock(StoreFactory.class);
+            when(storeFactory.readableStore(ReadableMessageQueueStore.class)).thenReturn(queue);
+            final var context = mock(HandleContext.class);
+            when(context.storeFactory()).thenReturn(storeFactory);
+            final var b = new Bundle()
+                    .writeFirst(6)
+                    .payload(reply(5, ClprMessageReplyStatus.SUCCESS, new byte[] {1}))
+                    .alsoConfirmedBy(ENDPOINTS);
+            assertBundleVerificationFailed(b, context);
+        }
+
+        @Test
+        void clprVerifierTreatsAStoredMessageWithoutPayloadAsAbsent() {
+            final var queue = mock(ReadableMessageQueueStore.class);
+            when(queue.getMessage(any(), anyLong()))
+                    .thenReturn(ClprMessageValue.newBuilder().build());
+            final var storeFactory = mock(StoreFactory.class);
+            when(storeFactory.readableStore(ReadableMessageQueueStore.class)).thenReturn(queue);
+            final var context = mock(HandleContext.class);
+            when(context.storeFactory()).thenReturn(storeFactory);
+            final var b = new Bundle()
+                    .writeFirst(6)
+                    .payload(reply(5, ClprMessageReplyStatus.SUCCESS, new byte[] {1}))
+                    .alsoConfirmedBy(ENDPOINTS);
+            assertThat(new CantonProofVerifier()
+                            .verifyBundle(
+                                    Bytes.wrap(b.proof()), Bytes.wrap(b.anchor()), Bytes.wrap(CHANNEL_CONTEXT), context)
+                            .messages())
+                    .hasSize(1);
+        }
     }
 
-    @Test
-    void verdictNotPastUpgradeTimeIsCheckedAgainstTheCurrentSynchronizer() {
-        // upgradeTime == requestId is not "above": the current synchronizer applies, and it is not the verdict's.
-        final var b = new Bundle()
-                .anchorSync("old::1220" + "00".repeat(32) + "::35-0")
-                .successor(SYNC, VERDICT.requestId());
-        assertRejects("SynchronizerMismatch", () -> verify(b));
+    /**
+     * The reference's {@code ClprProtobuf.decodeEndpointManifest} rejects a known manifest field carried under the
+     * wrong wire type (its counting pass would otherwise disagree with its decode pass). The Java side parses the
+     * preimage with PBJ's strict parser; these cases pin that it rejects the same inputs. Each bad field follows a
+     * valid version and service address, the shape those two checks would otherwise let through.
+     */
+    @Nested
+    class ManifestWireTypes {
+        @Test
+        void versionUnderALengthDelimitedWireTypeIsRejected() {
+            assertRejectsManifest(new byte[] {0x0a, 0x02, 0x1a, 0x00});
+        }
+
+        @Test
+        void serviceAddressUnderAVarintWireTypeIsRejected() {
+            assertRejectsManifest(new byte[] {0x10, 0x01});
+        }
+
+        @Test
+        void anEndpointUnderAVarintWireTypeIsRejected() {
+            assertRejectsManifest(new byte[] {0x18, 0x01});
+        }
+
+        /** A manifest of a valid version and service address, with {@code badField} appended on the wire. */
+        private static void assertRejectsManifest(final byte[] badField) {
+            final byte[] preimage =
+                    CantonBytes.concat(new Pb().varint(1, 2).build(), Pb.lenField(2, SERVICE_ADDRESS), badField);
+            final var b = new Bundle().commitManifest(preimage).manifest(preimage);
+            // The strict parse is what rejects it: without that, the version and service address check out.
+            assertThatThrownBy(() -> verify(b))
+                    .isInstanceOf(CantonProofException.class)
+                    .hasMessageContaining("ManifestMismatch")
+                    .hasMessageContaining("manifest does not parse");
+        }
     }
 
-    // ── rejections ───────────────────────────────────────────────────────────
+    @Nested
+    class PayloadFraming {
+        @Test
+        void payloadThatDoesNotParseIsCantonProtoMalformed() {
+            // A DATA frame (field 1, length 2) whose message is cut off inside its first field.
+            assertRejectsPayload("CantonProtoMalformed", new byte[] {0x0a, 0x02, 0x0a, (byte) 0xff});
+        }
 
-    @Test
-    void mediatorSetNotMatchingTheAnchorIsTrustSetMismatch() {
-        final var b = new Bundle().anchorMediatorsHash(sha("some other set"));
-        assertRejects("TrustSetMismatch", () -> verify(b));
-    }
+        @Test
+        void dataMessageWithAnUnknownFieldIsCantonProtoMalformed() {
+            // The strict parse rejects it, so the connector-id scan never sees a varint or fixed-width field.
+            assertRejectsPayload("CantonProtoMalformed", new byte[] {0x0a, 0x02, 0x28, 0x01});
+            assertRejectsPayload("CantonProtoMalformed", new byte[] {0x0a, 0x05, 0x29, 0, 0, 0, 0});
+        }
 
-    @Test
-    void wrongBundleFieldCountIsInvalidPayloadShape() {
-        final var b = new Bundle();
-        final byte[][] f = items(b.proof());
-        assertRejects(
-                "InvalidPayloadShape",
-                () -> CantonProofVerifier.verifyBundle(
-                        rlpList(Arrays.copyOf(f, 6)), b.anchor(), CHANNEL_CONTEXT, NO_LOOKUP));
-        assertRejects(
-                "InvalidPayloadShape",
-                () -> CantonProofVerifier.verifyBundle(
-                        rlpList(f[0], f[1], f[2], f[3], f[4], f[5], f[6], f[6]),
-                        b.anchor(),
-                        CHANNEL_CONTEXT,
-                        NO_LOOKUP));
-    }
-
-    @Test
-    void verdictWithWrongItemCountIsInvalidPayloadShape() {
-        final var b = new Bundle();
-        final byte[][] f = items(b.proof());
-        f[0] = rlpList(items(f[0])[0]);
-        assertRejects(
-                "InvalidPayloadShape",
-                () -> CantonProofVerifier.verifyBundle(rlpList(f), b.anchor(), CHANNEL_CONTEXT, NO_LOOKUP));
-    }
-
-    @Test
-    void appNotARequiredConfirmerIsApproverMissing() {
-        // The view's informees do not include the anchor's app.
-        final var b = new Bundle().informee(OTHER);
-        assertRejects("ApproverMissing", () -> verify(b));
-    }
-
-    @Test
-    void appWithSurplusWeightIsNotARequiredConfirmer() {
-        // The others alone reach the threshold without the app, so it is not required.
-        final var b = new Bundle().quorum(1, 1, 1);
-        assertRejects("ApproverMissing", () -> verify(b));
-    }
-
-    @Test
-    void manifestCommittedButAbsentIsManifestMismatch() {
-        final var b = new Bundle().commitManifest(MANIFEST);
-        assertRejects("ManifestMismatch", () -> verify(b));
-    }
-
-    @Test
-    void manifestPresentButNotCommittedIsManifestMismatch() {
-        final var b = new Bundle().manifest(MANIFEST);
-        assertRejects("ManifestMismatch", () -> verify(b));
-    }
-
-    @Test
-    void manifestNotMatchingTheCommitmentIsManifestMismatch() {
-        final byte[] other = ClprEndpointManifest.PROTOBUF
-                .toBytes(ClprEndpointManifest.newBuilder()
-                        .version(3)
-                        .serviceAddress(Bytes.wrap(SERVICE_ADDRESS))
-                        .build())
-                .toByteArray();
-        final var b = new Bundle().commitManifest(MANIFEST).manifest(other);
-        assertRejects("ManifestMismatch", () -> verify(b));
-    }
-
-    @Test
-    void manifestForAnotherServiceOrVersionZeroIsManifestMismatch() {
-        final byte[] otherService = ClprEndpointManifest.PROTOBUF
-                .toBytes(ClprEndpointManifest.newBuilder()
-                        .version(2)
-                        .serviceAddress(Bytes.wrap(utf8("elsewhere")))
-                        .build())
-                .toByteArray();
-        assertRejects(
-                "ManifestMismatch",
-                () -> verify(new Bundle().commitManifest(otherService).manifest(otherService)));
-        final byte[] versionZero = ClprEndpointManifest.PROTOBUF
-                .toBytes(ClprEndpointManifest.newBuilder()
-                        .serviceAddress(Bytes.wrap(SERVICE_ADDRESS))
-                        .build())
-                .toByteArray();
-        assertRejects(
-                "ManifestMismatch",
-                () -> verify(new Bundle().commitManifest(versionZero).manifest(versionZero)));
-    }
-
-    @Test
-    void nonEmptyRotationsAreNotSupportedInPrA() {
-        final var b = new Bundle().rotations(rlpList(rlpString(new byte[] {1})));
-        assertRejects("RotationsNotSupported", () -> verify(b));
-    }
-
-    @Test
-    void emptyRotationsAreAcceptedAsStringOrList() {
-        verify(new Bundle().rotations(new byte[] {(byte) 0x80}));
-        verify(new Bundle().rotations(new byte[] {(byte) 0xc0}));
-    }
-
-    @Test
-    void staleVerdictIsRejected() {
-        assertRejects("StaleVerdict", () -> verify(new Bundle().lastRequestId(VERDICT.requestId())));
-    }
-
-    @Test
-    void dataFromAnotherSenderIsSenderMismatch() {
-        assertRejects("SenderMismatch", () -> verify(new Bundle().payload(data(OTHER, APP))));
-    }
-
-    @Test
-    void createdIndexOutOfRangeIsWrongContract() {
-        assertRejects("WrongContract", () -> verify(new Bundle().createdIndex(new byte[] {1})));
-        // A value beyond int is out of range too, not a parse failure.
-        assertRejects("WrongContract", () -> verify(new Bundle().createdIndex(repeat((byte) 0xff, 32))));
-    }
-
-    @Test
-    void createdIndexLongerThan32BytesIsInvalidPayloadShape() {
-        assertRejects("InvalidPayloadShape", () -> verify(new Bundle().createdIndex(repeat((byte) 1, 33))));
-    }
-
-    @Test
-    void openingNotMatchingTheVerdictRootIsRootHashMismatch() {
-        final var good = new Bundle();
-        final byte[][] f = items(good.proof());
-        f[1] = new Bundle().vpdVersion(32).opening(); // another tree
-        assertRejects(
-                "RootHashMismatch",
-                () -> CantonProofVerifier.verifyBundle(rlpList(f), good.anchor(), CHANNEL_CONTEXT, NO_LOOKUP));
-    }
-
-    @Test
-    void channelContextForAnotherChannelIsWrongContract() {
-        final var b = new Bundle();
-        final byte[] other = concat(repeat((byte) 0x12, 32), SERVICE_ADDRESS);
-        assertRejects("WrongContract", () -> CantonProofVerifier.verifyBundle(b.proof(), b.anchor(), other, NO_LOOKUP));
-    }
-
-    @Test
-    void malformedServiceAddressIsInvalidServiceAddress() {
-        final var b = new Bundle();
-        assertRejects(
-                "InvalidServiceAddress",
-                () -> CantonProofVerifier.verifyBundle(
-                        b.proof(), b.anchor(), concat(CHANNEL_ID, PACKAGE_ID, utf8("operator")), NO_LOOKUP));
-        assertRejects(
-                "InvalidServiceAddress",
-                () -> CantonProofVerifier.verifyBundle(
-                        b.proof(), b.anchor(), concat(CHANNEL_ID, PACKAGE_ID), NO_LOOKUP));
-        assertRejects(
-                "InvalidServiceAddress",
-                () -> CantonProofVerifier.verifyBundle(b.proof(), b.anchor(), new byte[31], NO_LOOKUP));
-    }
-
-    @Test
-    void decodeServiceDerivesIdsAndHex() {
-        final var s = CantonProofVerifier.decodeService(CHANNEL_CONTEXT);
-        assertThat(s.channelId()).isEqualTo(CHANNEL_ID);
-        assertThat(s.channelIdHex()).isEqualTo(utf8("11".repeat(32)));
-        assertThat(s.packageIdHex()).isEqualTo(utf8("5a".repeat(32)));
-        assertThat(s.operator()).isEqualTo(OPERATOR);
-        assertThat(s.serviceAddress()).isEqualTo(SERVICE_ADDRESS);
-    }
-
-    // ── the ClprVerifier surface (HandleContext) ─────────────────────────────
-
-    @Test
-    void clprVerifierVerifyBundleReturnsContent() {
-        final var b = new Bundle().payload(data(APP, OTHER));
-        final ClprBundleContent c = new CantonProofVerifier()
-                .verifyBundle(
-                        Bytes.wrap(b.proof()),
-                        Bytes.wrap(b.anchor()),
-                        Bytes.wrap(CHANNEL_CONTEXT),
-                        mock(HandleContext.class));
-        assertThat(c.messages()).hasSize(1);
-        assertThat(c.metadata().nextMessageId()).isEqualTo(7);
-    }
-
-    @Test
-    void clprVerifierReadsTheOutboundMessageFromTheMessageQueue() {
-        final var queue = mock(ReadableMessageQueueStore.class);
-        final var storeFactory = mock(StoreFactory.class);
-        final var context = mock(HandleContext.class);
-        when(context.storeFactory()).thenReturn(storeFactory);
-        when(storeFactory.readableStore(ReadableMessageQueueStore.class)).thenReturn(queue);
-        when(queue.getMessage(any(), anyLong()))
-                .thenReturn(ClprMessageValue.newBuilder()
-                        .payload(dataPayload(APP, OTHER))
-                        .build());
-
-        final var b = new Bundle().payload(reply(5, ClprMessageReplyStatus.SUCCESS, new byte[] {1}));
-        // The stored DATA message went to OTHER, but the reply comes from the anchor's app.
-        assertThatThrownBy(() -> new CantonProofVerifier()
-                        .verifyBundle(
-                                Bytes.wrap(b.proof()), Bytes.wrap(b.anchor()), Bytes.wrap(CHANNEL_CONTEXT), context))
-                .isInstanceOf(HandleException.class)
-                .satisfies(e -> assertThat(((HandleException) e).getStatus())
-                        .isEqualTo(ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED));
-
-        when(queue.getMessage(any(), anyLong()))
-                .thenReturn(ClprMessageValue.newBuilder()
-                        .payload(dataPayload(OTHER, APP))
-                        .build());
-        final ClprBundleContent c = new CantonProofVerifier()
-                .verifyBundle(Bytes.wrap(b.proof()), Bytes.wrap(b.anchor()), Bytes.wrap(CHANNEL_CONTEXT), context);
-        assertThat(c.messages()).hasSize(1);
-
-        // An absent stored message is nothing to bind: ClprService's reply ordering rejects it.
-        when(queue.getMessage(any(), anyLong())).thenReturn(null);
-        assertThat(new CantonProofVerifier()
-                        .verifyBundle(
-                                Bytes.wrap(b.proof()), Bytes.wrap(b.anchor()), Bytes.wrap(CHANNEL_CONTEXT), context)
-                        .messages())
-                .hasSize(1);
-    }
-
-    @Test
-    void clprVerifierMapsAnyFailureToBundleVerificationFailed() {
-        final var b = new Bundle().anchorMediatorsHash(sha("some other set"));
-        assertThatThrownBy(() -> new CantonProofVerifier()
-                        .verifyBundle(
-                                Bytes.wrap(b.proof()),
-                                Bytes.wrap(b.anchor()),
-                                Bytes.wrap(CHANNEL_CONTEXT),
-                                mock(HandleContext.class)))
-                .isInstanceOf(HandleException.class)
-                .satisfies(e -> assertThat(((HandleException) e).getStatus())
-                        .isEqualTo(ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED));
-        // Not even RLP: also a HandleException, not a raw runtime exception.
-        assertThatThrownBy(() -> new CantonProofVerifier()
-                        .verifyBundle(
-                                Bytes.wrap(new byte[] {(byte) 0xff, 1}),
-                                Bytes.wrap(b.anchor()),
-                                Bytes.wrap(CHANNEL_CONTEXT),
-                                mock(HandleContext.class)))
-                .isInstanceOf(HandleException.class);
-    }
-
-    @Test
-    void verifyConfigIsNotSupportedInPrA() {
-        assertThatThrownBy(() -> new CantonProofVerifier()
-                        .verifyConfig(Bytes.EMPTY, Bytes.wrap(CHANNEL_ID), Bytes.EMPTY, mock(HandleContext.class)))
-                .isInstanceOf(HandleException.class);
-    }
-
-    // ── bundle assembly ─────────────────────
-
-    private static ClprBundleContent verify(final Bundle b) {
-        return CantonProofVerifier.verifyBundle(b.proof(), b.anchor(), CHANNEL_CONTEXT, NO_LOOKUP);
+        @Test
+        void payloadMustBeOneLengthDelimitedFieldOneOrTwoSpanningIt() {
+            // Empty, and a tag that never ends.
+            assertRejectsPayload("CantonProtoMalformed", new byte[0]);
+            assertRejectsPayload("CantonProtoMalformed", repeat((byte) 0x80, 12));
+            // A multi-byte tag (field 16), a tag alone, and a field number above the oneof's DATA and REPLY.
+            assertRejectsPayload("WrongMessageType", new byte[] {(byte) 0x82, 0x01, 0x00});
+            assertRejectsPayload("WrongMessageType", new byte[] {0x0a});
+            assertRejectsPayload("WrongMessageType", new byte[] {0x1a, 0x00});
+            // Not wire type LEN, and field number 0.
+            assertRejectsPayload("WrongMessageType", new byte[] {0x08, 0x01});
+            assertRejectsPayload("WrongMessageType", new byte[] {0x02, 0x00});
+            // A length that never ends, one that is negative, and one that does not span the payload.
+            assertRejectsPayload("WrongMessageType", CantonBytes.concat(new byte[] {0x0a}, repeat((byte) 0x80, 12)));
+            assertRejectsPayload(
+                    "WrongMessageType",
+                    CantonBytes.concat(new byte[] {0x0a}, repeat((byte) 0x80, 9), new byte[] {0x01}));
+            assertRejectsPayload("WrongMessageType", new byte[] {0x0a, 0x05, 0x00});
+        }
     }
 
     /** Builds a bundle and the anchor it verifies against; the root of the tree is signed by {@link #MEDIATOR}. */
@@ -435,6 +670,7 @@ class CantonProofVerifierBundleTest {
         private long upgradeTime;
         private long lastRequestId;
         private byte[] mediatorsHash = MiscCryptoUtils.keccak256DigestOf(MEDIATOR_SET);
+        private byte[] ownersHash = new byte[32];
         private String informee = APP;
         private long appWeight = 1;
         private long otherWeight = 0;
@@ -444,6 +680,36 @@ class CantonProofVerifierBundleTest {
         private String manifestHash = "";
         private byte[] rotations = {(byte) 0x80};
         private byte[] createdIndex = new byte[0];
+        private String anchorEndpoints = ENDPOINTS;
+        private long writeFirst = 7;
+        private String secondConfirmer;
+        private long secondWeight = 1;
+        private long secondThreshold = -1;
+
+        /** Adds {@code party} as a second informee that the quorum also requires (both weigh 1, threshold 2). */
+        Bundle alsoConfirmedBy(final String party) {
+            secondConfirmer = party;
+            return this;
+        }
+
+        /** Adds {@code party} as a second informee of {@code weight}, with {@code thr} as the whole threshold. */
+        Bundle alsoInformed(final String party, final long weight, final long thr) {
+            secondConfirmer = party;
+            secondWeight = weight;
+            secondThreshold = thr;
+            return this;
+        }
+
+        /** The written channel version's {@code writeFirstMessageId}; {@code nextMessageId} is 7. */
+        Bundle writeFirst(final long v) {
+            writeFirst = v;
+            return this;
+        }
+
+        Bundle anchorEndpoints(final String e) {
+            anchorEndpoints = e;
+            return this;
+        }
 
         Bundle vpdVersion(final int v) {
             vpdVersion = v;
@@ -471,6 +737,11 @@ class CantonProofVerifierBundleTest {
             return this;
         }
 
+        Bundle anchorOwnersHash(final byte[] h) {
+            ownersHash = h;
+            return this;
+        }
+
         Bundle informee(final String p) {
             informee = p;
             return this;
@@ -495,7 +766,7 @@ class CantonProofVerifierBundleTest {
         }
 
         Bundle commitManifest(final byte[] m) {
-            manifestHash = HEX.formatHex(MiscCryptoUtils.keccak256DigestOf(m));
+            manifestHash = formatHex(MiscCryptoUtils.keccak256DigestOf(m));
             return this;
         }
 
@@ -519,7 +790,18 @@ class CantonProofVerifierBundleTest {
             if (otherWeight > 0) {
                 quorum.field(1, new Pb().varint(1, 1).varint(2, otherWeight).build());
             }
-            quorum.varint(2, threshold);
+            long thr = threshold;
+            if (secondConfirmer != null) {
+                pb.field(2, utf8(secondConfirmer));
+                quorum.field(
+                        1,
+                        new Pb()
+                                .varint(1, otherWeight > 0 ? 2 : 1)
+                                .varint(2, secondWeight)
+                                .build());
+                thr = secondThreshold >= 0 ? secondThreshold : threshold + 1;
+            }
+            quorum.varint(2, thr);
             return pb.field(3, quorum.build()).build();
         }
 
@@ -529,7 +811,7 @@ class CantonProofVerifierBundleTest {
                     .field(10, utf8("template"))
                     .build();
             final Pb pb = new Pb();
-            pb.field(3, Pb.lenField(1, Chan.channel(manifestHash)));
+            pb.field(3, Pb.lenField(1, Chan.channel(manifestHash, writeFirst)));
             pb.field(6, Pb.lenField(2, ex));
             return pb.build();
         }
@@ -554,7 +836,7 @@ class CantonProofVerifierBundleTest {
 
         /** CommonMetadata{3: synchronizer id, 5: mediator group}; the opening's sync is the verdict's. */
         private static byte[] commonMetadata() {
-            return concat(
+            return CantonBytes.concat(
                     Pb.lenField(1, Pb.lenField(2, sha("cm-salt"))),
                     Pb.lenField(3, utf8(SYNC)),
                     Pb.lenField(4, utf8("uuid-0000")),
@@ -581,37 +863,37 @@ class CantonProofVerifierBundleTest {
                     rlpString(MEDIATOR_SET),
                     rotations,
                     rlpString(manifest),
-                    rlpList(payloads.stream()
-                            .map(CantonProofVerifierBundleTest::rlpString)
-                            .toArray(byte[][]::new)));
+                    rlpList(payloads.stream().map(CantonFixtures::rlpString).toArray(byte[][]::new)));
         }
 
         byte[] anchor() {
-            return CantonAnchor.encode(new CantonAnchor.Anchor(
-                    anchorSync,
-                    lastRequestId,
-                    GROUP,
-                    new byte[32],
-                    new byte[32],
-                    mediatorsHash,
-                    successor,
-                    upgradeTime,
-                    0,
-                    APP));
+            return new CantonAnchor.Anchor(
+                            anchorSync,
+                            lastRequestId,
+                            GROUP,
+                            new byte[32],
+                            ownersHash,
+                            mediatorsHash,
+                            successor,
+                            upgradeTime,
+                            0,
+                            APP,
+                            anchorEndpoints)
+                    .encode();
         }
     }
 
-    /** The {@code Channel} contract of {@link CantonWriteTest}: nine read fields at their positions, rest filler. */
+    /** The {@code Channel} contract of {@link CantonWriteTest}: read fields in their positions, the rest filler. */
     private static final class Chan {
-        static byte[] channel(final String manifestHash) {
-            final byte[] packageHex = HEX.formatHex(PACKAGE_ID).getBytes(StandardCharsets.UTF_8);
+        static byte[] channel(final String manifestHash, final long writeFirst) {
+            final byte[] packageHex = formatHex(PACKAGE_ID).getBytes(StandardCharsets.UTF_8);
             final List<byte[]> values = new ArrayList<>();
-            for (int i = 0; i < 26; ++i) {
+            for (int i = 0; i < 29; ++i) {
                 values.add(text(""));
             }
             values.set(0, Pb.lenField(7, OPERATOR));
             values.set(1, Pb.lenField(7, utf8(APP)));
-            values.set(2, text(utf8(HEX.formatHex(CHANNEL_ID))));
+            values.set(2, text(utf8(formatHex(CHANNEL_ID))));
             values.set(5, new Pb().varint(3, 7L << 1).build());
             values.set(6, text(utf8("22".repeat(32))));
             values.set(10, new Pb().varint(3, 3L << 1).build());
@@ -619,6 +901,7 @@ class CantonProofVerifierBundleTest {
             values.set(17, Pb.lenField(15, Pb.lenField(1, utf8("Active"))));
             values.set(24, text(utf8("33".repeat(32))));
             values.set(25, text(utf8(manifestHash)));
+            values.set(28, new Pb().varint(3, writeFirst << 1).build());
             final Pb record = new Pb();
             for (final byte[] v : values) {
                 record.field(1, Pb.lenField(1, v));
@@ -640,32 +923,6 @@ class CantonProofVerifierBundleTest {
         private static byte[] text(final byte[] s) {
             return Pb.lenField(8, s);
         }
-    }
-
-    // ── payload / crypto helpers ─────────────────────────────────────────────
-
-    private static byte[] data(final String sender, final String target) {
-        return ClprMessagePayload.PROTOBUF.toBytes(dataPayload(sender, target)).toByteArray();
-    }
-
-    private static ClprMessagePayload dataPayload(final String sender, final String target) {
-        return ClprMessagePayload.newBuilder()
-                .message(ClprMessage.newBuilder()
-                        .sender(Bytes.wrap(utf8(sender)))
-                        .targetApplication(Bytes.wrap(utf8(target)))
-                        .messageData(Bytes.wrap(new byte[] {7})))
-                .build();
-    }
-
-    private static byte[] reply(final long id, final ClprMessageReplyStatus status, final byte[] replyData) {
-        return ClprMessagePayload.PROTOBUF
-                .toBytes(ClprMessagePayload.newBuilder()
-                        .messageReply(ClprMessageReply.newBuilder()
-                                .messageId(id)
-                                .status(status)
-                                .messageReplyData(Bytes.wrap(replyData)))
-                        .build())
-                .toByteArray();
     }
 
     private record Med(byte[] secret, byte[] pub, byte[] fp) {
@@ -706,6 +963,47 @@ class CantonProofVerifierBundleTest {
         }
     }
 
+    private static void assertBundleVerificationFailed(final Bundle b, final HandleContext context) {
+        assertThatThrownBy(() -> new CantonProofVerifier()
+                        .verifyBundle(
+                                Bytes.wrap(b.proof()), Bytes.wrap(b.anchor()), Bytes.wrap(CHANNEL_CONTEXT), context))
+                .isInstanceOf(HandleException.class)
+                .satisfies(e -> assertThat(((HandleException) e).getStatus())
+                        .isEqualTo(ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED));
+    }
+
+    private static void assertRejectsPayload(final String errorName, final byte[] payload) {
+        assertRejects(errorName, () -> CantonProofVerifier.checkPayload(payload, CHANNEL_ID, utf8(APP), NO_LOOKUP));
+    }
+
+    private static ClprBundleContent verify(final Bundle b) {
+        return CantonProofVerifier.verifyBundle(b.proof(), b.anchor(), CHANNEL_CONTEXT, NO_LOOKUP);
+    }
+
+    private static byte[] data(final String sender, final String target) {
+        return ClprMessagePayload.PROTOBUF.toBytes(dataPayload(sender, target)).toByteArray();
+    }
+
+    private static ClprMessagePayload dataPayload(final String sender, final String target) {
+        return ClprMessagePayload.newBuilder()
+                .message(ClprMessage.newBuilder()
+                        .sender(Bytes.wrap(utf8(sender)))
+                        .targetApplication(Bytes.wrap(utf8(target)))
+                        .messageData(Bytes.wrap(new byte[] {7})))
+                .build();
+    }
+
+    private static byte[] reply(final long id, final ClprMessageReplyStatus status, final byte[] replyData) {
+        return ClprMessagePayload.PROTOBUF
+                .toBytes(ClprMessagePayload.newBuilder()
+                        .messageReply(ClprMessageReply.newBuilder()
+                                .messageId(id)
+                                .status(status)
+                                .messageReplyData(Bytes.wrap(replyData)))
+                        .build())
+                .toByteArray();
+    }
+
     private static byte[] replace(final byte[] in, final byte[] needle, final byte[] with) {
         assertThat(with).hasSameSizeAs(needle);
         int at = -1;
@@ -740,28 +1038,6 @@ class CantonProofVerifierBundleTest {
         }
     }
 
-    private static byte[] utf8(final String s) {
-        return s.getBytes(StandardCharsets.UTF_8);
-    }
-
-    private static byte[] repeat(final byte b, final int n) {
-        final byte[] out = new byte[n];
-        Arrays.fill(out, b);
-        return out;
-    }
-
-    private static byte[] concat(final byte[]... parts) {
-        final var out = new ByteArrayOutputStream();
-        for (final byte[] p : parts) {
-            out.writeBytes(p);
-        }
-        return out.toByteArray();
-    }
-
-    private static byte[] versioned(final byte[] data, final int version) {
-        return concat(Pb.lenField(1, data), new Pb().varint(2, version).build());
-    }
-
     private static byte[] leafHash(final int purpose, final byte[] data, final int version) {
         return CantonMerkle.leaf(purpose, sha(data), versioned(data, version));
     }
@@ -778,73 +1054,5 @@ class CantonProofVerifierBundleTest {
                     l.get(i).buf(), l.get(i).off(), l.get(i).off() + l.get(i).len());
         }
         return out;
-    }
-
-    private static byte[] rlpString(final byte[] b) {
-        if (b.length == 1 && (b[0] & 0xff) < 0x80) {
-            return b.clone();
-        }
-        return concat(rlpHeader(0x80, b.length), b);
-    }
-
-    private static byte[] rlpList(final byte[]... items) {
-        final byte[] payload = concat(items);
-        return concat(rlpHeader(0xc0, payload.length), payload);
-    }
-
-    private static byte[] rlpHeader(final int base, final int len) {
-        if (len <= 55) {
-            return new byte[] {(byte) (base + len)};
-        }
-        int n = 4;
-        while (n > 1 && (len >>> (8 * (n - 1))) == 0) {
-            --n;
-        }
-        final byte[] lenBytes = new byte[n];
-        for (int i = 0; i < n; ++i) {
-            lenBytes[i] = (byte) (len >>> (8 * (n - 1 - i)));
-        }
-        return concat(new byte[] {(byte) (base + 55 + n)}, lenBytes);
-    }
-
-    /** Minimal protobuf wire-format builder. */
-    private static final class Pb {
-        private final ByteArrayOutputStream out = new ByteArrayOutputStream();
-
-        Pb field(final int number, final byte[] value) {
-            out.writeBytes(lenField(number, value));
-            return this;
-        }
-
-        Pb varint(final int number, final long value) {
-            writeVarint(out, (long) number << 3);
-            writeVarint(out, value);
-            return this;
-        }
-
-        byte[] build() {
-            return out.toByteArray();
-        }
-
-        static byte[] lenField(final long number, final byte[] value) {
-            final var o = new ByteArrayOutputStream();
-            writeVarint(o, (number << 3) | CantonProto.WIRE_LEN);
-            writeVarint(o, value.length);
-            o.writeBytes(value);
-            return o.toByteArray();
-        }
-
-        private static void writeVarint(final ByteArrayOutputStream o, long v) {
-            while (true) {
-                final int b = (int) (v & 0x7f);
-                v >>>= 7;
-                if (v != 0) {
-                    o.write(b | 0x80);
-                } else {
-                    o.write(b);
-                    return;
-                }
-            }
-        }
     }
 }

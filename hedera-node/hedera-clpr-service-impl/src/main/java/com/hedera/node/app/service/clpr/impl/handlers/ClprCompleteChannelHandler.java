@@ -33,6 +33,7 @@ import com.hedera.node.app.service.clpr.impl.calculator.ClprFeeCalculator;
 import com.hedera.node.app.service.clpr.impl.verifier.ClprVerifier;
 import com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierFactory;
 import com.hedera.node.app.service.clpr.impl.verifier.VerifiedConfig;
+import com.hedera.node.app.service.clpr.impl.verifier.VerifiersRegistry;
 import com.hedera.node.app.service.contract.api.SmartContractServiceApi;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -70,13 +71,16 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
      * <ul>
      *   <li>{@code 0x16e} (366) — CLPR system contract precompile.</li>
      *   <li>{@code 0x16f} (367) — Besu QBFT verifier system contract.</li>
-     *   <li>{@code 0x170} (368) — Sei (CometBFT) verifier system contract.</li>
      *   <li>{@code 0x171} (369) — Ethereum (sync-committee) verifier system contract.</li>
+     *   <li>{@code 0x173} (371) — Canton (non-EVM, native verifier).</li>
      * </ul>
-     * Mirrors {@code BesuQBFTVerifierSystemContract.BESU_QBFT_VERIFIER_EVM_ADDRESS},
-     * {@code SeiVerifierSystemContract.SEI_VERIFIER_EVM_ADDRESS} and
+     * Mirrors {@code BesuQBFTVerifierSystemContract.BESU_QBFT_VERIFIER_EVM_ADDRESS} and
      * {@code EthereumVerifierSystemContract.ETHEREUM_VERIFIER_EVM_ADDRESS} in the
      * smart-contract-service-impl module for the verifier addresses.
+     *
+     * <p>The Sei (CometBFT) verifier system contract at {@code 0x170} is not supported
+     * ({@code SeiVerifierSystemContract}), so it is not a built-in verifier: like any other address without a
+     * smart-contract account, it is rejected as a verifier with {@code CLPR_INVALID_VERIFIER_CONTRACT}.
      */
     private static final long BESU_QBFT_VERIFIER_SYSTEM_CONTRACT_NUM = 0x16fL;
 
@@ -84,19 +88,18 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
     private static final Bytes BESU_QBFT_VERIFIER_SYSTEM_CONTRACT_EVM_ADDRESS =
             Bytes.wrap(new byte[] {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01, (byte) 0x6f});
 
-    /** Sei (CometBFT) verifier system contract; mirrors {@code SEI_VERIFIER_EVM_ADDRESS} (0x170). */
-    private static final long SEI_VERIFIER_SYSTEM_CONTRACT_NUM = 0x170L;
-
-    /** EVM-address form of {@link #SEI_VERIFIER_SYSTEM_CONTRACT_NUM}. */
-    private static final Bytes SEI_VERIFIER_SYSTEM_CONTRACT_EVM_ADDRESS =
-            Bytes.wrap(new byte[] {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01, (byte) 0x70});
-
     /** Ethereum (sync-committee) verifier system contract; mirrors {@code ETHEREUM_VERIFIER_EVM_ADDRESS} (0x171). */
     private static final long ETHEREUM_VERIFIER_SYSTEM_CONTRACT_NUM = 0x171L;
 
     /** EVM-address form of {@link #ETHEREUM_VERIFIER_SYSTEM_CONTRACT_NUM}. */
     private static final Bytes ETHEREUM_VERIFIER_SYSTEM_CONTRACT_EVM_ADDRESS =
             Bytes.wrap(new byte[] {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01, (byte) 0x71});
+
+    /** Canton verifier reserved contract num (0x173); non-EVM, dispatched natively by the {@link VerifiersRegistry}. */
+    private static final long CANTON_VERIFIER_SYSTEM_CONTRACT_NUM = VerifiersRegistry.CANTON_CONTRACT_NUM;
+
+    /** EVM-address form of {@link #CANTON_VERIFIER_SYSTEM_CONTRACT_NUM}. */
+    private static final Bytes CANTON_VERIFIER_SYSTEM_CONTRACT_EVM_ADDRESS = VerifiersRegistry.CANTON_EVM_ADDRESS;
 
     private record BuiltInVerifier(String displayName, Bytes fingerprint) {}
 
@@ -106,22 +109,22 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
             new BuiltInVerifier("Hiero TSS (0x16e)", builtInFingerprint("hiero-tss"));
     private static final BuiltInVerifier BESU_QBFT_VERIFIER =
             new BuiltInVerifier("Besu QBFT (0x16f)", builtInFingerprint("besu-qbft"));
-    private static final BuiltInVerifier SEI_VERIFIER =
-            new BuiltInVerifier("Sei CometBFT (0x170)", builtInFingerprint("sei-cometbft"));
     private static final BuiltInVerifier ETHEREUM_VERIFIER =
             new BuiltInVerifier("Ethereum sync committee (0x171)", builtInFingerprint("ethereum-sync-committee"));
+    private static final BuiltInVerifier CANTON_VERIFIER =
+            new BuiltInVerifier("Canton (0x173)", builtInFingerprint("canton"));
 
     private static final Map<Long, BuiltInVerifier> BUILT_IN_VERIFIERS_BY_NUM = Map.of(
             CLPR_SERVICE_ACCOUNT_NUM, HIERO_TSS_VERIFIER,
             BESU_QBFT_VERIFIER_SYSTEM_CONTRACT_NUM, BESU_QBFT_VERIFIER,
-            SEI_VERIFIER_SYSTEM_CONTRACT_NUM, SEI_VERIFIER,
-            ETHEREUM_VERIFIER_SYSTEM_CONTRACT_NUM, ETHEREUM_VERIFIER);
+            ETHEREUM_VERIFIER_SYSTEM_CONTRACT_NUM, ETHEREUM_VERIFIER,
+            CANTON_VERIFIER_SYSTEM_CONTRACT_NUM, CANTON_VERIFIER);
 
     private static final Map<Bytes, BuiltInVerifier> BUILT_IN_VERIFIERS_BY_ADDRESS = Map.of(
             CLPR_EVM_ADDRESS_BYTES, HIERO_TSS_VERIFIER,
             BESU_QBFT_VERIFIER_SYSTEM_CONTRACT_EVM_ADDRESS, BESU_QBFT_VERIFIER,
-            SEI_VERIFIER_SYSTEM_CONTRACT_EVM_ADDRESS, SEI_VERIFIER,
-            ETHEREUM_VERIFIER_SYSTEM_CONTRACT_EVM_ADDRESS, ETHEREUM_VERIFIER);
+            ETHEREUM_VERIFIER_SYSTEM_CONTRACT_EVM_ADDRESS, ETHEREUM_VERIFIER,
+            CANTON_VERIFIER_SYSTEM_CONTRACT_EVM_ADDRESS, CANTON_VERIFIER);
 
     private final ClprVerifierFactory verifierFactory;
     private final ClprChannelLifecycle channelLifecycle;
@@ -241,7 +244,7 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
                 shortHex(Bytes.wrap(messageHash)));
 
         // 4. Verify verifier contract exists and is a smart contract.
-        //    Built-in system contracts (0x16e..0x171) are valid verifiers but have no on-ledger
+        //    Built-in system contracts (0x16e, 0x16f, 0x171, 0x173) are valid verifiers but have no on-ledger
         //    account record, so skip the account-store lookup for those. See ClprVerifierFactory
         //    (TODO CLPR-5.3) for the planned built-in verifier registry that will subsume this.
         if (!isBuiltInVerifier(op.verifierContractOrThrow())) {

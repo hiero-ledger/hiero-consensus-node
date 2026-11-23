@@ -7,7 +7,6 @@ import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.EXPECTED_
 import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.FINAL_NEXT_PATH_INDEX;
 import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.ROOT_HASH_MERKLE_PATH_INDEX;
 import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.UNSIGNED_BLOCK_SIBLING_COUNT;
-import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
@@ -18,6 +17,7 @@ import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.block.stream.TssSignedBlockProof;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.node.app.blocks.BlockItemWriter;
+import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.internal.network.PendingProof;
 import com.hedera.pbj.runtime.ParseException;
@@ -26,9 +26,12 @@ import com.swirlds.base.utility.Pair;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -71,7 +74,7 @@ class BlockStateProofGeneratorTest {
                     FINAL_SIGNATURE,
                     latestSignedBlockTimestamp,
                     pendingBlocksByBlockNum.values().stream(),
-                    DigestType.SHA_384);
+                    DigestType.SHA_256);
             // Verify the generated proof matches the expected proof
             Assertions.assertThat(result).isEqualTo(expectedProofs.get(blockNum));
         }
@@ -256,7 +259,7 @@ class BlockStateProofGeneratorTest {
                     FINAL_SIGNATURE,
                     latestSignedBlockTimestamp,
                     pendingBlocksByBlockNum.values().stream(),
-                    DigestType.SHA_384);
+                    DigestType.SHA_256);
 
             final var computedHash = traverseStateProof(stateProof, currentBlock.blockHash());
             Assertions.assertThat(computedHash)
@@ -289,7 +292,7 @@ class BlockStateProofGeneratorTest {
         for (int i = 0; i < paths.size(); i++) {
             final var path = paths.get(i);
             if (path.hasTimestampLeaf()) {
-                pathHashes[i] = BlockImplUtils.hashLeaf(sha384DigestOrThrow(), path.timestampLeafOrThrow());
+                pathHashes[i] = BlockImplUtils.hashLeaf(CommonUtils.sha256DigestOrThrow(), path.timestampLeafOrThrow());
             } else if (!path.siblings().isEmpty()) {
                 // In a valid state proof only mp2 (BLOCK_CONTENTS_PATH_INDEX) carries siblings.
                 // If mp3 or mp4 were to have siblings the hash check below would incorrectly pass
@@ -304,9 +307,11 @@ class BlockStateProofGeneratorTest {
                 for (final SiblingNode sibling : path.siblings()) {
                     if (sibling.isLeft()) {
                         // Left sibling is an indirect block's consensus timestamp
-                        current = BlockImplUtils.hashInternalNode(sha384DigestOrThrow(), sibling.hash(), current);
+                        current = BlockImplUtils.hashInternalNode(
+                                CommonUtils.sha256DigestOrThrow(), sibling.hash(), current);
                     } else {
-                        current = BlockImplUtils.hashInternalNode(sha384DigestOrThrow(), current, sibling.hash());
+                        current = BlockImplUtils.hashInternalNode(
+                                CommonUtils.sha256DigestOrThrow(), current, sibling.hash());
                     }
                 }
                 pathHashes[i] = current;
@@ -325,8 +330,8 @@ class BlockStateProofGeneratorTest {
                     }
                 }
                 if (timestampChildHash != null && otherChildHash != null) {
-                    pathHashes[i] =
-                            BlockImplUtils.hashInternalNode(sha384DigestOrThrow(), timestampChildHash, otherChildHash);
+                    pathHashes[i] = BlockImplUtils.hashInternalNode(
+                            CommonUtils.sha256DigestOrThrow(), timestampChildHash, otherChildHash);
                 }
             }
         }
@@ -336,10 +341,70 @@ class BlockStateProofGeneratorTest {
     }
 
     /**
+     * Regenerates the {@code .pnd.json} input files under {@code src/test/resources/state-proof/} with
+     * SHA-256. Each block keeps its number and its timestamp from
+     * {@link #EXPECTED_BLOCK_TIMESTAMPS}, and its block root tree is built with the production
+     * {@link BlockRootTree}, filling the branches the way {@code BlockStreamManagerImpl} does:
+     * <ul>
+     *   <li>branch 1 is the previous block's hash ({@code hash(0x00)} for block 0)</li>
+     *   <li>branch 2 is the streaming root of all earlier block hashes</li>
+     *   <li>branches 3-8 are fixed placeholder leaves, since proof generation never looks inside them</li>
+     * </ul>
+     * Remove {@code @Disabled} and run once whenever the block root tree or the digest type changes.
+     * Then copy the printed hashes into {@link #EXPECTED_FIRST_SIBLING_HASHES} and {@link #EXPECTED_BLOCK_HASHES},
+     * and run {@link #regenerateGoldenFiles()} in a <i>separate</i> run: both read their inputs from the test
+     * classpath, which only picks up the new files on the next build. Restore {@code @Disabled} and commit the
+     * updated files.
+     */
+    @Test
+    @Disabled("Run manually to regenerate pending block input files after changing the block root tree")
+    void regeneratePendingBlockFiles() throws Exception {
+        final var digest = CommonUtils.sha256DigestOrThrow();
+        final var previousBlockHashes =
+                new IncrementalStreamingHasher(CommonUtils.sha256DigestOrThrow(), new ArrayList<>(), 0);
+        var previousBlockHash = FIRST_EXPECTED_PREVIOUS_BLOCK_HASH;
+
+        final var outDir = Path.of("src/test/resources/state-proof");
+        for (long blockNum = MIN_INDIRECT_BLOCK_NUM; blockNum <= MAX_BLOCK_NUM; blockNum++) {
+            final var timestamp = EXPECTED_BLOCK_TIMESTAMPS.get(blockNum);
+            final var branches = new Bytes[BlockRootTreeHasher.ASSIGNED_SLOT_COUNT];
+            branches[0] = previousBlockHash;
+            branches[1] = Bytes.wrap(previousBlockHashes.computeRootHash());
+            for (int i = 2; i < branches.length; i++) {
+                final var placeholder = "block " + blockNum + " branch " + (i + 1);
+                branches[i] = BlockImplUtils.hashLeaf(digest, Bytes.wrap(placeholder.getBytes(StandardCharsets.UTF_8)));
+            }
+            final var timestampLeafHash = BlockImplUtils.hashLeaf(digest, Timestamp.PROTOBUF.toBytes(timestamp));
+            final var rootAndSiblings =
+                    BlockRootTree.computeRootAndSiblings(DigestType.SHA_256, timestampLeafHash, branches);
+            final var blockHash = rootAndSiblings.blockRootHash();
+
+            final var pendingProof = PendingProof.newBuilder()
+                    .block(blockNum)
+                    .blockHash(blockHash)
+                    .previousBlockHash(previousBlockHash)
+                    .blockTimestamp(timestamp)
+                    .siblingHashesFromPrevBlockRoot(rootAndSiblings.siblingHashes())
+                    .build();
+            Files.writeString(outDir.resolve(blockNum + ".pnd.json"), PendingProof.JSON.toJSON(pendingProof));
+            System.out.println("Wrote pending block file for block " + blockNum + ", hash " + toBase64(blockHash));
+            if (blockNum == MIN_INDIRECT_BLOCK_NUM) {
+                for (final var sibling : rootAndSiblings.siblingHashes()) {
+                    System.out.println("  first block sibling hash " + toBase64(sibling.siblingHash()));
+                }
+            }
+
+            previousBlockHashes.addNodeByHash(blockHash.toByteArray());
+            previousBlockHash = blockHash;
+        }
+    }
+
+    /**
      * Regenerates the golden {@code .proof.json} files under {@code src/test/resources/state-proof/}
      * from the {@code .pnd.json} input files and the current {@link BlockStateProofGenerator} logic.
      * Remove {@code @Disabled} and run once whenever the generator's output format changes, then
-     * restore {@code @Disabled} and commit the updated files.
+     * restore {@code @Disabled} and commit the updated files. If the inputs changed too, run
+     * {@link #regeneratePendingBlockFiles()} first, in its own run.
      */
     @Test
     @Disabled("Run manually to regenerate golden proof files after changing BlockStateProofGenerator")
@@ -363,7 +428,7 @@ class BlockStateProofGeneratorTest {
                     FINAL_SIGNATURE,
                     latestSignedBlockTimestamp,
                     pendingBlocksByBlockNum.values().stream(),
-                    DigestType.SHA_384);
+                    DigestType.SHA_256);
             Files.writeString(outDir.resolve(blockNum + ".proof.json"), StateProof.JSON.toJSON(result));
             System.out.println("Wrote golden file for block " + blockNum);
         }
@@ -456,17 +521,19 @@ class BlockStateProofGeneratorTest {
                 final var currentSibling = allMp2Hashes.get(i);
                 if (currentSibling.isLeft()) {
                     // Left sibling is an indirect block's consensus timestamp
-                    finalHash =
-                            BlockImplUtils.hashInternalNode(sha384DigestOrThrow(), currentSibling.hash(), finalHash);
+                    finalHash = BlockImplUtils.hashInternalNode(
+                            CommonUtils.sha256DigestOrThrow(), currentSibling.hash(), finalHash);
                 } else {
-                    finalHash =
-                            BlockImplUtils.hashInternalNode(sha384DigestOrThrow(), finalHash, currentSibling.hash());
+                    finalHash = BlockImplUtils.hashInternalNode(
+                            CommonUtils.sha256DigestOrThrow(), finalHash, currentSibling.hash());
                 }
             }
 
             // Combine the signed block's sub-tree root with its timestamp to reach the signed block root hash
-            final var expectedHashedTsBytes = BlockImplUtils.hashLeaf(sha384DigestOrThrow(), expectedSignedTsBytes);
-            finalHash = BlockImplUtils.hashInternalNode(sha384DigestOrThrow(), expectedHashedTsBytes, finalHash);
+            final var expectedHashedTsBytes =
+                    BlockImplUtils.hashLeaf(CommonUtils.sha256DigestOrThrow(), expectedSignedTsBytes);
+            finalHash = BlockImplUtils.hashInternalNode(
+                    CommonUtils.sha256DigestOrThrow(), expectedHashedTsBytes, finalHash);
             Assertions.assertThat(finalHash).isEqualTo(expectedFinalBlockHash);
             System.out.println("Verified merkle path two for block " + outerCurrentBlockNum
                     + " produces expected signed block hash " + expectedFinalBlockHash);
@@ -588,17 +655,22 @@ class BlockStateProofGeneratorTest {
                     + "eefb629a01a636206b797b8515764bbda54d5acb4daf54192e1c4e3165be31bc325f9ed2dc9d52342d8abfed0199e343d7"
                     + "888f162394ace1955f1e8d77ed429");
 
-    private static final Bytes FIRST_EXPECTED_PREVIOUS_BLOCK_HASH = HASH_OF_ZERO_384;
+    private static String toBase64(@NonNull final Bytes bytes) {
+        return Base64.getEncoder().encodeToString(bytes.toByteArray());
+    }
+
+    private static final Bytes FIRST_EXPECTED_PREVIOUS_BLOCK_HASH = BlockStreamManager.hashOfZero(DigestType.SHA_256);
 
     private static final long MIN_INDIRECT_BLOCK_NUM = 0L;
     private static final long MAX_BLOCK_NUM = 5L; // Includes the final pending (signed) block
 
     private static final Bytes[] EXPECTED_FIRST_SIBLING_HASHES = new Bytes[] {
-        Bytes.fromBase64("vsAhtPNo4waRNOASwrQwcIPTqb3SBuJOXw2G4T1mNmVZM+wrQTRllmgXqcIIoRcX"),
-        Bytes.fromBase64("szITXG1kGEeXF7DN1DvaAbyUh8cPXASqotbz+ddav6nSZkOGN3cg44MAtTf49zxN"),
-        Bytes.fromBase64("Neol38vLZtLyxE3J2b6Hah7XTQgwpu3e3TGlyDRlUbW7xA3gqXZnm3jGlXIY9S6j"),
+        // Branch 2: the tree of all previous block hashes, empty for block 0
+        Bytes.fromBase64("bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0="),
+        Bytes.fromBase64("SClQnwlwconuEXdikSFJ7Iq7g6Ks0rvjSpOm2iJ+/ZU="),
+        Bytes.fromBase64("YE+hY2z90nNLmg3f/uBfL9+rUVLQD9yk51xsOKYzhiY="),
         // The root of the reserved branches 9-16
-        Bytes.fromBase64("z352R/V4BwBvT1hw0iELW0A40ACyv6cRvO639KMnNGtQxh/aTlxoEQsDznCPuRz4")
+        Bytes.fromBase64("7Oy2QhhK0Ug+ZzyDrQxsWTl2tEHQcvkKUyPPPL+3AZc=")
     };
 
     private static final Map<Long, Timestamp> EXPECTED_BLOCK_TIMESTAMPS = Map.of(
@@ -618,17 +690,17 @@ class BlockStateProofGeneratorTest {
             TssSignedBlockProof.newBuilder().blockSignature(FINAL_SIGNATURE).build();
     private static final Map<Long, Bytes> EXPECTED_BLOCK_HASHES = Map.of(
             0L,
-            Bytes.fromBase64("uSoOcoQxNudtZLRHmr5xRGFJ6ulFlCpVkJGy66zOy79Eblzud7HXmWraO10BGNBe"),
+            Bytes.fromBase64("V345hVUmqBjgUXFO8KkmQkf77EAGcIVzjDXETX6F/R4="),
             1L,
-            Bytes.fromBase64("bf8uIiwZm7Q7HuyWNUyu0Vm7BKaU3EtfQMpn3cWMr3DndK3EIVcXVbI9vdRe4unV"),
+            Bytes.fromBase64("3GsDyydMAZ3g3DK8pVWMdPsSxvB94cNTqb7gz5j1r6o="),
             2L,
-            Bytes.fromBase64("4ZovgLbr2KOVk3zTgjVWclMgIDTRR5wVMA16s2SVlcBTYM46z9g4IO7jBngztTPl"),
+            Bytes.fromBase64("wUO3yVCW50idnsmqlSG1yUrOwKZWLIwhVjFdQCHLYgA="),
             3L,
-            Bytes.fromBase64("rV4yBTsadYQcKbiLNurMTskWz0WglVts057Xu3RBWgclDsjZMWLifvoqx1uJPNHi"),
+            Bytes.fromBase64("hf6Dm7XJb0//CDwRajIBp7N17m46QsnJimLKTJMx3e4="),
             4L,
-            Bytes.fromBase64("8Hz6NrOOi+iyv6fResvEZ8CQwzX1KVAlDZvpvrQBCqH79aY/8ElKowzPa9xYAdp2"),
+            Bytes.fromBase64("eOIkvG/KNPA45LINTMvM7u1+H7VlyS5+w/xUMq/wMs4="),
             5L,
-            Bytes.fromBase64("6gXxZsMRh+2XEFovdXrdnKPW1uX0p8JtlreK3MvMLJX1+WmnzBaW/WtfSazGuzWg"));
+            Bytes.fromBase64("ME7HUOdHG9Gb2xcUkBOFl8KQmWyQSWGZebt0eMB29+c="));
     private static final Map<Long, Bytes> EXPECTED_PREVIOUS_BLOCK_HASHES;
 
     static {

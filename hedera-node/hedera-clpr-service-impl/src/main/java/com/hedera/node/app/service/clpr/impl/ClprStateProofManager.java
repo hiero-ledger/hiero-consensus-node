@@ -238,8 +238,15 @@ public class ClprStateProofManager {
      */
     @Nullable
     public ManifestWithProof buildManifestStateProofWithValue() {
+        return buildManifestStateProofWithValue(false);
+    }
+
+    /** Builds a proof for channel completion, or includes the timestamp path for bundle recovery. */
+    @Nullable
+    public ManifestWithProof buildManifestStateProofWithValue(final boolean forRecovery) {
         return withProvenBinaryState("manifest", (binaryState, snapshot) -> {
-            final var proof = buildSingletonProof(binaryState, snapshot, ENDPOINT_MANIFEST_STATE_ID, "manifest");
+            final var proof =
+                    buildSingletonProof(binaryState, snapshot, ENDPOINT_MANIFEST_STATE_ID, "manifest", forRecovery);
             if (proof == null) {
                 return null;
             }
@@ -262,7 +269,7 @@ public class ClprStateProofManager {
     @Nullable
     private Bytes buildSingletonStateProof(final int stateId, @NonNull final String label) {
         return withProvenBinaryState(
-                label, (binaryState, snapshot) -> buildSingletonProof(binaryState, snapshot, stateId, label));
+                label, (binaryState, snapshot) -> buildSingletonProof(binaryState, snapshot, stateId, label, false));
     }
 
     /**
@@ -310,7 +317,8 @@ public class ClprStateProofManager {
             @NonNull final BinaryState binaryState,
             @NonNull final BlockProvenSnapshot snapshot,
             final int stateId,
-            @NonNull final String label) {
+            @NonNull final String label,
+            final boolean includeTimestamp) {
 
         // Precompute the block-root extension siblings appended to every leaf path
         // (same shape used by buildBundleStateProof: state root → block subtree root → hashed timestamp).
@@ -338,10 +346,12 @@ public class ClprStateProofManager {
             return null;
         }
 
-        final var allPaths = new ArrayList<MerklePath>();
-        allPaths.add(MerklePathBuilder.fromStateApi(singletonMerkleProof, digest)
+        final var singletonProof = MerklePathBuilder.fromStateApi(singletonMerkleProof, digest)
                 .appendSiblingNodes(extendedSibs)
-                .build());
+                .build();
+        final var allPaths = includeTimestamp
+                ? List.of(singletonProof, ClprProofTimestamp.pathFor(singletonProof, tsBytes, digest))
+                : List.of(singletonProof);
 
         final var tssProof = TssSignedBlockProof.newBuilder()
                 .blockSignature(snapshot.tssSignature())
@@ -733,6 +743,9 @@ public class ClprStateProofManager {
         // ── Endpoint manifest singleton leaf (spec §4.9) ──────────────────────────
         if (includeEndpointManifest) {
             addEndpointManifest(allPaths, binaryState, channelId, extendedSibs, digest);
+            if (nativeProof && allPaths.size() > 1) {
+                allPaths.add(ClprProofTimestamp.pathFor(allPaths.getFirst(), tsBytes, digest));
+            }
         }
 
         final var tssProof = TssSignedBlockProof.newBuilder()

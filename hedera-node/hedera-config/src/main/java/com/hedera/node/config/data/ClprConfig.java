@@ -6,6 +6,7 @@ import com.hedera.node.config.NodeProperty;
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
 import java.time.Duration;
+import java.util.Set;
 
 /**
  * Configuration for the CLPR (Cross Ledger Protocol) service.
@@ -59,6 +60,16 @@ public record ClprConfig(
         @ConfigProperty(defaultValue = "30000") long retryMaxDelayMs,
         @ConfigProperty(defaultValue = "5") @NetworkProperty int retryMaxAttempts,
         @ConfigProperty(defaultValue = "120") int circuitBreakerCooldownSeconds,
+        // Publish address-book domain names in this ledger's endpoint manifest, as Solo needs. It drives deterministic
+        // roster reconciliation, so set it through the network properties file (0.0.121), never per node.
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        boolean publishDnsEndpoints,
+        // Let this node resolve and dial DNS names that peers publish. The resolved IP must pass the same checks.
+        @ConfigProperty(defaultValue = "false") @NodeProperty
+        boolean allowDnsPeerEndpoints,
+        // Additional numeric IP ranges this node may dial for CLPR sync, such as a local test network.
+        // Ordinary public unicast addresses need no entry; other unicast ranges require an IPv4 or IPv6 CIDR.
+        @ConfigProperty(defaultValue = "") @NodeProperty Set<String> additionalPeerEndpointCidrs,
         // --- Local peer exclusion heuristics ---
         // When false, CLPR does not reject inbound requests or remove outbound candidates
         // due to local shunning or open circuit-breaker state.
