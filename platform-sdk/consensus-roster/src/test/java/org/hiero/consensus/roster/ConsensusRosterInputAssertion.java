@@ -12,7 +12,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Map;
-import org.hiero.consensus.model.roster.ConsensusLayerRosterInputs;
+import org.hiero.consensus.main.ConsensusLayerRosterInputs;
 
 /**
  * A utility class for asserting the correctness of {@link ConsensusLayerRosterInputs} in tests.
