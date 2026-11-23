@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl;
 
-import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.PENDING_CONNECTOR_COMMITMENTS_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CONNECTOR_REGISTRATION_HISTORY_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.clpr.ClprConnectorKey;
@@ -21,7 +21,7 @@ public class WritableConnectorRegistrationStore {
 
     public WritableConnectorRegistrationStore(@NonNull final WritableStates states) {
         requireNonNull(states);
-        this.state = states.get(PENDING_CONNECTOR_COMMITMENTS_STATE_ID);
+        this.state = states.get(CONNECTOR_REGISTRATION_HISTORY_STATE_ID);
     }
 
     public boolean contains(@NonNull final ClprConnectorKey connector) {

@@ -9,13 +9,19 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import com.hedera.hapi.block.stream.output.StateIdentifier;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifestConstruction;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.clpr.ClprThrottles;
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
+import com.hedera.hapi.platform.state.StateKey;
+import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.spi.WritableSingletonState;
@@ -66,6 +72,19 @@ class V0780ClprSchemaTest {
         assertThat(subject.getVersion())
                 .isEqualTo(
                         SemanticVersion.newBuilder().major(0).minor(78).patch(0).build());
+    }
+
+    @Test
+    void readsLegacyConnectorCommitmentsUnderTheRenamedState() throws ParseException {
+        // Legacy entries stored the same 32-byte commitment as both key and value in protobuf field 64.
+        final var commitment = new ProtoBytes(Bytes.wrap(new byte[32]));
+        final var encoded = Bytes.merge(Bytes.fromHex("8204220a20"), commitment.value());
+        assertThat(StateKey.PROTOBUF.parse(encoded).clprServiceIConnectorRegistrationHistoryOrThrow())
+                .isEqualTo(commitment);
+        assertThat(StateValue.PROTOBUF.parse(encoded).clprServiceIConnectorRegistrationHistoryOrThrow())
+                .isEqualTo(commitment);
+        assertThat(StateIdentifier.STATE_ID_CLPR_CONNECTOR_REGISTRATION_HISTORY.protoOrdinal())
+                .isEqualTo(64);
     }
 
     @Test

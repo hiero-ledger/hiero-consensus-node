@@ -312,7 +312,7 @@ message StateKey {
      * CLPR connector registration history, keyed by channel ID followed by connector ID.
      * Legacy entries use a 32-byte commitment hash.
      */
-    proto.ProtoBytes ClprService_I_PENDING_CONNECTOR_COMMITMENTS = 64;
+    proto.ProtoBytes ClprService_I_CONNECTOR_REGISTRATION_HISTORY = 64;
 
     /** The target hinTS construction ID for an adopted key's signing witness. */
     proto.ProtoLong HistoryService_I_HINTS_KEY_WITNESSES = 70;
@@ -717,7 +717,7 @@ message StateValue {
     /**
      * CLPR connector registration marker. Legacy commitment values mirror their keys.
      */
-    proto.ProtoBytes ClprService_I_PENDING_CONNECTOR_COMMITMENTS = 64;
+    proto.ProtoBytes ClprService_I_CONNECTOR_REGISTRATION_HISTORY = 64;
 
     /**
      * A state identifier for the CLPR endpoint manifest. Singleton state.

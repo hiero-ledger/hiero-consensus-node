@@ -10,7 +10,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BA
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CONNECTORS_STATE_ID;
-import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.PENDING_CONNECTOR_COMMITMENTS_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CONNECTOR_REGISTRATION_HISTORY_STATE_ID;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -144,10 +144,10 @@ class ClprRegisterConnectorHandlerTest {
 
         // Permanent channel-scoped registrations
         final var writableRegistrations = MapWritableKVState.<ProtoBytes, ProtoBytes>builder(
-                        PENDING_CONNECTOR_COMMITMENTS_STATE_ID, "ClprService:PENDING_CONNECTOR_COMMITMENTS")
+                        CONNECTOR_REGISTRATION_HISTORY_STATE_ID, "ClprService:CONNECTOR_REGISTRATION_HISTORY")
                 .build();
         lenient()
-                .when(writableStates.<ProtoBytes, ProtoBytes>get(PENDING_CONNECTOR_COMMITMENTS_STATE_ID))
+                .when(writableStates.<ProtoBytes, ProtoBytes>get(CONNECTOR_REGISTRATION_HISTORY_STATE_ID))
                 .thenReturn(writableRegistrations);
         registrations = new WritableConnectorRegistrationStore(writableStates);
 
