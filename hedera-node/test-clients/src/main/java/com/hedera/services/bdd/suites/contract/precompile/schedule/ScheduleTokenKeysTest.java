@@ -176,7 +176,10 @@ public class ScheduleTokenKeysTest {
     }
 
     private static byte[] ed25519Of(@NonNull final HapiSpec spec) {
-        return spec.registry().getKey(ScheduleTokenKeysTest.NEW_KEY).getEd25519().toByteArray();
+        return spec.registry()
+                .getKey(ScheduleTokenKeysTest.NEW_KEY)
+                .getEd25519()
+                .toByteArray();
     }
 
     private static Tuple keyEntry(@NonNull final BigInteger keyType, @NonNull final byte[] ed25519) {
