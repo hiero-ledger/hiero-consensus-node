@@ -843,6 +843,9 @@ jobs:
           relayIP=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get svc | grep 'relay-1' | grep -v ws | grep 7546 | awk '{print $3}'`
           relayUrl=http://${relayIP}:7546
 
+          echo "Relay config Debug:"
+          curl $relayUrl/config
+          
           NLGargs=" -K ECDSA -R -c ${NLG_c} -a ${{ inputs.nlg-accounts }} -relay $relayUrl"
 
           echo kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g \
