@@ -490,7 +490,8 @@ class CantonOpeningTest {
     }
 
     private static CantonAnchor.Anchor anchor(final String sync, final int group) {
-        return new CantonAnchor.Anchor(sync, 0L, group, new byte[32], new byte[32], new byte[32], "", 0L, 0, "app-one");
+        return new CantonAnchor.Anchor(
+                sync, 0L, group, new byte[32], new byte[32], new byte[32], "", 0L, 0, "app-one", "endpoints-one");
     }
 
     private static CantonAnchor.Anchor anchor() {

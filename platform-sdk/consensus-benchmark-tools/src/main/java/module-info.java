@@ -10,6 +10,7 @@ module org.hiero.consensus.benchmark.tools {
     requires transitive org.hiero.consensus.wiring.framework;
     requires transitive jmh.core;
     requires com.hedera.node.hapi;
+    requires com.swirlds.base;
     requires org.hiero.base.crypto;
     requires org.hiero.base.utility;
     requires org.hiero.consensus.utility;

@@ -205,7 +205,7 @@ The crons came back as triggers of the dispatch workflows, not as their own impl
 - **Reporting to Chewie:** `report-xts-result` calls `864` (below) with `suite-type: xts`, `if: always()` whenever a commit resolved. Disposition: `xts-proceed != true` → `not_run`; else `success`/`failure`/`cancelled` → `passed`/`failed`/`cancelled`.
 - One run per candidate: `concurrency: xts-<sha>`.
 
-### Suite-result reporting — `864-call-report-suite-result.yaml`
+### Suite-result reporting — `864-call-report-suite-status.yaml`
 
 Every CITR suite reports to Chewie's `POST /api/v1/suites/results` through `864`. Inputs: `suite-type` (validated: `mats`/`xts`/`sdpt`/`sdlt`/`sdct`/`mdlt`, plus the AdHoc types `adhoc_sdpt`/`adhoc_sdlt`/`adhoc_sdct`), `disposition` (validated against Chewie's vocabulary: `running`/`waiting_for_cluster` non-terminal; `passed`/`failed`/`performance_issue`/`isolated_issue`/`cancelled`/`not_run` terminal), one of `commit` (full SHA) or `build-number` (`build-00404`/`00404`/`404` → sent as integer `404`), and optional `branch`.
 

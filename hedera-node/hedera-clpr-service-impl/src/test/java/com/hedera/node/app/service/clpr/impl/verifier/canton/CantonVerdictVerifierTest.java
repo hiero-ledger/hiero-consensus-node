@@ -49,6 +49,7 @@ class CantonVerdictVerifierTest {
             HexFormat.of().parseHex("42b2d7afca2069ab5231b4384df922987122465472121b048f886edb5f8198c0");
     private static final long LSU_UPGRADE_TIME = 1_893_456_000_000_000L;
     private static final String APP = "app::1220" + "ff".repeat(32);
+    private static final String ENDPOINTS = "endpoints::1220" + "ee".repeat(32);
     private static final byte[] NO_ROTATIONS = new byte[0];
     private static final String VERDICT_SYNC = new String(SYNC, StandardCharsets.UTF_8);
 
@@ -315,7 +316,10 @@ class CantonVerdictVerifierTest {
             assertThat(next.successorSynchronizerId()).isEmpty();
             assertThat(next.upgradeTime()).isZero();
             assertThat(next.lsuSerial()).isZero();
+            // The app and the CLPR endpoint party survive the upgrade: dropping either would silently disarm the
+            // REPLY checks that verifyBundle makes against them.
             assertThat(next.app()).isEqualTo(APP);
+            assertThat(next.endpoints()).isEqualTo(ENDPOINTS);
         }
 
         @Test
@@ -359,6 +363,8 @@ class CantonVerdictVerifierTest {
             assertThat(next.successorSynchronizerId()).isEqualTo(LSU_SUCCESSOR);
             assertThat(next.upgradeTime()).isEqualTo(LSU_UPGRADE_TIME);
             assertThat(next.lsuSerial()).isEqualTo(1);
+            assertThat(next.app()).isEqualTo(APP);
+            assertThat(next.endpoints()).isEqualTo(ENDPOINTS);
         }
 
         @Test
@@ -401,7 +407,8 @@ class CantonVerdictVerifierTest {
                 successor,
                 upgradeTime,
                 successor.isEmpty() ? 0 : 1,
-                APP);
+                APP,
+                ENDPOINTS);
     }
 
     private static byte[] varint(final int v) {

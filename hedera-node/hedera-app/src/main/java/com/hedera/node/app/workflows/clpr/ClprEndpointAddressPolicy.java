@@ -6,8 +6,11 @@ import static java.util.Objects.requireNonNull;
 import com.google.common.net.InetAddresses;
 import com.hedera.node.app.workflows.clpr.ClprEndpointClientImpl.ClientException;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
+import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
 import java.util.List;
 import java.util.Set;
 
@@ -40,7 +43,28 @@ final class ClprEndpointAddressPolicy {
                     .map(Cidr::parse)
                     .toList();
 
-    private ClprEndpointAddressPolicy() {}
+    private final List<Cidr> additional;
+
+    private ClprEndpointAddressPolicy(final List<Cidr> additional) {
+        this.additional = additional;
+    }
+
+    /**
+     * Parses this node's additional ranges once, so later checks only examine the destination.
+     *
+     * @throws ClientException if any configured range is malformed
+     */
+    @NonNull
+    static ClprEndpointAddressPolicy of(@NonNull final Set<String> additionalCidrs) {
+        requireNonNull(additionalCidrs);
+        try {
+            return new ClprEndpointAddressPolicy(
+                    additionalCidrs.stream().map(Cidr::parse).toList());
+        } catch (final IllegalArgumentException e) {
+            throw new ClientException(
+                    "Invalid CLPR peer endpoint ranges " + additionalCidrs + ": " + e.getMessage(), e);
+        }
+    }
 
     /**
      * Checks a peer's numeric address and port, including any additional ranges configured by this node's operator.
@@ -50,27 +74,59 @@ final class ClprEndpointAddressPolicy {
     static InetSocketAddress addressFor(
             @NonNull final String host, final int port, @NonNull final Set<String> additionalCidrs) {
         requireNonNull(host);
-        requireNonNull(additionalCidrs);
+        return of(additionalCidrs).addressFor(host, port);
+    }
+
+    /** Parses {@code host} as a numeric literal and checks it against this policy. */
+    @NonNull
+    InetSocketAddress addressFor(@NonNull final String host, final int port) {
+        requireNonNull(host);
+        checkPort(host, port);
         try {
-            if (port < 1 || port > 65535) {
-                throw new IllegalArgumentException("port must be between 1 and 65535");
+            final var address = permittedAddress(literal(host), port);
+            if (address == null) {
+                throw new IllegalArgumentException("address must be within the permitted unicast ranges");
             }
-            final var address = literal(host);
-            // Validate every configured entry even when the peer itself is public.
-            final var additional = additionalCidrs.stream().map(Cidr::parse).toList();
-            final var bytes = address.getAddress();
-            if (address.isAnyLocalAddress()
-                    || address.isMulticastAddress()
-                    || (bytes.length == 4 && ((bytes[0] & 0xff) == 0 || (bytes[0] & 0xff) >= 224))) {
-                throw new IllegalArgumentException("address must identify a unicast destination");
-            }
-            if (!isPublic(bytes) && additional.stream().noneMatch(cidr -> cidr.contains(bytes))) {
-                throw new IllegalArgumentException("address is outside the permitted peer endpoint ranges");
-            }
-            return new InetSocketAddress(address, port);
+            return address;
         } catch (final IllegalArgumentException e) {
-            throw new ClientException("Invalid CLPR peer endpoint " + host + ":" + port + ": " + e.getMessage(), e);
+            throw invalid(host, port, e);
         }
+    }
+
+    /** Rejects ports outside {@code 1..65535}. */
+    static void checkPort(@NonNull final String host, final int port) {
+        if (port < 1 || port > 65535) {
+            throw invalid(host, port, new IllegalArgumentException("port must be between 1 and 65535"));
+        }
+    }
+
+    /** Returns the numeric dial target for a permitted IP and an already validated port. */
+    @Nullable
+    InetSocketAddress permittedAddress(@NonNull final InetAddress answer, final int port) {
+        if (answer instanceof Inet6Address v6 && v6.getScopeId() != 0) {
+            return null;
+        }
+        final InetAddress address;
+        try {
+            // Drop resolver-supplied names and normalize IPv4-mapped addresses before applying IPv4 rules.
+            address = InetAddress.getByAddress(answer.getAddress());
+        } catch (final UnknownHostException e) {
+            throw new IllegalArgumentException("invalid address length", e);
+        }
+        final var bytes = address.getAddress();
+        if (address.isAnyLocalAddress()
+                || address.isMulticastAddress()
+                || (bytes.length == 4 && ((bytes[0] & 0xff) == 0 || (bytes[0] & 0xff) >= 224))) {
+            return null;
+        }
+        if (!isPublic(bytes) && additional.stream().noneMatch(cidr -> cidr.contains(bytes))) {
+            return null;
+        }
+        return new InetSocketAddress(address, port);
+    }
+
+    private static ClientException invalid(final String host, final int port, final IllegalArgumentException e) {
+        return new ClientException("Invalid CLPR peer endpoint " + host + ":" + port + ": " + e.getMessage(), e);
     }
 
     private static InetAddress literal(final String value) {

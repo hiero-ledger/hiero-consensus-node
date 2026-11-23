@@ -50,6 +50,7 @@ class CantonTopologyVerifierTest {
     private static final byte[] MEDIATOR2 = hex("8e1a7f24091ce78a600a76759af67ac913bf3ff954e8eb8a166c5a1cb184892c");
 
     private static final String APP = "app::1220" + "ff".repeat(32);
+    private static final String ENDPOINTS = "endpoints::1220" + "ee".repeat(32);
     private static final String LSU_SYNCHRONIZER =
             "probe::122042b2d7afca2069ab5231b4384df922987122465472121b048f886edb5f8198c0::35-0";
     private static final byte[] LSU_NAMESPACE = hex("42b2d7afca2069ab5231b4384df922987122465472121b048f886edb5f8198c0");
@@ -122,6 +123,9 @@ class CantonTopologyVerifierTest {
             final CantonAnchor.Anchor out = r.newAnchor();
             assertThat(out.ownersHash()).isEqualTo(MiscCryptoUtils.keccak256DigestOf(r.newOwnerSet()));
             assertThat(out.mediatorsHash()).isEqualTo(MiscCryptoUtils.keccak256DigestOf(r.newMediatorSet()));
+            // A rotation changes the trust sets only: the channel's app and CLPR endpoint party are untouched.
+            assertThat(out.app()).isEqualTo(APP);
+            assertThat(out.endpoints()).isEqualTo(ENDPOINTS);
         }
 
         @Test
@@ -1027,7 +1031,8 @@ class CantonTopologyVerifierTest {
                 "",
                 0L,
                 0,
-                APP);
+                APP,
+                ENDPOINTS);
     }
 
     private static byte[] bytesOf(final CantonRlp.Slice s) {
@@ -1199,7 +1204,8 @@ class CantonTopologyVerifierTest {
                 successor,
                 upgradeTime,
                 lsuSerial,
-                APP);
+                APP,
+                ENDPOINTS);
     }
 
     private static CantonTopologyVerifier.RotationResult run(

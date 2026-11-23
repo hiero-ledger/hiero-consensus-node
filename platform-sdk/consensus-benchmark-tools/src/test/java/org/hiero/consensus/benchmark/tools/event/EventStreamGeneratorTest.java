@@ -14,7 +14,6 @@ import java.util.Map;
 import java.util.Random;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.CryptoUtils;
-import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.SignatureType;
 import org.hiero.base.crypto.SigningSchema;
@@ -22,7 +21,6 @@ import org.hiero.consensus.event.validation.DefaultEventFieldValidator;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.main.model.EventDescriptorWrapper;
 import org.hiero.consensus.main.model.NodeId;
-import org.hiero.consensus.model.event.EventHashFactory;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -149,27 +147,6 @@ class EventStreamGeneratorTest {
         final List<PlatformEvent> events = EventStreamGenerator.generateUnsignedEvents(shape, ROSTER, COUNT, SEED);
 
         assertThat(EventStreamGenerator.receive(events)).allMatch(validator::isValid);
-    }
-
-    @Test
-    void cutoverToSha256() {
-        final DefaultEventFieldValidator validator =
-                new DefaultEventFieldValidator(new NoOpMetrics(), Time.getCurrent(), TRANSACTION_LIMITS);
-        EventHashFactory.initialize(0);
-        try {
-            final List<PlatformEvent> events = EventStreamGenerator.generateUnsignedEvents(MIXED, ROSTER, COUNT, SEED);
-
-            assertThat(events).allSatisfy(event -> {
-                assertThat(event.getHash().getDigestType()).isEqualTo(DigestType.SHA_256);
-                assertThat(event.getAllParents())
-                        .allSatisfy(parent ->
-                                assertThat(parent.hash().getDigestType()).isEqualTo(DigestType.SHA_256));
-            });
-            assertThat(EventStreamGenerator.receive(events)).allMatch(validator::isValid);
-        } finally {
-            // the default, so that the other tests hash with SHA-384
-            EventHashFactory.initialize(Long.MAX_VALUE);
-        }
     }
 
     @ParameterizedTest

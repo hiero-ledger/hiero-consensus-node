@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.clpr.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
+import static com.hedera.node.app.service.clpr.impl.roster.ClprEndpointBuilder.hasNonNumericHost;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
@@ -71,6 +72,13 @@ public class ClprEndpointPublicationHandler extends AbstractClprHandler {
         final long publisherNodeId = context.creatorInfo().nodeId();
 
         final var clprConfig = context.configuration().getConfigData(ClprConfig.class);
+        if (!clprConfig.publishDnsEndpoints() && hasNonNumericHost(op.endpointOrThrow())) {
+            // Leave the publisher eligible to contribute its numeric endpoint.
+            log.info(
+                    "[Clpr] dropped non-numeric endpoint from node{} while DNS publication is disabled",
+                    publisherNodeId);
+            return;
+        }
         final var publication = toStatePublication(op);
         final var constructionStore =
                 context.storeFactory().writableStore(WritableEndpointManifestConstructionStore.class);

@@ -11,11 +11,11 @@ import org.junit.jupiter.api.Test;
 
 class VerifiersRegistryTest {
     private static final Bytes CANTON_EVM_ADDRESS =
-            Bytes.wrap(new byte[] {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01, (byte) 0x72});
+            Bytes.wrap(new byte[] {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01, (byte) 0x73});
 
     @Test
     void resolvesCantonByContractNum() {
-        final var cid = ContractID.newBuilder().contractNum(0x172L).build();
+        final var cid = ContractID.newBuilder().contractNum(0x173L).build();
         assertThat(VerifiersRegistry.find(cid)).containsInstanceOf(CantonProofVerifier.class);
     }
 
@@ -27,7 +27,7 @@ class VerifiersRegistryTest {
 
     @Test
     void exposesCantonIdentifiersForCallersThatNeedThem() {
-        assertThat(VerifiersRegistry.CANTON_CONTRACT_NUM).isEqualTo(0x172L);
+        assertThat(VerifiersRegistry.CANTON_CONTRACT_NUM).isEqualTo(0x173L);
         assertThat(VerifiersRegistry.CANTON_EVM_ADDRESS).isEqualTo(CANTON_EVM_ADDRESS);
     }
 

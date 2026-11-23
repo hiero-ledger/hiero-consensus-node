@@ -102,6 +102,34 @@ class ClprEndpointManifestReconcilerTest {
         assertThat(captor.getValue().targetNodeIds()).containsExactly(1L);
     }
 
+    @Test
+    void dnsModePublishesAndReconcilesTheAddressBookHostnameVerbatim() {
+        final var host = "Network-Node1.test.svc.cluster.local.";
+        stubNode(1L, endpointFor(host, 50211));
+        final var dnsConfig =
+                ClprConfigBuilder.newBuilder().publishDnsEndpoints(true).build();
+        final var endpoint = selfEndpoint(1L, host, 50211);
+        subject.openConstructionIfSelfChanged(1L, manifest(1L, List.of()), null, nodeStore, dnsConfig, NOW);
+        verify(submissions).submitEndpointPublication(endpoint);
+
+        given(manifestStore.get()).willReturn(manifest(2L, List.of(endpoint)));
+        subject.openConstructionOnRosterChange(
+                NOW, rosterOf(1L), manifestStore, constructionStore, nodeStore, dnsConfig);
+        verify(constructionStore, never()).put(any());
+    }
+
+    @Test
+    void changingDnsModeRechecksAlreadySettledPublicationInAddressBookOrder() {
+        final var host = "network-node1.test.svc.cluster.local";
+        stubNode(1L, endpointFor(host, 50000), NODE_1_HAPI);
+        final var manifest = manifest(1L, List.of(selfEndpoint(1L, "10.0.0.1", 50211)));
+        subject.openConstructionIfSelfChangedUntilSettled(1L, manifest, null, nodeStore, config, NOW);
+        final var dnsConfig =
+                ClprConfigBuilder.newBuilder().publishDnsEndpoints(true).build();
+        subject.openConstructionIfSelfChangedUntilSettled(1L, manifest, null, nodeStore, dnsConfig, NOW);
+        verify(submissions).submitEndpointPublication(selfEndpoint(1L, host, 50000));
+    }
+
     @Nested
     @DisplayName("openConstructionIfSelfChanged (startup-gated self-publication)")
     class PublishSelfIfChanged {
@@ -327,12 +355,42 @@ class ClprEndpointManifestReconcilerTest {
         @DisplayName("no construction in flight → reconcile is a no-op (no state writes)")
         void reconcileNoOpWhenNoConstruction() {
             given(constructionStore.get()).willReturn(null);
+            given(manifestStore.get()).willReturn(manifest(1L, List.of(endpoint("10.0.0.1", 50211, new byte[] {1}))));
 
             reconcile();
 
             verify(manifestStore, never()).put(any());
             verify(constructionStore, never()).put(any());
             verify(constructionStore, never()).clear();
+        }
+
+        @Test
+        void disablingDnsRebuildsTheManifestWithoutWaitingForAnUpgrade() {
+            final var dns = endpoint("node1.svc", 50211, new byte[] {1});
+            final var numeric = endpoint("10.0.0.2", 50211, new byte[] {2});
+            given(manifestStore.get()).willReturn(manifest(7L, List.of(dns, numeric)));
+            subject.reconcile(
+                    NOW,
+                    rosterOf(1L, 2L),
+                    manifestStore,
+                    constructionStore,
+                    ClprConfigBuilder.newBuilder().publishDnsEndpoints(true).build());
+            verify(constructionStore, never()).put(any());
+
+            reconcile();
+            final var opened = captureOpenedConstruction();
+            assertThat(opened.constructionId()).isEqualTo(8L);
+            assertThat(opened.targetNodeIds()).containsExactly(1L, 2L);
+
+            // A DNS publication already in flight when the flag changed cannot be carried into the new manifest.
+            given(constructionStore.get())
+                    .willReturn(opened.copyBuilder()
+                            .gatheredPublications(List.of(gathered(1L, dns), gathered(2L, numeric)))
+                            .build());
+            reconcile();
+            final var written = captureWrittenManifest();
+            assertThat(written.endpoints()).containsExactly(numeric);
+            assertThat(written.version()).isEqualTo(8L);
         }
 
         @Test
@@ -528,7 +586,7 @@ class ClprEndpointManifestReconcilerTest {
     }
 
     private void reconcile() {
-        subject.reconcile(NOW, manifestStore, constructionStore, config);
+        subject.reconcile(NOW, rosterOf(1L, 2L), manifestStore, constructionStore, config);
     }
 
     private ClprEndpointManifest captureWrittenManifest() {
@@ -537,7 +595,7 @@ class ClprEndpointManifestReconcilerTest {
         return captor.getValue();
     }
 
-    /** Stub a full address-book node so {@code ClprEndpointBuilder.buildFor}/{@code ipAddressOf} work. */
+    /** Stub a full address-book node so {@code ClprEndpointBuilder.buildFor}/{@code hostOf} work. */
     private void stubNode(final long nodeId, final ServiceEndpoint... endpoints) {
         org.mockito.Mockito.lenient()
                 .when(nodeStore.get(nodeId))

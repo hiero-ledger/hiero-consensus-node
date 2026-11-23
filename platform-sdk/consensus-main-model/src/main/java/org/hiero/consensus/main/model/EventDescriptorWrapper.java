@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.main.model;
 
+import static org.hiero.consensus.main.model.ConsensusLayerConstants.DEFAULT_EVENT_DIGEST_TYPE;
+
 import com.hedera.hapi.platform.event.EventDescriptor;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 
 /**
@@ -17,7 +18,7 @@ public class EventDescriptorWrapper {
 
     private EventDescriptorWrapper(@NonNull final EventDescriptor eventDescriptor) {
         this.eventDescriptor = eventDescriptor;
-        this.hash = new Hash(eventDescriptor.hash(), DigestType.SHA_256);
+        this.hash = new Hash(eventDescriptor.hash(), DEFAULT_EVENT_DIGEST_TYPE);
         this.creator = NodeId.of(eventDescriptor.creatorNodeId());
     }
 

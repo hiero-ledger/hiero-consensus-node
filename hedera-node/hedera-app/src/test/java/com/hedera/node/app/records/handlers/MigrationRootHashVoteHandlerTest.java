@@ -204,6 +204,22 @@ class MigrationRootHashVoteHandlerTest {
     }
 
     @Test
+    void handleIsNoopWhenVotingDeadlineHasPassed() {
+        given(context.creatorInfo()).willReturn(nodeInfo);
+        given(nodeInfo.nodeId()).willReturn(NODE_ID);
+        given(context.storeFactory()).willReturn(storeFactory);
+        given(storeFactory.writableStore(WritableBlockRecordStore.class)).willReturn(store);
+        given(store.isVotingComplete()).willReturn(false);
+        given(store.isVotingDeadlinePassed()).willReturn(true);
+
+        assertDoesNotThrow(() -> subject.handle(context));
+
+        verify(store, never()).putVoteIfAbsent(anyLong(), any(), anyInt());
+        verify(store, never()).applyFinalizedValuesAndMarkComplete(any(), any(), anyLong());
+        verify(blockRecordManager, never()).syncFinalizedMigrationHashes(any(), any(), anyLong());
+    }
+
+    @Test
     void handleFinalizesWhenTallyExceedsOneThirdThreshold() {
         final var vote = MigrationRootHashVoteTransactionBody.newBuilder()
                 .previousWrappedRecordBlockRootHash(Bytes.wrap(new byte[32]))
