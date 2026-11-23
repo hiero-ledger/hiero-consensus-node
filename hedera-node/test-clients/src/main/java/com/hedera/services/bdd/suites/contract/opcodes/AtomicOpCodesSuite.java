@@ -32,8 +32,6 @@ import static com.hedera.services.bdd.suites.contract.Utils.captureOneChildCreat
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import static com.hedera.services.bdd.suites.contract.Utils.mirrorAddrWith;
 import static com.hedera.services.bdd.suites.utils.contracts.SimpleBytesResult.bigIntResult;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OBTAINER_SAME_CONTRACT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
@@ -473,12 +471,11 @@ class AtomicOpCodesSuite {
                                         SELF_DESTRUCT_CALLABLE_CONTRACT,
                                         DESTROY_EXPLICIT_BENEFICIARY,
                                         () -> mirrorAddrWith(contractId.get()))
-                                .hasKnownStatus(OBTAINER_SAME_CONTRACT_ID)
                                 .batchKey(BATCH_OPERATOR))
-                        .payingWith(BATCH_OPERATOR)
-                        .hasKnownStatusFrom(INNER_TRANSACTION_FAILED),
+                        .payingWith(BATCH_OPERATOR),
+                // (EIP-6780) A contract not created in this transaction is not deleted, so nothing changes
                 getContractInfo(SELF_DESTRUCT_CALLABLE_CONTRACT)
-                        .has(contractWith().balance(ONE_HBAR)));
+                        .has(contractWith().isNotDeleted().balance(ONE_HBAR)));
     }
 
     // This test is failing with CONSENSUS_GAS_EXHAUSTED prior the refactor.

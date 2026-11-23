@@ -148,6 +148,12 @@ public class SelfDestructSuite {
         }
 
         @HapiTest
+        @DisplayName("cannot SELFDESTRUCT with same contract as beneficiary")
+        final Stream<DynamicTest> selfDestructToSelfFailsWhenContractIsDeleted46() {
+            return selfDestructToSelfFailsWhenContractIsDeleted(HapiSuite.EVM_VERSION_046);
+        }
+
+        @HapiTest
         @DisplayName("cannot update a contract after SELFDESTRUCT")
         final Stream<DynamicTest> deletedContractsCannotBeUpdated46() {
             return deletedContractsCannotBeUpdated(HapiSuite.EVM_VERSION_046);
@@ -198,9 +204,9 @@ public class SelfDestructSuite {
         }
 
         @HapiTest
-        @DisplayName("cannot SELFDESTRUCT with same contracts as beneficiary and balance")
-        final Stream<DynamicTest> selfDestructFailsWhenContractItselfIsBeneficiaryAndHasBalance50() {
-            return selfDestructSucceedsWhenContractSelfDestructsItselfWithTokens(HapiSuite.EVM_VERSION_050);
+        @DisplayName("SELFDESTRUCT with same contract as beneficiary changes nothing, when previously created")
+        final Stream<DynamicTest> selfDestructToSelfChangesNothingWhenPreviouslyCreated50() {
+            return selfDestructToSelfChangesNothingWhenPreviouslyCreated(HapiSuite.EVM_VERSION_050);
         }
 
         @HapiTest
@@ -304,20 +310,38 @@ public class SelfDestructSuite {
                         .has(contractWith().balance(ONE_HBAR)));
     }
 
-    final Stream<DynamicTest> selfDestructSucceedsWhenContractSelfDestructsItselfWithTokens(
-            @NonNull final String evmVersion) {
+    final Stream<DynamicTest> selfDestructToSelfFailsWhenContractIsDeleted(@NonNull final String evmVersion) {
         final AtomicReference<ContractID> contractId = new AtomicReference<>();
         return hapiTest(
                 contractCreate(SELF_DESTRUCT_CALLABLE_CONTRACT)
                         .balance(ONE_HBAR)
                         .exposingContractIdTo(contractId::set),
+                // Before EIP-6780 the contract would be deleted, and its hbar cannot be burned
                 contractCall(
                                 SELF_DESTRUCT_CALLABLE_CONTRACT,
                                 DESTROY_EXPLICIT_BENEFICIARY,
                                 () -> mirrorAddrWith(contractId.get()))
                         .hasKnownStatus(OBTAINER_SAME_CONTRACT_ID),
                 getContractInfo(SELF_DESTRUCT_CALLABLE_CONTRACT)
-                        .has(contractWith().balance(ONE_HBAR)));
+                        .has(contractWith().isNotDeleted().balance(ONE_HBAR)));
+    }
+
+    final Stream<DynamicTest> selfDestructToSelfChangesNothingWhenPreviouslyCreated(@NonNull final String evmVersion) {
+        final var selfDestructTxn = "selfDestructToSelf";
+        final AtomicReference<ContractID> contractId = new AtomicReference<>();
+        return hapiTest(
+                contractCreate(SELF_DESTRUCT_CALLABLE_CONTRACT)
+                        .balance(ONE_HBAR)
+                        .exposingContractIdTo(contractId::set),
+                // (EIP-6780) A contract not created in this transaction is not deleted, so there is nothing to do
+                contractCall(
+                                SELF_DESTRUCT_CALLABLE_CONTRACT,
+                                DESTROY_EXPLICIT_BENEFICIARY,
+                                () -> mirrorAddrWith(contractId.get()))
+                        .via(selfDestructTxn),
+                getTxnRecord(selfDestructTxn).andAllChildRecords().hasNonStakingChildRecordCount(0),
+                getContractInfo(SELF_DESTRUCT_CALLABLE_CONTRACT)
+                        .has(contractWith().isNotDeleted().balance(ONE_HBAR)));
     }
 
     final Stream<DynamicTest> selfDestructViaCallLocalWithAccount999ResultsInLocalCallModificationPrecheckFailed(
@@ -352,12 +376,11 @@ public class SelfDestructSuite {
         final var contract = SELF_DESTRUCT_CALLABLE_CONTRACT;
         final var beneficiary = BENEFICIARY;
 
-        final var expectedStatus =
-                switch (evmVersion) {
-                    case HapiSuite.EVM_VERSION_046 -> INVALID_CONTRACT_ID;
-                    case HapiSuite.EVM_VERSION_050 -> SUCCESS;
-                    default -> throw new IllegalArgumentException("unexpected evm version: " + evmVersion);
-                };
+        final var expectedStatus = switch (evmVersion) {
+            case HapiSuite.EVM_VERSION_046 -> INVALID_CONTRACT_ID;
+            case HapiSuite.EVM_VERSION_050 -> SUCCESS;
+            default -> throw new IllegalArgumentException("unexpected evm version: " + evmVersion);
+        };
 
         return hapiTest(
                 uploadInitCode(contract),
@@ -373,12 +396,11 @@ public class SelfDestructSuite {
             @NonNull final SpecContract quickSelfDestructContract,
             @NonNull final SpecContract selfDestructCallableContract) {
 
-        final var expectedDeletionStatus =
-                switch (evmVersion) {
-                    case HapiSuite.EVM_VERSION_046 -> true;
-                    case HapiSuite.EVM_VERSION_050 -> true;
-                    default -> throw new IllegalArgumentException("unexpected evm version: " + evmVersion);
-                };
+        final var expectedDeletionStatus = switch (evmVersion) {
+            case HapiSuite.EVM_VERSION_046 -> true;
+            case HapiSuite.EVM_VERSION_050 -> true;
+            default -> throw new IllegalArgumentException("unexpected evm version: " + evmVersion);
+        };
 
         return hapiTest(
                 withOpContext((spec, opLog) -> {
@@ -408,12 +430,11 @@ public class SelfDestructSuite {
             @NonNull final SpecContract quickSelfDestructContract,
             @NonNull final SpecContract selfDestructCallableContract) {
 
-        final var expectedDeletionStatus =
-                switch (evmVersion) {
-                    case HapiSuite.EVM_VERSION_046 -> true;
-                    case HapiSuite.EVM_VERSION_050 -> false;
-                    default -> throw new IllegalArgumentException("unexpected evm version: " + evmVersion);
-                };
+        final var expectedDeletionStatus = switch (evmVersion) {
+            case HapiSuite.EVM_VERSION_046 -> true;
+            case HapiSuite.EVM_VERSION_050 -> false;
+            default -> throw new IllegalArgumentException("unexpected evm version: " + evmVersion);
+        };
 
         return hapiTest(
                 withOpContext((spec, opLog) -> {

@@ -12,6 +12,13 @@ contract SelfDestructLifecycle {
         completedDestructions++;
     }
 
+    function destroyChildToItself() external payable {
+        DestructibleChild child = new DestructibleChild{value: msg.value}();
+        // The child names itself, so it can be deleted only when it holds no hbar that would be burned.
+        child.destroy(payable(address(child)));
+        completedDestructions++;
+    }
+
     function destroyChildren(uint count, bool repeat, bool revertAfter) external payable {
         for (uint i = 0; i < count; i++) {
             DestructibleChild child = new DestructibleChild{value: msg.value / count}();

@@ -93,8 +93,10 @@ Legend of the symbols used in the tables below:
 2. For addresses in range 0x2EF → 0x3E8 (0.0.751 → 0.0.1000):
 - success, if account exists and has `receiverSigRequired` == false;
 - success, if account exists and has `receiverSigRequired` == true and account is `sender`;
+- success with nothing deleted or transferred, if the beneficiary is the contract calling `SelfDestruct` and the contract is not deleted (it was not created in the same transaction, Cancun and later EVM versions);
+- success with the contract deleted and nothing transferred, if the beneficiary is the contract calling `SelfDestruct`, the contract is deleted (it was created in the same transaction, Cancun and later EVM versions) and it holds no hbar;
 - fail in some failing scenarios such as:
-- beneficiary same as account-to-be-deleted - fail with status `SELF_DESTRUCT_TO_SELF`;
+- beneficiary same as account-to-be-deleted, when the contract is deleted and holds hbar, or the EVM version is older than Cancun - fail with status `SELF_DESTRUCT_TO_SELF`, because hbar cannot be burned;
 - contract-to-be-deleted is a token treasury - fail with status `CONTRACT_IS_TREASURY`;
 - contract-to-be-deleted has a positive fungible token balance - fail with status `TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES`;
 - contract-to-be-deleted owns NFTs - fail with status `CONTRACT_STILL_OWNS_NFTS`;
@@ -111,7 +113,7 @@ Legend of the symbols used in the tables below:
 | 0x16a → 0x2EE (0.0.362 → 0.0.750)    |                     ✅                      | ❌ - INVALID_SOLIDITY_ADDRESS                                                                                                                                                                              |
 | 0x2EF → 0x3E8 (0.0.751 → 0.0.1000)   |                     ✅                      | ✅ - if account exists [0.0.800-0.0.999]<br/>❌ - INVALID_SOLIDITY_ADDRESS if account does not exist [0.0.751 - 0.0.799]<br/>❌ - some failing scenarios described above                                     |
 | 0x3E8 → ♾️                           |                     ✅                      | ✅ - if account exists and has receiverSigRequired = false<br/>✅ - if (account exists) and (account has receiverSigRequired = true) and (account is sender)<br/>❌ - some failing scenarios described above |
-| beneficiary same as contract address | ✅ burns the eth and destructs the contract | ❌ - fails with SELF_DESTRUCT_TO_SELF                                                                                                                                                                      |
+| beneficiary same as contract address | ✅ burns the eth if the contract is deleted | ✅ - no changes, if the contract is not deleted<br/>✅ - contract is deleted, if it holds no hbar (Cancun and later EVM versions)<br/>❌ - fails with SELF_DESTRUCT_TO_SELF otherwise                        |
 
 ### Call operations that do not transfer value (CallOp, DelegateCallOp, CallCodeOp, StaticCallOp)
 

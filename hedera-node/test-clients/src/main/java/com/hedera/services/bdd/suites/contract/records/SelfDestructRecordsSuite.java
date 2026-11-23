@@ -53,6 +53,7 @@ import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.EventualStreamAssertion;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItems;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsAssertion;
+import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -117,6 +118,42 @@ public class SelfDestructRecordsSuite {
                         .payingWith(BENEFICIARY)
                         .via(TXN),
                 createdChildrenAreDeleted(TXN, 1),
+                finish());
+    }
+
+    @HapiTest
+    @DisplayName("name a CREATE child without hbar as its own beneficiary when it destroys itself to itself")
+    final Stream<DynamicTest> childNamingItselfWithoutHbarIsDeleted() {
+        return hapiTest(
+                // A null beneficiary means the deletion must name the deleted contract itself
+                deletionRecords(TXN, FINISHED, 1, null, null, SUCCESS),
+                startNewRecordFile(),
+                cryptoCreate(BENEFICIARY).balance(ONE_HUNDRED_HBARS),
+                contractCreate(FACTORY),
+                // Create an unfunded child that names itself in SELFDESTRUCT; there is no hbar to burn.
+                contractCall(FACTORY, "destroyChildToItself")
+                        .gas(1_000_000)
+                        .payingWith(BENEFICIARY)
+                        .via(TXN),
+                createdChildrenAreDeleted(TXN, 1),
+                finish());
+    }
+
+    @HapiTest
+    @DisplayName("omit a deletion when a funded CREATE child names itself as beneficiary")
+    final Stream<DynamicTest> childNamingItselfWithHbarIsNotDeleted() {
+        return hapiTest(
+                deletionRecords(TXN, FINISHED, 0, BENEFICIARY, null, CONTRACT_REVERT_EXECUTED),
+                startNewRecordFile(),
+                cryptoCreate(BENEFICIARY).balance(ONE_HUNDRED_HBARS),
+                contractCreate(FACTORY),
+                // hbar cannot be burned, so the child's SELFDESTRUCT halts and the factory call reverts.
+                contractCall(FACTORY, "destroyChildToItself")
+                        .sending(ONE_HBAR)
+                        .gas(1_000_000)
+                        .payingWith(BENEFICIARY)
+                        .via(TXN)
+                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED),
                 finish());
     }
 
@@ -386,12 +423,13 @@ public class SelfDestructRecordsSuite {
     /**
      * Validates the serialized synthetic bodies and records only after a later marker transaction has arrived.
      * A null target means every successfully created child should have exactly one deletion.
+     * A null beneficiary means every deletion should name the deleted contract itself.
      */
     public static EventualStreamAssertion deletionRecords(
             @NonNull final String txn,
             @NonNull final String finishedTxn,
             final int count,
-            @NonNull final String beneficiary,
+            @Nullable final String beneficiary,
             @Nullable final String target,
             @NonNull final ResponseCodeEnum parentStatus) {
         return streamMustIncludePassFrom(spec -> new VisibleItemsAssertion(
@@ -432,7 +470,7 @@ public class SelfDestructRecordsSuite {
             @NonNull final HapiSpec spec,
             @NonNull final VisibleItems items,
             final int count,
-            @NonNull final String beneficiary,
+            @Nullable final String beneficiary,
             @Nullable final String target,
             @NonNull final ResponseCodeEnum parentStatus) {
         assertDeletions(spec, items, count, beneficiary, target, parentStatus, null);
@@ -442,7 +480,7 @@ public class SelfDestructRecordsSuite {
             @NonNull final HapiSpec spec,
             @NonNull final VisibleItems items,
             final int count,
-            @NonNull final String beneficiary,
+            @Nullable final String beneficiary,
             @Nullable final String target,
             @NonNull final ResponseCodeEnum parentStatus,
             @Nullable final VisibleItems priorCreationItems) {
@@ -483,7 +521,14 @@ public class SelfDestructRecordsSuite {
             assertEquals(SUCCESS, deletion.finalStatus());
             assertTrue(body.getContractID().getContractNum() > 0, "Use a canonical numeric contract ID");
             assertEquals(body.getContractID(), record.getReceipt().getContractID());
-            assertEquals(spec.registry().getAccountID(beneficiary), body.getTransferAccountID());
+            final var expectedBeneficiary = beneficiary == null
+                    ? AccountID.newBuilder()
+                            .setShardNum(body.getContractID().getShardNum())
+                            .setRealmNum(body.getContractID().getRealmNum())
+                            .setAccountNum(body.getContractID().getContractNum())
+                            .build()
+                    : spec.registry().getAccountID(beneficiary);
+            assertEquals(expectedBeneficiary, body.getTransferAccountID());
             assertFalse(body.hasTransferContractID());
             assertEquals(0, record.getTransactionFee(), "EVM gas already paid for SELFDESTRUCT");
             assertEquals(
