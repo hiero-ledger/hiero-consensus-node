@@ -17,6 +17,7 @@ import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.precompile.PrecompiledContract.PrecompileContractResult;
 
@@ -201,6 +202,22 @@ public interface Call {
      */
     default boolean allowsStaticFrame() {
         return false;
+    }
+
+    /**
+     * Returns the result of failing this call before it dispatches anything, or null if the call is not pre-empted.
+     * A failure that cannot be expressed in the body of a scheduled call has to be reported here, as the body that
+     * would be scheduled looks valid.
+     * <p>
+     * Used by {@code ScheduleNativeCall} to check the inner call before scheduling it, and by the calls themselves in
+     * {@code execute()} to report the same failure when they are called directly.
+     *
+     * @param gasRequirement the gas to charge for the pre-empted call
+     * @return the result of the pre-empted call, or null if the call goes ahead
+     */
+    @Nullable
+    default PricedResult preemptedResult(final long gasRequirement) {
+        return null;
     }
 
     /**

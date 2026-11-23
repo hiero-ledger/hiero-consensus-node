@@ -122,14 +122,9 @@ public class ClassicCreatesCall extends AbstractCall {
                     INVALID_TRANSACTION_BODY,
                     false);
         }
-        if (preemptingFailureStatus != null) {
-            // Report the failure without dispatching or collecting the fee, so nothing of the create is applied
-            return completionWith(
-                    FIXED_GAS_COST,
-                    systemContractOperations()
-                            .externalizePreemptedDispatch(syntheticCreate, preemptingFailureStatus, TOKEN_CREATE),
-                    RC_AND_ADDRESS_ENCODER.encode(
-                            Tuple.of((long) preemptingFailureStatus.protoOrdinal(), ZERO_ADDRESS)));
+        final var preempted = preemptedResult(FIXED_GAS_COST);
+        if (preempted != null) {
+            return preempted;
         }
         final var timestampSeconds = frame.getBlockValues().getTimestamp();
         final var timestamp = Timestamp.newBuilder().seconds(timestampSeconds).build();
@@ -198,6 +193,21 @@ public class ClassicCreatesCall extends AbstractCall {
             }
             return gasPlus(successResult(encodedOutput, FIXED_GAS_COST, recordBuilder), status, false, nonGasCost);
         }
+    }
+
+    @Nullable
+    @Override
+    public PricedResult preemptedResult(final long gasRequirement) {
+        if (syntheticCreate != null && preemptingFailureStatus != null) {
+            // Report the failure without dispatching or collecting the fee, so nothing of the create is applied
+            return completionWith(
+                    gasRequirement,
+                    systemContractOperations()
+                            .externalizePreemptedDispatch(syntheticCreate, preemptingFailureStatus, TOKEN_CREATE),
+                    RC_AND_ADDRESS_ENCODER.encode(
+                            Tuple.of((long) preemptingFailureStatus.protoOrdinal(), ZERO_ADDRESS)));
+        }
+        return null;
     }
 
     @NonNull

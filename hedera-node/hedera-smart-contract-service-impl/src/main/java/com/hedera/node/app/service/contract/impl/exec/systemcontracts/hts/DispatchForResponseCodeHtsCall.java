@@ -339,11 +339,9 @@ public class DispatchForResponseCodeHtsCall extends AbstractCall {
         }
         final var gasRequirement =
                 dispatchGasCalculator.gasRequirement(syntheticBody, gasCalculator, enhancement, senderId);
-        if (preemptingFailureStatus != null) {
-            // Report the failure without dispatching, so no part of the synthetic body is applied
-            final var preemptedRecord = systemContractOperations()
-                    .externalizePreemptedDispatch(syntheticBody, preemptingFailureStatus, functionality);
-            return completionWith(gasRequirement, preemptedRecord, encodedRc(preemptingFailureStatus));
+        final var preempted = preemptedResult(gasRequirement);
+        if (preempted != null) {
+            return preempted;
         }
         final var recordBuilder = systemContractOperations()
                 .dispatch(syntheticBody, verificationStrategy, senderId, ContractCallStreamBuilder.class);
@@ -355,6 +353,18 @@ public class DispatchForResponseCodeHtsCall extends AbstractCall {
             successProcessor.apply(recordBuilder, readableAccountStore(), frame);
         }
         return completionWith(gasRequirement, recordBuilder, outputFn.apply(recordBuilder));
+    }
+
+    @Nullable
+    @Override
+    public PricedResult preemptedResult(final long gasRequirement) {
+        if (syntheticBody != null && preemptingFailureStatus != null) {
+            // Report the failure without dispatching, so no part of the synthetic body is applied
+            final var preemptedRecord = systemContractOperations()
+                    .externalizePreemptedDispatch(syntheticBody, preemptingFailureStatus, functionality);
+            return completionWith(gasRequirement, preemptedRecord, encodedRc(preemptingFailureStatus));
+        }
+        return null;
     }
 
     @NonNull

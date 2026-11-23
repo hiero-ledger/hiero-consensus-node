@@ -39,10 +39,9 @@ import org.junit.jupiter.api.Tag;
 
 /**
  * Characterizes scheduling the HTS token create and updateTokenInfo functions with {@code scheduleNative()}. A
- * scheduled call with a {@code TokenKey} whose key type selects no key (zero, or only undefined bits) should not
+ * scheduled call with a {@code TokenKey} whose key type selects no key (zero, or only undefined bits) must not
  * create a schedule, since the scheduled HAPI transaction has no key type and would silently ignore the entry when it
- * executes. For now the schedule is still created, as scheduleNative() does not yet translate the pre-empting status
- * of the inner call. The updateTokenKeys functions are not on the whitelist of schedulable calls at all.
+ * executes, so scheduleNative() reports the pre-empting status of the inner call. The updateTokenKeys functions are not on the whitelist of schedulable calls at all.
  * <p>
  * Every scheduled call needs a distinct body, as the schedule service rejects a schedule identical to an existing one
  * with IDENTICAL_SCHEDULE_ALREADY_CREATED, which would look like a rejection of the key type. So each call carries a
@@ -97,19 +96,19 @@ public class ScheduleTokenKeysTest {
                         contractCall(
                                         "TokenKeysContract",
                                         UPDATE_TOKEN_KEYS,
-                                        arguments(spec, UPDATE_TOKEN_KEYS, definedEntry(ed25519Of(spec, NEW_KEY))))
+                                        arguments(spec, UPDATE_TOKEN_KEYS, definedEntry(ed25519Of(spec))))
                                 .gas(GAS_NEEDED)
                                 .hasKnownStatus(CONTRACT_REVERT_EXECUTED)))));
     }
 
     @HapiTest
-    @DisplayName("keyType zero or only undefined bits are still scheduled with updateTokenInfo")
+    @DisplayName("keyType zero or only undefined bits are not scheduled with updateTokenInfo")
     public Stream<DynamicTest> undefinedKeyTypesAreNotScheduledWithUpdateTokenInfo() {
         return rejectingUndefinedKeyTypes("undefinedUpdateInfo", UPDATE_TOKEN_INFO);
     }
 
     @HapiTest
-    @DisplayName("keyType zero or only undefined bits are still scheduled with createFungibleToken")
+    @DisplayName("keyType zero or only undefined bits are not scheduled with createFungibleToken")
     public Stream<DynamicTest> undefinedKeyTypesAreNotScheduledWithCreateFungibleToken() {
         return rejectingUndefinedKeyTypes("undefinedCreate", CREATE_FUNGIBLE_TOKEN);
     }
@@ -117,10 +116,7 @@ public class ScheduleTokenKeysTest {
     // Zero, 0x80 (the metadata key, defined only at 0x16c) and 0x100 (not defined at all) all select no key at 0x167.
     private Stream<DynamicTest> rejectingUndefinedKeyTypes(@NonNull final String tag, @NonNull final String function) {
         return Stream.of(BigInteger.ZERO, BigInteger.valueOf(0x80), BigInteger.valueOf(0x100))
-                // The schedule is expected to be created for now, although a direct call is rejected with INVALID_TRANSACTION_BODY:
-                // scheduleNative() ignores the pre-empting status of the inner call. Flip the expectation to false when the
-                // validation of the translated inner call is added to scheduleNative().
-                .map(keyType -> scheduling(tag + keyType.toString(16), function, true, newKey ->
+                .map(keyType -> scheduling(tag + keyType.toString(16), function, false, newKey ->
                         new Tuple[] {keyEntry(SUPPLY_KEY_TYPE, newKey), keyEntry(keyType, newKey)}));
     }
 
@@ -141,7 +137,7 @@ public class ScheduleTokenKeysTest {
                 withOpContext((spec, _) -> allRunFor(
                         spec,
                         tokenKeysContract
-                                .call(function, arguments(spec, function, entries.apply(ed25519Of(spec, NEW_KEY))))
+                                .call(function, arguments(spec, function, entries.apply(ed25519Of(spec))))
                                 .via(txnName)
                                 .gas(GAS_NEEDED))),
                 getTxnRecord(txnName)
@@ -179,8 +175,8 @@ public class ScheduleTokenKeysTest {
         return asAddress(spec.registry().getTokenID(scheduledUpdateTarget.name()));
     }
 
-    private static byte[] ed25519Of(@NonNull final HapiSpec spec, @NonNull final String keyName) {
-        return spec.registry().getKey(keyName).getEd25519().toByteArray();
+    private static byte[] ed25519Of(@NonNull final HapiSpec spec) {
+        return spec.registry().getKey(ScheduleTokenKeysTest.NEW_KEY).getEd25519().toByteArray();
     }
 
     private static Tuple keyEntry(@NonNull final BigInteger keyType, @NonNull final byte[] ed25519) {
