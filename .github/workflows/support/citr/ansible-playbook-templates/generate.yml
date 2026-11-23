@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: Apache-2.0
+---
+# without connecting or gathering facts from hosts,
+# generate config files for a given inventory of hosts
+# Config files will be dumped to the root of the git repo
+- hosts: "{{ run_on_hosts|default('network') }}"
+  order: sorted
+  any_errors_fatal: true
+  gather_facts: no
+  serial: "{{ serial_hosts|default('100%') }}"
+  roles:
+    - generate
+  become: no
