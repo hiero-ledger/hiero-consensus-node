@@ -5,8 +5,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.within;
 
+import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.time.Time;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -40,11 +42,18 @@ import org.openjdk.jmh.results.Result;
 
 class PipelineTimerTest {
 
+    public static final int ITEMS_PER_SECOND = 5_000;
     /**
      * 1,000 items, 200 µs apart. A pass of 200 ms keeps the saturation check from mistaking a short stall of a busy
      * machine for a pipeline that falls behind.
      */
-    private static final List<Item> ITEMS = Item.evenlySpaced(1_000, 5_000);
+    private static final List<Item> ITEMS = Item.evenlySpaced(1_000, ITEMS_PER_SECOND);
+
+    /** The time between two of {@link #ITEMS}. */
+    private static final long SPACING_NANOS = 1_000_000_000L / ITEMS_PER_SECOND;
+
+    /** How long a pipeline on a fake clock holds each item. */
+    private static final long HOLD_NANOS = 50_000;
 
     private LatencyProfiler profiler;
 
@@ -148,7 +157,7 @@ class PipelineTimerTest {
     }
 
     @Test
-    void onlyTheValuesOfTheSelectedInputsCount() {
+    void onlyTheLatenciesOfTheSelectedInputsAreRecorded() {
         final Set<Item> selected = new HashSet<>(ITEMS.subList(0, 100));
         final PipelineTimer timer = PipelineTimer.builder(ITEMS)
                 .entryPoint(Item.class, item -> item, item -> {
@@ -416,6 +425,181 @@ class PipelineTimerTest {
     }
 
     @Test
+    void theInputsBeforeTheFirstMeasuredOneFillThePipelineAtTheirDueTimes() {
+        final Item firstMeasured = ITEMS.get(400);
+        final List<Long> entries = new ArrayList<>();
+        final PipelineTimer timer = builder(ITEMS)
+                .entryPoint(Item.class, item -> item, item -> {
+                    entries.add(System.nanoTime());
+                    output.accept(item);
+                })
+                .measureFrom(firstMeasured::equals)
+                .build();
+
+        timer.prepare();
+        // the pass starts after this clock read, and input 399 is due 79.8 ms after the start
+        final long beforePass = System.nanoTime();
+        timer.replay();
+
+        assertThat(entries).hasSize(ITEMS.size());
+        assertThat(entries.get(399) - beforePass).isGreaterThanOrEqualTo(79_800_000L);
+        assertThat(timer.arrivals()).isEqualTo(600);
+        assertThat(results()).containsEntry("latency.samples", 600.0);
+    }
+
+    @Test
+    void whatTheFillAllocatesIsNotMeasured() {
+        // 4 MB in arrays of 1 KB: small enough not to start a garbage collection after the one before the pass
+        final int fillArrays = 4_000;
+        final List<byte[]> kept = new ArrayList<>();
+        final PipelineTimer timer = builder(ITEMS)
+                .entryPoint(Item.class, item -> item, item -> {
+                    if (item.equals(ITEMS.getFirst())) {
+                        for (int i = 0; i < fillArrays; i++) {
+                            kept.add(new byte[1_000]);
+                        }
+                    }
+                    output.accept(item);
+                })
+                .measureFrom(ITEMS.get(500)::equals)
+                .build();
+
+        timer.prepare();
+        System.gc();
+        timer.replay();
+
+        assertThat(kept).hasSize(fillArrays);
+        final Map<String, Double> results = results();
+        assertThat(results).containsEntry("measured.gc.discardedPasses", 0.0);
+        assertThat(results.get("alloc.norm") * results.get("latency.samples")).isLessThan(fillArrays * 1_000 / 2.0);
+    }
+
+    @Test
+    void aPassWithAGarbageCollectionDuringTheFillIsStored() {
+        final PipelineTimer timer = builder(ITEMS)
+                .entryPoint(Item.class, item -> item, item -> {
+                    if (item.equals(ITEMS.getFirst())) {
+                        System.gc();
+                    }
+                    output.accept(item);
+                })
+                .measureFrom(ITEMS.get(500)::equals)
+                .build();
+
+        timer.prepare();
+        timer.replay();
+
+        assertThat(results()).containsEntry("latency.samples", 500.0).containsEntry("measured.gc.discardedPasses", 0.0);
+    }
+
+    @Test
+    void aFillValueThatLeavesDuringTheMeasuredPartIsIgnored() {
+        final Item firstMeasured = ITEMS.get(500);
+        final Queue<Item> held = new ArrayDeque<>();
+        final PipelineTimer timer = builder(ITEMS)
+                .entryPoint(Item.class, item -> item, item -> {
+                    if (item.equals(ITEMS.getFirst())) {
+                        // held until the first measured input arrives
+                        held.add(item);
+                        return;
+                    }
+                    if (item.equals(firstMeasured)) {
+                        held.forEach(output);
+                    }
+                    output.accept(item);
+                })
+                .measureFrom(firstMeasured::equals)
+                .build();
+
+        timer.prepare();
+        timer.replay();
+
+        assertThat(held).hasSize(1);
+        assertThat(timer.arrivals()).isEqualTo(500);
+    }
+
+    @Test
+    void theLatencyIsMeasuredFromTheDueTime() {
+        final FakeTime time = new FakeTime(Instant.EPOCH, Duration.ZERO);
+        final PipelineTimer timer = builder(ITEMS)
+                .time(time)
+                .entryPoint(Item.class, item -> item, heldFor(time, HOLD_NANOS, new ArrayList<>()))
+                .build();
+
+        timer.prepare();
+        timer.replay();
+
+        assertThat(results())
+                .containsEntry("latency.samples", (double) ITEMS.size())
+                .containsEntry("latency.min", (double) HOLD_NANOS)
+                .containsEntry("latency.max", (double) HOLD_NANOS);
+    }
+
+    @Test
+    void aFillKeepsTheRecordedTimesOfTheMeasuredPart() {
+        final FakeTime time = new FakeTime(Instant.EPOCH, Duration.ZERO);
+        final List<Long> entries = new ArrayList<>();
+        final PipelineTimer timer = builder(ITEMS)
+                .time(time)
+                .entryPoint(Item.class, item -> item, heldFor(time, HOLD_NANOS, entries))
+                .measureFrom(ITEMS.get(500)::equals)
+                .build();
+
+        timer.prepare();
+        timer.replay();
+
+        // input 500 is due 500 spacings after the start of the pass, which is at 0 on the fake clock
+        assertThat(entries.get(500)).isEqualTo(500 * SPACING_NANOS);
+        assertThat(results())
+                .containsEntry("latency.samples", 500.0)
+                .containsEntry("latency.min", (double) HOLD_NANOS)
+                .containsEntry("latency.max", (double) HOLD_NANOS);
+    }
+
+    @Test
+    void aMeasurementThatStartsLateShiftsTheMeasuredPart() {
+        final FakeTime time = new FakeTime(Instant.EPOCH, Duration.ZERO);
+        final long late = 1_000_000;
+        final List<Long> entries = new ArrayList<>();
+        final Consumer<Item> held = heldFor(time, HOLD_NANOS, entries);
+        final PipelineTimer timer = builder(ITEMS)
+                .time(time)
+                .entryPoint(Item.class, item -> item, item -> {
+                    held.accept(item);
+                    if (item.equals(ITEMS.get(499))) {
+                        // the clock passes the first measured input's due time, as a slow startPass() would
+                        time.tick(late);
+                    }
+                })
+                .measureFrom(ITEMS.get(500)::equals)
+                .build();
+
+        timer.prepare();
+        timer.replay();
+
+        assertThat(entries.get(500)).isEqualTo(500 * SPACING_NANOS + late);
+        assertThat(results())
+                .containsEntry("latency.samples", 500.0)
+                .containsEntry("latency.min", (double) HOLD_NANOS)
+                .containsEntry("latency.max", (double) HOLD_NANOS);
+    }
+
+    /**
+     * A pipeline on a fake clock: notes the time each item enters, holds it for the given time, hands it to the output,
+     * and then moves the clock on to the next item's due time.
+     */
+    @NonNull
+    private Consumer<Item> heldFor(
+            @NonNull final FakeTime time, final long holdNanos, @NonNull final List<Long> entries) {
+        return item -> {
+            entries.add(time.nanoTime());
+            time.tick(holdNanos);
+            output.accept(item);
+            time.tick(SPACING_NANOS - holdNanos);
+        };
+    }
+
+    @Test
     void theLatencyGrowthIsTheRateAtWhichTheLatencyGrows() {
         // 1,001 inputs over 1 s: 250 in the first quarter, 251 in the last
         final long[] due = new long[1_001];
@@ -423,17 +607,31 @@ class PipelineTimerTest {
             due[i] = i * 1_000_000L;
         }
 
-        assertThat(PipelineTimer.latencyGrowth(due, latencies(due, t -> 50_000)))
+        assertThat(PipelineTimer.latencyGrowth(due, latencies(due, t -> 50_000), 0))
                 .isZero();
         // within the growth over one input's spacing: a quarter with an even count takes the upper of its middle values
-        assertThat(PipelineTimer.latencyGrowth(due, latencies(due, t -> 50_000 + t / 20)))
+        assertThat(PipelineTimer.latencyGrowth(due, latencies(due, t -> 50_000 + t / 20), 0))
                 .isCloseTo(0.05, within(1e-4));
-        assertThat(PipelineTimer.latencyGrowth(due, latencies(due, t -> 50_000_000 - t / 50)))
+        assertThat(PipelineTimer.latencyGrowth(due, latencies(due, t -> 50_000_000 - t / 50), 0))
                 .isCloseTo(-0.02, within(1e-4));
         // a burst in the middle of the pass is no growth
         assertThat(PipelineTimer.latencyGrowth(
-                        due, latencies(due, t -> t > 400_000_000 && t < 600_000_000 ? 10_000_000 : 50_000)))
+                        due, latencies(due, t -> t > 400_000_000 && t < 600_000_000 ? 10_000_000 : 50_000), 0))
                 .isZero();
+    }
+
+    @Test
+    void theLatencyGrowthIsThatOfTheMeasuredPart() {
+        // 2,001 inputs over 2 s; the first 1,000 fill the pipeline and have no latency
+        final long[] due = new long[2_001];
+        for (int i = 0; i < due.length; i++) {
+            due[i] = i * 1_000_000L;
+        }
+        final long[] latencies = latencies(due, t -> t < 1_000_000_000 ? -1 : 50_000 + (t - 1_000_000_000) / 20);
+
+        assertThat(PipelineTimer.latencyGrowth(due, latencies, 1_000)).isCloseTo(0.05, within(1e-4));
+        // over the whole pass, the first quarter has no latencies
+        assertThat(PipelineTimer.latencyGrowth(due, latencies, 0)).isNaN();
     }
 
     @Test
@@ -443,15 +641,15 @@ class PipelineTimerTest {
             due[i] = i * 1_000_000L;
         }
         // only the inputs of the first 150 ms have a latency: 150 in the first quarter, none in the last
-        assertThat(PipelineTimer.latencyGrowth(due, latencies(due, t -> t < 150_000_000 ? 50_000 : -1)))
+        assertThat(PipelineTimer.latencyGrowth(due, latencies(due, t -> t < 150_000_000 ? 50_000 : -1), 0))
                 .isNaN();
         // 101 inputs: 25 in the first quarter
-        assertThat(PipelineTimer.latencyGrowth(Arrays.copyOf(due, 101), new long[101]))
+        assertThat(PipelineTimer.latencyGrowth(Arrays.copyOf(due, 101), new long[101], 0))
                 .isNaN();
         // no length
-        assertThat(PipelineTimer.latencyGrowth(new long[1_000], new long[1_000]))
+        assertThat(PipelineTimer.latencyGrowth(new long[1_000], new long[1_000], 0))
                 .isNaN();
-        assertThat(PipelineTimer.latencyGrowth(new long[0], new long[0])).isNaN();
+        assertThat(PipelineTimer.latencyGrowth(new long[0], new long[0], 0)).isNaN();
     }
 
     /** Computes a latency for every due time. */
@@ -486,6 +684,19 @@ class PipelineTimerTest {
         assertThatThrownBy(() -> builder(ITEMS).speedup(Double.POSITIVE_INFINITY))
                 .hasMessageContaining("finite");
         assertThatThrownBy(() -> builder(ITEMS).build()).hasMessageContaining("No input");
+        assertThatThrownBy(() -> builder(ITEMS)
+                        .entryPoint(Item.class, item -> item, _ -> {})
+                        .measureFrom(_ -> false)
+                        .build())
+                .hasMessageContaining("accepts none of the replayed inputs");
+        final Set<Item> firstHalf = new HashSet<>(ITEMS.subList(0, 500));
+        assertThatThrownBy(() -> PipelineTimer.builder(ITEMS)
+                        .entryPoint(Item.class, item -> item, _ -> {})
+                        .exitPoint(this::attach, firstHalf::contains)
+                        .measureFrom(ITEMS.get(500)::equals)
+                        .drain(() -> {})
+                        .build())
+                .hasMessageContaining("No recorded input follows");
         assertThatThrownBy(() -> builder(List.of(ITEMS.get(1), ITEMS.get(0)))
                         .entryPoint(Item.class, item -> item, _ -> {})
                         .build())
