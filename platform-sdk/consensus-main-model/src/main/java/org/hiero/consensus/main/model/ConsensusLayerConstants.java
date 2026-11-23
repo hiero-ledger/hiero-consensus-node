@@ -7,6 +7,7 @@ import org.hiero.base.crypto.DigestType;
  * A class for Consensus Layer constants required to understand the Consensus / Execution API.
  */
 public final class ConsensusLayerConstants {
+
     /**
      * Private constructor so that this class is never instantiated
      */

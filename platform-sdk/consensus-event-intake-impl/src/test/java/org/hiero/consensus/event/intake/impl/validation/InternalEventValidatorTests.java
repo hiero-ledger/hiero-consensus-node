@@ -2,7 +2,7 @@
 package org.hiero.consensus.event.intake.impl.validation;
 
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
-import static org.hiero.consensus.model.event.EventConstants.DEFAULT_EVENT_DIGEST_TYPE;
+import static org.hiero.consensus.main.model.ConsensusLayerConstants.DEFAULT_EVENT_DIGEST_TYPE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;

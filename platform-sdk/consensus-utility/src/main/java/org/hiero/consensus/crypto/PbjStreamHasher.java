@@ -2,7 +2,7 @@
 package org.hiero.consensus.crypto;
 
 import static java.util.Objects.requireNonNull;
-import static org.hiero.consensus.model.event.EventConstants.DEFAULT_EVENT_DIGEST_TYPE;
+import static org.hiero.consensus.main.model.ConsensusLayerConstants.DEFAULT_EVENT_DIGEST_TYPE;
 
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.EventDescriptor;

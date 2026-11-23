@@ -3,7 +3,7 @@ package org.hiero.consensus.event.validation;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
-import static org.hiero.consensus.model.event.EventConstants.DEFAULT_EVENT_DIGEST_TYPE;
+import static org.hiero.consensus.main.model.ConsensusLayerConstants.DEFAULT_EVENT_DIGEST_TYPE;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_NEGATIVE_INFINITY;
 
 import com.hedera.hapi.platform.event.EventCore;

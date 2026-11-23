@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.benchmark.tools.event;
 
-import static org.hiero.consensus.model.event.EventConstants.DEFAULT_EVENT_DIGEST_TYPE;
+import static org.hiero.consensus.main.model.ConsensusLayerConstants.DEFAULT_EVENT_DIGEST_TYPE;
 
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.pbj.runtime.io.buffer.Bytes;

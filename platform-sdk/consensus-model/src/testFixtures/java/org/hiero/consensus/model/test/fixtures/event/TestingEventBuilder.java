@@ -2,7 +2,7 @@
 package org.hiero.consensus.model.test.fixtures.event;
 
 import static org.hiero.base.crypto.Cryptography.DEFAULT_DIGEST_TYPE;
-import static org.hiero.consensus.model.event.EventConstants.DEFAULT_EVENT_DIGEST_TYPE;
+import static org.hiero.consensus.main.model.ConsensusLayerConstants.DEFAULT_EVENT_DIGEST_TYPE;
 import static org.hiero.consensus.model.event.EventConstants.MINIMUM_ROUND_CREATED;
 
 import com.hedera.hapi.platform.event.EventConsensusData;
