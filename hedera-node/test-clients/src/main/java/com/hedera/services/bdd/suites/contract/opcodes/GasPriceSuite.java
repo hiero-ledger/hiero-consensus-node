@@ -20,6 +20,7 @@ public class GasPriceSuite {
     @Contract(contract = "GasPriceContract", creationGas = 8_000_000L)
     static SpecContract gasPriceContract;
 
+    // tx.gasprice is in tinybars per gas on Hedera (not weibars), 71 is the tinybar gas price of the test network
     @HapiTest
     public Stream<DynamicTest> getGasPrice() {
         return hapiTest(gasPriceContract

@@ -316,7 +316,7 @@ jobs:
     needs:
       - monitor-mdlt
     if: ${{ always() && needs.monitor-mdlt.outputs.state != '' }}
-    uses: ./.github/workflows/864-call-report-suite-result.yaml
+    uses: ./.github/workflows/864-call-report-suite-status.yaml
     with:
       suite-type: mdlt
       build-number: ${{ inputs.build-tag }}

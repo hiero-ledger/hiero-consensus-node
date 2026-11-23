@@ -283,9 +283,11 @@ Platform roster weights are not substituted for missing parties: a daily weight 
 TSS while the platform still uses the previous weights.
 
 Block-signature aggregation uses the same complete generation total. With the production signing divisor of two,
-a signature must have strictly more than half that total. Native verification measures fractions against the weight
-inside the hinTS key, so the node verifies with the equivalent per-key fraction `fullWeight / (2 * schemeWeight)`.
-Both full weight and verification fraction remain frozen in each active/previous signing snapshot through handoff.
+a signature must have strictly more than half that total. Starting with TSS 3.29.1, history-backed preprocessing
+passes the full target roster to the library. A member without a valid hint contributes only to the verification
+key's total. The native fraction for these keys is `1/2`. For keys from older preprocessing, the consensus node
+uses the equivalent per-key fraction `fullWeight / (2 * schemeWeight)`. Each signing attempt retains its own
+generation's threshold through handoff.
 Runtime signing is installed only after a matching completed history book is available, including on restart.
 
 This tightens the previous main-branch thresholds when the scheme is sparse: the preprocessing denominator changes
@@ -298,24 +300,21 @@ Activation logs a warning when participating scheme weight is at or below `5F/6`
 same generation does not repeat that warning.
 See the [rollout note](full-generation-threshold-rollout.md) for compatibility and recovery requirements.
 
-History-disabled and mock-signature configurations retain their previous scheme-based behavior. Fresh `GENESIS`
+Preprocessing started with history disabled continues to produce participant-weight keys. Fresh `GENESIS`
 does not restore signing from uninitialized TSS singletons; the first handled round initializes those states.
 In real history mode, missing legacy snapshots defer signing only until hash-verified consensus recovery supplies
 the matching complete book. A different generation's roster or an unverifiable snapshot is never a fallback.
 An incomplete history defers activation regardless of its transition shape. A completed legacy non-WRAPS proof
 without a recoverable membership snapshot fails with a recovery/reset diagnostic instead of deferring indefinitely.
 
-This change does not alter WRAPS proof-adoption vote authority: incremental proof votes still use the source hinTS
-scheme's eligible nodes and weights, with at least one third of that scheme weight required. Native WRAPS
-construction separately requires its canonical book quorum. Key-provenance authorization remains strictly more
-than one third of source scheme weight. Changing these separate authority rules requires its own protocol review.
+Incremental WRAPS proof-adoption votes require at least one third of source hinTS participant weight. Native
+WRAPS signing requires a strict majority of the book's effective Schnorr weight. A rotation with key provenance
+also requires strictly more than one third of the weight committed in the source hinTS key.
 
-The threshold metadata described below remains a protocol requirement, not a claim about the current composite
-signature format. Current WRAPS metadata carries only the hinTS key, and hiero-cryptography's composite `TSS.verifyTSS`
-uses half the weight committed in that key. Therefore node-side enforcement does not prevent a coalition above half
-of a sparse scheme from producing a signature that outside verifiers accept. Authenticating the minimum threshold
-alongside the key and updating the library, block-node, mirror-node, and CLPR verifiers requires a coordinated
-follow-up. This change does not alter the composite wire format or re-anchor existing trust roots.
+The composite signature carries the hinTS verification key as authenticated WRAPS metadata. The standard
+`TSS.verifyTSS` verifier checks a strict majority of the total inside that key. For a new history-backed key,
+this authenticates the full listed roster weight. An older sparse key continues to certify participant weight
+to external verifiers for as long as they accept that key.
 
 ### Integration with protocol components
 

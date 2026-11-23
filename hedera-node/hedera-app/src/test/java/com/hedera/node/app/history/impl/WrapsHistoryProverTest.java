@@ -2041,6 +2041,7 @@ class WrapsHistoryProverTest {
     }
 
     private WrapsHistoryProver newRotationSubject(final Executor executor) {
+        lenient().when(provenanceSigner.verificationKeyWeight()).thenReturn(weights.totalSourceWeight());
         given(provenanceSigner.constructionId()).willReturn(SOURCE_HINTS_ID);
         given(provenanceSigner.verificationKey()).willReturn(SOURCE_VERIFICATION_KEY);
         return new WrapsHistoryProver(

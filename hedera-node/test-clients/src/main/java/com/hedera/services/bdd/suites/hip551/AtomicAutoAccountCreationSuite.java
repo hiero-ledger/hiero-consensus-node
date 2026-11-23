@@ -986,7 +986,12 @@ class AtomicAutoAccountCreationSuite {
                                         .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE))
                                 .payingWith("batchOperator")
                                 .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                        getTxnRecord("failedAutoCreate").hasNonStakingChildRecordCount(0),
+                        // the two rolled back auto-creations are kept as reverted children
+                        getTxnRecord("failedAutoCreate")
+                                .hasNonStakingChildRecordCount(2)
+                                .hasChildRecords(
+                                        recordWith().revertedAccountCreation(),
+                                        recordWith().revertedAccountCreation()),
                         getAccountInfo(PAYER_1)
                                 .has(accountWith().balance((INITIAL_BALANCE * ONE_HBAR) - 3 * ONE_HUNDRED_HBARS))));
     }

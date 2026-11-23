@@ -58,6 +58,9 @@ public record HintsGenerationWeights(
             }
             final var weights = schemeWeights(hints);
             final long total = sum(weights);
+            if (hints.preprocessingRosterWeightOrElse(total) < total) {
+                throw new IllegalArgumentException("Preprocessing roster weight is below the eligible weight");
+            }
             return new HintsGenerationWeights(
                     hints.constructionId(),
                     hints.targetRosterHash(),
@@ -126,6 +129,10 @@ public record HintsGenerationWeights(
                                             + "a fresh genesis proof before using strict thresholds"));
             final var schemeWeights = schemeWeights(hints);
             final long total = sum(fullWeights);
+            if (hints.hasPreprocessingRosterWeight() && hints.preprocessingRosterWeightOrThrow() != total) {
+                throw new IllegalArgumentException(
+                        "Preprocessing roster weight differs from the committed history book");
+            }
             final long eligibleTotal = sum(schemeWeights);
             if (total <= 0 || eligibleTotal <= 0) {
                 throw new IllegalArgumentException(
@@ -156,11 +163,11 @@ public record HintsGenerationWeights(
                         .equals(verificationKey);
     }
 
-    /** A native verification fraction is relative to the scheme weight committed inside the verification key. */
+    /** A native verification fraction is relative to the total committed inside the verification key. */
     public record ThresholdFraction(long numerator, long denominator) {}
 
     /**
-     * Requires a signature to exceed {@code totalWeight / divisor}, expressed as a fraction of scheme weight.
+     * For a participant-weight key, expresses the required {@code totalWeight / divisor} as a fraction of scheme weight.
      * Reduction precedes conversion to native integer arguments so an intermediate product cannot overflow.
      */
     public @NonNull ThresholdFraction verificationFraction(final long divisor) {

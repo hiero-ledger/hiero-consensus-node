@@ -240,7 +240,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
                     consensusRound.getConsensusTimestamp());
         }
 
-        handlerMetrics.recordEventsPerRound(consensusRound.getNumEvents());
+        handlerMetrics.recordEventsPerRound(consensusRound.getConsensusEvents().size());
         handlerMetrics.recordConsensusTime(consensusRound.getConsensusTimestamp());
 
         try {

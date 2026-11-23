@@ -79,7 +79,25 @@ public final class MultiNetworkValidation {
         return Stream.concat(
                 names.stream().map(name -> dynamicTest(name + " logs", () -> validate(name, logValidation.get()))),
                 names.stream()
-                        .map(name -> dynamicTest(name + " streams", () -> validate(name, streamValidation.get()))));
+                        .map(name -> dynamicTest(name + " streams", () -> {
+                            abortIfStreamsStartAfterGenesis(name);
+                            validate(name, streamValidation.get());
+                        })));
+    }
+
+    /**
+     * Aborts the stream validation of a network that no longer has node 0, e.g. because a test replaced every node.
+     * The stream validators read the streams of the nodes still in the network and expect node 0 among them, but
+     * after such a roster turnover no remaining node has the streams from genesis.
+     *
+     * @param name the network name
+     */
+    private static void abortIfStreamsStartAfterGenesis(@NonNull final String name) {
+        final SubProcessNetwork network = MultiNetworkExtension.SHARED_NETWORKS.get(name);
+        if (network != null && network.nodes().stream().noneMatch(node -> node.getNodeId() == 0)) {
+            throw new TestAbortedException(
+                    "Network '" + name + "' no longer has node 0, so no node has its streams from genesis");
+        }
     }
 
     private static void validate(@NonNull final String name, @NonNull final SpecOperation validation) throws Throwable {

@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test;
 
 class HintsFullGenerationThresholdNativeTest {
     @Test
-    void nativeVerificationRequiresStrictMajorityOfTheFullGeneration() {
+    void legacyKeyUsesAdjustedFractionForStrictMajorityOfFullGeneration() {
         final var library = new HintsLibraryImpl();
         final var initialCrs = library.newCrs((short) 4);
         final var entropy = new byte[32];

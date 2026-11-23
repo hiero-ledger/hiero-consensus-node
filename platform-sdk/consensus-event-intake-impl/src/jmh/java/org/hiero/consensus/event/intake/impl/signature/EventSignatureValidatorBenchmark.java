@@ -23,7 +23,6 @@ import org.hiero.consensus.benchmark.tools.histogram.LatencyRecorder;
 import org.hiero.consensus.event.DefaultIntakeEventCounter;
 import org.hiero.consensus.metrics.config.MetricsConfig_;
 import org.hiero.consensus.metrics.platform.DefaultMetricsProvider;
-import org.hiero.consensus.model.event.EventHashFactory;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.test.fixtures.roster.RosterWithKeys;
@@ -140,8 +139,6 @@ public class EventSignatureValidatorBenchmark {
      */
     @Setup(Level.Trial)
     public void generateEvents() {
-        // Every event birth round is past the cutover, so every event is hashed with SHA-256.
-        EventHashFactory.initialize(0);
         final RosterWithKeys rosterWithKeys =
                 randomRosterWithKeys(new Random(SEED), NUMBER_OF_NODES, GAUSSIAN, signingSchema);
         final RosterWrapper roster = rosterWithKeys.roster();

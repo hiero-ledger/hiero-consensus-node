@@ -5,6 +5,7 @@ import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprSubmitB
 
 import com.google.common.base.MoreObjects;
 import com.google.protobuf.ByteString;
+import com.google.protobuf.UInt64Value;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hederahashgraph.api.proto.java.ClprSubmitBundleTransactionBody;
@@ -23,6 +24,7 @@ public class HapiClprSubmitBundle extends HapiTxnOp<HapiClprSubmitBundle> {
     private byte[] channelId;
     private byte[] bundlePayload;
     private long endpointNodeId;
+    private Long expectedCachedManifestVersion;
 
     public HapiClprSubmitBundle() {}
 
@@ -38,6 +40,11 @@ public class HapiClprSubmitBundle extends HapiTxnOp<HapiClprSubmitBundle> {
 
     public HapiClprSubmitBundle endpointNodeId(final long endpointNodeId) {
         this.endpointNodeId = endpointNodeId;
+        return this;
+    }
+
+    public HapiClprSubmitBundle expectedCachedManifestVersion(final long version) {
+        this.expectedCachedManifestVersion = version;
         return this;
     }
 
@@ -63,6 +70,9 @@ public class HapiClprSubmitBundle extends HapiTxnOp<HapiClprSubmitBundle> {
                                 b.setBundlePayload(ByteString.copyFrom(bundlePayload));
                             }
                             b.setEndpointNodeId(endpointNodeId);
+                            if (expectedCachedManifestVersion != null) {
+                                b.setExpectedCachedManifestVersion(UInt64Value.of(expectedCachedManifestVersion));
+                            }
                         });
         return b -> b.setClprSubmitBundle(opBody);
     }

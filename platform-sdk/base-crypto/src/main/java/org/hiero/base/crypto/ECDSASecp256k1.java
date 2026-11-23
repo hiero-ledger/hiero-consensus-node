@@ -64,16 +64,25 @@ public final class ECDSASecp256k1 {
         throw new IllegalArgumentException("Invalid BigInteger that is too long. It cannot be a valid private key.");
     }
 
-    /**
-     * Returns a randomly generated ECDSA(secp256k1) key pair.
-     *
-     * @return a random key pair
-     */
+    /// Returns a randomly generated ECDSA(secp256k1) key pair.
+    ///
+    /// @return a random key pair
     public static KeyPair genEcdsaSecp256k1KeyPair() {
         // Generate raw secret key bytes
         final byte[] secretKeyBytes = new byte[Libsecp256k1.SECRET_KEY_BYTES];
         SECURE_RANDOM.nextBytes(secretKeyBytes);
 
+        final byte[] portablePublicKeyBytes = derivePublicKey(secretKeyBytes);
+
+        // Return the keypair
+        final Secp256k1ECPrivateKey privateKey = new Secp256k1ECPrivateKey(secretKeyBytes);
+        final Secp256k1ECPublicKey publicKey = new Secp256k1ECPublicKey(portablePublicKeyBytes);
+        return new KeyPair(publicKey, privateKey);
+    }
+
+    /// Derives a portable ECDSA secp256k1 public key (uncompressed, 64 bytes w/o the 0x04 prefix)
+    /// from a given native secret key bytes.
+    public static byte[] derivePublicKey(final byte[] secretKeyBytes) {
         // Generate the corresponding public key in its native, internal form
         final byte[] publicKeyBytes = new byte[Libsecp256k1.PUBLIC_KEY_BYTES];
         int ret = LIBSECP256K1.secp256k1EcPubkeyCreate(
@@ -93,27 +102,62 @@ public final class ECDSASecp256k1 {
         if (ret != 1) {
             throw new IllegalStateException("secp256k1EcPubkeySerialize returned " + ret);
         }
-        final byte[] portablePublicKeyBytes =
-                Arrays.copyOfRange(serializedPortablePublicKeyBytes, 1, serializedPortablePublicKeyBytes.length);
-
-        // Return the keypair
-        final Secp256k1ECPrivateKey privateKey = new Secp256k1ECPrivateKey(secretKeyBytes);
-        final Secp256k1ECPublicKey publicKey = new Secp256k1ECPublicKey(portablePublicKeyBytes);
-        return new KeyPair(publicKey, privateKey);
+        return Arrays.copyOfRange(serializedPortablePublicKeyBytes, 1, serializedPortablePublicKeyBytes.length);
     }
 
-    /**
-     * Signs the given digest with the given ECDSA(secp256k1) private key and returns the
-     * raw signature; that is, the 64-byte concatenation of the signature's {@code r} value
-     * followed by its {@code s} value in unsigned big-endian form.
-     *
-     * @param privateKey
-     * 		the private key to use
-     * @return the raw signature of the given digest
-     */
+    /// Signs the given digest with the given ECDSA(secp256k1) private key and returns the
+    /// raw signature; that is, the 64-byte concatenation of the signature's {@code r} value
+    /// followed by its {@code s} value in unsigned big-endian form.
+    ///
+    /// @param privateKey
+    /// 		the private key to use
+    /// @return the raw signature of the given digest
     public static byte[] signDigestWithEcdsaSecp256k1(final PrivateKey privateKey, final byte[] digest) {
-        // try {
         final byte[] secretKey = asPrivateKeyByteArray32((ECPrivateKey) privateKey);
+        return signDigestWithEcdsaSecp256k1(secretKey, digest);
+    }
+
+    /// Signs the given digest with the given ECDSA(secp256k1) native secret key and returns the
+    /// raw signature; that is, the 64-byte concatenation of the signature's {@code r} value
+    /// followed by its {@code s} value in unsigned big-endian form.
+    ///
+    /// @param secretKey the native 32-bytes secret key
+    /// @return the raw signature of the given digest
+    public static byte[] signDigestWithEcdsaSecp256k1(final byte[] secretKey, final byte[] digest) {
+        final int[] recId = new int[1];
+        return signDigestWithEcdsaSecp256k1(secretKey, digest, recId);
+    }
+
+    /// Signs the given digest with the given ECDSA(secp256k1) native secret key and returns the
+    /// raw signature with recovery id attached; that is, the 65-byte concatenation of the signature's
+    /// {@code r} value followed by its {@code s} value in unsigned big-endian form in the first 64 bytes,
+    /// and a single byte with the recovery id at the end.
+    ///
+    /// @param secretKey the native 32-bytes secret key
+    /// @param digest a 32-bytes digest (message hash) to sign, usually a Keccak256 hash
+    /// @return the raw signature of the given digest
+    public static byte[] signDigestWithEcdsaSecp256k1AndRecId(final byte[] secretKey, final byte[] digest) {
+        final int[] recId = new int[1];
+        final byte[] compact = signDigestWithEcdsaSecp256k1(secretKey, digest, recId);
+        byte[] seal = new byte[65];
+        System.arraycopy(compact, 0, seal, 0, 64);
+        seal[64] = (byte) recId[0];
+        return seal;
+    }
+
+    /// Signs the given digest with the given ECDSA(secp256k1) native secret key and returns the
+    /// raw signature; that is, the 64-byte concatenation of the signature's {@code r} value
+    /// followed by its {@code s} value in unsigned big-endian form. Through the `recId` argument,
+    /// a recovery id is returned as well.
+    ///
+    /// @param secretKey the native 32-bytes secret key
+    /// @param digest a 32-bytes digest (message hash) to sign, usually a Keccak256 hash
+    /// @param recId an int[1] {0} reference, populated with a recovery id upon signing
+    /// @return the raw signature of the given digest
+    private static byte[] signDigestWithEcdsaSecp256k1(final byte[] secretKey, final byte[] digest, final int[] recId) {
+        if (recId == null || recId.length != 1 || recId[0] != 0) {
+            throw new IllegalArgumentException("recId argument must be a non-null int[1] {0}");
+        }
 
         final byte[] recSignature = new byte[Libsecp256k1.RECOVERABLE_SIGNATURE_BYTES];
         final MemorySegment recSignatureSeg = MemorySegment.ofArray(recSignature);
@@ -128,7 +172,6 @@ public final class ECDSASecp256k1 {
         }
 
         final byte[] signature = new byte[Libsecp256k1.SIGNATURE_BYTES];
-        final int[] recId = new int[1];
         ret = LIBSECP256K1.secp256k1EcdsaRecoverableSignatureSerializeCompact(
                 MemorySegment.ofArray(signature), MemorySegment.ofArray(recId), recSignatureSeg);
         if (ret != 1) {
@@ -136,5 +179,25 @@ public final class ECDSASecp256k1 {
         }
 
         return signature;
+    }
+
+    /// Recovers ECDSA secp256k1 public key from a 32-byte digest, its compact 64-byte signature, and a recovery id.
+    public static byte[] recoverPublicKey(final byte[] digest, final byte[] signature, int recId) {
+        final byte[] parsedSignature = new byte[Libsecp256k1.RECOVERABLE_SIGNATURE_BYTES];
+        final MemorySegment parsedSignatureSeg = MemorySegment.ofArray(parsedSignature);
+
+        if (LIBSECP256K1.secp256k1EcdsaRecoverableSignatureParseCompact(
+                        parsedSignatureSeg, MemorySegment.ofArray(signature), recId)
+                == 0) {
+            throw new IllegalArgumentException("Could not parse signature");
+        }
+        final byte[] newPubKey = new byte[Libsecp256k1.PUBLIC_KEY_BYTES];
+        if (LIBSECP256K1.secp256k1EcdsaRecover(
+                        MemorySegment.ofArray(newPubKey), parsedSignatureSeg, MemorySegment.ofArray(digest))
+                == 0) {
+            throw new IllegalArgumentException("Could not recover signature");
+        } else {
+            return newPubKey;
+        }
     }
 }

@@ -9,7 +9,9 @@ import com.hedera.hapi.block.stream.MerklePath;
 import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
+import com.hedera.node.app.hapi.utils.blocks.StateProofVerifier;
 import com.hedera.node.app.hapi.utils.blocks.TssVerifier;
+import com.hedera.node.app.service.clpr.impl.ClprProofTimestamp;
 import com.hedera.node.app.service.clpr.impl.ClprStateProofManager;
 import com.hedera.node.app.spi.state.BlockProvenSnapshot;
 import com.hedera.node.app.spi.state.BlockProvenSnapshotProvider;
@@ -98,6 +100,21 @@ class ClprStateProofManagerTest {
         // The bytes are a real serialized StateProof carrying exactly the one singleton path.
         final var proof = StateProof.PROTOBUF.parse(result.proof().toReadableSequentialData());
         assertThat(proof.paths()).hasSize(1);
+    }
+
+    @Test
+    void recoveryProofAuthenticatesTheSnapshotTimestamp() throws Exception {
+        givenProvableSnapshot();
+        given(binaryState.getSingleton(ENDPOINT_MANIFEST_STATE_ID)).willReturn(null);
+
+        final var result = subject.buildManifestStateProofWithValue(true);
+        assertThat(result).isNotNull();
+        final var proof = StateProof.PROTOBUF.parseStrict(result.proof());
+        assertThat(proof.paths()).hasSize(2);
+        final var digest = StateProofVerifier.inferDigestType(proof).buildDigest();
+        final var root =
+                StateProofVerifier.computeBlockRootHashFromPath(proof.paths().getFirst(), digest);
+        assertThat(ClprProofTimestamp.verifiedTimestamp(proof, root, digest)).isEqualTo(new Timestamp(1L, 0));
     }
 
     @Test

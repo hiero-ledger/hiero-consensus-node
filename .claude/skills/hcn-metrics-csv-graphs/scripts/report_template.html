@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>%%PAGE_TITLE%%</title>
+<script>
+  // theme before first paint: saved choice, else the OS preference
+  (function () {
+    let t = null;
+    try { t = localStorage.getItem("hcn-metrics-theme"); } catch (e) {}
+    if (t !== "light" && t !== "dark") t = "dark";  // dark by default; a saved choice wins
+    document.documentElement.setAttribute("data-theme", t);
+  })();
+</script>
+<style>%%UPLOT_CSS%%</style>
+<style>
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --surface: #fcfcfb; --surface-2: #f4f3f0; --border: #e3e2dd; --grid: #e6e5e0;
+    --text: #0b0b0b; --text-2: #52514e; --muted: #8a8984; --link: #1c5cab; --select: rgba(42, 120, 214, 0.12);
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --surface: #1a1a19; --surface-2: #222220; --border: #3a3936; --grid: #34332f;
+    --text: #f0efec; --text-2: #c3c2b7; --muted: #8f8e86; --link: #86b6ef; --select: rgba(57, 135, 229, 0.18);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+         color: var(--text); background: var(--surface); }
+  #side { position: fixed; top: 0; left: 0; bottom: 0; width: 300px; overflow-y: auto; border-right: 1px solid var(--border);
+          background: var(--surface-2); padding: 10px 10px 40px; }
+  #side input[type=search] { width: 100%; padding: 6px 8px; font-size: 13px; margin-bottom: 4px; color: var(--text);
+                             background: var(--surface); border: 1px solid var(--border); border-radius: 3px; }
+  #side .hint { color: var(--text-2); font-size: 11px; margin-bottom: 8px; }
+  #side details { margin: 2px 0; }
+  #side summary { cursor: pointer; font-weight: 600; padding: 2px 0; }
+  #side details details { margin-left: 10px; }
+  #side details details summary { font-weight: 500; font-size: 12px; }
+  #side a { display: block; padding: 1px 0 1px 14px; color: var(--link); text-decoration: none; font-size: 12px;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #side a.top { padding-left: 0; font-weight: 600; margin: 2px 0 6px; }
+  #side a:hover { text-decoration: underline; }
+  #main { margin-left: 300px; }
+  #head { position: sticky; top: 0; z-index: 10; background: var(--surface); border-bottom: 1px solid var(--border); padding: 8px 16px; }
+  #head h1 { font-size: 15px; margin: 0 0 4px; }
+  #head .row { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; font-size: 12px; }
+  #head label { cursor: pointer; user-select: none; white-space: nowrap; }
+  #head button { font: inherit; font-size: 12px; cursor: pointer; color: var(--text); background: var(--surface-2);
+                 border: 1px solid var(--border); border-radius: 3px; padding: 2px 8px; }
+  #theme { margin-left: auto; }
+  .node { cursor: pointer; user-select: none; white-space: nowrap; padding: 1px 4px; border-radius: 3px; }
+  .node:hover { background: var(--surface-2); }
+  .node.off { opacity: 0.35; }
+  .sw { display: inline-block; width: 16px; height: 0; vertical-align: middle; margin-right: 4px; border-top: 2px solid; }
+  #head .help { color: var(--text-2); }
+  h2.sec { font-size: 14px; margin: 14px 16px 0; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(560px, 1fr)); gap: 14px; padding: 10px 16px; }
+  .card { border: 1px solid var(--border); border-radius: 4px; padding: 8px 10px 4px; min-width: 0; scroll-margin-top: 100px; }
+  .card h3 { font-size: 13px; margin: 0; word-break: break-all; }
+  .card p { margin: 2px 0 4px; color: var(--text-2); font-size: 11px; }
+  .plot { min-height: 330px; }
+  .u-legend { font-size: 11px; color: var(--text); }
+  .u-legend .u-series th { font-weight: normal; }
+  .u-legend .u-series:not(:first-child) { cursor: pointer; }
+  /* the time gets its own line so its width change on hover does not reflow the node values */
+  .u-legend.u-inline tr.u-series:first-child { display: block; margin-right: 0; }
+  .u-select { background: var(--select); }
+  .u-cursor-x, .u-cursor-y { border-color: var(--muted) !important; }
+  /* only the chart under the mouse shows the horizontal cursor line; the vertical (time) line is shared */
+  .plot:not(:hover) .u-cursor-y { display: none; }
+  #nc { padding: 4px 16px 60px; }
+  #nc h2 { font-size: 14px; }
+  #nc ul { columns: 2; font-family: ui-monospace, Menlo, monospace; font-size: 11px; padding-left: 18px; }
+  #nc li { break-inside: avoid; word-break: break-all; }
+  #meta { color: var(--text-2); font-size: 11px; padding: 6px 16px 0; }
+</style>
+</head>
+<body>
+<nav id="side">
+  <input type="search" id="filter" placeholder="Filter metrics (words, all must match)">
+  <div class="hint" id="count"></div>
+  <div id="toc"></div>
+</nav>
+<div id="main">
+  <div id="head">
+    <h1 id="title"></h1>
+    <div class="row">
+      <label><input type="checkbox" id="link" checked> Link zoom, cursor &amp; node selection</label>
+      <span id="nodes"></span>
+      <button id="theme" type="button"></button>
+    </div>
+    <div class="row help">Drag to zoom &middot; double-click to reset &middot; click a node name (here or in a legend): show only that node, click it again for all &middot; Ctrl/&#8984;/Shift-click: add or remove a node &middot; x-axis: UTC</div>
+  </div>
+  <div id="meta"></div>
+  <h2 class="sec" id="keyhead">Key metrics</h2>
+  <div class="grid" id="keygrid"></div>
+  <h2 class="sec" id="selhead">Selected metrics</h2>
+  <div class="grid" id="grid"></div>
+  <div id="nc"></div>
+</div>
+<script>%%UPLOT_JS%%</script>
+<script type="application/json" id="data">%%DATA%%</script>
+<script>
+"use strict";
+const D = JSON.parse(document.getElementById("data").textContent);
+const H = 260;
+const NN = D.nodes.length;
+
+function buf(b64) {
+  const bin = atob(b64), u = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+  return u.buffer;
+}
+function el(tag, attrs, text) {
+  const e = document.createElement(tag);
+  if (attrs) for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text != null) e.textContent = text;
+  return e;
+}
+const X = new Float64Array(buf(D.x));
+const POS = D.pos.map(p => new Int32Array(buf(p)));
+const FULL = [X[0], X[X.length - 1]];
+
+function theme() { return document.documentElement.getAttribute("data-theme"); }
+function css(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+function nodeColor(i) { return D.colors[theme()][D.nodes[i].slot]; }
+
+function fmtNum(v, digits) {
+  if (v == null || Number.isNaN(v)) return "–";
+  const a = Math.abs(v);
+  if (a !== 0 && (a >= 1e7 || a < 1e-3)) return v.toExponential(digits > 4 ? 4 : 2);
+  return Number(v.toPrecision(digits)).toLocaleString(undefined, { maximumFractionDigits: 6 });
+}
+function pad(n) { return String(n).padStart(2, "0"); }
+function fmtTime(t) {
+  if (t == null) return "–";
+  const d = new Date(t * 1000);
+  const mins = ((t - D.start) / 60).toFixed(1);
+  return d.getUTCFullYear() + "-" + pad(d.getUTCMonth() + 1) + "-" + pad(d.getUTCDate()) + " " +
+         pad(d.getUTCHours()) + ":" + pad(d.getUTCMinutes()) + ":" + pad(d.getUTCSeconds()) + " UTC (+" + mins + " min)";
+}
+// metrics whose description enumerates values, e.g. "0=NO_VALUE 1=STARTING_UP 2=ACTIVE ..." or
+// "(0=no gaps 1=gaps)": a label runs to the next "<number>=", a closing bracket/comma/semicolon, or the end
+function enumMap(desc) {
+  const m = new Map();
+  const re = /(-?\d+)\s*=\s*(.+?)(?=\s+-?\d+\s*=|\s*[),;]|\s*$)/g;
+  let r;
+  while ((r = re.exec(desc || "")) !== null) m.set(Number(r[1]), r[2].trim());
+  return m.size >= 2 ? m : null;
+}
+
+// ---------------------------------------------------------------- node selection
+let shown = new Set(D.nodes.map((n, i) => i));          // global selection
+function nextSelection(cur, i, additive) {
+  if (additive) {
+    const s = new Set(cur);
+    if (s.has(i)) s.delete(i); else s.add(i);
+    return s.size ? s : new Set(D.nodes.map((n, k) => k));
+  }
+  if (cur.size === 1 && cur.has(i)) return new Set(D.nodes.map((n, k) => k));
+  return new Set([i]);
+}
+function applySelection(u, sel) {
+  u.batch(() => { for (let i = 0; i < NN; i++) if (u.series[i + 1].show !== sel.has(i)) u.setSeries(i + 1, { show: sel.has(i) }); });
+}
+function setGlobal(sel) {
+  shown = sel;
+  for (const u of live.values()) { u._sel = null; applySelection(u, shown); }
+  paintNodeNames();
+}
+function nodeClick(i, e, u) {
+  const additive = e.ctrlKey || e.metaKey || e.shiftKey;
+  if (!u || linked) setGlobal(nextSelection(shown, i, additive));
+  else { u._sel = nextSelection(u._sel || shown, i, additive); applySelection(u, u._sel); }
+}
+
+// ---------------------------------------------------------------- header, meta
+document.getElementById("title").textContent = D.title + "  |  " + D.label + "  |  " + D.startUtc + " to " + D.endUtc.slice(11) + " UTC";
+const nodesSpan = document.getElementById("nodes");
+const nodeNames = D.nodes.map((n, i) => {
+  const s = el("span", { class: "node", title: "Click: only this node (again: all). Ctrl/⌘/Shift-click: add or remove." });
+  const sw = el("span", { class: "sw" });
+  s.append(sw, document.createTextNode("Node " + n.id));
+  s.addEventListener("click", e => nodeClick(i, e, null));
+  s.addEventListener("contextmenu", e => { if (e.ctrlKey) { e.preventDefault(); nodeClick(i, e, null); } });
+  nodesSpan.append(s);
+  return { s, sw };
+});
+function paintNodeNames() {
+  nodeNames.forEach(({ s, sw }, i) => {
+    sw.style.borderTopColor = nodeColor(i);
+    sw.style.borderTopStyle = D.nodes[i].dash.length ? "dashed" : "solid";
+    s.classList.toggle("off", !shown.has(i));
+  });
+}
+const meta = document.getElementById("meta");
+meta.append(el("div", null, "Selection: " + D.selection.join("  |  ") + "   ·   " +
+  D.charts.filter(c => c.r).length + " charts, " + D.notCharted.length + " not charted (constant or no data, listed at the bottom)"));
+D.nodes.forEach(n => meta.append(el("div", null, "node " + n.id + ": " + n.file)));
+
+// ---------------------------------------------------------------- cards + table of contents
+const cards = [];
+function addCard(parent, i, id) {
+  const c = D.charts[i];
+  const card = el("div", { class: "card", id });
+  card.append(el("h3", null, c.c + ": " + c.n));
+  if (c.d) card.append(el("p", null, c.d));
+  const plot = el("div", { class: "plot" });
+  card.append(plot);
+  parent.append(card);
+  plot._idx = i;
+  const entry = { card, plot, idx: i, hay: (c.c + " " + c.t + " " + c.n + " " + c.f + " " + c.d).toLowerCase() };
+  cards.push(entry);
+  return entry;
+}
+D.key.forEach((i, k) => addCard(document.getElementById("keygrid"), i, "k" + k));
+if (!D.key.length) { document.getElementById("keyhead").style.display = "none"; }
+const grid = document.getElementById("grid");
+const tocModel = new Map();  // category -> Map(topic -> Map(family -> [card entries]))
+D.charts.forEach((c, i) => {
+  if (!c.r) return;
+  const entry = addCard(grid, i, "c" + i);
+  if (!tocModel.has(c.c)) tocModel.set(c.c, new Map());
+  const topics = tocModel.get(c.c);
+  if (!topics.has(c.t)) topics.set(c.t, new Map());
+  const fams = topics.get(c.t);
+  if (!fams.has(c.f)) fams.set(c.f, []);
+  fams.get(c.f).push(entry);
+});
+const toc = document.getElementById("toc");
+if (D.key.length) toc.append(el("a", { href: "#keyhead", class: "top" }, "Key metrics (" + D.key.length + ")"));
+const tocEntries = [];
+for (const [cat, topics] of tocModel) {
+  const det = el("details");
+  det.open = true;
+  const sum = el("summary");
+  det.append(sum);
+  const topicEntries = [];
+  for (const [topic, fams] of topics) {
+    const tdet = el("details");
+    tdet.open = true;
+    const tsum = el("summary");
+    tdet.append(tsum);
+    const links = [];
+    for (const [fam, entries] of fams) {
+      const a = el("a", { title: fam });
+      tdet.append(a);
+      links.push({ a, fam, entries });
+    }
+    det.append(tdet);
+    topicEntries.push({ det: tdet, sum: tsum, topic, links });
+  }
+  toc.append(det);
+  tocEntries.push({ det, sum, cat, topics: topicEntries });
+}
+const nc = document.getElementById("nc");
+const ncItems = [];
+if (D.notCharted.length) {
+  const a = el("a", { href: "#nc", class: "top" }, "Not charted (" + D.notCharted.length + ")");
+  a.style.marginTop = "8px";
+  toc.append(a);
+  nc.append(el("h2", null, "Not charted: constant value in this window, or no data"));
+  const ul = el("ul");
+  for (const m of D.notCharted) {
+    const li = el("li", null, m.n + (m.v == null ? "  (" + m.c + ")  no data" : " = " + fmtNum(m.v, 6) + "  (" + m.c + ")"));
+    ul.append(li);
+    ncItems.push({ li, hay: (m.c + " " + m.n).toLowerCase() });
+  }
+  nc.append(ul);
+}
+
+function applyFilter() {
+  const words = document.getElementById("filter").value.toLowerCase().split(/\s+/).filter(Boolean);
+  const match = e => words.every(w => e.hay.includes(w));
+  for (const c of cards) c.card.style.display = match(c) ? "" : "none";
+  let shownCount = 0;
+  for (const t of tocEntries) {
+    let catCount = 0;
+    for (const tp of t.topics) {
+      let topicCount = 0;
+      for (const l of tp.links) {
+        const vis = l.entries.filter(match);
+        topicCount += vis.length;
+        l.a.style.display = vis.length ? "" : "none";
+        l.a.textContent = l.fam + (l.entries.length > 1 ? " (" + vis.length + ")" : "");
+        if (vis.length) l.a.setAttribute("href", "#" + vis[0].card.id);
+      }
+      tp.det.style.display = topicCount ? "" : "none";
+      tp.sum.textContent = tp.topic + " (" + topicCount + ")";
+      catCount += topicCount;
+    }
+    t.det.style.display = catCount ? "" : "none";
+    t.sum.textContent = t.cat + " (" + catCount + ")";
+    shownCount += catCount;
+  }
+  for (const it of ncItems) it.li.style.display = match(it) ? "" : "none";
+  document.getElementById("count").textContent = shownCount + " of " + D.charts.filter(c => c.r).length + " charts shown";
+  if (typeof scheduleVisible === "function") scheduleVisible();
+}
+let filterTimer = null;
+document.getElementById("filter").addEventListener("input", () => {
+  clearTimeout(filterTimer);
+  filterTimer = setTimeout(applyFilter, 150);
+});
+applyFilter();
+
+// ---------------------------------------------------------------- charts (created when visible, destroyed when far away)
+let linked = true, syncing = false, range = null;
+const live = new Map();  // plot element -> uPlot
+document.getElementById("link").addEventListener("change", e => {
+  linked = e.target.checked;
+  if (!linked) return;
+  // re-linking returns every chart to the shared zoom and the shared node selection
+  const [min, max] = range || FULL;
+  syncing = true;
+  for (const u of live.values()) u.setScale("x", { min, max });
+  syncing = false;
+  setGlobal(shown);
+});
+
+function chartData(c) {
+  const data = [X];
+  const byNode = new Map(c.s.map(s => [s[0], s]));
+  for (let i = 0; i < NN; i++) {
+    const arr = new Array(X.length).fill(undefined);
+    const s = byNode.get(i);
+    if (s) {
+      const vals = s[1] === "f4" ? new Float32Array(buf(s[2])) : new Float64Array(buf(s[2]));
+      const pos = POS[i];
+      for (let k = 0; k < vals.length; k++) {
+        const v = vals[k];
+        arr[pos[k]] = v !== v ? null : v;  // NaN -> null = real gap; undefined = another node's instant
+      }
+    }
+    data.push(arr);
+  }
+  return data;
+}
+
+function onScale(u, key) {
+  if (key !== "x" || syncing || !u._ready || !linked) return;
+  const min = u.scales.x.min, max = u.scales.x.max;
+  range = (min <= FULL[0] && max >= FULL[1]) ? null : [min, max];
+  syncing = true;
+  for (const o of live.values()) if (o !== u) o.setScale("x", { min, max });
+  syncing = false;
+}
+
+function xLabels(u, splits) {
+  const span = u.scales.x.max - u.scales.x.min;
+  let lastDay = null;
+  return splits.map(t => {
+    const d = new Date(t * 1000);
+    const hm = pad(d.getUTCHours()) + ":" + pad(d.getUTCMinutes()) + (span < 900 ? ":" + pad(d.getUTCSeconds()) : "");
+    const day = pad(d.getUTCMonth() + 1) + "-" + pad(d.getUTCDate());
+    const label = day !== lastDay ? hm + "\n" + day : hm;
+    lastDay = day;
+    return label;
+  });
+}
+
+function create(plot) {
+  const c = D.charts[plot._idx];
+  const en = enumMap(c.d);
+  const text2 = css("--text-2"), gridC = css("--grid");
+  const yValue = en ? (u, v) => (v == null ? "–" : v + (en.has(v) ? " " + en.get(v) : "")) : (u, v) => fmtNum(v, 6);
+  const axisY = en
+    // a tick on every named value in range: uPlot's default tick spacing would skip some (e.g. odd values)
+    ? { splits: (u, ai, lo, hi) => [...en.keys()].filter(v => v >= lo && v <= hi).sort((a, b) => a - b),
+        values: (u, splits) => splits.map(v => en.get(v) ?? ""),
+        size: 150 }
+    : { values: (u, splits) => splits.map(v => fmtNum(v, 4)),
+        size: (u, values) => values ? Math.min(110, 18 + 7 * Math.max(0, ...values.map(s => s.length))) : 50 };
+  const axisStyle = { stroke: text2, grid: { stroke: gridC, width: 1 }, ticks: { stroke: gridC, width: 1 } };
+  const opts = {
+    width: Math.max(300, plot.clientWidth),
+    height: H,
+    tzDate: ts => uPlot.tzDate(new Date(ts * 1000), "Etc/UTC"),
+    cursor: { drag: { x: true, y: false },
+              sync: { key: "metrics", setSeries: false, filters: { pub: () => linked, sub: () => linked } } },
+    // named values: half a step of padding so the lowest and highest values aren't on the chart edge
+    scales: en ? { x: { time: true }, y: { range: (u, min, max) => (min == null ? [0, 1] : [min - 0.5, max + 0.5]) } } : { x: { time: true } },
+    series: [{ value: (u, v) => fmtTime(v) }].concat(D.nodes.map((n, i) => {
+      const s = { label: "Node " + n.id, stroke: nodeColor(i), dash: n.dash, width: 1, show: shown.has(i),
+                  points: { show: false }, value: yValue };
+      if (en) s.paths = uPlot.paths.stepped({ align: 1 });  // enum values change in steps
+      return s;
+    })),
+    axes: [Object.assign({ space: 70, values: xLabels }, axisStyle), Object.assign(axisY, axisStyle)],
+    hooks: {
+      setScale: [onScale],
+      ready: [u => {
+        u._ready = true;
+        if (linked && range) { syncing = true; u.setScale("x", { min: range[0], max: range[1] }); syncing = false; }
+      }],
+    },
+  };
+  const u = new uPlot(opts, chartData(c), plot);
+  // replace uPlot's legend toggle with: click = only this node, Ctrl/Cmd/Shift-click = add/remove
+  const legend = u.root.querySelector(".u-legend");
+  if (legend) {
+    const handler = e => {
+      const tr = e.target.closest(".u-series");
+      if (!tr) return;
+      const idx = Array.prototype.indexOf.call(legend.querySelectorAll(".u-series"), tr);
+      if (idx < 1) return;
+      if (e.type === "contextmenu" && !e.ctrlKey) return;
+      e.preventDefault();
+      e.stopPropagation();
+      nodeClick(idx - 1, e, u);
+    };
+    legend.addEventListener("click", handler, true);
+    legend.addEventListener("contextmenu", handler, true);
+  }
+  live.set(plot, u);
+}
+function destroy(plot) {
+  const u = live.get(plot);
+  if (u) { u.destroy(); live.delete(plot); }
+}
+// charts within MARGIN px of the viewport are drawn; others are destroyed to free memory
+const MARGIN = 1200;
+function updateVisible() {
+  const top = -MARGIN, bottom = innerHeight + MARGIN;
+  for (const c of cards) {
+    const r = c.plot.getBoundingClientRect();
+    const near = r.height > 0 && r.bottom > top && r.top < bottom;
+    if (near) { if (!live.has(c.plot)) create(c.plot); }
+    else destroy(c.plot);
+  }
+}
+var visFrame = 0;  // var: scheduleVisible() can run from applyFilter() during startup
+function scheduleVisible() {
+  if (!visFrame) visFrame = setTimeout(() => { visFrame = 0; updateVisible(); }, 50);
+}
+window.addEventListener("scroll", scheduleVisible, { passive: true });
+window.addEventListener("hashchange", scheduleVisible);
+
+// ---------------------------------------------------------------- theme
+const themeBtn = document.getElementById("theme");
+function paintThemeButton() { themeBtn.textContent = theme() === "dark" ? "Light theme" : "Dark theme"; }
+themeBtn.addEventListener("click", () => {
+  const t = theme() === "dark" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", t);
+  try { localStorage.setItem("hcn-metrics-theme", t); } catch (e) {}
+  paintThemeButton();
+  paintNodeNames();
+  for (const p of [...live.keys()]) { const sel = live.get(p)._sel; destroy(p); create(p); if (sel) { live.get(p)._sel = sel; applySelection(live.get(p), sel); } }
+});
+paintThemeButton();
+paintNodeNames();
+updateVisible();
+
+let resizeTimer = null;
+window.addEventListener("resize", () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    for (const [p, u] of live) u.setSize({ width: Math.max(300, p.clientWidth), height: H });
+    updateVisible();
+  }, 200);
+});
+</script>
+</body>
+</html>

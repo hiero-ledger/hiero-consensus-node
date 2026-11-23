@@ -1611,6 +1611,10 @@ public class BlockStreamBuilder
 
         newTotalSupply = 0L;
         transactionFee = 0L;
+        // Nothing replays the fee of a rolled back preceding dispatch, so in the end it charged nothing
+        if (category == HandleContext.TransactionCategory.PRECEDING) {
+            transactionResultBuilder.transactionFeeCharged(0L);
+        }
 
         accountId = null;
         if (isContractCreate) {
