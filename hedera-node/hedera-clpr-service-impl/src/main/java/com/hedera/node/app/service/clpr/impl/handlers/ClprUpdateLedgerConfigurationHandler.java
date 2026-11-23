@@ -28,8 +28,10 @@ import javax.inject.Singleton;
  * Handler for {@link HederaFunctionality#CLPR_UPDATE_LEDGER_CONFIGURATION} transactions.
  *
  * <p>Updates the local CLPR ledger configuration. Requires an authorized CLPR admin payer.
- * The handler preserves the immutable chain_id and
- * protocol_version (set at genesis) and auto-sets the timestamp. The service_address
+ * The handler preserves the chain_id and protocol_version (set at genesis) and auto-sets the
+ * timestamp. Only post-upgrade setup changes the chain_id, once, replacing an ID outside the
+ * {@code eip155} namespace (such as the 0.79 default {@code hiero:localnet}) with
+ * {@code eip155:<contracts.chainId>}. The service_address
  * must be the CLPR system contract's EVM address ({@code 0x16e}, the value this ledger's
  * endpoint manifest carries) and defaults to it when omitted. The max_gas_per_message throttle
  * must not exceed {@code contracts.maxGasPerTransaction} (network property defined in
