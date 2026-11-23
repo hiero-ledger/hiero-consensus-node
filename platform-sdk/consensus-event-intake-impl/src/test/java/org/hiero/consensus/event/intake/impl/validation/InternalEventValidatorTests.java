@@ -2,6 +2,7 @@
 package org.hiero.consensus.event.intake.impl.validation;
 
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.consensus.model.event.EventConstants.DEFAULT_EVENT_DIGEST_TYPE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -20,7 +21,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicLong;
-import org.hiero.base.crypto.DigestType;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.validation.DefaultEventFieldValidator;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
@@ -136,7 +136,11 @@ class InternalEventValidatorTests {
                 .signature(validEvent.signature())
                 .transactions(validEvent.transactions())
                 .parents(EventDescriptor.newBuilder()
-                        .hash(validEvent.parents().getFirst().hash().getBytes(1, DigestType.SHA_384.digestLength() - 2))
+                        .hash(validEvent
+                                .parents()
+                                .getFirst()
+                                .hash()
+                                .getBytes(1, DEFAULT_EVENT_DIGEST_TYPE.digestLength() - 2))
                         .build())
                 .build();
         when(platformEvent.getGossipEvent()).thenReturn(shortDescriptorHash);
