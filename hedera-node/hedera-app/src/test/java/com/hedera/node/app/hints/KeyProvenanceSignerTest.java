@@ -107,6 +107,23 @@ class KeyProvenanceSignerTest {
     }
 
     @Test
+    void requiresMoreThanAThirdOfTheWeightCommittedInTheSourceKey() {
+        subject = new KeyProvenanceSigner(
+                library,
+                keyAccessor,
+                construction(List.of(new NodePartyId(10, 2, 4), new NodePartyId(20, 0, 5)))
+                        .copyBuilder()
+                        .preprocessingRosterWeight(12L)
+                        .build(),
+                CRS);
+        given(library.verifyBls(eq(CRS.crs()), eq(SHARE), eq(NEXT_VK), eq(AK), anyInt()))
+                .willReturn(true);
+        assertEquals(12L, subject.verificationKeyWeight());
+        assertTrue(subject.aggregate(NEXT_VK, Map.of(10L, SHARE)).isEmpty());
+        verify(library, never()).aggregateSignatures(any(), any(), any(), any());
+    }
+
+    @Test
     void aggregatesByPartyAndAlwaysChecksTheFixedAbftThreshold() {
         given(library.verifyBls(eq(CRS.crs()), eq(SHARE), eq(NEXT_VK), eq(AK), anyInt()))
                 .willReturn(true);

@@ -31,7 +31,6 @@ import org.hiero.consensus.benchmark.tools.histogram.LatencyRecorder;
 import org.hiero.consensus.gossip.config.SocketConfig;
 import org.hiero.consensus.gossip.impl.gossip.sync.SyncInputStream;
 import org.hiero.consensus.gossip.impl.gossip.sync.SyncOutputStream;
-import org.hiero.consensus.model.event.EventHashFactory;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.roster.RosterWrapper;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -363,8 +362,6 @@ public class GossipEventSerializationBenchmark {
                 constant(MAINNET.otherParents().median()),
                 constant(transactionsPerEvent),
                 constant(MAINNET.transactionSize().median()));
-        // Every event birth round is past the cutover, so every event is hashed with SHA-256.
-        EventHashFactory.initialize(0);
         final RosterWrapper roster = randomRoster(new Random(SEED), NUMBER_OF_NODES);
         final List<PlatformEvent> generatedEvents =
                 EventStreamGenerator.generateUnsignedEvents(shape, roster, NUMBER_OF_EVENTS, SEED);

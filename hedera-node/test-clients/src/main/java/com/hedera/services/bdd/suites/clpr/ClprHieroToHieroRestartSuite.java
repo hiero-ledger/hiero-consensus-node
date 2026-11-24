@@ -82,7 +82,7 @@ public class ClprHieroToHieroRestartSuite extends HieroToHieroBase implements Li
     })
     @DisplayName("Graceful restart of B mid-bundle → B resumes and delivers all 3 messages")
     Stream<DynamicTest> restartBMidBundleGraceful(final SubProcessNetwork ledgerA, final SubProcessNetwork ledgerB) {
-        final var crypto = new ClprCrypto();
+        final var crypto = new ClprCrypto(ledgerA, ledgerB);
         final int portA = ledgerA.nodes().getFirst().getGrpcPort();
         final int portB = ledgerB.nodes().getFirst().getGrpcPort();
         return multiNetworkHapiTest(
@@ -121,7 +121,7 @@ public class ClprHieroToHieroRestartSuite extends HieroToHieroBase implements Li
     @DisplayName("Restart of B, then A sends first: bidirectional messaging resumes")
     Stream<DynamicTest> channelSurvivesFreezeUpgradeRestartOfBASendsFirst(
             final SubProcessNetwork ledgerA, final SubProcessNetwork ledgerB) {
-        final var crypto = new ClprCrypto();
+        final var crypto = new ClprCrypto(ledgerA, ledgerB);
         final int portA = ledgerA.nodes().getFirst().getGrpcPort();
         final int portB = ledgerB.nodes().getFirst().getGrpcPort();
 
@@ -170,7 +170,7 @@ public class ClprHieroToHieroRestartSuite extends HieroToHieroBase implements Li
     @DisplayName("Restart of B, then B sends first: bidirectional messaging resumes")
     Stream<DynamicTest> channelSurvivesFreezeUpgradeRestartOfBBSendsFirst(
             final SubProcessNetwork ledgerA, final SubProcessNetwork ledgerB) {
-        final var crypto = new ClprCrypto();
+        final var crypto = new ClprCrypto(ledgerA, ledgerB);
         final int portA = ledgerA.nodes().getFirst().getGrpcPort();
         final int portB = ledgerB.nodes().getFirst().getGrpcPort();
 

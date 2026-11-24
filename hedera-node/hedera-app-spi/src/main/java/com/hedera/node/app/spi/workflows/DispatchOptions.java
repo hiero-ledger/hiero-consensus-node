@@ -132,12 +132,10 @@ public record DispatchOptions<T extends StreamBuilder>(
 
     /**
      * Returns options for a dispatch that is part of the parent dispatch's transactional unit, but in a setup role
-     * that logically precedes the parent transaction's effects. Use cases include,
+     * that logically precedes the parent transaction's effects; and whose record is removed from the stream if
+     * the parent rolls back. Use cases include,
      * <ul>
-     *     <li>Externalizing creation of a "hollow" account prior to a successful EVM transaction that
-     *     first sends value to its EVM address.</li>
-     *     <li>Externalizing auto-creation of an aliased account that receives value in a parent
-     *     {@link HederaFunctionality#CRYPTO_TRANSFER} transaction.</li>
+     *     <li>Externalizing completion of a "hollow" account that signed the parent transaction.</li>
      * </ul>
      *
      * @param <T> the type of stream builder to use for the dispatch
@@ -154,6 +152,47 @@ public record DispatchOptions<T extends StreamBuilder>(
             @NonNull final Class<T> streamBuilderType,
             @Nullable final FeeCharging customFeeCharging,
             @NonNull final ConsensusThrottling consensusThrottling) {
+        return setupDispatch(
+                payerId, body, streamBuilderType, customFeeCharging, consensusThrottling, ReversingBehavior.REMOVABLE);
+    }
+
+    /**
+     * Returns options for a setup dispatch whose record is kept in the stream if the parent rolls back; as
+     * {@link com.hedera.hapi.node.base.ResponseCodeEnum#REVERTED_SUCCESS}, or with its own status if the
+     * dispatch itself failed. So a rolled back parent still shows every record that counted toward its child
+     * record limit. Use cases include,
+     * <ul>
+     *     <li>Externalizing creation of a "hollow" account when an EVM transaction or a parent
+     *     {@link HederaFunctionality#CRYPTO_TRANSFER} first sends value to its EVM address.</li>
+     *     <li>Externalizing auto-creation of a key-aliased account that receives value in a parent
+     *     {@link HederaFunctionality#CRYPTO_TRANSFER} transaction.</li>
+     * </ul>
+     *
+     * @param <T> the type of stream builder to use for the dispatch
+     * @param payerId the account to pay for the dispatch
+     * @param body the transaction to dispatch
+     * @param streamBuilderType the type of stream builder to use for the dispatch
+     * @param customFeeCharging the custom fee charging strategy for the dispatch, if any
+     * @param consensusThrottling the consensus throttling for the dispatch
+     * @return the options for the reversible setup dispatch
+     */
+    public static <T extends StreamBuilder> DispatchOptions<T> reversibleSetupDispatch(
+            @NonNull final AccountID payerId,
+            @NonNull final TransactionBody body,
+            @NonNull final Class<T> streamBuilderType,
+            @Nullable final FeeCharging customFeeCharging,
+            @NonNull final ConsensusThrottling consensusThrottling) {
+        return setupDispatch(
+                payerId, body, streamBuilderType, customFeeCharging, consensusThrottling, ReversingBehavior.REVERSIBLE);
+    }
+
+    private static <T extends StreamBuilder> DispatchOptions<T> setupDispatch(
+            @NonNull final AccountID payerId,
+            @NonNull final TransactionBody body,
+            @NonNull final Class<T> streamBuilderType,
+            @Nullable final FeeCharging customFeeCharging,
+            @NonNull final ConsensusThrottling consensusThrottling,
+            @NonNull final ReversingBehavior reversingBehavior) {
         return new DispatchOptions<>(
                 Commit.WITH_PARENT,
                 payerId,
@@ -164,7 +203,7 @@ public record DispatchOptions<T extends StreamBuilder>(
                 TransactionCategory.PRECEDING,
                 consensusThrottling,
                 streamBuilderType,
-                ReversingBehavior.REMOVABLE,
+                reversingBehavior,
                 NOOP_SIGNED_TX_CUSTOMIZER,
                 EMPTY_METADATA,
                 customFeeCharging,

@@ -61,7 +61,7 @@ public class CacheWarmer {
         executor.execute(() -> {
             final ReadableStoreFactory storeFactory = new ReadableStoreFactoryImpl(state);
             final ReadableAccountStore accountStore = storeFactory.readableStore(ReadableAccountStore.class);
-            for (final ConsensusEvent event : round) {
+            for (final ConsensusEvent event : round.getConsensusEvents()) {
                 for (final ConsensusTransaction platformTransaction : event.getTransactions()) {
                     executor.execute(() -> {
                         final TransactionBody txBody = extractTransactionBody(platformTransaction);

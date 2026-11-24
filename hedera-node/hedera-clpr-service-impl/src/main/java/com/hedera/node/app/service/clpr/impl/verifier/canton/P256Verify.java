@@ -26,7 +26,7 @@ import java.util.Objects;
  * {@code false} rather than an exception, so a bad signature can never short-circuit higher-level
  * verification.
  */
-public final class P256Verify {
+final class P256Verify {
 
     /** secp256r1 (NIST P-256) domain parameters, from the JDK. */
     private static final ECParameterSpec PARAMS = loadParams();
@@ -60,7 +60,7 @@ public final class P256Verify {
      * @param r the 32-byte signature component r
      * @param s the 32-byte signature component s
      */
-    public static boolean verify(
+    static boolean verify(
             @NonNull final byte[] x,
             @NonNull final byte[] y,
             @NonNull final byte[] hash32,

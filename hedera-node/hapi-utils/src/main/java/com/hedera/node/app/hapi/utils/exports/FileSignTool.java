@@ -139,7 +139,7 @@ public class FileSignTool {
     public static byte[] sign(final byte[] data, final KeyPair sigKeyPair)
             throws NoSuchAlgorithmException, NoSuchProviderException, InvalidKeyException, SignatureException {
         final Signature signature;
-        signature = Signature.getInstance(SignatureType.RSA.signingAlgorithm(), SignatureType.RSA.provider());
+        signature = Signature.getInstance(SignatureType.RSA.signingAlgorithm());
         signature.initSign(sigKeyPair.getPrivate());
         if (LOGGER.isDebugEnabled()) {
             LOGGER.info(MARKER, "data being signed = {}", hex(data));

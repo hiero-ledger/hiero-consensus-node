@@ -10,6 +10,7 @@ import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.Map;
 
@@ -53,9 +54,10 @@ public interface WritableHintsStore extends ReadableHintsStore {
      *
      * @param constructionId the construction ID
      * @param now            the aggregation time
+     * @param rosterWeight   the full weight to commit, or null for participant-only preprocessing
      * @return the updated construction
      */
-    HintsConstruction setPreprocessingStartTime(long constructionId, @NonNull Instant now);
+    HintsConstruction setPreprocessingStartTime(long constructionId, @NonNull Instant now, @Nullable Long rosterWeight);
 
     /**
      * Updates state for a handoff to the given roster hash only when its CRS and hinTS scheme

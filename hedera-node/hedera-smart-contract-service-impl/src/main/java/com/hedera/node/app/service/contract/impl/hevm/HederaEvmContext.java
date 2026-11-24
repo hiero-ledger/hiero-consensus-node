@@ -12,7 +12,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hyperledger.besu.evm.frame.BlockValues;
 
 public record HederaEvmContext(
-        long gasPrice, // weibar
+        long gasPrice, // tinybar per gas
         boolean staticCall,
         boolean shouldChargeGasFees,
         @NonNull HederaEvmBlocks blocks,

@@ -2,13 +2,13 @@
 package org.hiero.consensus.model.hashgraph;
 
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
-import java.util.Iterator;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
+import java.util.List;
+import org.hiero.base.crypto.RunningHash;
 import org.hiero.consensus.model.event.ConsensusEvent;
-import org.hiero.consensus.model.transaction.ConsensusTransaction;
 
 /**
  * A collection of unique events that reached consensus at the same time. The consensus data for every event in the
@@ -19,17 +19,7 @@ import org.hiero.consensus.model.transaction.ConsensusTransaction;
  * may be changed at any time, in any way, without notice or prior deprecation. Third parties should NOT implement this
  * interface.
  */
-public interface Round extends Iterable<ConsensusEvent> {
-
-    /**
-     * An iterator for all consensus events in this round. Each invocation returns a new iterator over the same events.
-     * This method is thread safe.
-     *
-     * @return an iterator of consensus events
-     */
-    @Override
-    @NonNull
-    Iterator<ConsensusEvent> iterator();
+public interface Round {
 
     /**
      * Provides the unique round number for this round. Lower numbers reach consensus before higher numbers. This method
@@ -44,14 +34,17 @@ public interface Round extends Iterable<ConsensusEvent> {
      *
      * @return true if this round has no events, else returns false.
      */
-    boolean isEmpty();
+    default boolean isEmpty() {
+        return getConsensusEvents().isEmpty();
+    }
 
     /**
-     * Get the number of events in this round.
+     * Get the immutable list of events in this round, in consensus order.
      *
-     * @return the number of events in the round
+     * @return the events of the round
      */
-    int getEventCount();
+    @NonNull
+    List<? extends ConsensusEvent> getConsensusEvents();
 
     /**
      * Get the roster that was used to compute consensus for this round.
@@ -60,35 +53,6 @@ public interface Round extends Iterable<ConsensusEvent> {
      */
     @NonNull
     Roster getConsensusRoster();
-
-    /**
-     * A convenience method that supplies every transaction in this round to a consumer.
-     *
-     * @param transactionConsumer a transaction consumer
-     */
-    default void forEachTransaction(final Consumer<ConsensusTransaction> transactionConsumer) {
-        for (final Iterator<ConsensusEvent> eventIt = iterator(); eventIt.hasNext(); ) {
-            final ConsensusEvent event = eventIt.next();
-            for (final ConsensusTransaction txn : event.getTransactions()) {
-                transactionConsumer.accept(txn);
-            }
-        }
-    }
-
-    /**
-     * A convenience method that supplies every transaction in this round to a consumer, along with the transaction's
-     * event.
-     *
-     * @param consumer an event and transaction consumer
-     */
-    default void forEachEventTransaction(final BiConsumer<ConsensusEvent, ConsensusTransaction> consumer) {
-        for (final Iterator<ConsensusEvent> eventIt = iterator(); eventIt.hasNext(); ) {
-            final ConsensusEvent event = eventIt.next();
-            for (final ConsensusTransaction txn : event.getTransactions()) {
-                consumer.accept(event, txn);
-            }
-        }
-    }
 
     /**
      * The timestamp of the end of a round. Is equal to the consensus timestamp of the last transaction in the last
@@ -100,4 +64,44 @@ public interface Round extends Iterable<ConsensusEvent> {
      */
     @NonNull
     Instant getConsensusTimestamp();
+
+    /**
+     * The consensus snapshot for this round. This data must be persisted in order for the consensus layer to recover
+     * from this point in consensus time.
+     *
+     * @return the consensus snapshot of this round
+     */
+    @NonNull
+    ConsensusSnapshot getConsensusSnapshot();
+
+    /**
+     * Indicates if this round reached consensus while replaying PCES data from disk. This happens after the node
+     * restarts in order to recover the latest consensus state.
+     *
+     * @return true if the round reached consensus while replaying data from disk, false otherwise
+     */
+    boolean isPcesRound();
+
+    /**
+     * The wall clock time at which this round reached consensus. Used for metrics.
+     * <p>
+     * This method is temporary and will be removed when a consensus algorithm that only reaches consensus on a single
+     * round at a time is implemented. Until then, this method is required to measure the time between a round reaching
+     * consensus and it being handled.
+     *
+     * @return the wall clock time this round reached consensus
+     */
+    @NonNull
+    Instant getReachedConsTimestamp();
+
+    /**
+     * The legacy running event hash of the last event in this round, or {@code null} if there are no events in the
+     * round.
+     * <p>
+     * This method is temporary and will be removed when the consensus event stream is retired.
+     *
+     * @return the running event hash of the last event
+     */
+    @Nullable
+    RunningHash getLastEventRunningHash();
 }

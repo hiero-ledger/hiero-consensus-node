@@ -11,9 +11,8 @@ import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.CANDIDA
 import static com.hedera.services.bdd.spec.HapiSpec.networkHapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.clprGetEndpointManifest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.clprGetLedgerConfiguration;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteConnector;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterChannel;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCreateChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprSubmitBundle;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprUpdateLedgerConfiguration;
@@ -51,9 +50,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.protobuf.ByteString;
+import com.hedera.node.app.hapi.utils.ClprChannelId;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.info.DiskStartupNetworks;
 import com.hedera.node.internal.network.Network;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNode;
@@ -1157,7 +1158,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
             final int maxQueueDepth) {
         final AtomicReference<ByteString> proofA = new AtomicReference<>();
         final AtomicReference<ByteString> proofB = new AtomicReference<>();
-        // Manifest-only mode: completeChannel and the verifyConfig probes both require each
+        // Manifest-only mode: createChannel and the verifyConfig probes both require each
         // ledger's endpoint-manifest StateProof, so capture and thread them like the HAPI TLS overload.
         final AtomicReference<ByteString> manifestProofA = new AtomicReference<>();
         final AtomicReference<ByteString> manifestProofB = new AtomicReference<>();
@@ -1206,7 +1207,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
      * As {@link #setupBothNetworks(SubProcessNetwork, SubProcessNetwork, int, int, ClprCrypto,
      * int, int)} but additionally captures each ledger's manifest {@code StateProof} via the
      * {@code clprGetEndpointManifest} HAPI query and threads it into the peer's
-     * {@code ClprCompleteChannel} as {@code endpoint_manifest_proof_bytes} (required, since the
+     * {@code ClprCreateChannel} as {@code endpoint_manifest_proof_bytes} (required, since the
      * manifest-aware verifier ABI rejects an empty manifest proof). Dial targets, including each
      * network's HAPI TLS port and certificate, come from the captured manifests.
      *
@@ -1401,7 +1402,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                         // just-installed throttles. clprGetLedgerConfiguration proves against a SIGNED block
                         // that lags committed state, so an early capture can carry an empty trust anchor (the
                         // ledger_id isn't in the proven config yet) or a PRIOR install's throttles — either of
-                        // which would make the peer's clprCompleteChannel verifyConfig revert. Decoding in
+                        // which would make the peer's clprCreateChannel verifyConfig revert. Decoding in
                         // process (rather than calling the verifier precompile) gives the same guarantee
                         // without the 6 KB call-size limit the config+manifest proofs would exceed.
                         if (captured != null
@@ -1507,11 +1508,11 @@ public abstract class HieroToHieroBase implements LifecycleTest {
      * True when the config {@link com.hedera.hapi.block.stream.StateProof} decodes to a
      * {@code ClprLedgerConfiguration} that carries a populated {@code initial_trust_anchor} and the
      * just-installed throttles — i.e. the proof is committed and current, so the peer's
-     * {@code clprCompleteChannel} verifyConfig will accept it.
+     * {@code clprCreateChannel} verifyConfig will accept it.
      *
      * <p>{@code clprGetLedgerConfiguration} proves against a SIGNED block that lags committed state, so an
      * early capture can carry an empty trust anchor (the ledger_id isn't in the proven config yet) or a
-     * PRIOR install's throttles on a shared network. Both would make the peer's completeChannel verifyConfig
+     * PRIOR install's throttles on a shared network. Both would make the peer's createChannel verifyConfig
      * revert. This is decoded in-process (see {@link ClprTestProofs#decodeLedgerConfig}) rather than via a
      * verifier-precompile call, so it is not subject to the 6 KB contract-call size limit that the
      * config+manifest proofs together would exceed.
@@ -1533,7 +1534,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
      * and the system-contract caller; fund the connector; then run the channel + connector
      * commit-reveal. The peer's config StateProof is read at execution time via {@link
      * com.hedera.services.bdd.spec.utilops.UtilVerbs#sourcing sourcing} so phase 2 has populated
-     * the reference before this networkHapiTest builds its clprCompleteChannel op.
+     * the reference before this networkHapiTest builds its clprCreateChannel op.
      *
      * <p>All contractCreate + clprXxx ops live in a single {@code networkHapiTest} so contract IDs
      * (PassThroughAuth, ClprSystemContract, ClprLedgerVerifier) remain visible to the later
@@ -1566,16 +1567,11 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                         cryptoTransfer(tinyBarsFromTo(GENESIS, CONNECTOR_CONTRACT, ONE_HUNDRED_HBARS)),
                         uploadInitCode(CLPR_CONTRACT),
                         contractCreate(CLPR_CONTRACT),
-                        // Channel commit-reveal
-                        clprRegisterChannel()
-                                .ownershipCommitment(crypto.channelCommitment)
-                                .payingWith(GENESIS),
                         sourcing(() -> {
-                            var op = clprCompleteChannel()
+                            var op = clprCreateChannel()
                                     .channelId(crypto.channelId)
-                                    .publicKey(crypto.publicKey)
-                                    .signature(crypto.channelSignature)
-                                    .signatureScheme(ClprSignatureScheme.ED25519)
+                                    .salt(crypto.channelSalt)
+                                    .peerVerifier(ClprCrypto.CLPR_SERVICE_ADDRESS)
                                     .verifierContract(VERIFIER)
                                     .configProofBytes(peerConfigProof.get().toByteArray())
                                     .payingWith(GENESIS)
@@ -1885,25 +1881,27 @@ public abstract class HieroToHieroBase implements LifecycleTest {
         final byte[] publicKey = new byte[Ed25519.PUBLIC_KEY_BYTES];
         final byte[] secretKey = new byte[Ed25519.SECRET_KEY_BYTES];
         final byte[] channelId;
-        final byte[] channelCommitment;
-        final byte[] channelSignature = new byte[Ed25519.SIGNATURE_BYTES];
+        final byte[] channelSalt;
         final byte[] connectorSalt = new byte[32]; // all zeros
         final byte[] connectorId;
         final byte[] connectorCommitment;
         final byte[] connectorSignature = new byte[Ed25519.SIGNATURE_BYTES];
 
-        ClprCrypto() {
+        ClprCrypto(final SubProcessNetwork ledgerA, final SubProcessNetwork ledgerB) {
             Ed25519.newKeypair(publicKey, secretKey, TEST_PRIVATE_KEY_SEED);
 
             final var seed = "hiero-e2e-test-conn-v1-" + INSTANCE_COUNTER.incrementAndGet();
-            channelId = MiscCryptoUtils.keccak256DigestOf(seed.getBytes(StandardCharsets.UTF_8));
-
-            // Channel commitment: keccak256(channelId || pubKey)
-            channelCommitment = MiscCryptoUtils.keccak256DigestOf(concat(channelId, publicKey));
-
-            // Channel signature: Ed25519 over keccak256(channelId)
-            final var connSigMsg = MiscCryptoUtils.keccak256DigestOf(channelId);
-            Ed25519.sign(channelSignature, connSigMsg, secretKey);
+            channelSalt = MiscCryptoUtils.keccak256DigestOf(seed.getBytes(StandardCharsets.UTF_8));
+            final var service = Bytes.wrap(CLPR_SERVICE_ADDRESS);
+            channelId = ClprChannelId.derive(
+                            "eip155:" + ledgerA.startupProperties().getLong("contracts.chainId"),
+                            service,
+                            service,
+                            "eip155:" + ledgerB.startupProperties().getLong("contracts.chainId"),
+                            service,
+                            service,
+                            Bytes.wrap(channelSalt))
+                    .toByteArray();
 
             // connectorId = keccak256(channelId || pubKey || connectorSalt)
             connectorId = MiscCryptoUtils.keccak256DigestOf(concat(channelId, concat(publicKey, connectorSalt)));

@@ -53,6 +53,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.spi.WritableStates;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
+import org.hiero.base.crypto.ECDSASecp256k1;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -125,7 +126,7 @@ class ClprCompleteConnectorHandlerTest {
         final EntityIdFactory idFactory = new AppEntityIdFactory(config);
         subject = new ClprCompleteConnectorHandler(idFactory);
 
-        ecdsaPublicKey64 = CryptoTestHelpers.deriveEcdsaPublicKey(SECRET_KEY);
+        ecdsaPublicKey64 = ECDSASecp256k1.derivePublicKey(SECRET_KEY);
         derivedConnectorId =
                 CryptoTestHelpers.computeConnectorId(CHANNEL_ID.toByteArray(), ecdsaPublicKey64, SALT.toByteArray());
         ecdsaCommitment = CryptoTestHelpers.computeCommitment(derivedConnectorId.toByteArray(), ecdsaPublicKey64);

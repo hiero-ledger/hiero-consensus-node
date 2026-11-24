@@ -138,37 +138,15 @@ interface IClprService {
     // Channel Management (Spec section 6.2)
     // =========================================================================
 
-    /// @notice Phase 1 (Commit): Register an ownership commitment on this ledger. Permissionless.
-    /// @dev Stores the commitment. No Channel state is created yet — neither the channelId
-    ///      nor the public key is revealed at this stage. The commitment prevents cross-ledger
-    ///      front-running (see cross-platform spec §5.1).
-    /// @param commitment The ownership commitment: keccak256(channelId || publicKey).
-    /// @param verifierContract Address of the locally deployed verifier contract.
-    ///        The verifier is immutable — it cannot be changed after registration.
-    /// @param configProofBytes Opaque proof from the peer ledger, passed to verifyConfig()
-    ///        to obtain the verified peer configuration (chain_id, service_address, throttles).
-    function registerChannel(
-        bytes32 commitment,
-        address verifierContract,
-        bytes calldata configProofBytes
-    ) external;
-
-    /// @notice Phase 2 (Reveal): Complete registration by revealing the Channel ID and
-    ///         public key. Permissionless.
-    /// @dev Validates keccak256(channelId || ecdsaPublicKey) matches a stored commitment,
-    ///      verifies the ECDSA signature, and creates the Channel in ACTIVE state.
-    /// @param channelId The Channel ID (arbitrary 32-byte value, same on both ledgers).
-    ///        Must not already exist as a Channel.
-    /// @param ecdsaPublicKey The uncompressed secp256k1 public key (64 bytes, x||y without
-    ///        0x04 prefix). Used to verify the ownership commitment.
-    /// @param ecdsaSignature ECDSA secp256k1 signature over keccak256(channelId),
-    ///        proving the caller controls the keypair.
-    function completeChannel(
+    /// @notice Open a channel after the verifier authenticates the peer configuration.
+    function openChannel(
         bytes32 channelId,
-        bytes calldata ecdsaPublicKey,
-        bytes calldata ecdsaSignature
+        bytes32 salt,
+        address verifier,
+        bytes calldata peerVerifier,
+        bytes calldata configProof,
+        bytes calldata endpointManifestProof
     ) external;
-
 
     /// @notice Initiate graceful close of a Channel. ADMIN_ROLE only.
     /// @dev When called on a PENDING Channel, deletes it immediately (no drain needed).
@@ -957,7 +935,7 @@ EIP-2537 is activated on mainnet.
 
 ## 6.3 EXTCODEHASH Fingerprint Recording
 
-During `registerChannel`, the verifier contract's `EXTCODEHASH` is computed and stored on the Channel as
+During `openChannel`, the verifier contract's `EXTCODEHASH` is computed and stored on the Channel as
 `verifierFingerprint` (informational). The verifier is immutable — it cannot be changed after registration.
 This is a single opcode costing 2,600 gas (cold) or 100 gas (warm).
 
@@ -1135,7 +1113,7 @@ modifier nonReentrant() {
 }
 ```
 
-Applied to: `setLedgerConfiguration`, `registerChannel`, `completeChannel`,
+Applied to: `setLedgerConfiguration`, `openChannel`,
 `closeChannel`, `registerConnector`,
 `topUpConnector`, `withdrawConnectorBalance`, `deregisterConnector`, `sendMessage`, `submitBundle`,
 `redactMessage`, `registerEndpoint`, `deregisterEndpoint`.
@@ -1217,15 +1195,14 @@ protected by the reentrancy guard, so they cannot be called in the same transact
 
 ## 10.1 Operation Gas Costs
 
-|          Operation           |     Estimated Gas      |              Who Pays               |                           Notes                           |
-|------------------------------|------------------------|-------------------------------------|-----------------------------------------------------------|
-| `registerChannel`            | 100,000 - 200,000      | Caller (permissionless)             | Commit phase only; no ECDSA verify. EXTCODEHASH recorded. |
-| `completeChannel`            | 80,000 - 120,000       | Caller (permissionless)             | Reveal phase; ECDSA verify + state transition.            |
-| `registerConnector`          | 150,000                | Connector admin                     |                                                           |
-| `registerEndpoint`           | 80,000                 | Endpoint operator                   |                                                           |
-| `sendMessage` (enqueue)      | 80,000 - 175,000       | Message sender                      | +~25K if lazy ConfigUpdate is enqueued                    |
-| `submitBundle` (10 messages) | 2,000,000 - 25,000,000 | Endpoint (reimbursed by Connectors) | +~25K if lazy ConfigUpdate is enqueued                    |
-| `redactMessage`              | 30,000                 | CLPR admin                          |                                                           |
+|          Operation           |           Estimated Gas           |              Who Pays               |                          Notes                          |
+|------------------------------|-----------------------------------|-------------------------------------|---------------------------------------------------------|
+| `openChannel`                | Depends on the verifier and proof | Caller (permissionless)             | Verifies the peer configuration and stores the channel. |
+| `registerConnector`          | 150,000                           | Connector admin                     |                                                         |
+| `registerEndpoint`           | 80,000                            | Endpoint operator                   |                                                         |
+| `sendMessage` (enqueue)      | 80,000 - 175,000                  | Message sender                      | +~25K if lazy ConfigUpdate is enqueued                  |
+| `submitBundle` (10 messages) | 2,000,000 - 25,000,000            | Endpoint (reimbursed by Connectors) | +~25K if lazy ConfigUpdate is enqueued                  |
+| `redactMessage`              | 30,000                            | CLPR admin                          |                                                         |
 
 ## 10.2 Fee Model
 
@@ -1331,29 +1308,9 @@ contract. No bond delegation or liquid staking is supported in the initial imple
 **Ethereum decision:** Escalating percentage-based slashing (section 7.3). Four-strike policy leading to
 permanent ban. Slash proceeds go to the submitting endpoint that was harmed.
 
-## 12.3 Signature Format
+## 12.3 Channel identity
 
-**Spec says:** The signature scheme and exact signed payload format are platform-specific. The cross-platform
-protocol requires that `keccak256(channel_id || public_key)` matches the stored ownership commitment.
-The channel_id is an arbitrary 32-byte value chosen by the registrant, not derived from any key.
-
-**Ethereum decision:** Use ECDSA secp256k1 (native `ecrecover` support). The signed payload for
-`completeChannel` (the reveal phase) is:
-
-```
-signedPayload = keccak256(channelId)    // bytes32
-```
-
-The channel ID alone is sufficient — there is no replay risk since the channel ID is unique,
-and simplifying the payload allows the same signature to work on both ledgers without
-platform-specific payload construction.
-
-Note: `registerChannel` (the commit phase) does NOT require a signature. The signature is only
-verified during `completeChannel`.
-
-Signature recovery uses `ecrecover` to derive the signer's address, then verifies
-`keccak256(channelId || uncompressedPubkey)` matches the stored ownership commitment. This
-requires the caller to provide the uncompressed public key alongside the signature for verification.
+During channel opening the service checks the caller’s expected channel ID against the ID derived from both ledgers’ chain IDs, services, verifiers, and shared salt.
 
 ## 12.4 Application Callback Interface
 
@@ -1435,7 +1392,7 @@ The following contradictions existed in earlier revisions and have been correcte
 
 4. **Incomplete `clprEnabled` coverage.** The cross-platform spec §7 states "When disabled, all pseudo-API
    calls MUST return an error." All state-modifying non-admin functions MUST check `require(clprEnabled)` as
-   their first step. This includes: `registerChannel`, `registerConnector`,
+   their first step. This includes: `openChannel`, `registerConnector`,
    `topUpConnector`, `withdrawConnectorBalance`, `deregisterConnector`,
    `registerEndpoint`, `deregisterEndpoint`, `redactMessage`, and `sendMessage`.
    Read-only query functions (`getLedgerConfiguration`, `getConnector`) are exempt. Admin operations
@@ -1484,13 +1441,9 @@ liveness dependency -- if the committee is not updated in time, bundle verificat
 function callable by anyone. The proof demonstrates that the new committee was attested by the current committee.
 A bounty mechanism should incentivize timely updates.
 
-### 13.2.4 Signature Scheme for Channel Registration
+### 13.2.4 Channel identity
 
-**Finding:** The cross-platform spec requires that `keccak256(channel_id || public_key)` matches the
-stored ownership commitment. The channel_id is an arbitrary 32-byte value, allowing different key types
-on different ledgers. Ethereum uses ECDSA secp256k1, which maps naturally to the `ecrecover` precompile.
-If post-quantum signature schemes are needed in the future, Ethereum would need precompile support for
-the chosen scheme. No issues for current implementation.
+The service verifies the peer configuration and checks the derived channel ID before activation. See section 12.3.
 
 ### 13.2.5 SHA-256 for Running Hash
 

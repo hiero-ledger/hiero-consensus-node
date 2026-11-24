@@ -40,7 +40,7 @@ public final class TransactionStateLogger {
             logger.debug(
                     "Starting round {} of {} events at {}",
                     round.getRoundNum(),
-                    round.getEventCount(),
+                    round.getConsensusEvents().size(),
                     round.getConsensusTimestamp());
         }
     }

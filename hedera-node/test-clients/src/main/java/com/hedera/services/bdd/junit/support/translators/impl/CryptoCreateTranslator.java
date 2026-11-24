@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.translators.impl;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.REVERTED_SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.token.AliasUtils.extractEvmAddress;
 import static com.hedera.node.app.service.token.AliasUtils.isOfEvmAddressSize;
@@ -10,6 +11,7 @@ import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.trace.TraceData;
 import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
+import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.services.bdd.junit.support.translators.BaseTranslator;
 import com.hedera.services.bdd.junit.support.translators.BlockTransactionPartsTranslator;
@@ -43,6 +45,13 @@ public class CryptoCreateTranslator implements BlockTransactionPartsTranslator {
         return baseTranslator.recordFrom(
                 parts,
                 (receiptBuilder, recordBuilder) -> {
+                    // A synthetic creation gets rates only if its own dispatch succeeded, even if later reverted.
+                    if (!parts.isTopLevel()
+                            && !parts.transactionResult().hasScheduleRef()
+                            && parts.status() != SUCCESS
+                            && parts.status() != REVERTED_SUCCESS) {
+                        receiptBuilder.exchangeRate((ExchangeRateSet) null);
+                    }
                     if (parts.status() == SUCCESS && parts.outputs() != null) {
                         parts.outputs()
                                 .forEach(transactionOutput -> receiptBuilder.accountID(
