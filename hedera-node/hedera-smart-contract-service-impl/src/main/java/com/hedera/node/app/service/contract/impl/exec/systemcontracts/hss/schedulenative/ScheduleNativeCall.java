@@ -20,6 +20,7 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.gas.DispatchGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.DispatchForResponseCodeHssCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallFactory;
@@ -30,6 +31,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.evm.frame.MessageFrame;
+import org.hyperledger.besu.evm.precompile.PrecompiledContract;
 
 /**
  * Handle a call to schedule a native function call.
@@ -109,21 +111,28 @@ public class ScheduleNativeCall extends AbstractCall {
     }
 
     /**
-     * Gives the result of a pre-empted inner call the output of {@code scheduleNative()}, a response code and a
-     * schedule address, since the inner call encodes its own output, which may be only a response code. No schedule is
-     * created, so the address is zero. The gas, status and record of the inner call are kept.
+     * Gives the successful result of a pre-empted inner call the output of {@code scheduleNative()}, a response code
+     * and a schedule address, since the inner call encodes its own output, which may be only a response code. No
+     * schedule is created, so the address is zero. The gas, status and record of the inner call are kept.
+     * <p>
+     * A result that is not a success, a halt or a revert, already says how the call ended and has no output to
+     * translate, so it is returned as it is.
      *
      * @param preempted the result of the pre-empted inner call
      * @return the result of this call
      */
     private PricedResult scheduleResultOf(@NonNull final PricedResult preempted) {
+        final var full = preempted.fullResult();
+        if (full.result().state() != MessageFrame.State.COMPLETED_SUCCESS) {
+            return preempted;
+        }
         final var status = preempted.responseCode();
         final var output = RC_AND_ADDRESS_ENCODER.encode(Tuple.of((long) status.protoOrdinal(), ZERO_ADDRESS));
         return gasOnly(
-                successResult(
-                        output,
-                        preempted.fullResult().gasRequirement(),
-                        requireNonNull(preempted.fullResult().recordBuilder())),
+                new FullResult(
+                        PrecompiledContract.PrecompileContractResult.success(Bytes.wrap(output.array())),
+                        full.gasRequirement(),
+                        full.recordBuilder()),
                 status,
                 isViewCall);
     }
