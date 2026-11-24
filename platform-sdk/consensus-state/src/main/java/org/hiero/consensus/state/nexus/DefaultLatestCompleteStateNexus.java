@@ -25,6 +25,7 @@ public class DefaultLatestCompleteStateNexus implements LatestCompleteStateNexus
 
     private final StateConfig stateConfig;
     private ReservedSignedState currentState;
+    /** Once freezing begins, this nexus must remain empty for the rest of its lifetime. */
     private boolean freezePeriodEntered;
 
     /**
@@ -74,15 +75,40 @@ public class DefaultLatestCompleteStateNexus implements LatestCompleteStateNexus
      * {@inheritDoc}
      */
     @Override
+    public synchronized void observeStateForAsyncFreeze(@NonNull final ReservedSignedState reservedSignedState) {
+        try {
+            if (stateConfig.saveStateAsync()
+                    && reservedSignedState.isNotNull()
+                    && reservedSignedState.get().isFreezeState()) {
+                enterFreezePeriod();
+            }
+        } finally {
+            reservedSignedState.close();
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public void updatePlatformStatus(@NonNull final PlatformStatus platformStatus) {
         if (PlatformStatus.FREEZING.equals(platformStatus)) {
             synchronized (this) {
-                freezePeriodEntered = true;
-                if (currentState != null) {
-                    currentState.close();
-                    currentState = null;
-                }
+                enterFreezePeriod();
             }
+        }
+    }
+
+    /**
+     * Prevent this nexus from retaining any more states and release the state currently held by it.
+     *
+     * <p>This method must be called while holding this object's monitor.
+     */
+    private void enterFreezePeriod() {
+        freezePeriodEntered = true;
+        if (currentState != null) {
+            currentState.close();
+            currentState = null;
         }
     }
 

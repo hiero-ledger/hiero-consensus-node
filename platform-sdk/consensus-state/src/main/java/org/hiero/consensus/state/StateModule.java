@@ -204,14 +204,13 @@ public class StateModule {
                     state.close();
                     return false;
                 });
-        allReservedSignedStatesWire.solderTo(saveToDiskFilter.getInputWire());
         saveToDiskFilter
                 .getOutputWire()
                 .solderTo(stateSnapshotManagerWiring.getInputWire(StateSnapshotManager::saveStateTask));
 
         // Filter to complete states only and store in latestCompleteStateNexus
-        allReservedSignedStatesWire
-                .buildFilter("completeStateFilter", "states", rs -> {
+        final WireFilter<ReservedSignedState> completeStateFilter =
+                new WireFilter<>(model, "completeStateFilter", "states", rs -> {
                     if (rs.get().isComplete()) {
                         return true;
                     } else {
@@ -219,8 +218,20 @@ public class StateModule {
                         rs.close();
                         return false;
                     }
-                })
+                });
+        completeStateFilter
+                .getOutputWire()
                 .solderTo(latestCompleteStateNexusWiring.getInputWire(LatestCompleteStateNexus::setStateIfNewer));
+
+        /*
+         * The observer must run before the snapshot and complete-state destinations. When async snapshots are enabled,
+         * it releases the latest complete state before an async freeze snapshot can wait for the freeze state to be
+         * destroyed; otherwise it does nothing. The nexus consumes and closes the observer's reservation.
+         */
+        allReservedSignedStatesWire.orderedSolderTo(List.of(
+                latestCompleteStateNexusWiring.getInputWire(LatestCompleteStateNexus::observeStateForAsyncFreeze),
+                saveToDiskFilter.getInputWire(),
+                completeStateFilter.getInputWire()));
 
         // Setup heartbeat
         model.buildHeartbeatWire(wiringConfig.stateGarbageCollectorHeartbeatPeriod())

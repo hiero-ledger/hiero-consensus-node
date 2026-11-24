@@ -13,7 +13,7 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class WorkingStateAccessor {
-    private State state = null;
+    private volatile State state = null;
 
     @Inject
     public WorkingStateAccessor() {

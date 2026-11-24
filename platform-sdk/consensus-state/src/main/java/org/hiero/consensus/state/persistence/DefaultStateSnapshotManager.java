@@ -20,6 +20,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -136,17 +137,18 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
                 return null;
             }
             checkSignatures(signedState);
-            final boolean success = saveStateTask(reservedSignedState, getSignedStateDir(signedState.getRound()));
+            // Read the state before writing: an async snapshot releases the reservation, and the state may be
+            // destroyed by the time the write returns
+            final long round = signedState.getRound();
+            final Instant consensusTimestamp = signedState.getConsensusTimestamp();
+            final boolean success = saveStateTask(reservedSignedState, round, getSignedStateDir(round));
             if (!success) {
                 return null;
             }
             signedState.stateSavedToDisk();
             final long minBirthRound = deleteOldStates();
-            stateSavingResult = new StateSavingResult(
-                    signedState.getRound(),
-                    signedState.isFreezeState(),
-                    signedState.getConsensusTimestamp(),
-                    minBirthRound);
+            stateSavingResult =
+                    new StateSavingResult(round, signedState.isFreezeState(), consensusTimestamp, minBirthRound);
         } finally {
             if (!reservedSignedState.isClosed()) {
                 reservedSignedState.close();
@@ -175,11 +177,13 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
         // saving process (see SignedStateFileWriter#writeSignedStateFilesToDirectory);
         // additionally, this try-finally ensures cleanup if an error occurs before reaching that point.
         try {
+            final long round = signedState.getRound();
             saveStateTask(
                     reservedSignedState,
+                    round,
                     fileSystemManager
                             .resolve(getReason(signedState).getDescription())
-                            .resolve(String.format("node%d_round%d", selfId.id(), signedState.getRound())));
+                            .resolve(String.format("node%d_round%d", selfId.id(), round)));
         } finally {
             if (!reservedSignedState.isClosed()) {
                 reservedSignedState.close();
@@ -200,16 +204,17 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
      * <b>Reservation contract:</b> This method passes the reservation to
      * {@link SignedStateFileWriter#writeSignedStateToDisk}, which takes ownership and releases it.
      * For synchronous snapshots, the reservation is released after the snapshot is written.
-     * For asynchronous snapshots (periodic snapshots with async enabled), the reservation is
+     * For asynchronous snapshots (periodic and freeze snapshots with async enabled), the reservation is
      * released early to unblock the virtual pipeline flush, and the method blocks until the
      * flush-triggered snapshot completes or times out.
      *
      * @param reservedSignedState the reserved state to write
+     * @param round               the round of the state, read before the reservation is handed over
      * @param directory           the target directory for the state files
      * @return {@code true} if the state was written successfully, {@code false} otherwise
      */
     private boolean saveStateTask(
-            @NonNull final ReservedSignedState reservedSignedState, @NonNull final Path directory) {
+            @NonNull final ReservedSignedState reservedSignedState, final long round, @NonNull final Path directory) {
         final SignedState signedState = reservedSignedState.get();
 
         try {
@@ -226,7 +231,7 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
             logger.error(
                     EXCEPTION.getMarker(),
                     "Unable to write signed state to disk for round {} to {}.",
-                    signedState.getRound(),
+                    round,
                     directory,
                     e);
             return false;
