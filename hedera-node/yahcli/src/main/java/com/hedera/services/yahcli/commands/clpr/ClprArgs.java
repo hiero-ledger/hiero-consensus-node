@@ -160,7 +160,7 @@ final class ClprArgs {
     /**
      * Reads a flat JSON file (one level deep, only string-valued fields) and returns a
      * {@code Map<fieldName, stringValue>}. Intended for parsing the identity bundles
-     * produced by {@code generate-channel-identity} / {@code generate-connector-identity},
+     * produced by the CLPR identity generators,
      * which have a fixed shape — keeps yahcli dependency-light by avoiding a real JSON library.
      */
     static Map<String, String> readFlatJsonStringFields(final Path path) throws IOException {
