@@ -32,8 +32,14 @@ import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCa
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HederaSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.PrngSystemContract;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.clpr.getchannel.GetChannelTranslator;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.clpr.getendpointmanifest.GetEndpointManifestTranslator;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.clpr.sendmessage.SendMessageTranslator;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.clpr.verify.VerifyBundleTranslator;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.clpr.verify.VerifyConfigTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractClprSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.utils.OpsDurationCounter;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
 import com.hedera.node.app.service.contract.impl.hevm.HEVM;
 import com.hedera.node.app.service.contract.impl.hevm.OpsDurationSchedule;
 import com.hedera.node.app.service.contract.impl.state.AbstractMutableEvmAccount;
@@ -50,6 +56,7 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
@@ -64,6 +71,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -200,6 +208,47 @@ class CustomMessageCallProcessorTest {
     }
 
     @Test
+    void pricedSystemContractChargesItsPriceButRecordsOnlyItsWork() {
+        final var opsDurationTestCounter = OpsDurationCounter.withSchedule(OPS_DURATION_TEST_SCHEDULE);
+        givenPrngCall(new FullResult(result, GAS_REQUIREMENT, null).pricedAt(10 * GAS_REQUIREMENT));
+        given(frame.getRemainingGas()).willReturn(10 * GAS_REQUIREMENT);
+        given(frame.getValue()).willReturn(Wei.ZERO);
+        given(frame.getMessageFrameStack()).willReturn(stack);
+        given(frame.getContextVariable(OPS_DURATION_COUNTER)).willReturn(opsDurationTestCounter);
+        given(frame.getWorldUpdater()).willReturn(proxyWorldUpdater);
+        given(stack.getLast()).willReturn(frame);
+        given(result.output()).willReturn(OUTPUT_DATA);
+        given(result.state()).willReturn(MessageFrame.State.CODE_SUCCESS);
+        given(contractMetrics.opsDurationMetrics()).willReturn(mock(OpsDurationMetrics.class));
+
+        subject.start(frame, operationTracer);
+
+        Assertions.assertEquals(GAS_REQUIREMENT, opsDurationTestCounter.opsDurationUnitsConsumed());
+        verify(frame).decrementRemainingGas(10 * GAS_REQUIREMENT);
+        verify(frame).setState(MessageFrame.State.CODE_SUCCESS);
+    }
+
+    @Test
+    void unaffordablePricedSystemContractHaltsButRecordsOnlyItsWork() {
+        final var opsDurationTestCounter = OpsDurationCounter.withSchedule(OPS_DURATION_TEST_SCHEDULE);
+        givenPrngCall(new FullResult(result, GAS_REQUIREMENT, null).pricedAt(10 * GAS_REQUIREMENT));
+        given(frame.getRemainingGas()).willReturn(10 * GAS_REQUIREMENT - 1);
+        given(frame.getValue()).willReturn(Wei.ZERO);
+        lenient().when(frame.getMessageFrameStack()).thenReturn(stack);
+        lenient().when(stack.getLast()).thenReturn(frame);
+        lenient().when(frame.getContextVariable(OPS_DURATION_COUNTER)).thenReturn(opsDurationTestCounter);
+        lenient().when(contractMetrics.opsDurationMetrics()).thenReturn(mock(OpsDurationMetrics.class));
+
+        subject.start(frame, operationTracer);
+
+        // A caller that cannot pay the fee must not be able to use the throttle capacity the fee would buy
+        Assertions.assertEquals(GAS_REQUIREMENT, opsDurationTestCounter.opsDurationUnitsConsumed());
+        verify(frame, never()).decrementRemainingGas(anyLong());
+        verifyHalt(INSUFFICIENT_GAS, false);
+        verify(operationTracer).tracePrecompileResult(frame, SYSTEM);
+    }
+
+    @Test
     void callsToNonStandardSystemContractsAreNotSupported() {
         givenCallWithCode(NON_EVM_PRECOMPILE_SYSTEM_ADDRESS);
 
@@ -310,6 +359,69 @@ class CustomMessageCallProcessorTest {
         verify(frame).setOutputData(OUTPUT_DATA);
         verify(frame, never()).clearGasRemaining();
         verify(operationTracer).tracePrecompileResult(frame, SYSTEM);
+    }
+
+    static Stream<SystemContractMethod> pricedClprMethods() {
+        return Stream.of(
+                SendMessageTranslator.SEND_MESSAGE,
+                VerifyConfigTranslator.VERIFY_CONFIG,
+                VerifyBundleTranslator.VERIFY_BUNDLE,
+                GetChannelTranslator.GET_CHANNEL_QUEUE_STATE,
+                GetEndpointManifestTranslator.GET_ENDPOINT_MANIFEST);
+    }
+
+    @ParameterizedTest
+    @MethodSource("pricedClprMethods")
+    void pricedClprCallRejectsAttachedValue(final SystemContractMethod method) {
+        final var address = Address.fromHexString("0x16e");
+        final var clprContract = mock(AbstractClprSystemContract.class);
+        final var callInput = Bytes.concatenate(Bytes.wrap(method.selector()), Bytes.fromHexString("0x1234"));
+        subject = new CustomMessageCallProcessor(
+                evm, featureFlags, registry, addressChecks, Map.of(address, clprContract), contractMetrics);
+        final var isHalted = new AtomicBoolean();
+        givenHaltableFrame(isHalted);
+        givenCallWithCode(address);
+        given(frame.getContextVariable(CONFIG_CONTEXT_VARIABLE))
+                .willReturn(HederaTestConfigBuilder.create()
+                        .withValue("clpr.enabled", true)
+                        .getOrCreateConfig());
+        doCallRealMethod().when(clprContract).isDisabled(frame);
+        given(frame.getValue()).willReturn(Wei.ONE);
+        given(frame.getInputData()).willReturn(callInput);
+        given(frame.getMessageFrameStack()).willReturn(stack);
+        given(stack.isEmpty()).willReturn(true);
+
+        subject.start(frame, operationTracer);
+
+        verify(clprContract, never()).computeFully(any(), any(), any(), any());
+        verify(frame).setExceptionalHaltReason(Optional.of(CustomExceptionalHaltReason.INVALID_CONTRACT_ID));
+        verify(frame).setState(MessageFrame.State.EXCEPTIONAL_HALT);
+    }
+
+    @Test
+    void otherClprCallsCannotCarryValue() {
+        final var address = Address.fromHexString("0x16e");
+        final var clprContract = mock(AbstractClprSystemContract.class);
+        subject = new CustomMessageCallProcessor(
+                evm, featureFlags, registry, addressChecks, Map.of(address, clprContract), contractMetrics);
+        final var isHalted = new AtomicBoolean();
+        givenHaltableFrame(isHalted);
+        givenCallWithCode(address);
+        given(frame.getContextVariable(CONFIG_CONTEXT_VARIABLE))
+                .willReturn(HederaTestConfigBuilder.create()
+                        .withValue("clpr.enabled", true)
+                        .getOrCreateConfig());
+        doCallRealMethod().when(clprContract).isDisabled(frame);
+        given(frame.getValue()).willReturn(Wei.ONE);
+        given(frame.getInputData()).willReturn(INPUT_DATA);
+        given(frame.getMessageFrameStack()).willReturn(stack);
+        given(stack.isEmpty()).willReturn(true);
+
+        subject.start(frame, operationTracer);
+
+        verify(clprContract, never()).computeFully(any(), any(), any(), any());
+        verify(frame).setExceptionalHaltReason(Optional.of(CustomExceptionalHaltReason.INVALID_CONTRACT_ID));
+        verify(frame).setState(MessageFrame.State.EXCEPTIONAL_HALT);
     }
 
     @Test
@@ -692,12 +804,14 @@ class CustomMessageCallProcessorTest {
     }
 
     private void givenPrngCall(long gasRequirement) {
+        givenPrngCall(new FullResult(result, gasRequirement, null));
+    }
+
+    private void givenPrngCall(@NonNull final FullResult fullResult) {
         givenCallWithCode(TestHelpers.PRNG_SYSTEM_CONTRACT_ADDRESS);
         given(frame.getInputData()).willReturn(TestHelpers.PRNG_SYSTEM_CONTRACT_ADDRESS.getBytes());
         doAnswer(invocation -> {
-                    invocation
-                            .<Consumer<FullResult>>getArgument(3)
-                            .accept(new FullResult(result, gasRequirement, null));
+                    invocation.<Consumer<FullResult>>getArgument(3).accept(fullResult);
                     return null;
                 })
                 .when(prngPrecompile)

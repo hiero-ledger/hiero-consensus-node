@@ -16,6 +16,7 @@ import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synt
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthContractCreationForExternalization;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthContractCreationFromParent;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.stepDispatch;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_VERIFIER;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.SUPPRESSING_SIGNED_TX_CUSTOMIZER;
@@ -228,6 +229,13 @@ public class HandleHederaOperations implements HederaOperations {
     public void collectHtsFee(@NonNull final AccountID payerId, final long amount) {
         requireNonNull(payerId);
         context.tryToCharge(payerId, amount);
+    }
+
+    @Override
+    public boolean isClprVerifierDispatch() {
+        return context.dispatchMetadata()
+                .getMetadata(CLPR_VERIFIER, Boolean.class)
+                .orElse(false);
     }
 
     @Override

@@ -12,7 +12,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NO_PROGRESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_PAYLOAD_TOO_LARGE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_RUNNING_HASH_MISMATCH;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CONNECTORS_STATE_ID;
@@ -30,7 +29,6 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.notNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.lenient;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -63,6 +61,7 @@ import com.hedera.hapi.node.state.clpr.ClprQueueMetadata;
 import com.hedera.hapi.node.state.clpr.ClprServiceEndpoint;
 import com.hedera.hapi.node.state.clpr.ClprThrottles;
 import com.hedera.hapi.node.state.token.Account;
+import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.clpr.ClprChannelLifecycle;
@@ -81,8 +80,8 @@ import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
+import com.hedera.node.app.spi.fees.ExchangeRateInfo;
 import com.hedera.node.app.spi.fees.FeeCharging;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.ContractGasUsage;
@@ -98,7 +97,7 @@ import com.swirlds.state.spi.WritableStates;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.List;
 import org.apache.commons.lang3.RandomUtils;
 import org.junit.jupiter.api.BeforeEach;
@@ -136,14 +135,10 @@ class ClprSubmitBundleHandlerTest {
     // Per-message gas ceiling used by the default test config; the application callbacks
     // (onClprMessage / onClprResponse) are dispatched with this budget (spec §1.1 max_gas_per_message).
     private static final long TEST_MAX_GAS_PER_MESSAGE = 1_000_000L;
-    // Connector execution charge, mirrored into the test config in setupHandleContext():
-    //   worstCaseCharge = messageExecutionCost + messageExecutionCost * endpointMarginPercent / 100
-    // (see ClprSubmitBundleHandler worstCaseCharge). Kept as named constants so the charge
-    // assertions below trace back to the config values that produce them.
+    // Per-message execution reimbursement and progress reward, configured in setupHandleContext().
     private static final long MESSAGE_EXECUTION_COST = 1_000_000L;
-    private static final long ENDPOINT_MARGIN_PERCENT = 10L;
-    private static final long WORST_CASE_CHARGE =
-            MESSAGE_EXECUTION_COST + MESSAGE_EXECUTION_COST * ENDPOINT_MARGIN_PERCENT / 100;
+    private static final long PROGRESS_REWARD = 10_000_000L;
+    private static final long WORST_CASE_CHARGE = MESSAGE_EXECUTION_COST + PROGRESS_REWARD;
     private static final Timestamp CONFIG_TIMESTAMP =
             Timestamp.newBuilder().seconds(1000).nanos(0).build();
     private static final Timestamp ZERO_TIMESTAMP =
@@ -157,6 +152,9 @@ class ClprSubmitBundleHandlerTest {
 
     @Mock
     private HandleContext handleContext;
+
+    @Mock
+    private ExchangeRateInfo exchangeRateInfo;
 
     @Mock
     private StoreFactory storeFactory;
@@ -383,8 +381,7 @@ class ClprSubmitBundleHandlerTest {
         assertThat(exception).has(responseCode(CLPR_RUNNING_HASH_MISMATCH));
 
         exception.maybeReplay(feeChargingContext, handleContext);
-        verify(feeChargingContext).charge(PAYER_ID, new Fees(0, 5_000_000L, 0), null);
-        verify(feeChargingContext, never()).charge(eq(ENDPOINT_ACCOUNT), any(Fees.class), any());
+        verify(feeChargingContext, never()).charge(any(), any(), any());
     }
 
     @Test
@@ -534,6 +531,38 @@ class ClprSubmitBundleHandlerTest {
         assertThat(updated.receivedMessageId()).isEqualTo(5L);
         assertThat(updated.receivedRunningHash()).isEqualTo(runningHashOver(INTERMEDIATE_HASH, newTail));
         verify(handleContext, times(2)).dispatch(any());
+    }
+
+    @ParameterizedTest
+    @CsvSource({"5, 20000000", "10, 10000000", "20, 5000000"})
+    void usdProgressRewardUsesConsensusRateOncePerNewMessage(final int centEquiv, final long expectedReward) {
+        putChannel(ClprChannelStatus.ACTIVE, 0, 0, 3, INTERMEDIATE_HASH);
+        putConnector();
+        final var newTail = List.of(dataPayload(), dataPayload());
+        final var bundle = bundleEndingAt(6, INTERMEDIATE_HASH, newTail)
+                .copyBuilder()
+                .messages(List.of(dataPayload(), dataPayload(), dataPayload(), dataPayload()))
+                .build();
+        setupHandleContext(bundleTxn(bundle), true);
+        final var usdConfig = HederaTestConfigBuilder.create()
+                .withValue("clpr.enabled", true)
+                .withValue("clpr.messageExecutionCost", MESSAGE_EXECUTION_COST)
+                .getOrCreateConfig();
+        given(handleContext.configuration()).willReturn(usdConfig);
+        given(exchangeRateInfo.activeRate(any()))
+                .willReturn(ExchangeRate.newBuilder()
+                        .hbarEquiv(1)
+                        .centEquiv(centEquiv)
+                        .build());
+
+        subject.handle(handleContext);
+
+        verify(exchangeRateInfo).activeRate(Instant.ofEpochSecond(1_700_000_000L));
+        verify(handleContext, times(2)).dispatch(any(DispatchOptions.class));
+        verify(tokenServiceApi, times(2))
+                .transferFromTo(CONNECTOR_CONTRACT_ACCOUNT, PAYER_ID, MESSAGE_EXECUTION_COST + expectedReward);
+        verify(tokenServiceApi, times(2)).transferFromTo(any(), any(), anyLong());
+        assertThat(channelStore.getChannel(CHANNEL_ID).receivedMessageId()).isEqualTo(5L);
     }
 
     @Test
@@ -918,7 +947,7 @@ class ClprSubmitBundleHandlerTest {
         final var bundle = buildBundle(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH, List.of(dataPayload()));
         setupHandleContext(bundle, true);
         putConnectorWithStakeAndBalance(100_000_000L, 0, 0L);
-        // Balance 0 < worstCaseCharge (1_100_000) triggers the pre-check underfunded path; no dispatch
+        // Balance 0 < worstCaseCharge triggers the pre-check underfunded path; no dispatch
 
         subject.handle(handleContext);
 
@@ -961,58 +990,51 @@ class ClprSubmitBundleHandlerTest {
         assertThat(captor.getValue().throttling()).isEqualTo(HandleContext.ConsensusThrottling.ON);
     }
 
-    @org.junit.jupiter.params.ParameterizedTest
-    @org.junit.jupiter.params.provider.CsvSource({
-        "false, THROTTLED_AT_CONSENSUS",
-        "true, THROTTLED_AT_CONSENSUS",
-        "false, CONSENSUS_GAS_EXHAUSTED",
-        "true, CONSENSUS_GAS_EXHAUSTED"
+    @ParameterizedTest
+    @CsvSource({
+        "false, false, THROTTLED_AT_CONSENSUS",
+        "true, false, THROTTLED_AT_CONSENSUS",
+        "false, false, CONSENSUS_GAS_EXHAUSTED",
+        "true, false, CONSENSUS_GAS_EXHAUSTED",
+        "false, true, THROTTLED_AT_CONSENSUS",
+        "true, true, THROTTLED_AT_CONSENSUS",
+        "false, true, CONSENSUS_GAS_EXHAUSTED",
+        "true, true, CONSENSUS_GAS_EXHAUSTED"
     })
-    void preExecutionThrottleRefundsAllCallbackGas(final boolean response, final ResponseCodeEnum status) {
+    void capacityFailurePropagatesWithoutAdvancingChannel(
+            final boolean response, final boolean dispatchThrows, final ResponseCodeEnum status) {
         putChannel(ClprChannelStatus.ACTIVE, response ? 2 : 0, 0, ZERO_HASH);
         if (response) putOutboundDataMessage(1);
         final var messages = response ? List.of(replyPayload(1)) : List.of(dataPayload());
         setupHandleContext(buildBundle(ClprChannelStatus.ACTIVE, 0, response ? 1 : 0, ZERO_HASH, messages), true);
         putConnector();
         pricedGasContext();
-        // Response delivery is best-effort and consumes its gas report without inspecting status.
-        lenient().when(dispatchResult.status()).thenReturn(status);
-        given(dispatchResult.hasContractResult()).willReturn(false);
+        if (dispatchThrows) {
+            given(handleContext.dispatch(any(DispatchOptions.class))).willThrow(new HandleException(status));
+        } else {
+            given(dispatchResult.status()).willReturn(status);
+            given(dispatchResult.hasContractResult()).willReturn(false);
+        }
 
-        final long initialBalance = 10_000_000L;
-        final var balances = new HashMap<AccountID, Long>();
-        balances.put(PAYER_ID, initialBalance);
-        balances.put(CONNECTOR_CONTRACT_ACCOUNT, initialBalance);
-        given(handleContext.tryToCharge(any(), anyLong())).willAnswer(invocation -> {
-            balances.merge(invocation.getArgument(0), -invocation.getArgument(1, Long.class), Long::sum);
-            return true;
-        });
-        doAnswer(invocation -> {
-                    balances.merge(invocation.getArgument(0), invocation.getArgument(1), Long::sum);
-                    return null;
-                })
-                .when(handleContext)
-                .refundHandlerCharge(any(), anyLong());
-        doAnswer(invocation -> {
-                    final long amount = invocation.getArgument(2);
-                    balances.merge(invocation.getArgument(0), -amount, Long::sum);
-                    balances.merge(invocation.getArgument(1), amount, Long::sum);
-                    return null;
-                })
-                .when(tokenServiceApi)
-                .transferFromTo(any(), any(), anyLong());
-
-        subject.handle(handleContext);
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(status));
 
         verify(handleContext).dispatch(any(DispatchOptions.class));
         verify(handleContext).tryToCharge(PAYER_ID, 2000L);
-        verify(handleContext).refundHandlerCharge(PAYER_ID, 2000L);
+        // The failed parent is rolled back by the dispatch framework, rather than committing a gas refund.
+        verify(handleContext, never()).refundHandlerCharge(any(), anyLong());
         final long nonGasCharge = response ? 0 : WORST_CASE_CHARGE;
         verify(tokenServiceApi).transferFromTo(CONNECTOR_CONTRACT_ACCOUNT, PAYER_ID, nonGasCharge + 800);
         verify(tokenServiceApi).transferFromTo(PAYER_ID, CONNECTOR_CONTRACT_ACCOUNT, 800L);
-        // DATA keeps its flat endpoint compensation; neither party has any net gas charge.
-        assertThat(balances.get(PAYER_ID)).isEqualTo(initialBalance + nonGasCharge);
-        assertThat(balances.get(CONNECTOR_CONTRACT_ACCOUNT)).isEqualTo(initialBalance - nonGasCharge);
+        // Unit stores do not roll back intermediate queue writes. No completed-bundle progress is published;
+        // the propagated failure makes the framework roll back the intermediate writes as well.
+        assertThat(channelStore.getChannel(CHANNEL_ID).receivedMessageId()).isZero();
+        assertThat(channelStore.getChannel(CHANNEL_ID).ackedMessageId()).isZero();
+        assertThat(channelStore.getChannel(CHANNEL_ID).receivedRunningHash()).isEqualTo(ZERO_HASH);
+        if (!response) {
+            assertThat(messageQueueStore.getMessage(CHANNEL_ID, 0)).isNull();
+        }
     }
 
     @Test
@@ -1067,9 +1089,10 @@ class ClprSubmitBundleHandlerTest {
         final var config = HederaTestConfigBuilder.create()
                 .withValue("clpr.enabled", true)
                 .withValue("contracts.maxGasPerTransaction", 1000L)
+                .withValue("clpr.submitBundleGasLimit", 1000L)
                 .withValue("clpr.verifierGasLimit", 100L)
                 .withValue("clpr.messageExecutionCost", MESSAGE_EXECUTION_COST)
-                .withValue("clpr.endpointMarginPercent", ENDPOINT_MARGIN_PERCENT)
+                .withValue("clpr.progressRewardTinycents", PROGRESS_REWARD)
                 .getOrCreateConfig();
         given(handleContext.configuration()).willReturn(config);
         given(configStore.getConfiguration())
@@ -1172,6 +1195,100 @@ class ClprSubmitBundleHandlerTest {
             final var captor = ArgumentCaptor.forClass(DispatchOptions.class);
             verify(handleContext).dispatch(captor.capture());
             assertThat(captor.getValue().body().contractCallOrThrow().gas()).isEqualTo(customGas);
+        }
+
+        @ParameterizedTest
+        @CsvSource({
+            "false, false, 5000000, 15000000",
+            "true, false, 5000000, 15000000",
+            "false, true, 5000000, 5000000",
+            "true, true, 5000000, 5000000"
+        })
+        void callbacksRespectLiveEvmTransactionLimit(
+                final boolean response, final boolean throttleByGas, final long maxGasPerSec, final long expectedGas) {
+            putChannel(ClprChannelStatus.ACTIVE, response ? 2 : 0, 0, ZERO_HASH);
+            if (response) putOutboundDataMessage(1);
+            final var messages = response ? List.of(replyPayload(1)) : List.of(dataPayload());
+            setupHandleContext(buildBundle(ClprChannelStatus.ACTIVE, 0, response ? 1 : 0, ZERO_HASH, messages), true);
+            putConnector();
+            overrideMaxGasPerMessage(20_000_000L);
+            configureCallbackGasLimits(15_000_000L, maxGasPerSec, throttleByGas);
+
+            subject.handle(handleContext);
+
+            final var captor = ArgumentCaptor.forClass(DispatchOptions.class);
+            verify(handleContext).dispatch(captor.capture());
+            assertThat(captor.getValue().body().contractCallOrThrow().gas()).isEqualTo(expectedGas);
+        }
+
+        @ParameterizedTest
+        @CsvSource({"3,15000000", "4,12000000", "10,4800000"})
+        void callbacksShareBundleAllowanceWithoutExceedingSingleTransactionCap(
+                final int messageCount, final long expectedCallbackGas) {
+            putChannel(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH);
+            setupHandleContext(
+                    buildBundle(
+                            ClprChannelStatus.ACTIVE,
+                            0,
+                            0,
+                            ZERO_HASH,
+                            Collections.nCopies(messageCount, dataPayload())),
+                    true);
+            putConnector();
+            overrideMaxGasPerMessage(20_000_000L);
+            configureCallbackGasLimits(15_000_000L, 15_000_000L, false);
+
+            subject.handle(handleContext);
+
+            final var captor = ArgumentCaptor.forClass(DispatchOptions.class);
+            verify(handleContext, times(messageCount)).dispatch(captor.capture());
+            assertThat(captor.getAllValues())
+                    .allSatisfy(options -> assertThat(
+                                    options.body().contractCallOrThrow().gas())
+                            .isEqualTo(expectedCallbackGas)
+                            .isLessThanOrEqualTo(15_000_000L));
+            final long callbackGas = captor.getAllValues().stream()
+                    .mapToLong(options -> options.body().contractCallOrThrow().gas())
+                    .sum();
+            // This adapter does not report verifier gas, so its full 2M allowance is reserved first.
+            assertThat(callbackGas + 2_000_000L).isLessThanOrEqualTo(50_000_000L);
+            if (messageCount >= 4) {
+                assertThat(callbackGas + 2_000_000L).isEqualTo(50_000_000L);
+            }
+        }
+
+        @ParameterizedTest
+        @CsvSource({"false", "true"})
+        void zeroCallbackGrantIsRetryableWithoutAdvancingChannel(final boolean response) {
+            putChannel(ClprChannelStatus.ACTIVE, response ? 2 : 0, 0, ZERO_HASH);
+            if (response) putOutboundDataMessage(1);
+            final var messages = response ? List.of(replyPayload(1)) : List.of(dataPayload());
+            setupHandleContext(buildBundle(ClprChannelStatus.ACTIVE, 0, response ? 1 : 0, ZERO_HASH, messages), true);
+            putConnector();
+            configureCallbackGasLimits(0, 15_000_000L, false);
+
+            assertThatThrownBy(() -> subject.handle(handleContext))
+                    .isInstanceOf(HandleException.class)
+                    .has(responseCode(ResponseCodeEnum.CONSENSUS_GAS_EXHAUSTED));
+
+            verify(handleContext, never()).dispatch(any(DispatchOptions.class));
+            assertThat(channelStore.getChannel(CHANNEL_ID).receivedMessageId()).isZero();
+            assertThat(channelStore.getChannel(CHANNEL_ID).ackedMessageId()).isZero();
+        }
+
+        private void configureCallbackGasLimits(
+                final long maxGasPerTransaction, final long maxGasPerSec, final boolean throttleByGas) {
+            given(handleContext.configuration())
+                    .willReturn(HederaTestConfigBuilder.create()
+                            .withValue("clpr.enabled", true)
+                            .withValue("clpr.submitBundleGasLimit", 50_000_000L)
+                            .withValue("clpr.verifierGasLimit", 2_000_000L)
+                            .withValue("clpr.messageExecutionCost", MESSAGE_EXECUTION_COST)
+                            .withValue("clpr.progressRewardTinycents", PROGRESS_REWARD)
+                            .withValue("contracts.maxGasPerTransaction", maxGasPerTransaction)
+                            .withValue("contracts.maxGasPerSec", maxGasPerSec)
+                            .withValue("contracts.throttle.throttleByGas", throttleByGas)
+                            .getOrCreateConfig());
         }
 
         @Test
@@ -1298,14 +1415,14 @@ class ClprSubmitBundleHandlerTest {
         @DisplayName("within-budget dispatch succeeds; connector charge is independent of the gas limit")
         void withinBudgetDispatchChargesFlatExecutionCost() {
             setUpSingleDataDispatch();
-            // Even with a very large gas ceiling, the charge stays the flat messageExecutionCost + margin.
+            // Even with a very large gas ceiling, the charge stays the flat execution reimbursement + progress reward.
             overrideMaxGasPerMessage(30_000_000L);
 
             subject.handle(handleContext);
 
             final var response = messageQueueStore.getMessage(CHANNEL_ID, 0);
             assertThat(response.payload().messageReplyOrThrow().status()).isEqualTo(ClprMessageReplyStatus.SUCCESS);
-            // WORST_CASE_CHARGE = messageExecutionCost + 10% margin, gas-limit-independent.
+            // WORST_CASE_CHARGE = messageExecutionCost + progress reward, gas-limit-independent.
             verify(tokenServiceApi).transferFromTo(CONNECTOR_CONTRACT_ACCOUNT, PAYER_ID, WORST_CASE_CHARGE);
         }
     }
@@ -1581,8 +1698,7 @@ class ClprSubmitBundleHandlerTest {
 
         subject.handle(handleContext);
 
-        verify(handleContext).tryToCharge(PAYER_ID, 5_000_000L);
-        verify(handleContext, never()).tryToCharge(eq(ENDPOINT_ACCOUNT), anyLong());
+        verify(handleContext, never()).tryToCharge(any(), anyLong());
         assertThat(channelStore.getChannel(CHANNEL_ID).status()).isEqualTo(ClprChannelStatus.PAUSED);
         // Neither data message should be deleted
         assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1)).isNotNull();
@@ -1590,57 +1706,16 @@ class ClprSubmitBundleHandlerTest {
     }
 
     @Test
-    void insufficientPenaltyHeadroomRejectsTheBundleBeforeVerifierExecution() {
-        final long alreadyCharged = 300;
-        final long penalty = 5_000_000;
-        putChannel(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH);
-        setupHandleContext(
-                validSingleDataBundle()
-                        .copyBuilder()
-                        .transactionFee(alreadyCharged + penalty - 1)
-                        .build(),
-                true);
-        final var builder = handleContext.savepointStack().getBaseBuilder(StreamBuilder.class);
-        given(builder.isUserDispatch()).willReturn(true);
-        given(builder.transactionFee()).willReturn(alreadyCharged);
-
-        assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
-                .has(responseCode(INSUFFICIENT_TX_FEE));
-
-        verify(verifierFactory, never()).getVerifier(any());
-        verify(handleContext, never()).tryToCharge(any(), anyLong());
-        verify(handleContext, never()).dispatch(any(DispatchOptions.class));
-        verify(tokenServiceApi, never()).transferFromTo(any(), any(), anyLong());
-    }
-
-    @Test
-    void orderingViolationChargesTheFullPenaltyWithinTheSignedOffer() {
-        final long alreadyCharged = 300;
-        final long penalty = 5_000_000;
-        final long offered = alreadyCharged + penalty;
+    void orderingViolationPausesTheChannelWithoutChargingTheSubmitter() {
         putOutboundDataMessage(1);
         putOutboundDataMessage(3);
         putChannel(ClprChannelStatus.ACTIVE, 4, 0, ZERO_HASH);
-        setupHandleContext(
-                buildBundle(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH, List.of(replyPayload(3)))
-                        .copyBuilder()
-                        .transactionFee(offered)
-                        .build(),
-                true);
-        final var recordedFee = new java.util.concurrent.atomic.AtomicLong(alreadyCharged);
-        final var builder = handleContext.savepointStack().getBaseBuilder(StreamBuilder.class);
-        given(builder.isUserDispatch()).willReturn(true);
-        given(builder.transactionFee()).willAnswer(_ -> recordedFee.get());
-        given(handleContext.tryToCharge(PAYER_ID, penalty)).willAnswer(_ -> {
-            recordedFee.addAndGet(penalty);
-            return true;
-        });
+        setupHandleContext(buildBundle(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH, List.of(replyPayload(3))), true);
 
         subject.handle(handleContext);
 
-        assertThat(recordedFee).hasValue(offered);
-        verify(handleContext).tryToCharge(PAYER_ID, penalty);
+        // The submitter relayed proven peer state, so CLPR adds no charge beyond the transaction fee.
+        verify(handleContext, never()).tryToCharge(any(), anyLong());
         verify(handleContext, never()).dispatch(any(DispatchOptions.class));
         assertThat(channelStore.getChannel(CHANNEL_ID).status()).isEqualTo(ClprChannelStatus.PAUSED);
     }
@@ -1703,8 +1778,7 @@ class ClprSubmitBundleHandlerTest {
             "given a bundle claiming the ack of a data message it carries no reply for, then it is rejected as no progress")
     void givenBundleClaimingAckOfUnansweredDataMessage_thenRejectedAsNoProgressWithoutPenalty() {
         // The peer reports it received our data message 1 but ships neither its reply nor anything else, so the ack
-        // cannot move and the bundle is rejected. The peer may legitimately be deferring that reply, so the
-        // submitting endpoint pays only the transaction fee, never the misbehavior penalty.
+        // cannot move and the bundle is rejected. The peer may legitimately be deferring that reply.
         putOutboundDataMessage(1);
         putChannel(ClprChannelStatus.ACTIVE, 2, 0, ZERO_HASH);
         setupHandleContext(buildBundle(ClprChannelStatus.ACTIVE, 0, 1, ZERO_HASH, List.of()), true);
@@ -2548,7 +2622,7 @@ class ClprSubmitBundleHandlerTest {
         verify(channelLifecycle, never()).seedPeerEndpoints(any(), any());
 
         exception.maybeReplay(feeChargingContext, handleContext);
-        verify(feeChargingContext).charge(PAYER_ID, new Fees(0, 5_000_000L, 0), null);
+        verify(feeChargingContext, never()).charge(any(), any(), any());
     }
 
     @Test
@@ -3136,8 +3210,7 @@ class ClprSubmitBundleHandlerTest {
         assertThat(exception).has(responseCode(CLPR_PAYLOAD_TOO_LARGE));
 
         exception.maybeReplay(feeChargingContext, handleContext);
-        verify(feeChargingContext).charge(PAYER_ID, new Fees(0, 5_000_000L, 0), null);
-        verify(feeChargingContext, never()).charge(eq(ENDPOINT_ACCOUNT), any(Fees.class), any());
+        verify(feeChargingContext, never()).charge(any(), any(), any());
 
         // Channel state must not advance
         final var conn = channelStore.getChannel(CHANNEL_ID);
@@ -3708,13 +3781,11 @@ class ClprSubmitBundleHandlerTest {
         setupHandleContext(txn, clprEnabled);
         final var config = com.hedera.node.config.testfixtures.HederaTestConfigBuilder.create()
                 .withValue("clpr.enabled", clprEnabled)
-                .withValue("clpr.slashBasePenalty", "10000000")
+                .withValue("clpr.slashBasePenaltyTinycents", "10000000")
                 .withValue("clpr.slashMultiplier", "2")
                 .withValue("clpr.slashBanThreshold", "5")
                 .withValue("clpr.messageExecutionCost", String.valueOf(MESSAGE_EXECUTION_COST))
-                .withValue("clpr.endpointMarginPercent", String.valueOf(ENDPOINT_MARGIN_PERCENT))
-                .withValue("clpr.endpointMisbehaviorPenaltyTinybars", "5000000")
-                .withValue("clpr.endpointPenaltyTinybars", "5000000")
+                .withValue("clpr.progressRewardTinycents", String.valueOf(PROGRESS_REWARD))
                 .getOrCreateConfig();
         lenient().when(handleContext.configuration()).thenReturn(config);
     }
@@ -3793,14 +3864,16 @@ class ClprSubmitBundleHandlerTest {
     private void setupHandleContext(@NonNull final TransactionBody txn, final boolean enabled) {
         final var config = HederaTestConfigBuilder.create()
                 .withValue("clpr.enabled", enabled)
-                .withValue("clpr.slashBasePenalty", "10000000")
+                .withValue("clpr.slashBasePenaltyTinycents", "10000000")
                 .withValue("clpr.slashMultiplier", "2")
                 .withValue("clpr.slashBanThreshold", "5")
                 .withValue("clpr.messageExecutionCost", String.valueOf(MESSAGE_EXECUTION_COST))
-                .withValue("clpr.endpointMarginPercent", String.valueOf(ENDPOINT_MARGIN_PERCENT))
-                .withValue("clpr.endpointMisbehaviorPenaltyTinybars", "5000000")
-                .withValue("clpr.endpointPenaltyTinybars", "5000000")
+                .withValue("clpr.progressRewardTinycents", String.valueOf(PROGRESS_REWARD))
                 .getOrCreateConfig();
+        lenient().when(handleContext.exchangeRateInfo()).thenReturn(exchangeRateInfo);
+        lenient()
+                .when(exchangeRateInfo.activeRate(any()))
+                .thenReturn(ExchangeRate.newBuilder().hbarEquiv(1).centEquiv(1).build());
         lenient().when(handleContext.body()).thenReturn(txn);
         lenient().when(handleContext.payer()).thenReturn(PAYER_ID);
         lenient()

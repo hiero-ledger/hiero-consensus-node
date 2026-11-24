@@ -16,7 +16,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_CHANNEL_ALREADY_EXISTS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_CONNECTOR_ALREADY_EXISTS;
@@ -59,7 +59,7 @@ public class ClprCreateChannelSuite {
 
     private static final String VERIFIER = "ClprPassThroughVerifier";
     private static final String CONNECTOR_CONTRACT = "PassThroughAuth";
-    private static final long LOCKED_STAKE = 100_000_000L;
+    private static final long LOCKED_STAKE_TINYCENTS = 30_000_000_000_000L;
 
     // ── Happy-path tests ─────────────────────────────────────────────────────
 
@@ -68,7 +68,7 @@ public class ClprCreateChannelSuite {
     final Stream<DynamicTest> openCreatesActiveChannel() {
         return hapiTest(ClprChannelCrypto.withVerifier(VERIFIER, "hiero:testing", new byte[] {0, 0, 1}, crypto -> {
             return blockingOrder(
-                    cryptoCreate("registrant").balance(ONE_HUNDRED_HBARS),
+                    cryptoCreate("registrant").balance(ONE_MILLION_HBARS),
                     clprCreateChannel()
                             .channelId(crypto.channelId())
                             .salt(crypto.salt())
@@ -262,7 +262,7 @@ public class ClprCreateChannelSuite {
                 .channelId(crypto.channelId())
                 .connectorContract(CONNECTOR_CONTRACT)
                 .adminKeyName(GENESIS)
-                .lockedStake(LOCKED_STAKE);
+                .lockedStakeTinycents(LOCKED_STAKE_TINYCENTS);
     }
 
     private static byte[] defaultConfigProofBytes() {

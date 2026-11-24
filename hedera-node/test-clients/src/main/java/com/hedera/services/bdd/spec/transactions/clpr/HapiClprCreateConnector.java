@@ -15,9 +15,12 @@ import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.TransactionBody;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.security.PrivateKey;
 import java.util.List;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import org.hiero.base.utility.CommonUtils;
@@ -37,8 +40,14 @@ public class HapiClprCreateConnector extends HapiTxnOp<HapiClprCreateConnector> 
     private Optional<Key> adminKeyValue = Optional.empty();
     private Optional<String> adminKeyName = Optional.empty();
     private long lockedStake;
+    private OptionalLong lockedStakeTinycents = OptionalLong.empty();
 
-    public HapiClprCreateConnector() {}
+    /** Covers the $25 CLPR price at the test exchange rate; an explicit {@link #fee} overrides it. */
+    private static final long DEFAULT_MAX_FEE_TINYBARS = 1_000L * 100_000_000L;
+
+    public HapiClprCreateConnector() {
+        fee(DEFAULT_MAX_FEE_TINYBARS);
+    }
 
     public HapiClprCreateConnector connectorId(final byte[] connectorId) {
         this.connectorId = connectorId;
@@ -99,6 +108,13 @@ public class HapiClprCreateConnector extends HapiTxnOp<HapiClprCreateConnector> 
 
     public HapiClprCreateConnector lockedStake(final long lockedStake) {
         this.lockedStake = lockedStake;
+        this.lockedStakeTinycents = OptionalLong.empty();
+        return this;
+    }
+
+    /** Offers a USD-denominated stake, rounded up to tinybars using the active exchange rate. */
+    public HapiClprCreateConnector lockedStakeTinycents(final long lockedStakeTinycents) {
+        this.lockedStakeTinycents = OptionalLong.of(lockedStakeTinycents);
         return this;
     }
 
@@ -129,7 +145,15 @@ public class HapiClprCreateConnector extends HapiTxnOp<HapiClprCreateConnector> 
                             if (adminKeyName.isPresent()) {
                                 b.setAdminKey(spec.registry().getKey(adminKeyName.get()));
                             }
-                            b.setLockedStake(lockedStake);
+                            if (lockedStakeTinycents.isPresent()) {
+                                final var rate = spec.ratesProvider().rates();
+                                b.setLockedStake(BigDecimal.valueOf(lockedStakeTinycents.getAsLong())
+                                        .multiply(BigDecimal.valueOf(rate.getHbarEquiv()))
+                                        .divide(BigDecimal.valueOf(rate.getCentEquiv()), 0, RoundingMode.CEILING)
+                                        .longValueExact());
+                            } else {
+                                b.setLockedStake(lockedStake);
+                            }
                         });
         return b -> b.setClprCreateConnector(opBody);
     }

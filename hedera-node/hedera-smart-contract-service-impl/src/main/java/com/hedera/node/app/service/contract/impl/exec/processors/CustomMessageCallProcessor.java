@@ -150,6 +150,7 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
     private final FeatureFlags featureFlags;
     private final AddressChecks addressChecks;
     private final PrecompileContractRegistry precompiles;
+
     private final Map<Address, HederaSystemContract> systemContracts;
     private final ContractMetrics contractMetrics;
 
@@ -229,6 +230,7 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
 
     private void handleSystemContractCall(
             @NonNull final CustomMessageCallContext context, @Nullable final OperationTracer tracer) {
+        final var systemContract = systemContracts.get(context.executableCodeAddress);
         if (context.isCodeDelegation) {
             final var recipientIsTokenOrScheduleAccount = context.contractAccount.stream()
                     .anyMatch(a -> a instanceof TokenEvmAccount || a instanceof ScheduleEvmAccount);
@@ -239,7 +241,7 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
                 if (context.transfersValue) {
                     doHalt(context, INVALID_CONTRACT_ID, tracer);
                 } else {
-                    doExecuteSystemContract(context, systemContracts.get(context.executableCodeAddress));
+                    doExecuteSystemContract(context, systemContract);
                 }
             } else {
                 // For any other Hedera accounts: code delegation to System Contracts is a no-op - so just succeed.
@@ -251,10 +253,10 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
                 }
             }
         } else if (context.transfersValue && !isTokenCreation(context.frame)) {
-            // System Contract calls that transfer value aren't allowed, unless they're token creation.
+            // Only token creation calls can attach value.
             doHalt(context, INVALID_CONTRACT_ID, tracer);
         } else {
-            doExecuteSystemContract(context, systemContracts.get(context.executableCodeAddress));
+            doExecuteSystemContract(context, systemContract);
         }
     }
 
@@ -301,8 +303,10 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
 
         final var opsDurationCounter = FrameUtils.opsDurationCounter(frame);
         final var opsDurationSchedule = opsDurationCounter.schedule();
+        // Only work counts, not a fee collected through gas; and computeFully() has already done that work,
+        // so it counts even if the frame cannot afford the gas requirement
         final var opsDurationCost = opsDurationSchedule.gasBasedOpsDuration(
-                gasRequirement, opsDurationSchedule.systemContractGasBasedDurationMultiplier());
+                fullResult.workGas(), opsDurationSchedule.systemContractGasBasedDurationMultiplier());
         opsDurationCounter.recordOpsDurationUnitsConsumed(opsDurationCost);
         contractMetrics
                 .opsDurationMetrics()

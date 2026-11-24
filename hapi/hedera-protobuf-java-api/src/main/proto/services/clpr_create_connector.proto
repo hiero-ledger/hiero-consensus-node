@@ -33,6 +33,10 @@ message ClprCreateConnectorTransactionBody {
     /** Key authorizing administrative operations on this channel's connector. */
     proto.Key admin_key = 7;
 
-    /** Slashable bond in tinybars, transferred from the payer on creation. */
+    /**
+     * Slashable bond in tinybars, transferred from the payer on creation.
+     * Must meet clpr.minLockedStakeTinycents at the consensus-time exchange rate.
+     * Existing locked stake is not revalued when the exchange rate changes.
+     */
     uint64 locked_stake = 8;
 }

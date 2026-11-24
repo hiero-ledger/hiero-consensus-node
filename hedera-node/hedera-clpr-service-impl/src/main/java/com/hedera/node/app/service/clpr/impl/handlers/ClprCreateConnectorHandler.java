@@ -29,6 +29,7 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.data.ClprConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.math.BigInteger;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -107,7 +108,12 @@ public final class ClprCreateConnectorHandler extends AbstractClprHandler {
                 contractAccount != null && contractAccount.smartContract() && !contractAccount.deleted(),
                 CLPR_INVALID_CONNECTOR_CONTRACT);
 
-        validateTrue(op.lockedStake() >= clprConfig.minLockedStake(), CLPR_INSUFFICIENT_STAKE);
+        // Compare without rounding down a fractional tinybar or overflowing a rate product.
+        final var rate = context.exchangeRateInfo().activeRate(context.consensusNow());
+        final var offeredValue = BigInteger.valueOf(op.lockedStake()).multiply(BigInteger.valueOf(rate.centEquiv()));
+        final var minimumValue =
+                BigInteger.valueOf(clprConfig.minLockedStakeTinycents()).multiply(BigInteger.valueOf(rate.hbarEquiv()));
+        validateTrue(offeredValue.compareTo(minimumValue) >= 0, CLPR_INSUFFICIENT_STAKE);
 
         final var payerId = context.payer();
         final var payer = requireNonNull(accountStore.getAccountById(payerId));

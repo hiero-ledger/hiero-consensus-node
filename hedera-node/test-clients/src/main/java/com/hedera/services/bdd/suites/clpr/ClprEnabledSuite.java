@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.clpr;
 
+import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.ENDPOINT_MANIFEST_STATE_ID;
 import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
@@ -35,6 +36,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingAllOf;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.clpr.ClprTestProofs.VERIFY_CONFIG;
@@ -48,17 +50,22 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_EXECU
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.UNAUTHORIZED;
 import static java.util.stream.Collectors.toSet;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.esaulpaugh.headlong.abi.Function;
 import com.google.protobuf.ByteString;
+import com.hedera.hapi.node.base.Duration;
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifestConstruction;
 import com.hedera.hapi.node.state.clpr.ClprEndpointPublication;
 import com.hedera.hapi.node.state.clpr.ClprEndpointPublicationEntry;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.services.auxiliary.clpr.legacy.ClprEndpointPublicationTransactionBody;
 import com.hedera.node.app.service.clpr.ClprEndpointServiceDefinition;
 import com.hedera.node.app.service.clpr.ClprService;
@@ -121,12 +128,15 @@ import org.junit.jupiter.api.Tag;
 @OrderedInIsolation
 @HapiTestLifecycle
 public class ClprEnabledSuite {
+    /** The default {@code clpr.minLockedStakeTinycents} ($3,000). */
+    private static final long DEFAULT_MIN_LOCKED_STAKE_TINYCENTS = 30_000_000_000_000L;
+
     private static final String BATCH_OPERATOR = "batchOperator";
     private static final String CALLER = "caller";
     private static final String CLPR_CONTRACT = "ClprSystemContract";
     private static final String VERIFIER_CONTRACT = "ClprPassThroughVerifier";
     private static final String CONNECTOR_CONTRACT = "PassThroughAuth";
-    private static final long GAS_TO_OFFER = 500_000L;
+    private static final long GAS_TO_OFFER = 2_000_000L;
     private static final String INGEST_BYPASS_NODE = "4";
     // ClprMaintenance is never submitted, only externalized by nodes in the block stream
     private static final EnumSet<HederaFunctionality> NODE_INTERNAL_CLPR_FUNCTIONS =
@@ -172,12 +182,19 @@ public class ClprEnabledSuite {
     @HapiTest
     @DisplayName("Both CLPR queries accept COST_ANSWER and ANSWER_ONLY when enabled")
     final Stream<DynamicTest> clprQueriesSucceed() {
+        // The queries are paid, so an answer's node payment must cover their cost
         return hapiTest(
-                cryptoCreate(CALLER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(CALLER).balance(ONE_MILLION_HBARS),
                 clprGetLedgerConfiguration().payingWith(CALLER).hasCostAnswerPrecheck(OK),
                 clprGetEndpointManifest().payingWith(CALLER).hasCostAnswerPrecheck(OK),
-                clprGetLedgerConfiguration().payingWith(CALLER).nodePayment(1L).hasAnswerOnlyPrecheck(OK),
-                clprGetEndpointManifest().payingWith(CALLER).nodePayment(1L).hasAnswerOnlyPrecheck(OK));
+                clprGetLedgerConfiguration()
+                        .payingWith(CALLER)
+                        .nodePayment(ONE_HBAR)
+                        .hasAnswerOnlyPrecheck(OK),
+                clprGetEndpointManifest()
+                        .payingWith(CALLER)
+                        .nodePayment(ONE_HBAR)
+                        .hasAnswerOnlyPrecheck(OK));
     }
 
     @HapiTest
@@ -187,7 +204,7 @@ public class ClprEnabledSuite {
         // native contract's address behaves as a plain system account and succeeds without executing anything, so it
         // cannot satisfy this test.
         final var operations = new ArrayList<SpecOperation>();
-        operations.add(cryptoCreate(CALLER).balance(ONE_HUNDRED_HBARS));
+        operations.add(cryptoCreate(CALLER).balance(ONE_MILLION_HBARS));
         CLPR_SYSTEM_CONTRACT_NUMS.forEach(num -> operations.add(
                 contractCallWithFunctionAbi(num, VERIFY_CONFIG.toJson(false), new byte[] {1}, new byte[32], new byte[0])
                         .payingWith(CALLER)
@@ -205,30 +222,83 @@ public class ClprEnabledSuite {
     }
 
     @HapiTest
-    @DisplayName("A deployed contract sends a message and reads a real CLPR channel successfully")
+    @DisplayName("A zero-value EVM manifest read pays its target entirely through gas")
+    final Stream<DynamicTest> nativeClprManifestReadChargesGas() {
+        final var abi = new Function("getEndpointManifest()", "(bytes)").toJson(false);
+        final var router = CLPR_SYSTEM_CONTRACT_NUMS.getFirst();
+        final var paidRead = "paidManifestRead";
+        final var balanceBefore = new AtomicLong();
+        final var recordedFee = new AtomicLong();
+        final var gasPrice = new AtomicLong();
+        return hapiTest(
+                cryptoCreate(CALLER).balance(ONE_HUNDRED_HBARS),
+                getAccountBalance(CALLER).payingWith(GENESIS).exposingBalanceTo(balanceBefore::set),
+                withOpContext((spec, opLog) -> gasPrice.set(spec.ratesProvider().currentTinybarGasPrice())),
+                contractCallWithFunctionAbi(router, abi)
+                        .payingWith(CALLER)
+                        .gas(GAS_TO_OFFER)
+                        .refusingEthConversion()
+                        .via(paidRead),
+                getTxnRecord(paidRead).payingWith(GENESIS).exposingTo(record -> {
+                    final var rate = record.getReceipt().getExchangeRate().getCurrentRate();
+                    final long targetInTinybars = 200_000_000L * rate.getHbarEquiv() / rate.getCentEquiv();
+                    assertTrue(record.getTransactionFee() >= targetInTinybars, "Fee must include the manifest target");
+                    assertTrue(
+                            Math.multiplyExact(record.getContractCallResult().getGasUsed(), gasPrice.get())
+                                    >= targetInTinybars,
+                            "Gas alone must cover the manifest target");
+                    assertEquals(0L, record.getContractCallResult().getAmount(), "No value is attached to the read");
+                    recordedFee.set(record.getTransactionFee());
+                }),
+                getAccountBalance(CALLER)
+                        .payingWith(GENESIS)
+                        .exposingBalanceTo(balance -> assertEquals(recordedFee.get(), balanceBefore.get() - balance)));
+    }
+
+    @HapiTest
+    @DisplayName("A nonpayable deployed contract sends with zero value and uses a static CLPR queue read")
     final Stream<DynamicTest> clprRouterCallsSucceedFromContract() {
         return hapiTest(ClprChannelCrypto.withVerifier(
                 VERIFIER_CONTRACT, "hiero:testing", CLPR_SERVICE_ADDRESS_20, crypto -> {
+                    final var gasPrice = new AtomicLong();
                     final var operations = contractSetup();
                     final var txns = clprTxns(crypto);
                     for (final var name : List.of("updateLedgerConfiguration", "createChannel", "createConnector")) {
                         operations.add(dispatch(txns.get(name), false, false));
                     }
+                    operations.add(
+                            getContractInfo(CLPR_CONTRACT).has(contractWith().balance(0L)));
+                    operations.add(withOpContext(
+                            (spec, opLog) -> gasPrice.set(spec.ratesProvider().currentTinybarGasPrice())));
                     operations.add(sendMessage(crypto).via("sentMessage"));
-                    operations.add(getTxnRecord("sentMessage")
-                            .exposingTo(record -> assertTrue(
-                                    new BigInteger(
-                                                            1,
-                                                            record.getContractCallResult()
-                                                                    .getContractCallResult()
-                                                                    .toByteArray())
-                                                    .longValueExact()
-                                            > 0,
-                                    "sendMessage must return the enqueued message ID")));
+                    operations.add(getTxnRecord("sentMessage").exposingTo(record -> {
+                        assertTrue(
+                                new BigInteger(
+                                                        1,
+                                                        record.getContractCallResult()
+                                                                .getContractCallResult()
+                                                                .toByteArray())
+                                                .longValueExact()
+                                        > 0,
+                                "sendMessage must return the enqueued message ID");
+                        final var rate = record.getReceipt().getExchangeRate().getCurrentRate();
+                        final long targetInTinybars = 1_000_000_000L * rate.getHbarEquiv() / rate.getCentEquiv();
+                        assertTrue(
+                                Math.multiplyExact(
+                                                record.getContractCallResult().getGasUsed(), gasPrice.get())
+                                        >= targetInTinybars,
+                                "Gas alone must cover the $0.10 send target");
+                        assertEquals(
+                                0L, record.getContractCallResult().getAmount(), "No value is attached to the send");
+                    }));
                     operations.add(contractCall(CLPR_CONTRACT, "getChannelQueueState", (Object) crypto.channelId())
                             .payingWith(CALLER)
                             .gas(GAS_TO_OFFER)
                             .hasKnownStatus(SUCCESS));
+                    operations.add(contractCallLocal(CLPR_CONTRACT, "getChannelQueueState", (Object) crypto.channelId())
+                            .gas(GAS_TO_OFFER));
+                    operations.add(
+                            getContractInfo(CLPR_CONTRACT).has(contractWith().balance(0L)));
                     return blockingOrder(operations.toArray(SpecOperation[]::new));
                 }));
     }
@@ -236,7 +306,7 @@ public class ClprEnabledSuite {
     @LeakyHapiTest(
             overrides = {
                 "clpr.messageExecutionCost",
-                "clpr.endpointMarginPercent",
+                "clpr.progressRewardTinycents",
                 "contracts.selfDestructs.externalization.enabled"
             })
     @DisplayName("A prepaid CLPR callback externalizes its committed constructor self-destruct")
@@ -246,12 +316,12 @@ public class ClprEnabledSuite {
         return hapiTest(ClprChannelCrypto.withVerifier(
                 VERIFIER_CONTRACT, "hiero:testing", CLPR_SERVICE_ADDRESS_20, crypto -> {
                     final long executionCost = 1_000_000L;
-                    final long endpointMargin = executionCost / 10;
+                    final long progressRewardTinycents = 100_000_000L;
                     final var callbackGasFee = new AtomicLong();
                     final var operations = contractSetup();
                     operations.add(overridingAllOf(Map.of(
                             "clpr.messageExecutionCost", Long.toString(executionCost),
-                            "clpr.endpointMarginPercent", "10",
+                            "clpr.progressRewardTinycents", Long.toString(progressRewardTinycents),
                             "contracts.selfDestructs.externalization.enabled", "true")));
                     operations.add(uploadInitCode(application));
                     operations.add(contractCreate(application).refusingEthConversion());
@@ -269,17 +339,35 @@ public class ClprEnabledSuite {
                                         .setSender(ByteString.copyFrom(new byte[20]))
                                         .setMessageData(ByteString.EMPTY))
                                 .build();
+                        final var bundleBytes =
+                                toBundleProofBytes(ClprChannelStatus.ACTIVE, 0L, 0L, new byte[32], List.of(payload));
+                        final var verifierId = spec.registry().getContractId(VERIFIER_CONTRACT);
                         allRunFor(
                                 spec,
                                 clprSubmitBundle()
                                         .channelId(crypto.channelId())
                                         .endpointNodeId(0L)
-                                        .bundlePayload(toBundleProofBytes(
-                                                ClprChannelStatus.ACTIVE, 0L, 0L, new byte[32], List.of(payload)))
+                                        .bundlePayload(bundleBytes)
                                         .payingWith(CALLER)
                                         .via(submittedBundle)
                                         .hasKnownStatus(SUCCESS),
                                 getTxnRecord(submittedBundle).exposingAllTo(records -> {
+                                    final var verifier = records.stream()
+                                            .filter(r -> r.hasContractCallResult()
+                                                    && r.getContractCallResult()
+                                                            .getContractID()
+                                                            .equals(verifierId))
+                                            .findFirst()
+                                            .orElseThrow();
+                                    final long verifierGas =
+                                            verifier.getContractCallResult().getGasUsed();
+                                    assertTrue(verifierGas > 0);
+                                    final long expectedNativeFee = spec.ratesProvider()
+                                            .toTbWithActiveRates(100_000_000L
+                                                    + 1_000L * bundleBytes.length
+                                                    + Math.min(verifierGas, 300_000L)
+                                                            * spec.ratesProvider()
+                                                                    .tinycentGasPrice());
                                     final var creations = records.stream()
                                             .filter(r -> r.hasContractCreateResult())
                                             .toList();
@@ -322,6 +410,9 @@ public class ClprEnabledSuite {
                                     assertTrue(
                                             callbackGasFee.get() > 0,
                                             "The connector reimburses the callback's network gas fee");
+                                    assertEquals(
+                                            Math.addExact(expectedNativeFee, callbackGasFee.get()),
+                                            records.getFirst().getTransactionFee());
                                     spec.registry().saveContractId("deletedClprChild", deletedId);
                                 }),
                                 getContractInfo("deletedClprChild")
@@ -336,17 +427,16 @@ public class ClprEnabledSuite {
                             getAccountBalance(CONNECTOR_CONTRACT)
                                     .hasTinyBars(ONE_HUNDRED_HBARS
                                             - executionCost
-                                            - endpointMargin
+                                            - spec.ratesProvider().toTbWithActiveRates(progressRewardTinycents)
                                             - callbackGasFee.get()))));
                     return blockingOrder(operations.toArray(SpecOperation[]::new));
                 }));
     }
 
     @HapiTest
-    @DisplayName("The internal endpoint-publication wire body passes ingest when enabled")
-    final Stream<DynamicTest> internalEndpointPublicationPassesIngest() {
-        return hapiTest(
-                endpointPublicationProbe().payingWith(GENESIS).hasPrecheck(OK).hasKnownStatus(SUCCESS));
+    @DisplayName("A signed account transaction cannot publish a node endpoint")
+    final Stream<DynamicTest> signedEndpointPublicationIsRejectedAtConsensus() {
+        return hapiTest(endpointPublicationProbe().hasPrecheck(OK).hasKnownStatus(UNAUTHORIZED));
     }
 
     @Tag(ONLY_SUBPROCESS)
@@ -404,33 +494,61 @@ public class ClprEnabledSuite {
     @Nested
     @DisplayName("Endpoint manifest lifecycle")
     class ManifestTests {
-        @LeakyEmbeddedHapiTest(reason = {MUST_SKIP_INGEST, NEEDS_STATE_ACCESS})
-        @DisplayName("An internal publication is admitted at consensus when enabled")
+        @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS)
+        @DisplayName("A node publication is admitted at consensus without fee funding")
         final Stream<DynamicTest> publicationIsAdmittedAtConsensus() {
             return hapiTest(withOpContext((spec, opLog) -> {
+                final var node = spec.getNetworkNodes().getFirst();
+                final var payer = node.getAccountId();
+                final var embedded = spec.embeddedHederaOrThrow();
+                final var txnId = new TransactionID(asTimestamp(embedded.now()), payer, false, 0);
+                final var publication = TransactionBody.newBuilder()
+                        .transactionID(txnId)
+                        .nodeAccountID(payer)
+                        .transactionValidDuration(new Duration(120L))
+                        // Protocol publications waive node, network, and service fees.
+                        .transactionFee(0L)
+                        .clprEndpointPublication(
+                                com.hedera.hapi.services.auxiliary.clpr.ClprEndpointPublicationTransactionBody
+                                        .newBuilder()
+                                        .endpoint(com.hedera.hapi.node.state.clpr.ClprEndpoint.newBuilder()
+                                                .serviceEndpoint(
+                                                        com.hedera.hapi.node.state.clpr.ClprServiceEndpoint.newBuilder()
+                                                                .ipAddress("127.0.0.1")
+                                                                .port(50211))))
+                        .build();
                 final var beforeManifest = manifest(spec);
                 final var beforeConstruction = construction(spec);
                 final var pending = ClprEndpointManifestConstruction.newBuilder()
                         .constructionId(beforeManifest.version() + 1)
                         .targetNodeIds(List.of(0L, 1L, 2L, 3L))
+                        // Seed this node's entry to prevent the reconciler from racing the update.
+                        .gatheredPublications(List.of(ClprEndpointPublicationEntry.newBuilder()
+                                .nodeId(node.getNodeId())
+                                .publication(ClprEndpointPublication.newBuilder()
+                                        .endpoint(com.hedera.hapi.node.state.clpr.ClprEndpoint.DEFAULT)
+                                        .build())
+                                .build()))
                         .gracePeriodEndTime(
                                 Timestamp.newBuilder().seconds(4_102_444_800L).build())
                         .build();
                 putManifestState(spec, beforeManifest, pending);
                 try {
+                    embedded.hedera().submit(publication);
                     allRunFor(
                             spec,
-                            endpointPublicationProbe()
-                                    .payingWith(GENESIS)
-                                    .setNode(INGEST_BYPASS_NODE)
-                                    .hasKnownStatus(SUCCESS));
+                            getTxnRecord(txnId).assertingNothingAboutHashes().exposingTo(record -> {
+                                assertEquals(SUCCESS, record.getReceipt().getStatus());
+                                assertEquals(0L, record.getTransactionFee());
+                            }));
                     assertTrue(
                             construction(spec).gatheredPublications().stream()
-                                    .anyMatch(entry -> entry.publicationOrThrow()
-                                                    .endpointOrThrow()
-                                                    .serviceEndpointOrThrow()
-                                                    .port()
-                                            == 50211),
+                                    .anyMatch(entry -> entry.nodeId() == node.getNodeId()
+                                            && entry.publicationOrThrow()
+                                                            .endpointOrThrow()
+                                                            .serviceEndpointOrThrow()
+                                                            .port()
+                                                    == 50211),
                             "The handler must record the publication");
                 } finally {
                     putManifestState(spec, beforeManifest, beforeConstruction);
@@ -486,7 +604,13 @@ public class ClprEnabledSuite {
                     for (final var entry : txns.entrySet()) {
                         operations.add(dispatch(entry.getValue(), inBatch, bypassIngest));
                     }
-                    operations.add(dispatch(endpointPublicationProbe(), inBatch, bypassIngest));
+                    if (inBatch) {
+                        operations.add(dispatch(endpointPublicationProbe(), true, bypassIngest));
+                    } else if (bypassIngest) {
+                        operations.add(endpointPublicationProbe()
+                                .setNode(INGEST_BYPASS_NODE)
+                                .hasKnownStatus(UNAUTHORIZED));
+                    }
                     return blockingOrder(operations.toArray(SpecOperation[]::new));
                 }));
     }
@@ -512,7 +636,7 @@ public class ClprEnabledSuite {
                 uploadInitCode(CONNECTOR_CONTRACT, CLPR_CONTRACT),
                 contractCreate(CONNECTOR_CONTRACT),
                 contractCreate(CLPR_CONTRACT),
-                cryptoCreate(CALLER).balance(ONE_HUNDRED_HBARS)));
+                cryptoCreate(CALLER).balance(ONE_MILLION_HBARS)));
     }
 
     private static HapiTxnOp<?> sendMessage(final ClprChannelCrypto crypto) {
@@ -548,7 +672,7 @@ public class ClprEnabledSuite {
                         .channelId(crypto.channelId())
                         .connectorContract(CONNECTOR_CONTRACT)
                         .adminKeyName(GENESIS)
-                        .lockedStake(100_000_000L));
+                        .lockedStakeTinycents(DEFAULT_MIN_LOCKED_STAKE_TINYCENTS));
         txns.put(
                 "deleteConnector",
                 clprDeleteConnector()

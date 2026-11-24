@@ -579,7 +579,7 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
                                                                 SOURCE_APP,
                                                                 "sendMessages",
                                                                 BigInteger.valueOf(totalMessages))
-                                                        .gas(GAS)
+                                                        .gas(gasForMessageBatch(totalMessages))
                                                         .payingWith("callerA"))
                                         .findFirst()
                                         .orElseThrow(),
@@ -638,7 +638,7 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
                                                                 SOURCE_APP,
                                                                 "sendMessages",
                                                                 BigInteger.valueOf(messageCount))
-                                                        .gas(GAS)
+                                                        .gas(gasForMessageBatch(messageCount))
                                                         .payingWith("callerA"))
                                         .findFirst()
                                         .orElseThrow(),
@@ -687,7 +687,7 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
                                                                 SOURCE_APP,
                                                                 "sendMessages",
                                                                 BigInteger.valueOf(messageCount))
-                                                        .gas(GAS)
+                                                        .gas(gasForMessageBatch(messageCount))
                                                         .payingWith("callerA"),
                                                 clprDeleteChannel()
                                                         .channelId(crypto.channelId)
@@ -753,7 +753,7 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
                                                             spec.registry().getContractId(SOURCE_APP);
                                                 }),
                                                 contractCall(SOURCE_APP, "sendMessages", BigInteger.valueOf(burstSize))
-                                                        .gas(GAS)
+                                                        .gas(gasForMessageBatch(burstSize))
                                                         .payingWith("callerA"))
                                         .findFirst()
                                         .orElseThrow(),
@@ -788,7 +788,7 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
                                                                             SOURCE_APP,
                                                                             "sendMessages",
                                                                             BigInteger.valueOf(burstSize))
-                                                                    .gas(GAS)
+                                                                    .gas(gasForMessageBatch(burstSize))
                                                                     .payingWith("callerA2"));
                                                 }))
                                         .findFirst()

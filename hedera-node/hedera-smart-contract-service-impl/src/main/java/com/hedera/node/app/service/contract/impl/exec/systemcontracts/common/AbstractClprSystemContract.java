@@ -2,13 +2,16 @@
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.common;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NOT_ENABLED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.haltResult;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasOnly;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.node.app.service.contract.impl.exec.failure.HandleExceptionHaltReason;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.clpr.ClprCallPricing;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.config.data.ClprConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -54,5 +57,39 @@ public abstract class AbstractClprSystemContract extends AbstractNativeSystemCon
             return;
         }
         super.computeFully(contractID, input, frame, completion);
+    }
+
+    protected boolean isRouter() {
+        return false;
+    }
+
+    @Override
+    protected @NonNull Call.PricedResult executeCall(
+            @NonNull final AbstractCallAttempt<?> attempt,
+            @NonNull final Call call,
+            @NonNull final Bytes input,
+            @NonNull final MessageFrame frame) {
+        final var result = call.execute(frame);
+        // Local queries already pay through their query header.
+        if (result.responseCode() != SUCCESS || !FrameUtils.isTopLevelTransaction(frame)) {
+            return result;
+        }
+        final long target = ClprCallPricing.readPriceInTinycents(input, isRouter());
+        final long gas = result.fullResult().gasRequirement();
+        if (target == 0 || frame.getRemainingGas() < gas) {
+            return result;
+        }
+
+        final var operations = attempt.enhancement().operations();
+        // Native verifier dispatches already cover verification through the native transaction.
+        if (operations.isClprVerifierDispatch() && ClprCallPricing.verifierPriceInTinycents(input) != 0) {
+            return result;
+        }
+        final long pricedGas = ClprCallPricing.gasRequirement(frame, operations, target, gas, 0);
+        if (pricedGas == gas) {
+            return result;
+        }
+        // The price above the native work is a fee, so only that work counts toward the ops-duration throttle
+        return gasOnly(result.fullResult().pricedAt(pricedGas), result.responseCode(), result.isViewCall());
     }
 }

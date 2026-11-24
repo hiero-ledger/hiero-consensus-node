@@ -161,6 +161,11 @@ public interface HederaOperations {
      */
     void collectHtsFee(@NonNull AccountID payerId, long amount);
 
+    /** Whether the native CLPR handler is dispatching verification covered by the native fee. */
+    default boolean isClprVerifierDispatch() {
+        return false;
+    }
+
     /**
      * Collects the given fee from the given account, for initial gas charging, so
      * it can be replayed on revert.

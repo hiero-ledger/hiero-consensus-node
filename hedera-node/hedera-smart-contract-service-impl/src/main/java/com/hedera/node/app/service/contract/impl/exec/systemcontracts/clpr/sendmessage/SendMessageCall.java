@@ -2,11 +2,18 @@
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.clpr.sendmessage;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_AUTHORIZATION_FAILED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.node.app.hapi.utils.CommonUtils.clampedAdd;
+import static com.hedera.node.app.hapi.utils.CommonUtils.clampedMultiply;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES;
+import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_STATE_BYTE_FEE_TINYCENTS;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.haltResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.ordinalRevertResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.successResult;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.clpr.ClprCallPricing.gasRequirement;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasOnly;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.configOf;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.proxyUpdaterFor;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToBesuAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
@@ -23,6 +30,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Abs
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.infra.ContractCodeCache;
 import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.config.data.ClprConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
@@ -33,6 +41,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
+import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 
 /**
@@ -41,11 +50,20 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
  *
  * <p>Delegates to {@link ClprServiceApi#sendMessage} for all business logic
  * and state mutations.
+ *
+ * <p>A call is priced at {@link ClprConfig#sendMessageFeeTinycents()}, plus the CLPR state-byte rate for each
+ * message data byte beyond {@link ClprConfig#sendMessageIncludedBytes()}. Successful sends pay this price entirely
+ * through gas, including gas already consumed by connector authorization. No attached value is required.
  */
 public class SendMessageCall extends AbstractCall {
 
     private static final Logger logger = LogManager.getLogger(SendMessageCall.class);
-    private static final long GAS_REQUIREMENT = 100_000L;
+    /**
+     * The CLPR fee proposal's gas estimate for native {@code sendMessage} work. EVM authorization
+     * gas is tracked separately from this estimate.
+     */
+    private static final long GAS_REQUIREMENT = 127_520L;
+
     private static final long AUTHORIZE_OUTBOUND_MESSAGE_GAS_LIMIT = 50_000L;
     private static final int MAX_STACK_DEPTH = 1024;
 
@@ -66,6 +84,7 @@ public class SendMessageCall extends AbstractCall {
     private final byte[] targetApplication;
     private final byte[] messageData;
     private boolean authorized;
+    private long authorizationGasUsed;
 
     public SendMessageCall(
             @NonNull final HederaWorldUpdater.Enhancement enhancement,
@@ -94,8 +113,8 @@ public class SendMessageCall extends AbstractCall {
 
     /**
      * Schedules the connector's {@code authorizeOutboundMessage} as a child call frame on the sending transaction's
-     * own frame stack, with the CLPR system contract as {@code msg.sender} and a fixed gas budget that (as with the
-     * earlier child dispatch) is not charged to the caller. Because the child shares the sending transaction's context,
+     * own frame stack, with the CLPR system contract as {@code msg.sender}. The child can use up to 50,000
+     * of the caller's gas remaining after reserving the native cost. Because the child shares the transaction's context,
      * the connector observes its {@code tx.origin}, transient storage, and warm addresses; and when the sender is an EVM
      * hook, the hook's restrictions (e.g. no {@code DELEGATECALL} or {@code CALLCODE}) also apply to the connector.
      * The connector may update its own state and emit logs; these changes revert if the send or an enclosing call fails.
@@ -109,8 +128,13 @@ public class SendMessageCall extends AbstractCall {
         if (connector == null || !connector.hasConnectorContract() || frame.getDepth() >= MAX_STACK_DEPTH) {
             return false;
         }
-        // Without gas for the system contract charge the call halts with INSUFFICIENT_GAS, so skip authorization
-        if (frame.getRemainingGas() < GAS_REQUIREMENT) {
+        // Quote the whole send before running application authorization or changing queue state.
+        if (frame.getRemainingGas() < pricedGasRequirement(frame, 0)) {
+            return false;
+        }
+        final long gasBudget =
+                Math.min(AUTHORIZE_OUTBOUND_MESSAGE_GAS_LIMIT, frame.getRemainingGas() - GAS_REQUIREMENT);
+        if (gasBudget <= 0) {
             return false;
         }
         final var contract = proxyUpdaterFor(frame).getHederaAccount(connector.connectorContractOrThrow());
@@ -123,7 +147,7 @@ public class SendMessageCall extends AbstractCall {
         MessageFrame.builder()
                 .parentMessageFrame(frame)
                 .type(MessageFrame.Type.MESSAGE_CALL)
-                .initialGas(AUTHORIZE_OUTBOUND_MESSAGE_GAS_LIMIT)
+                .initialGas(gasBudget)
                 .address(contract.getAddress())
                 .contract(contract.getAddress())
                 .inputData(org.apache.tuweni.bytes.Bytes.wrap(callData))
@@ -132,7 +156,7 @@ public class SendMessageCall extends AbstractCall {
                 .apparentValue(Wei.ZERO)
                 .code(codeCache.getCodeFromTuweni(contract.getCode()))
                 .isStatic(frame.isStatic())
-                .completer(child -> completeAuthorization(frame, child, continuation))
+                .completer(child -> completeAuthorization(frame, child, gasBudget, continuation))
                 .build();
         frame.setState(MessageFrame.State.CODE_SUSPENDED);
         return true;
@@ -141,7 +165,12 @@ public class SendMessageCall extends AbstractCall {
     private void completeAuthorization(
             @NonNull final MessageFrame frame,
             @NonNull final MessageFrame child,
+            final long gasBudget,
             @NonNull final Runnable continuation) {
+        authorizationGasUsed = gasBudget - child.getRemainingGas();
+        // Charge the child once here. The result's gas requirement is only the native work,
+        // which the message processor separately charges and records as system contract work.
+        frame.decrementRemainingGas(authorizationGasUsed);
         authorized = child.getState() == MessageFrame.State.COMPLETED_SUCCESS
                 && decodeBoolResult(tuweniToPbjBytes(child.getOutputData()));
         // Merge the child's logs as a CALL's completer would; if authorization fails the send reverts, clearing them
@@ -152,6 +181,15 @@ public class SendMessageCall extends AbstractCall {
 
     @Override
     public @NonNull PricedResult execute(@NonNull final MessageFrame frame) {
+        // Only the native work counts toward the ops-duration throttle; the rest of the price is a fee
+        final long pricedGas = pricedGasRequirement(frame, authorizationGasUsed);
+        if (frame.getRemainingGas() < pricedGas) {
+            return gasOnly(
+                    haltResult(ExceptionalHaltReason.INSUFFICIENT_GAS, GAS_REQUIREMENT)
+                            .pricedAt(pricedGas),
+                    INSUFFICIENT_GAS,
+                    false);
+        }
         if (!authorized) {
             return gasOnly(
                     ordinalRevertResult(CLPR_AUTHORIZATION_FAILED, GAS_REQUIREMENT), CLPR_AUTHORIZATION_FAILED, false);
@@ -170,10 +208,11 @@ public class SendMessageCall extends AbstractCall {
             logger.info("[CLPR-DEBUG] SendMessageCall: SUCCESS assignedMessageId={}", assignedMessageId);
             return gasOnly(
                     successResult(
-                            SendMessageTranslator.SEND_MESSAGE
-                                    .getOutputs()
-                                    .encode(Tuple.singleton(BigInteger.valueOf(assignedMessageId))),
-                            GAS_REQUIREMENT),
+                                    SendMessageTranslator.SEND_MESSAGE
+                                            .getOutputs()
+                                            .encode(Tuple.singleton(BigInteger.valueOf(assignedMessageId))),
+                                    GAS_REQUIREMENT)
+                            .pricedAt(pricedGas),
                     SUCCESS,
                     false);
         } catch (final HandleException e) {
@@ -187,6 +226,14 @@ public class SendMessageCall extends AbstractCall {
                     "[CLPR-DEBUG] SendMessageCall: unexpected RuntimeException from ClprServiceApi.sendMessage", e);
             throw e;
         }
+    }
+
+    private long pricedGasRequirement(@NonNull final MessageFrame frame, final long chargedGas) {
+        final var clprConfig = configOf(frame).getConfigData(ClprConfig.class);
+        final long extraBytes = Math.max(0, (long) messageData.length - clprConfig.sendMessageIncludedBytes());
+        final long target = clampedAdd(
+                clprConfig.sendMessageFeeTinycents(), clampedMultiply(extraBytes, CLPR_STATE_BYTE_FEE_TINYCENTS));
+        return gasRequirement(frame, operations(), target, GAS_REQUIREMENT, chargedGas);
     }
 
     /**

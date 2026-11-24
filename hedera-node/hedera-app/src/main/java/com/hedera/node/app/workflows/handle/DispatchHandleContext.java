@@ -204,6 +204,12 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
 
     @NonNull
     @Override
+    public TransactionCategory transactionCategory() {
+        return transactionCategory;
+    }
+
+    @NonNull
+    @Override
     public AccountID payer() {
         return payerId;
     }
@@ -641,7 +647,7 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
     public TransactionCategory category() {
         // When the DispatchHandleContext is used as a fee charging context, always report
         // CHILD category to stay backward compatible with the calls made to FeeAccumulator
-        // when it was invoked directly
+        // when it was invoked directly. Handler authorization uses transactionCategory() instead.
         return CHILD;
     }
 

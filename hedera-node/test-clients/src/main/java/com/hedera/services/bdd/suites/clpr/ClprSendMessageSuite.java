@@ -42,7 +42,7 @@ public class ClprSendMessageSuite {
     private static final String VERIFIER_CONTRACT = "ClprPassThroughVerifier";
     private static final String CONNECTOR_CONTRACT = "PassThroughAuth";
     private static final String SEND_MESSAGE = "sendMessage";
-    private static final long GAS_TO_OFFER = 500_000L;
+    private static final long GAS_TO_OFFER = 2_000_000L;
     private static final long MIN_LOCKED_STAKE = 100L;
 
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
@@ -50,7 +50,7 @@ public class ClprSendMessageSuite {
         return hapiTest(ClprChannelCrypto.withVerifier(
                 VERIFIER_CONTRACT, "hiero:testing", CLPR_SERVICE_ADDRESS_20, crypto -> {
                     return blockingOrder(
-                            overriding("clpr.minLockedStake", String.valueOf(MIN_LOCKED_STAKE)),
+                            overriding("clpr.minLockedStakeTinycents", "0"),
                             clprUpdateLedgerConfiguration()
                                     .configuration(defaultLedgerConfig())
                                     .payingWith(GENESIS),
@@ -121,6 +121,7 @@ public class ClprSendMessageSuite {
                 uploadInitCode(CLPR_CONTRACT),
                 contractCreate(CLPR_CONTRACT),
                 cryptoCreate("caller").balance(ONE_HUNDRED_HBARS),
+                // No value: a disabled CLPR address is a plain system account, which halts any call carrying value
                 contractCall(CLPR_CONTRACT, SEND_MESSAGE, new byte[32], new byte[32], new byte[0], new byte[0])
                         .gas(GAS_TO_OFFER)
                         .payingWith("caller")

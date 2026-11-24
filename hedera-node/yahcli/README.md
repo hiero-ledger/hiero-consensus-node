@@ -1045,6 +1045,10 @@ Use `clpr delete-connector` to unlock the stake. Each channel accepts a given co
 | `clpr submit-bundle` | Submits a `ClprSubmitBundle` with a hex/file bundle payload.                                                               |
 | `clpr send-message`  | Invokes `sendMessage()` on a deployed connector wrapper contract, which forwards to the CLPR system precompile at `0x16e`. |
 
+`send-message` pays the CLPR send price through gas without attaching value. The default `--gas` limit is
+2,000,000 for small messages. Larger payloads require more gas to cover the additional message-data byte charges;
+increase `--gas` to cover those charges and the wrapper's execution.
+
 ### Ledger configuration and endpoint manifest
 
 |              Command               |                                                                                                      Description                                                                                                      |

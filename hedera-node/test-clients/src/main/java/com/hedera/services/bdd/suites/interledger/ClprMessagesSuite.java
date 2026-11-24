@@ -106,8 +106,8 @@ public class ClprMessagesSuite {
     /** Minimum locked stake for connector registration. */
     private static final long MIN_STAKE = 100L;
 
-    /** Gas budget for each message-sending contract call. */
-    private static final long GAS = 2_000_000L;
+    /** Gas for seven dollar-priced native sends plus Solidity bookkeeping, below the 15M transaction cap. */
+    private static final long GAS = 11_000_000L;
 
     /** Number of messages SourceApplication sends per invocation. */
     private static final int MESSAGES_PER_INVOCATION = 7;
@@ -206,7 +206,7 @@ public class ClprMessagesSuite {
                         uploadInitCode(ECHO_APP),
                         contractCreate(ECHO_APP),
                         // Fund EchoApplication as the connector contract: must cover
-                        // messageExecutionCost + endpointMarginPercent per DATA message.
+                        // messageExecutionCost plus the rate-converted USD progress reward per DATA message.
                         cryptoTransfer(tinyBarsFromTo(GENESIS, ECHO_APP, ONE_HUNDRED_HBARS)),
                         // NET_B uses the CLPR precompile's native verifyConfig — requires real
                         // TSS-signed config and endpoint-manifest StateProofs captured from NET_A above.

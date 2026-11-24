@@ -2,13 +2,11 @@
 
 ## Remaining items
 
-### Endpoint punishment — RESOLVED
+### Endpoint punishment — REMOVED
 
-Implemented `validateTrueOrPenalize` using `HandleException.OnRollback` to charge a flat
-penalty (configurable via `clpr.endpointPenaltyTinybars`) that survives transaction rollback.
-Throw-path (Steps 3-7) uses OnRollback + `FeeCharging.Context.charge()`. Return-path
-(Step 8) uses `context.tryToChargePayer()` since the transaction commits normally.
-Future: geometric escalation can layer on top via infraction counter state.
+The flat endpoint penalty (`clpr.endpointMisbehaviorPenaltyTinybars`) has been removed. Per the CLPR spec, a
+rejected bundle costs the submitting node only its transaction fee; CLPR imposes no penalties on Hiero nodes, and
+misbehaving nodes are removed from the roster by governance.
 
 ### Step 9 auto-resume semantics — RESOLVED
 

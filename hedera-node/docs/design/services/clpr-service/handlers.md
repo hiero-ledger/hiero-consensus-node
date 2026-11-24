@@ -78,6 +78,8 @@ The expected connector ID must equal `keccak256(publicKey ‖ salt)`, using the 
 The handler checks the channel, local contract, minimum stake, and payer balance,
 then transfers the stake and records the connector under `(channel_id, connector_id)`.
 An existing or previously used pair returns `CLPR_CONNECTOR_ALREADY_EXISTS`.
+The minimum stake is $3,000 by default (`ClprConfig.minLockedStakeTinycents`), converted at the consensus-time exchange rate.
+The submitted tinybar amount stays locked as exchange rates change.
 
 ### `ClprDeleteConnectorHandler`
 
@@ -109,8 +111,8 @@ recipient. The channel and connector ID pair stays recorded after deletion or a 
   Recovery requires an authenticated source block timestamp and a proof without queue metadata or messages.
   After recovery, a higher manifest version can advance the channel only with a proof from a strictly
   later source block. Verifiers that do not authenticate source ordering cannot downgrade a manifest.
-- Slashing/reimbursement: on misbehaviour, calls `ClprSlashingUtils.slashConnector(...)`
-  and credits the submitting endpoint per `ClprConfig.endpointMarginPercent`. See
+- Slashing/reimbursement: on misbehaviour, calls `ClprSlashingUtils.applySlash(...)`
+  and credits the submitting endpoint the full penalty via `reimburseEndpoint`. See
   [`config-and-slashing.md`](config-and-slashing.md).
 - On running-hash or ordering mismatch: channel moves to `PAUSED` (spec §4.5).
 

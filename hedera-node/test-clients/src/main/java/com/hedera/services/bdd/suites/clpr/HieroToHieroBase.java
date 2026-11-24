@@ -143,7 +143,8 @@ public abstract class HieroToHieroBase implements LifecycleTest {
     static final String CLPR_CONTRACT = "ClprSystemContract";
     static final String SEND_MESSAGE = "sendMessage";
     static final String GET_QUEUE_STATE = "getChannelQueueState";
-    static final long GAS = 2_000_000L;
+    // Each send pays its CLPR fee through gas, on top of the gas its own execution uses
+    static final long GAS = 4_000_000L;
     /** The node-local CLPR channel registry (default {@code clpr.peerEndpointsFile}), relative to a working dir. */
     static final String PEER_ENDPOINTS_FILE = "data/clpr/peer-endpoints.json";
 
@@ -1859,6 +1860,11 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                         data.getBytes(StandardCharsets.UTF_8))
                 .gas(GAS)
                 .payingWith(caller);
+    }
+
+    /** Leaves room for each send's gas-priced fee and the batch's Solidity bookkeeping. */
+    static long gasForMessageBatch(final int messageCount) {
+        return 500_000L + 1_500_000L * messageCount;
     }
 
     // ── Config helpers ────────────────────────────────────────────────────────

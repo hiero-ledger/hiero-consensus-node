@@ -94,8 +94,8 @@ public class SendMessageCommand implements Callable<Integer> {
     @Option(
             names = {"--gas"},
             paramLabel = "<gas>",
-            defaultValue = "300000",
-            description = "Gas limit for the contract call (default 300000).")
+            defaultValue = "2000000",
+            description = "Gas limit for the contract call (default 2000000); larger payloads require more gas.")
     long gas;
 
     @Override

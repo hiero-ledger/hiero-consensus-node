@@ -31,6 +31,7 @@ import com.hedera.hapi.node.state.clpr.ClprConnector;
 import com.hedera.hapi.node.state.clpr.ClprConnectorKey;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.token.Account;
+import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.hapi.utils.keys.Ed25519Utils;
@@ -42,6 +43,7 @@ import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.entityid.impl.AppEntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
+import com.hedera.node.app.spi.fees.ExchangeRateInfo;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -53,11 +55,14 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.spi.WritableStates;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
+import java.time.Instant;
 import org.hiero.base.crypto.ECDSASecp256k1;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -102,6 +107,9 @@ class ClprCreateConnectorHandlerTest {
 
     @Mock
     private HandleContext handleContext;
+
+    @Mock
+    private ExchangeRateInfo exchangeRateInfo;
 
     @Mock
     private StoreFactory storeFactory;
@@ -457,6 +465,73 @@ class ClprCreateConnectorHandlerTest {
         verify(tokenServiceApi).transferFromTo(PAYER_ID, STAKING_ACCOUNT_ID, MIN_LOCKED_STAKE);
     }
 
+    @ParameterizedTest
+    @CsvSource({
+        "1, 5, 6000000000000",
+        "1, 10, 3000000000000",
+        "1, 20, 1500000000000",
+        "1, 7, 4285714285715",
+        "2147483647, 2147483647, 30000000000000"
+    })
+    void acceptsUsdMinimumAtActiveRate(final int hbarEquiv, final int centEquiv, final long minimumTinybars) {
+        setupUsdStake(hbarEquiv, centEquiv, minimumTinybars);
+
+        subject.handle(handleContext);
+
+        final var connector = connectorStore.getConnector(new ClprConnectorKey(CHANNEL_ID, ECDSA_CONNECTOR_ID));
+        assertThat(connector.lockedStake()).isEqualTo(minimumTinybars);
+        verify(tokenServiceApi).transferFromTo(PAYER_ID, STAKING_ACCOUNT_ID, minimumTinybars);
+        verify(exchangeRateInfo).activeRate(Instant.EPOCH);
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        "1, 5, 6000000000000",
+        "1, 10, 3000000000000",
+        "1, 20, 1500000000000",
+        "1, 7, 4285714285715",
+        "2147483647, 2147483647, 30000000000000"
+    })
+    void rejectsOneTinybarBelowUsdMinimum(final int hbarEquiv, final int centEquiv, final long minimumTinybars) {
+        setupUsdStake(hbarEquiv, centEquiv, minimumTinybars - 1);
+
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(CLPR_INSUFFICIENT_STAKE));
+        assertThat(connectorStore.getConnector(new ClprConnectorKey(CHANNEL_ID, ECDSA_CONNECTOR_ID)))
+                .isNull();
+        verifyNoInteractions(tokenServiceApi);
+    }
+
+    @Test
+    void rejectsWhenUsdMinimumExceedsRepresentableTinybars() {
+        setupUsdStake(Integer.MAX_VALUE, 1, Long.MAX_VALUE);
+
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(CLPR_INSUFFICIENT_STAKE));
+        verifyNoInteractions(tokenServiceApi);
+    }
+
+    private void setupUsdStake(final int hbarEquiv, final int centEquiv, final long offeredTinybars) {
+        setupSmartContractMock();
+        setupHandleContext(
+                txnWith(validOpBuilder().lockedStake(offeredTinybars).build()),
+                HederaTestConfigBuilder.create().withValue("clpr.enabled", true).getOrCreateConfig());
+        // The payer can cover whatever stake it offers, so only the USD minimum decides the outcome.
+        lenient()
+                .when(accountStore.getAccountById(PAYER_ID))
+                .thenReturn(Account.newBuilder()
+                        .accountId(PAYER_ID)
+                        .tinybarBalance(offeredTinybars)
+                        .build());
+        when(exchangeRateInfo.activeRate(Instant.EPOCH))
+                .thenReturn(ExchangeRate.newBuilder()
+                        .hbarEquiv(hbarEquiv)
+                        .centEquiv(centEquiv)
+                        .build());
+    }
+
     // ── helpers ───────────────────────────────────────────────────────────────
 
     private ClprCreateConnectorTransactionBody.Builder validOpBuilder() {
@@ -486,12 +561,17 @@ class ClprCreateConnectorHandlerTest {
                 txn,
                 HederaTestConfigBuilder.create()
                         .withValue("clpr.enabled", clprEnabled)
-                        .withValue("clpr.minLockedStake", MIN_LOCKED_STAKE)
+                        .withValue("clpr.minLockedStakeTinycents", MIN_LOCKED_STAKE)
                         .withValue("clpr.stakingAccount", 803L)
                         .getOrCreateConfig());
     }
 
     private void setupHandleContext(final TransactionBody txn, final Configuration config) {
+        lenient().when(handleContext.consensusNow()).thenReturn(Instant.EPOCH);
+        lenient().when(handleContext.exchangeRateInfo()).thenReturn(exchangeRateInfo);
+        lenient()
+                .when(exchangeRateInfo.activeRate(Instant.EPOCH))
+                .thenReturn(ExchangeRate.newBuilder().hbarEquiv(1).centEquiv(1).build());
         lenient().when(handleContext.body()).thenReturn(txn);
         lenient().when(handleContext.payer()).thenReturn(PAYER_ID);
         lenient()
