@@ -2,22 +2,27 @@
 package com.hedera.node.app.workflows.handle;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
+import com.hedera.node.config.data.DiskSpaceConfig;
 import com.hedera.node.config.data.FailureBlockStagingConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.LongGauge;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.platform.system.Platform;
 import java.io.IOException;
 import java.nio.file.FileStore;
 import java.nio.file.Files;
@@ -86,7 +91,7 @@ class DiskSpaceGateTest {
     void stopsWaitingAndKeepsTheFlagWhenInterrupted() throws IOException {
         given(savedStore.getUsableSpace()).willReturn(0L);
         final var subject = new DiskSpaceGate(
-                configProviderWith(RESERVE_MB), new NoOpMetrics(), List.of(SAVED), dir -> savedStore, duration -> {
+                configWith(RESERVE_MB), new NoOpMetrics(), List.of(SAVED), dir -> savedStore, duration -> {
                     throw new InterruptedException();
                 });
 
@@ -111,7 +116,7 @@ class DiskSpaceGateTest {
     void dirWithoutAFileStoreIsSkipped() throws IOException {
         given(savedStore.getUsableSpace()).willReturn(RESERVE);
         final var subject = new DiskSpaceGate(
-                configProviderWith(RESERVE_MB),
+                configWith(RESERVE_MB),
                 new NoOpMetrics(),
                 List.of(SAVED, BLOCKS),
                 dir -> {
@@ -162,7 +167,7 @@ class DiskSpaceGateTest {
         given(blockStore.getUsableSpace()).willReturn(RESERVE - 1, RESERVE + 5);
         final Map<Path, FileStore> stores = Map.of(SAVED, savedStore, BLOCKS, blockStore);
 
-        new DiskSpaceGate(configProviderWith(RESERVE_MB), metrics, List.of(SAVED, BLOCKS), stores::get, sleeps::add)
+        new DiskSpaceGate(configWith(RESERVE_MB), metrics, List.of(SAVED, BLOCKS), stores::get, sleeps::add)
                 .awaitFreeSpace();
 
         verify(gauges.get("diskSpaceReserved")).set(RESERVE);
@@ -192,6 +197,23 @@ class DiskSpaceGateTest {
         } finally {
             logCaptor.stopCapture();
         }
+    }
+
+    @Test
+    void reserveComesFromTheBootstrapConfigNotFromFile121() {
+        final Configuration appConfig = HederaTestConfigBuilder.create()
+                .withConfigDataType(FailureBlockStagingConfig.class)
+                .withValue("diskSpace.reservedMb", Integer.MAX_VALUE)
+                .getOrCreateConfig();
+        final ConfigProvider configProvider = () -> new VersionedConfigImpl(appConfig, 1L);
+        final var bootstrapConfigProvider = new BootstrapConfigProviderImpl(Map.of("diskSpace.reservedMb", "0"));
+        final var platform = mock(Platform.class, RETURNS_DEEP_STUBS);
+        given(platform.getContext().getConfiguration())
+                .willReturn(HederaTestConfigBuilder.create().getOrCreateConfig());
+
+        final var subject = new DiskSpaceGate(configProvider, bootstrapConfigProvider, platform, new NoOpMetrics());
+
+        assertTimeoutPreemptively(Duration.ofSeconds(5), subject::awaitFreeSpace);
     }
 
     @Test
@@ -324,18 +346,14 @@ class DiskSpaceGateTest {
 
     private DiskSpaceGate gateWith(final int reservedMb, final Map<Path, FileStore> stores) {
         return new DiskSpaceGate(
-                configProviderWith(reservedMb),
+                configWith(reservedMb),
                 new NoOpMetrics(),
                 List.copyOf(new TreeMap<>(stores).keySet()),
                 stores::get,
                 sleeps::add);
     }
 
-    private static ConfigProvider configProviderWith(final int reservedMb) {
-        final Configuration config = HederaTestConfigBuilder.create()
-                .withValue("diskSpace.reservedMb", reservedMb)
-                .withValue("diskSpace.recheckInterval", "1s")
-                .getOrCreateConfig();
-        return () -> new VersionedConfigImpl(config, 1L);
+    private static DiskSpaceConfig configWith(final int reservedMb) {
+        return new DiskSpaceConfig(reservedMb, Duration.ofSeconds(1));
     }
 }

@@ -6,6 +6,7 @@ import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.util.ThrottledLogging;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockBufferConfig;
@@ -62,6 +63,9 @@ import org.hiero.consensus.pces.config.PcesConfig;
  * blocks, saved pending transactions and metrics), plus the log and working directories. While the gate is closed the
  * handle thread waits, so the platform falls behind, stops creating events and leaves {@code ACTIVE} until an operator
  * frees space. The gate only delays handling; it never changes what a round does.
+ *
+ * <p>The reserve comes from the bootstrap config (local files, env and system properties), never from file 0.0.121:
+ * a too-high network-wide value would pause every node, and a paused network could not handle the fix.
  */
 @Singleton
 public class DiskSpaceGate {
@@ -91,7 +95,7 @@ public class DiskSpaceGate {
 
     private record Shortfall(@NonNull Path dir, long usableBytes) {}
 
-    private final ConfigProvider configProvider;
+    private final DiskSpaceConfig config;
     private final Sleeper sleeper;
     private final List<Volume> volumes;
     private final ThrottledLogging readFailureLogging = new ThrottledLogging();
@@ -102,10 +106,11 @@ public class DiskSpaceGate {
     @Inject
     public DiskSpaceGate(
             @NonNull final ConfigProvider configProvider,
+            @NonNull final BootstrapConfigProviderImpl bootstrapConfigProvider,
             @NonNull final Platform platform,
             @NonNull final Metrics metrics) {
         this(
-                configProvider,
+                bootstrapConfigProvider.configuration().getConfigData(DiskSpaceConfig.class),
                 metrics,
                 dataDirs(
                         configProvider.getConfiguration(), platform.getContext().getConfiguration(), logDirs()),
@@ -114,12 +119,12 @@ public class DiskSpaceGate {
     }
 
     DiskSpaceGate(
-            @NonNull final ConfigProvider configProvider,
+            @NonNull final DiskSpaceConfig config,
             @NonNull final Metrics metrics,
             @NonNull final List<Path> dirs,
             @NonNull final FileStoreLookup fileStoreLookup,
             @NonNull final Sleeper sleeper) {
-        this.configProvider = requireNonNull(configProvider);
+        this.config = requireNonNull(config);
         this.sleeper = requireNonNull(sleeper);
         this.volumes = volumesOf(requireNonNull(dirs), requireNonNull(fileStoreLookup));
         requireNonNull(metrics);
@@ -131,8 +136,7 @@ public class DiskSpaceGate {
                 .withUnit("bytes"));
         pausedGauge = metrics.getOrCreate(new LongGauge.Config("app", "diskSpacePaused")
                 .withDescription("1 while round handling waits for free disk space, else 0"));
-        warnAboutVolumesNotBiggerThanTheReserve(
-                configProvider.getConfiguration().getConfigData(DiskSpaceConfig.class));
+        warnAboutVolumesNotBiggerThanTheReserve(config);
     }
 
     /**
@@ -141,7 +145,6 @@ public class DiskSpaceGate {
      * interrupted.
      */
     public void awaitFreeSpace() {
-        final var config = configProvider.getConfiguration().getConfigData(DiskSpaceConfig.class);
         final long reservedBytes = config.reservedMb() * BYTES_PER_MB;
         reservedBytesGauge.set(reservedBytes);
         if (reservedBytes <= 0) {
