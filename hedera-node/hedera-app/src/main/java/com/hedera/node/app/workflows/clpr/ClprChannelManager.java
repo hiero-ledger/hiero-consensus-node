@@ -445,7 +445,7 @@ public class ClprChannelManager implements ClprChannelLifecycle {
         // This semaphore ensures only a limited number of sync operations are performed concurrently.
         if (!syncSemaphore.tryAcquire()) {
             // The channel is synced again on a later cycle
-            logger.debug("Max concurrent sync reached, skipping sync for channel {}", channelId);
+            logger.warn("Max concurrent sync reached, skipping sync for channel {}", channelId);
             ongoingChannelSyncs.remove(channelId);
             return;
         }

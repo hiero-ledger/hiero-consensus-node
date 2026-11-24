@@ -184,7 +184,10 @@ public final class ClprStreamingSyncCall implements AutoCloseable {
         }
         cancelled = true;
         writeClosed = true;
-        if (cause != null) {
+        if (cause instanceof InterruptedException) {
+            // The sync thread was interrupted, e.g. because the node is shutting down
+            LOG.debug("{} canceled: {}", tag, message, cause);
+        } else if (cause != null) {
             LOG.warn("{} canceled: {}", tag, message, cause);
         } else {
             LOG.debug("{} canceled without an exception cause: {}", tag, message);

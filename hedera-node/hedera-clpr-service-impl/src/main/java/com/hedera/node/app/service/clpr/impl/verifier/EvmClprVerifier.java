@@ -405,7 +405,7 @@ public class EvmClprVerifier implements ClprVerifier {
                     result.status(),
                     evmResultSummary(result));
             if (result.status() != SUCCESS) {
-                log.debug(
+                log.warn(
                         "Verifier dispatchRaw failed: contract={} status={} (translated to {}) payer={} gasLimit={}",
                         verifierContract,
                         result.status(),

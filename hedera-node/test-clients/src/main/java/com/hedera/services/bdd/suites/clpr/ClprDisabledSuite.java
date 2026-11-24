@@ -32,6 +32,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.expectLogProblems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -67,6 +68,7 @@ import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.junit.support.validators.ExpectedLogProblems.LogProblem;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
@@ -330,6 +332,11 @@ public class ClprDisabledSuite {
         final var crypto = new ClprChannelCrypto();
         final var txns = clprTxns(crypto);
         final var operations = contractSetup();
+        if (bypassIngest && !inBatch) {
+            // The bundle reaches its handler, which rejects it because CLPR is disabled
+            operations.addFirst(expectLogProblems(
+                    LogProblem.of("DispatchProcessor", "[CLPR-DISPATCH] HandleException", "status=CLPR_NOT_ENABLED")));
+        }
         operations.add(withOpContext((spec, opLog) -> assertCoversEveryClprEntryPoint(txns)));
         operations.add(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
         final var probes = new ArrayList<SpecOperation>();

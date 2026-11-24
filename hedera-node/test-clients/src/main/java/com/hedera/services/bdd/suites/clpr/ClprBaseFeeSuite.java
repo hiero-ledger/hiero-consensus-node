@@ -8,6 +8,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCreateChann
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprSubmitBundle;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.expectLogProblems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdFromRecordWithTxnSize;
@@ -20,6 +21,7 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_CHANNEL_NOT_FOUND;
 
 import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.support.validators.ExpectedLogProblems.LogProblem;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -85,6 +87,8 @@ public class ClprBaseFeeSuite {
     final Stream<DynamicTest> submitBundleChargesConfiguredBaseFee() {
         final var txn = "clprSubmitBundleBaseFeeTxn";
         return hapiTest(
+                expectLogProblems(LogProblem.of(
+                        "DispatchProcessor", "[CLPR-DISPATCH] HandleException", "status=CLPR_CHANNEL_NOT_FOUND")),
                 overriding("fees.simpleFeesEnabled", "true"),
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 clprSubmitBundle()

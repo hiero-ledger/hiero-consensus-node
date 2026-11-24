@@ -33,6 +33,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.expectLogProblems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingAllOf;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -69,6 +70,7 @@ import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.junit.support.validators.ExpectedLogProblems.LogProblem;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
@@ -188,6 +190,11 @@ public class ClprEnabledSuite {
         // native contract's address behaves as a plain system account and succeeds without executing anything, so it
         // cannot satisfy this test.
         final var operations = new ArrayList<SpecOperation>();
+        // Each verifier rejects the invalid proof
+        operations.add(expectLogProblems(
+                LogProblem.of("VerifyConfigCall", "verifyConfig FAILED: reason=failed to parse StateProof"),
+                LogProblem.of("BesuQBFTVerifyConfigCall", "verifyConfig (QBFT): proof rejected"),
+                LogProblem.of("EthereumVerifyConfigCall", "[EthereumVerifier] verifyConfig: config rejected")));
         operations.add(cryptoCreate(CALLER).balance(ONE_HUNDRED_HBARS));
         CLPR_SYSTEM_CONTRACT_NUMS.forEach(num -> operations.add(
                 contractCallWithFunctionAbi(num, VERIFY_CONFIG.toJson(false), new byte[] {1}, new byte[32], new byte[0])
@@ -484,6 +491,14 @@ public class ClprEnabledSuite {
                 VERIFIER_CONTRACT, "hiero:testing", CLPR_SERVICE_ADDRESS_20, crypto -> {
                     final var txns = clprTxns(crypto);
                     final var operations = contractSetup();
+                    if (!inBatch) {
+                        // The bundle's message names an unknown connector, which the handler answers with
+                        // CONNECTOR_NOT_FOUND
+                        operations.addFirst(expectLogProblems(LogProblem.of(
+                                "ClprSubmitBundleHandler",
+                                "step10 DATA connector NOT_FOUND",
+                                "conn=" + crypto.channelIdHex())));
+                    }
                     operations.add(withOpContext((spec, opLog) -> assertCoversEveryClprEntryPoint(txns)));
                     operations.add(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
                     for (final var entry : txns.entrySet()) {

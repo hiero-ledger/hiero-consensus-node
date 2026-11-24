@@ -131,6 +131,8 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
 
     /** How many nodes the network started with; its genesis nodes have ids {@code 0} to this size less one. */
     private final int genesisSize;
+    /** Nodes removed by {@link #removeNode(NodeSelector)}; their logs are still validated. */
+    private final List<HederaNode> departedNodes = new ArrayList<>();
 
     private PortLayout ports;
     private Network network;
@@ -519,6 +521,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         final var node = getRequiredNode(selector);
         node.stopFuture();
         nodes.remove(node);
+        departedNodes.add(node);
         final var nwk = NetworkUtils.generateNetworkConfig(
                 nodes, ports.internalGossip(), ports.externalGossip(), latestCandidateWeights());
         network = nwk.network();
@@ -614,6 +617,16 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
      */
     public ServiceEndpoint grpcEndpointFor(final long nodeId) {
         return endpointFor(ports.grpc() + (int) nodeId * 2);
+    }
+
+    /**
+     * Returns the nodes removed from this network by {@link #removeNode(NodeSelector)}, whose working directories
+     * and logs are kept.
+     *
+     * @return the departed nodes, in removal order
+     */
+    public List<HederaNode> departedNodes() {
+        return List.copyOf(departedNodes);
     }
 
     /**

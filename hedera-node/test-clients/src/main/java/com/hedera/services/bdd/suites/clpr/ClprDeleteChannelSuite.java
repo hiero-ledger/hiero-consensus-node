@@ -9,6 +9,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprDeleteChann
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprSubmitBundle;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.expectLogProblems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -21,6 +22,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.support.validators.ExpectedLogProblems.LogProblem;
 import com.hederahashgraph.api.proto.java.ClprBundleContent;
 import com.hederahashgraph.api.proto.java.ClprChannelStatus;
 import com.hederahashgraph.api.proto.java.ClprLedgerConfiguration;
@@ -117,6 +119,15 @@ public class ClprDeleteChannelSuite {
                     final var hashAfterBundle1 =
                             ClprTestProofs.runningHashAfter(new byte[32], drainingBundle.getMessagesList());
                     return blockingOrder(
+                            expectLogProblems(
+                                    LogProblem.of(
+                                            "ClprSubmitBundleHandler",
+                                            "step10 DATA connector NOT_FOUND",
+                                            "conn=" + crypto.channelIdHex()),
+                                    LogProblem.of(
+                                            "ClprSubmitBundleHandler",
+                                            "step10 MESSAGE_REPLY has no original DATA message",
+                                            "conn=" + crypto.channelIdHex())),
                             clprCreateChannel()
                                     .channelId(crypto.channelId())
                                     .salt(crypto.salt())

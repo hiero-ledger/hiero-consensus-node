@@ -178,6 +178,11 @@ public final class ClprStreamingSynchronizer implements ClprSynchronizer {
                 logger.debug("Peer {} does not have channel {} yet: {}", peerId, channelId, e.getMessage());
                 return;
             }
+            if (e.getCause() instanceof InterruptedException) {
+                // The sync thread was interrupted, e.g. because the node is shutting down; not a peer failure
+                logger.debug("Streaming sync interrupted for channel {} via peer {}", channelId, peerId);
+                return;
+            }
             // ClprSyncException: stream failure. ClientException: destination validation or channel setup failed. Both
             // are
             // peer-level failures for the breaker.

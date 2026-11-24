@@ -86,6 +86,7 @@ import com.hedera.services.bdd.spec.remote.RemoteNetworkFactory;
 import com.hedera.services.bdd.spec.transactions.TxnFactory;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.utilops.SysFileOverrideOp;
+import com.hedera.services.bdd.spec.utilops.streams.ExpectLogProblemsOp;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.AbstractEventualStreamAssertion;
 import com.hedera.services.bdd.spec.verification.traceability.SidecarWatcher;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
@@ -115,6 +116,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.DelayQueue;
 import java.util.concurrent.Delayed;
 import java.util.concurrent.Future;
@@ -290,6 +292,10 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
     @Nullable
     private SidecarWatcher sidecarWatcher;
     /**
+     * The log problems this spec expects, closed when it finishes.
+     */
+    private final List<ExpectLogProblemsOp> expectedLogProblems = new CopyOnWriteArrayList<>();
+    /**
      * If non-null, a supplier to use within this spec's {@link TxnFactory}.
      */
     @Nullable
@@ -450,6 +456,16 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
     @Nullable
     public SidecarWatcher getSidecarWatcher() {
         return sidecarWatcher;
+    }
+
+    /**
+     * Registers log problems this spec expects, so they are closed when it finishes, even if the op that declared
+     * them was nested inside another op.
+     *
+     * @param op the op declaring the expected problems
+     */
+    public void registerExpectedLogProblems(@NonNull final ExpectLogProblemsOp op) {
+        expectedLogProblems.add(requireNonNull(op));
     }
 
     /**
@@ -1052,6 +1068,14 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
         for (final var op : ops) {
             if (op instanceof SysFileOverrideOp sysFileOverrideOp && sysFileOverrideOp.isAutoRestoring()) {
                 sysFileOverrideOp.restoreContentsIfNeeded(this);
+            }
+        }
+        for (final var expectLogProblemsOp : expectedLogProblems) {
+            try {
+                expectLogProblemsOp.close(this, status == PASSED);
+            } catch (final Throwable t) {
+                status = FAILED;
+                failure = new Failure(t, expectLogProblemsOp.toString());
             }
         }
         if (status == PASSED) {

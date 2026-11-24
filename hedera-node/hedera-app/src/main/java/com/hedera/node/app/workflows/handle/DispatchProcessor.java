@@ -7,6 +7,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_DISPATCH;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_UPDATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SYSTEM_DELETE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.AUTHORIZATION_FAILED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NO_PROGRESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ENTITY_NOT_ALLOWED_TO_DELETE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
@@ -51,6 +52,7 @@ import java.util.EnumSet;
 import java.util.Set;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -146,7 +148,7 @@ public class DispatchProcessor {
         final var validation = validator.validateFeeChargingScenario(dispatch);
         if (!validation.creatorDidDueDiligence()) {
             if (isClprSubmitBundle(dispatch)) {
-                logger.debug(
+                logger.warn(
                         "[CLPR-DISPATCH] creator due diligence failed; charging creator txId={} status={}",
                         dispatch.txnInfo().transactionID(),
                         validation.errorStatusOrThrow());
@@ -200,7 +202,10 @@ public class DispatchProcessor {
             success = true;
         } catch (HandleException e) {
             if (isClprSubmitBundle(dispatch)) {
-                logger.debug(
+                // Several nodes submit the same peer bundle, so every copy after the first one applied has no progress
+                final var level = e.getStatus() == CLPR_NO_PROGRESS ? Level.DEBUG : Level.WARN;
+                logger.log(
+                        level,
                         "[CLPR-DISPATCH] HandleException txId={} status={} message={}",
                         dispatch.txnInfo().transactionID(),
                         e.getStatus(),
@@ -213,7 +218,7 @@ public class DispatchProcessor {
             e.maybeReplay(feeCharging.customized(dispatch), dispatch.handleContext());
         } catch (ThrottleException e) {
             if (isClprSubmitBundle(dispatch)) {
-                logger.debug(
+                logger.warn(
                         "[CLPR-DISPATCH] throttled txId={} status={} message={}",
                         dispatch.txnInfo().transactionID(),
                         e.getStatus(),
@@ -297,7 +302,7 @@ public class DispatchProcessor {
     private void chargeCreator(@NonNull final Dispatch dispatch, @NonNull final FeeCharging.Validation validation) {
         dispatch.streamBuilder().status(validation.errorStatusOrThrow());
         if (isClprSubmitBundle(dispatch)) {
-            logger.debug(
+            logger.warn(
                     "[CLPR-DISPATCH] charge creator txId={} creator={} networkFee={} status={}",
                     dispatch.txnInfo().transactionID(),
                     dispatch.creatorInfo().accountId(),
@@ -374,7 +379,7 @@ public class DispatchProcessor {
     private boolean alreadyFailed(@NonNull final Dispatch dispatch, @NonNull final FeeCharging.Validation validation) {
         if (validation.maybeErrorStatus() != null) {
             if (isClprSubmitBundle(dispatch)) {
-                logger.debug(
+                logger.warn(
                         "[CLPR-DISPATCH] skipping handler due to validation error txId={} status={}",
                         dispatch.txnInfo().transactionID(),
                         validation.errorStatusOrThrow());
@@ -385,7 +390,7 @@ public class DispatchProcessor {
         final var authorizationFailure = maybeAuthorizationFailure(dispatch);
         if (authorizationFailure != null) {
             if (isClprSubmitBundle(dispatch)) {
-                logger.debug(
+                logger.warn(
                         "[CLPR-DISPATCH] skipping handler due to authorization failure txId={} status={} "
                                 + "category={} payer={}",
                         dispatch.txnInfo().transactionID(),
@@ -398,7 +403,7 @@ public class DispatchProcessor {
         }
         if (failsSignatureVerification(dispatch)) {
             if (isClprSubmitBundle(dispatch)) {
-                logger.debug(
+                logger.warn(
                         "[CLPR-DISPATCH] skipping handler due to signature verification failure txId={} "
                                 + "requiredKeyRequirements={} hollowAccounts={}",
                         dispatch.txnInfo().transactionID(),

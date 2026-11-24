@@ -86,7 +86,7 @@ public class SeiVerifyBundleCall extends AbstractCall {
         try {
             verified = SeiCometBftProofVerifier.verifyBundle(bundlePayload, trustAnchor, channelContext);
         } catch (final ProofException e) {
-            log.debug("verifyBundle (Sei): proof rejected: {}", e.getMessage());
+            log.warn("verifyBundle (Sei): proof rejected: {}", e.getMessage());
             return fail();
         } catch (final Exception e) {
             log.warn("verifyBundle (Sei): unexpected error", e);

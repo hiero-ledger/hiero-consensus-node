@@ -171,6 +171,10 @@ public class HgcaaLogValidator {
                         return false;
                     }
                 }
+                // A line the running test declared with UtilVerbs.expectLogProblems
+                if (ExpectedLogProblems.isExpected(line)) {
+                    return false;
+                }
                 numProblems++;
                 linesSinceInitialProblem = 0;
                 linesToReportAfterInitialProblem = isPossiblyCatastrophicProblem(line)

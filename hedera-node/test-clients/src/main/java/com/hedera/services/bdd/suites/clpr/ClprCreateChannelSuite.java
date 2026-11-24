@@ -14,6 +14,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.expectLogProblems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -35,6 +36,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.support.validators.ExpectedLogProblems.LogProblem;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hederahashgraph.api.proto.java.ClprLedgerConfiguration;
@@ -146,6 +148,10 @@ public class ClprCreateChannelSuite {
     final Stream<DynamicTest> duplicateOpenFails() {
         return hapiTest(ClprChannelCrypto.withVerifier(VERIFIER, "hiero:testing", new byte[] {0, 0, 1}, crypto -> {
             return blockingOrder(
+                    expectLogProblems(LogProblem.of(
+                            "ClprCreateChannelHandler",
+                            "channel already active",
+                            "channelId=" + crypto.channelIdHex())),
                     clprCreateChannel()
                             .channelId(crypto.channelId())
                             .salt(crypto.salt())

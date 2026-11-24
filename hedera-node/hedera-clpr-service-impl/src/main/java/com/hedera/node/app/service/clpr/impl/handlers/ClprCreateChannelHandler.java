@@ -163,7 +163,7 @@ public final class ClprCreateChannelHandler extends AbstractClprHandler {
         final var accountStore = context.storeFactory().readableStore(ReadableAccountStore.class);
 
         if (channelStore.getChannel(op.channelId()) != null) {
-            log.debug("[ClprCreateChannel] channel already active channelId={}", shortHex(op.channelId()));
+            log.warn("[ClprCreateChannel] channel already active channelId={}", shortHex(op.channelId()));
             throw new HandleException(CLPR_CHANNEL_ALREADY_EXISTS);
         }
 
@@ -405,7 +405,7 @@ public final class ClprCreateChannelHandler extends AbstractClprHandler {
         try {
             return verifier.verifyConfig(configProofBytes, channelId, endpointManifestProofBytes, context);
         } catch (final HandleException e) {
-            log.debug(
+            log.warn(
                     "[ClprCreateChannel] verifyConfig FAILED channelId={} verifierContract={} status={} "
                             + "configProofBytes={} configProofHash={} configProofPrefix={}",
                     shortHex(channelId),

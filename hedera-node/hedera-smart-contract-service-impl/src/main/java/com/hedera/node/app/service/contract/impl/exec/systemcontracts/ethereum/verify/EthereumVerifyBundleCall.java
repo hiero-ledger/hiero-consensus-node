@@ -172,7 +172,7 @@ public class EthereumVerifyBundleCall extends AbstractCall {
         try {
             verified = verifier.verifyBundle(bundlePayload, trustAnchor, channelContext);
         } catch (final ProofException e) {
-            log.info("[EthereumVerifier] verifyBundle: proof rejected: {}", e.getMessage());
+            log.warn("[EthereumVerifier] verifyBundle: proof rejected: {}", e.getMessage());
             return null;
         } catch (final Exception e) {
             log.warn("[EthereumVerifier] verifyBundle: unexpected error", e);
