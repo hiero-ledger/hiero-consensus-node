@@ -5,7 +5,7 @@ import static com.hedera.services.bdd.junit.ContextRequirement.PROPERTY_OVERRIDE
 import static com.hedera.services.bdd.junit.TestTags.CLPR;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.clprGetLedgerConfiguration;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCloseChannel;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprDeleteChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprEvictPeerEndpoint;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprUpdateLedgerConfiguration;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -60,7 +60,7 @@ public class ClprUpdateLedgerConfigurationSuite {
                         .signedBy(GENESIS),
                 clprGetLedgerConfiguration().exposingConfigTo(config -> assertEquals(throttles, config.getThrottles())),
                 // Both operations must pass authorization to check whether the channel exists.
-                clprCloseChannel()
+                clprDeleteChannel()
                         .channelId(missingChannelId)
                         .payingWith(admin)
                         .signedBy(GENESIS)

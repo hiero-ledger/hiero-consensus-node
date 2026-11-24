@@ -31,10 +31,10 @@ ledger.
 
 ---
 
-## E-2. Signature schemes on `completeChannel`
+## E-2. Signature schemes on `completeConnector`
 
 Hiero supports two signature schemes for connector registration
-(`clpr_complete_channel.proto`, `ClprSignatureScheme` enum):
+(`clpr_complete_connector.proto`, `ClprSignatureScheme` enum):
 
 - **`ECDSA_SECP256K1`** — matches the secp256k1 keys commonly used by EVM-derived
   chains and by Hiero EVM accounts.
@@ -54,11 +54,7 @@ sufficient for signature verification. It is NOT sufficient for address recovery
 would require the recovery byte); signature verification uses the supplied public key
 directly rather than recovering a key from the signature.
 
-**Canonical spec note:** spec §6.2 lists no `signatureScheme` parameter to
-`completeChannel`. Per the drift review (S-11), the canonical spec should document
-"ledger-specific; consult your platform docs" for the signature scheme. Hiero's choice
-to support both schemes is additive; a peer connecting to Hiero should consult this
-document to determine acceptable key types.
+Channel opening verifies the peer configuration and the derived ID. Connector activation verifies the operator’s signature.
 
 See also: [C-6 in DRIFT-REVIEW-2026-05.md](DRIFT-REVIEW-2026-05.md#c-6) for the
 outstanding endpoint-signature verification work that will build on these conventions.
@@ -130,7 +126,7 @@ See [C-6 in DRIFT-REVIEW-2026-05.md](DRIFT-REVIEW-2026-05.md#c-6) for the plan.
 ## E-5. `PrivilegesVerifier`-based admin gating
 
 The treasury (by default `0.0.2`), system admin (by default `0.0.50`), and configured
-`accounts.clprAdmin` payer can submit `closeChannel`, `evictPeerEndpoint`, and
+`accounts.clprAdmin` payer can submit `deleteChannel`, `evictPeerEndpoint`, and
 `updateLedgerConfiguration`.
 See [privileged transactions](../../../privileged-transactions.md#authorization-privileges-for-clpr-transactions).
 

@@ -34,7 +34,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.TransactionID;
-import com.hedera.hapi.node.clpr.ClprCompleteChannelTransactionBody;
+import com.hedera.hapi.node.clpr.ClprCreateChannelTransactionBody;
 import com.hedera.hapi.node.clpr.ClprSubmitBundleTransactionBody;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
@@ -329,8 +329,8 @@ class DispatchUsageManagerTest {
     @CsvSource({
         "3, CLPR_SUBMIT_BUNDLE, true, true",
         "1234, CLPR_SUBMIT_BUNDLE, true, true",
-        "3, CLPR_COMPLETE_CHANNEL, true, false",
-        "1234, CLPR_COMPLETE_CHANNEL, true, true",
+        "3, CLPR_CREATE_CHANNEL, true, false",
+        "1234, CLPR_CREATE_CHANNEL, true, true",
         "3, CONTRACT_CALL, true, false",
         "3, CLPR_SUBMIT_BUNDLE, false, false",
         "1234, CLPR_SUBMIT_BUNDLE, false, false"
@@ -371,8 +371,7 @@ class DispatchUsageManagerTest {
                 .transactionID(TransactionID.newBuilder().accountID(payer));
         switch (parentFunction) {
             case CLPR_SUBMIT_BUNDLE -> parentBodyBuilder.clprSubmitBundle(ClprSubmitBundleTransactionBody.DEFAULT);
-            case CLPR_COMPLETE_CHANNEL ->
-                parentBodyBuilder.clprCompleteChannel(ClprCompleteChannelTransactionBody.DEFAULT);
+            case CLPR_CREATE_CHANNEL -> parentBodyBuilder.clprCreateChannel(ClprCreateChannelTransactionBody.DEFAULT);
             default ->
                 parentBodyBuilder.contractCall(
                         ContractCallTransactionBody.newBuilder().gas(gasLimit));

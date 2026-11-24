@@ -283,7 +283,7 @@ public class EthereumVerifyBundleCall extends AbstractCall {
     private PricedResult bundleSuccess(
             @NonNull final VerifiedBundle verified, @NonNull final ClprBundleContent outContent) {
         final ClprQueueMetadata meta = outContent.metadataOrElse(ClprQueueMetadata.DEFAULT);
-        // Source endpointManifestVersion from the PROVEN Channel slot (offset 16), never the relayed content:
+        // Source endpointManifestVersion from the PROVEN Channel slot (offset 15), never the relayed content:
         // a relay could otherwise inflate it to make the peer look up-to-date and suppress our manifest
         // re-pushes (spec §4.5, liveness).
         final Tuple metaTuple = metadataTuple(meta, verified.queueMetadata().endpointManifestVersion());

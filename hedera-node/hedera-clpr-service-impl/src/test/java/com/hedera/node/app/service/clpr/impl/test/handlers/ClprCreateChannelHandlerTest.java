@@ -3,16 +3,14 @@ package com.hedera.node.app.service.clpr.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_CHANNEL_ALREADY_EXISTS;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_COMMITMENT_MISMATCH;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INVALID_VERIFIER_CONTRACT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NOT_ENABLED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_VERIFIER_CONFIG_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.SubType.DEFAULT;
-import static com.hedera.node.app.hapi.utils.keys.Ed25519Utils.keyFrom;
+import static com.hedera.node.app.hapi.utils.CommonUtils.asEvmAddress;
+import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
-import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.PENDING_COMMITMENTS_STATE_ID;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -29,8 +27,7 @@ import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.FeeData;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
-import com.hedera.hapi.node.clpr.ClprCompleteChannelTransactionBody;
-import com.hedera.hapi.node.clpr.ClprSignatureScheme;
+import com.hedera.hapi.node.clpr.ClprCreateChannelTransactionBody;
 import com.hedera.hapi.node.state.clpr.ClprChannel;
 import com.hedera.hapi.node.state.clpr.ClprChannelStatus;
 import com.hedera.hapi.node.state.clpr.ClprEndpoint;
@@ -42,13 +39,12 @@ import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
+import com.hedera.node.app.hapi.utils.ClprChannelId;
 import com.hedera.node.app.service.clpr.ClprChannelLifecycle;
 import com.hedera.node.app.service.clpr.ReadableLedgerConfigurationStore;
 import com.hedera.node.app.service.clpr.impl.ClprGasAccounting;
 import com.hedera.node.app.service.clpr.impl.WritableChannelStore;
-import com.hedera.node.app.service.clpr.impl.WritablePendingCommitmentStore;
-import com.hedera.node.app.service.clpr.impl.handlers.ClprCompleteChannelHandler;
+import com.hedera.node.app.service.clpr.impl.handlers.ClprCreateChannelHandler;
 import com.hedera.node.app.service.clpr.impl.test.verifier.PassThroughClprVerifier;
 import com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierFactory;
 import com.hedera.node.app.service.clpr.impl.verifier.VerifiedConfig;
@@ -75,13 +71,10 @@ import com.swirlds.state.test.fixtures.MapReadableKVState;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
-import org.hiero.base.crypto.ECDSASecp256k1;
-import org.hiero.base.crypto.Ed25519;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -93,7 +86,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class ClprCompleteChannelHandlerTest {
+class ClprCreateChannelHandlerTest {
 
     private static final AccountID PAYER_ID =
             AccountID.newBuilder().shardNum(0).realmNum(0).accountNum(1001).build();
@@ -112,22 +105,61 @@ class ClprCompleteChannelHandlerTest {
             .initialTrustAnchorId(PEER_TRUST_ANCHOR)
             .build();
 
-    private static final byte[] SECRET_KEY = {
-        0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
-        0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10,
-        0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
-        0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20
-    };
+    private static final String LOCAL_CHAIN_ID = "hedera:testnet";
+    private static final Bytes SALT = Bytes.wrap(new byte[32]);
+    private static final Bytes PEER_VERIFIER = Bytes.fromHex("00112233445566778899aabbccddeeff00112233");
+    // Produced by ChannelLogic._deriveChannelId in clpr-smart-contracts #622.
+    private static final Bytes CHANNEL_ID =
+            Bytes.fromHex("bb082a20892923291a09d2402beeedc74d1077bf44ba67d4b33cede9495688a2");
 
-    private static final Bytes CHANNEL_ID = Bytes.wrap(new byte[] {
-        0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42,
-        0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42,
-        0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42,
-        0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42
-    });
+    @Test
+    void derivesTheSameIdFromEitherLedgerIncludingWhenChainAndServiceMatch() {
+        final var verifier = Bytes.wrap(asEvmAddress(5001));
+        assertThat(ClprChannelId.derive(
+                        PEER_CONFIG.chainId(),
+                        PEER_CONFIG.serviceAddress(),
+                        PEER_VERIFIER,
+                        LOCAL_CHAIN_ID,
+                        CLPR_EVM_ADDRESS_BYTES,
+                        verifier,
+                        SALT))
+                .isEqualTo(CHANNEL_ID);
+        final var otherVerifier = Bytes.fromHex("ff");
+        // Solidity vector with equal chain and service: the verifier hashes break the tie.
+        final var expected = Bytes.fromHex("63c19f9211fb8e9c2d094a1bde7992e39fa80892666b644451fab75be8077710");
+        assertThat(ClprChannelId.derive(
+                        LOCAL_CHAIN_ID,
+                        CLPR_EVM_ADDRESS_BYTES,
+                        verifier,
+                        LOCAL_CHAIN_ID,
+                        CLPR_EVM_ADDRESS_BYTES,
+                        otherVerifier,
+                        SALT))
+                .isEqualTo(expected);
+        assertThat(ClprChannelId.derive(
+                        LOCAL_CHAIN_ID,
+                        CLPR_EVM_ADDRESS_BYTES,
+                        otherVerifier,
+                        LOCAL_CHAIN_ID,
+                        CLPR_EVM_ADDRESS_BYTES,
+                        verifier,
+                        SALT))
+                .isEqualTo(expected);
+    }
 
-    private static final byte[] ECDSA_PUBLIC_KEY = ECDSASecp256k1.derivePublicKey(SECRET_KEY);
-    private static final Bytes ECDSA_COMMITMENT = computeCommitment(CHANNEL_ID, Bytes.wrap(ECDSA_PUBLIC_KEY));
+    private static Bytes channelIdForVerifier(final ContractID verifierId) {
+        final var address = verifierId.hasEvmAddress()
+                ? verifierId.evmAddressOrThrow()
+                : Bytes.wrap(asEvmAddress(verifierId.contractNumOrThrow()));
+        return ClprChannelId.derive(
+                LOCAL_CHAIN_ID,
+                CLPR_EVM_ADDRESS_BYTES,
+                address,
+                PEER_CONFIG.chainId(),
+                PEER_CONFIG.serviceAddress(),
+                PEER_VERIFIER,
+                SALT);
+    }
 
     @Mock
     private ClprVerifierFactory verifierFactory;
@@ -159,13 +191,12 @@ class ClprCompleteChannelHandlerTest {
     @Mock
     private WritableStates writableStates;
 
-    private ClprCompleteChannelHandler subject;
+    private ClprCreateChannelHandler subject;
     private WritableChannelStore channelStore;
-    private WritablePendingCommitmentStore commitmentStore;
 
     @BeforeEach
     void setUp() {
-        subject = new ClprCompleteChannelHandler(verifierFactory, channelLifecycle);
+        subject = new ClprCreateChannelHandler(verifierFactory, channelLifecycle);
         lenient().when(verifierFactory.getVerifier(any())).thenReturn(new PassThroughClprVerifier());
 
         // Channel state
@@ -182,23 +213,14 @@ class ClprCompleteChannelHandlerTest {
                 .when(writableStates.<ProtoBytes, ClprChannel>get(CHANNELS_STATE_ID))
                 .thenReturn(writableChannels);
         channelStore = new WritableChannelStore(writableStates);
-
-        // Pending commitments state
-        final var writableCommitments = MapWritableKVState.<ProtoBytes, ProtoBytes>builder(
-                        PENDING_COMMITMENTS_STATE_ID, "ClprService:PENDING_COMMITMENTS")
-                .build();
-        lenient()
-                .when(writableStates.<ProtoBytes, ProtoBytes>get(PENDING_COMMITMENTS_STATE_ID))
-                .thenReturn(writableCommitments);
-        commitmentStore = new WritablePendingCommitmentStore(writableStates);
     }
 
     @Test
     void rejectsWrongChannelIdLength() {
-        final var op = ClprCompleteChannelTransactionBody.newBuilder()
+        final var op = ClprCreateChannelTransactionBody.newBuilder()
                 .channelId(Bytes.wrap(new byte[16]))
-                .publicKey(Bytes.wrap(new byte[64]))
-                .signature(Bytes.wrap(new byte[64]))
+                .salt(SALT)
+                .peerVerifier(PEER_VERIFIER)
                 .verifierContract(VERIFIER_CONTRACT_ID)
                 .configProofBytes(Bytes.wrap(new byte[] {1}))
                 .build();
@@ -210,45 +232,10 @@ class ClprCompleteChannelHandlerTest {
     }
 
     @Test
-    void rejectsWrongEcdsaPublicKeyLength() {
-        final var op = ClprCompleteChannelTransactionBody.newBuilder()
+    void rejectsWrongSaltLength() {
+        final var op = ClprCreateChannelTransactionBody.newBuilder()
                 .channelId(Bytes.wrap(new byte[32]))
-                .publicKey(Bytes.wrap(new byte[33]))
-                .signature(Bytes.wrap(new byte[64]))
-                .signatureScheme(ClprSignatureScheme.ECDSA_SECP256K1)
-                .verifierContract(VERIFIER_CONTRACT_ID)
-                .configProofBytes(Bytes.wrap(new byte[] {1}))
-                .build();
-        given(pureChecksContext.body()).willReturn(txnWith(op));
-
-        assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
-                .isInstanceOf(PreCheckException.class)
-                .has(responseCode(INVALID_TRANSACTION_BODY));
-    }
-
-    @Test
-    void rejectsWrongEd25519PublicKeyLength() {
-        final var op = ClprCompleteChannelTransactionBody.newBuilder()
-                .channelId(Bytes.wrap(new byte[32]))
-                .publicKey(Bytes.wrap(new byte[64]))
-                .signature(Bytes.wrap(new byte[64]))
-                .signatureScheme(ClprSignatureScheme.ED25519)
-                .verifierContract(VERIFIER_CONTRACT_ID)
-                .configProofBytes(Bytes.wrap(new byte[] {1}))
-                .build();
-        given(pureChecksContext.body()).willReturn(txnWith(op));
-
-        assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
-                .isInstanceOf(PreCheckException.class)
-                .has(responseCode(INVALID_TRANSACTION_BODY));
-    }
-
-    @Test
-    void rejectsWrongSignatureLength() {
-        final var op = ClprCompleteChannelTransactionBody.newBuilder()
-                .channelId(Bytes.wrap(new byte[32]))
-                .publicKey(Bytes.wrap(new byte[64]))
-                .signature(Bytes.wrap(new byte[32]))
+                .salt(Bytes.wrap(new byte[31]))
                 .verifierContract(VERIFIER_CONTRACT_ID)
                 .configProofBytes(Bytes.wrap(new byte[] {1}))
                 .build();
@@ -261,10 +248,10 @@ class ClprCompleteChannelHandlerTest {
 
     @Test
     void rejectsMissingVerifierContract() {
-        final var op = ClprCompleteChannelTransactionBody.newBuilder()
+        final var op = ClprCreateChannelTransactionBody.newBuilder()
                 .channelId(Bytes.wrap(new byte[32]))
-                .publicKey(Bytes.wrap(new byte[64]))
-                .signature(Bytes.wrap(new byte[64]))
+                .salt(SALT)
+                .peerVerifier(PEER_VERIFIER)
                 .configProofBytes(Bytes.wrap(new byte[] {1}))
                 .build();
         given(pureChecksContext.body()).willReturn(txnWith(op));
@@ -276,10 +263,10 @@ class ClprCompleteChannelHandlerTest {
 
     @Test
     void rejectsEmptyConfigProofBytes() {
-        final var op = ClprCompleteChannelTransactionBody.newBuilder()
+        final var op = ClprCreateChannelTransactionBody.newBuilder()
                 .channelId(Bytes.wrap(new byte[32]))
-                .publicKey(Bytes.wrap(new byte[64]))
-                .signature(Bytes.wrap(new byte[64]))
+                .salt(SALT)
+                .peerVerifier(PEER_VERIFIER)
                 .verifierContract(VERIFIER_CONTRACT_ID)
                 .configProofBytes(Bytes.EMPTY)
                 .build();
@@ -291,49 +278,17 @@ class ClprCompleteChannelHandlerTest {
     }
 
     @Test
-    void rejectsUnrecognizedSignatureScheme() {
-        final var op = ClprCompleteChannelTransactionBody.newBuilder()
-                .channelId(Bytes.wrap(new byte[32]))
-                .publicKey(Bytes.wrap(new byte[64]))
-                .signature(Bytes.wrap(new byte[64]))
-                .signatureScheme(ClprSignatureScheme.fromProtobufOrdinal(999))
-                .verifierContract(VERIFIER_CONTRACT_ID)
-                .configProofBytes(Bytes.wrap(new byte[] {1}))
-                .build();
-        given(pureChecksContext.body()).willReturn(txnWith(op));
-
-        assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
-                .isInstanceOf(PreCheckException.class)
-                .has(responseCode(INVALID_TRANSACTION_BODY));
-    }
-
-    @Test
-    void passesWithValidEcdsaFields() throws PreCheckException {
-        given(pureChecksContext.body()).willReturn(validEcdsaTxn());
-        subject.pureChecks(pureChecksContext);
-    }
-
-    @Test
-    void passesWithValidEd25519Fields() throws PreCheckException {
-        final var op = ClprCompleteChannelTransactionBody.newBuilder()
-                .channelId(Bytes.wrap(new byte[32]))
-                .publicKey(Bytes.wrap(new byte[32]))
-                .signature(Bytes.wrap(new byte[64]))
-                .signatureScheme(ClprSignatureScheme.ED25519)
-                .verifierContract(VERIFIER_CONTRACT_ID)
-                .configProofBytes(Bytes.wrap(new byte[] {1}))
-                .build();
-        given(pureChecksContext.body()).willReturn(txnWith(op));
+    void passesWithValidFields() throws PreCheckException {
+        given(pureChecksContext.body()).willReturn(validOpenTxn());
         subject.pureChecks(pureChecksContext);
     }
 
     @Test
     void rejectsWhenClprNotEnabled() {
-        commitmentStore.put(ECDSA_COMMITMENT);
         final var disabledConfig = HederaTestConfigBuilder.create()
                 .withValue("clpr.enabled", false)
                 .getOrCreateConfig();
-        setupHandleContext(validEcdsaTxn(), disabledConfig);
+        setupHandleContext(validOpenTxn(), disabledConfig);
 
         assertThatThrownBy(() -> subject.handle(handleContext))
                 .isInstanceOf(HandleException.class)
@@ -341,23 +296,12 @@ class ClprCompleteChannelHandlerTest {
     }
 
     @Test
-    void rejectsNoMatchingCommitment() {
-        // Don't seed any commitment
-        setupHandleContext(validEcdsaTxn());
-
-        assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
-                .has(responseCode(CLPR_COMMITMENT_MISMATCH));
-    }
-
-    @Test
     void rejectsExistingChannel() {
-        commitmentStore.put(ECDSA_COMMITMENT);
         channelStore.put(ClprChannel.newBuilder()
                 .channelId(CHANNEL_ID)
                 .status(ClprChannelStatus.ACTIVE)
                 .build());
-        setupHandleContext(validEcdsaTxn());
+        setupHandleContext(validOpenTxn());
 
         assertThatThrownBy(() -> subject.handle(handleContext))
                 .isInstanceOf(HandleException.class)
@@ -365,27 +309,8 @@ class ClprCompleteChannelHandlerTest {
     }
 
     @Test
-    void rejectsInvalidEcdsaSignature() {
-        commitmentStore.put(ECDSA_COMMITMENT);
-        final var op = ClprCompleteChannelTransactionBody.newBuilder()
-                .channelId(CHANNEL_ID)
-                .publicKey(Bytes.wrap(ECDSA_PUBLIC_KEY))
-                .signature(Bytes.wrap(new byte[64]))
-                .signatureScheme(ClprSignatureScheme.ECDSA_SECP256K1)
-                .verifierContract(VERIFIER_CONTRACT_ID)
-                .configProofBytes(ClprLedgerConfiguration.PROTOBUF.toBytes(PEER_CONFIG))
-                .build();
-        setupHandleContext(txnWith(op));
-
-        assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
-                .has(responseCode(CLPR_INVALID_SIGNATURE));
-    }
-
-    @Test
     void rejectsNonExistentVerifierContract() {
-        commitmentStore.put(ECDSA_COMMITMENT);
-        setupHandleContext(validEcdsaTxn());
+        setupHandleContext(validOpenTxn());
         lenient().when(accountStore.getContractById(VERIFIER_CONTRACT_ID)).thenReturn(null);
 
         assertThatThrownBy(() -> subject.handle(handleContext))
@@ -395,8 +320,7 @@ class ClprCompleteChannelHandlerTest {
 
     @Test
     void rejectsNonContractVerifier() {
-        commitmentStore.put(ECDSA_COMMITMENT);
-        setupHandleContext(validEcdsaTxn());
+        setupHandleContext(validOpenTxn());
         setupVerifierAccount(false);
 
         assertThatThrownBy(() -> subject.handle(handleContext))
@@ -406,13 +330,10 @@ class ClprCompleteChannelHandlerTest {
 
     @Test
     void rejectsInvalidConfigProof() {
-        commitmentStore.put(ECDSA_COMMITMENT);
-        final var sig = signChannelId(SECRET_KEY, CHANNEL_ID);
-        final var op = ClprCompleteChannelTransactionBody.newBuilder()
+        final var op = ClprCreateChannelTransactionBody.newBuilder()
                 .channelId(CHANNEL_ID)
-                .publicKey(Bytes.wrap(ECDSA_PUBLIC_KEY))
-                .signature(Bytes.wrap(sig))
-                .signatureScheme(ClprSignatureScheme.ECDSA_SECP256K1)
+                .salt(SALT)
+                .peerVerifier(PEER_VERIFIER)
                 .verifierContract(VERIFIER_CONTRACT_ID)
                 .configProofBytes(Bytes.wrap(new byte[] {(byte) 0xFF, (byte) 0xFF}))
                 .build();
@@ -425,9 +346,8 @@ class ClprCompleteChannelHandlerTest {
     }
 
     @Test
-    void handleSuccessfullyCreatesChannelWithEcdsa() {
-        commitmentStore.put(ECDSA_COMMITMENT);
-        setupHandleContext(validEcdsaTxn());
+    void opensChannelWithoutPriorCommitment() {
+        setupHandleContext(validOpenTxn());
         setupVerifierAccount(true);
 
         subject.handle(handleContext);
@@ -444,9 +364,8 @@ class ClprCompleteChannelHandlerTest {
         // with its own ledger_id at ClprUpdateLedgerConfiguration time.
         assertThat(stored.trustAnchor()).isEqualTo(PEER_TRUST_ANCHOR);
         assertThat(stored.trustAnchorId()).isEqualTo(PEER_TRUST_ANCHOR);
-        // Commitment stays in pending store (freed only when channel is closed)
-        assertThat(commitmentStore.contains(ECDSA_COMMITMENT)).isTrue();
-        assertThat(stored.ownershipCommitment()).isEqualTo(ECDSA_COMMITMENT);
+        assertThat(stored.salt()).isEqualTo(SALT);
+        assertThat(stored.ownershipCommitment()).isEqualTo(Bytes.EMPTY);
         // Manifest mode: the (empty) endpoint_manifest_proof_bytes yields an empty manifest, which
         // is attached to the channel — ClprEndpointManifest permits an empty list at version >= 1
         // and later manifest-update bundles populate it (spec §4.7).
@@ -458,17 +377,17 @@ class ClprCompleteChannelHandlerTest {
     @ParameterizedTest
     @MethodSource("builtInVerifiers")
     void storesFixedFingerprintForBuiltInVerifier(final ContractID verifierId, final Bytes expectedFingerprint) {
-        commitmentStore.put(ECDSA_COMMITMENT);
-        final var op = validEcdsaTxn()
-                .clprCompleteChannelOrThrow()
+        final var op = validOpenTxn()
+                .clprCreateChannelOrThrow()
                 .copyBuilder()
                 .verifierContract(verifierId)
+                .channelId(channelIdForVerifier(verifierId))
                 .build();
         setupHandleContext(txnWith(op));
 
         subject.handle(handleContext);
 
-        final var stored = channelStore.getChannel(CHANNEL_ID);
+        final var stored = channelStore.getChannel(op.channelId());
         assertThat(stored.verifierContract()).isEqualTo(verifierId);
         assertThat(stored.verifierFingerprint()).isEqualTo(expectedFingerprint);
         then(accountStore).shouldHaveNoInteractions();
@@ -493,34 +412,37 @@ class ClprCompleteChannelHandlerTest {
     @ValueSource(booleans = {false, true})
     void rejectsTheUnsupportedSeiVerifier(final boolean useEvmAddress) {
         // 0x170 is not a built-in verifier: without a smart-contract account it is rejected like any other address
-        commitmentStore.put(ECDSA_COMMITMENT);
         final var seiVerifierId = verifierContractId(0x170L, useEvmAddress);
-        final var op = validEcdsaTxn()
-                .clprCompleteChannelOrThrow()
+        final var op = validOpenTxn()
+                .clprCreateChannelOrThrow()
                 .copyBuilder()
                 .verifierContract(seiVerifierId)
+                .channelId(channelIdForVerifier(seiVerifierId))
                 .build();
         setupHandleContext(txnWith(op));
 
         assertThatThrownBy(() -> subject.handle(handleContext))
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(CLPR_INVALID_VERIFIER_CONTRACT));
-        assertThat(channelStore.getChannel(CHANNEL_ID)).isNull();
+        assertThat(channelStore.getChannel(op.channelId())).isNull();
     }
 
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
     void storesDeployedBytecodeHashForCustomVerifier(final boolean useEvmAddress) {
-        commitmentStore.put(ECDSA_COMMITMENT);
         final var verifierId = verifierContractId(5001L, useEvmAddress);
-        final var op = validEcdsaTxn()
-                .clprCompleteChannelOrThrow()
+        final var op = validOpenTxn()
+                .clprCreateChannelOrThrow()
                 .copyBuilder()
                 .verifierContract(verifierId)
+                .channelId(channelIdForVerifier(verifierId))
                 .build();
         setupHandleContext(txnWith(op));
         given(accountStore.getContractById(verifierId))
-                .willReturn(Account.newBuilder().smartContract(true).build());
+                .willReturn(Account.newBuilder()
+                        .accountId(AccountID.newBuilder().accountNum(5001))
+                        .smartContract(true)
+                        .build());
         given(smartContractServiceApi.getContractBytecode(verifierId)).willReturn(Bytes.fromHex("60006000f3"));
 
         subject.handle(handleContext);
@@ -532,8 +454,7 @@ class ClprCompleteChannelHandlerTest {
     @ParameterizedTest
     @MethodSource("missingBytecode")
     void retainsZeroFingerprintForCustomVerifierWithoutBytecode(final Bytes bytecode) {
-        commitmentStore.put(ECDSA_COMMITMENT);
-        setupHandleContext(validEcdsaTxn());
+        setupHandleContext(validOpenTxn());
         setupVerifierAccount(true);
         given(smartContractServiceApi.getContractBytecode(VERIFIER_CONTRACT_ID)).willReturn(bytecode);
 
@@ -562,7 +483,6 @@ class ClprCompleteChannelHandlerTest {
         // Non-empty endpoint_manifest_proof_bytes → PassThroughClprVerifier parses them
         // as a real manifest, its endpoints satisfy the gate, and the Channel carries the same
         // manifest bytes-for-bytes.
-        commitmentStore.put(ECDSA_COMMITMENT);
         final var peerManifest = ClprEndpointManifest.newBuilder()
                 .version(7L)
                 .serviceAddress(PEER_CONFIG.serviceAddress())
@@ -575,12 +495,10 @@ class ClprCompleteChannelHandlerTest {
                         .accountId(Bytes.wrap(new byte[] {1, 2, 3}))
                         .build()))
                 .build();
-        final var sig = signChannelId(SECRET_KEY, CHANNEL_ID);
-        final var op = ClprCompleteChannelTransactionBody.newBuilder()
+        final var op = ClprCreateChannelTransactionBody.newBuilder()
                 .channelId(CHANNEL_ID)
-                .publicKey(Bytes.wrap(ECDSA_PUBLIC_KEY))
-                .signature(Bytes.wrap(sig))
-                .signatureScheme(ClprSignatureScheme.ECDSA_SECP256K1)
+                .salt(SALT)
+                .peerVerifier(PEER_VERIFIER)
                 .verifierContract(VERIFIER_CONTRACT_ID)
                 .configProofBytes(ClprLedgerConfiguration.PROTOBUF.toBytes(PEER_CONFIG))
                 .endpointManifestProofBytes(ClprEndpointManifest.PROTOBUF.toBytes(peerManifest))
@@ -601,7 +519,6 @@ class ClprCompleteChannelHandlerTest {
     @ValueSource(ints = {0, 1, 2})
     void verifierGasIsRefundedOnSuccessAndPreservedAfterLateFailure(final int failureMode) {
         final boolean invalidManifest = failureMode == 1;
-        commitmentStore.put(ECDSA_COMMITMENT);
         final var manifest = ClprEndpointManifest.newBuilder()
                 .version(7)
                 .serviceAddress(invalidManifest ? Bytes.wrap(new byte[16_384]) : PEER_CONFIG.serviceAddress())
@@ -611,7 +528,7 @@ class ClprCompleteChannelHandlerTest {
                 .withValue("clpr.verifierGasLimit", 1000L)
                 .withValue("contracts.maxGasPerTransaction", 1000L)
                 .getOrCreateConfig();
-        setupHandleContext(validEcdsaTxnWithManifest(manifest), config);
+        setupHandleContext(validOpenTxnWithManifest(manifest), config);
         setupVerifierAccount(true);
         givenUnitGasPrice(handleContext);
         given(handleContext.tryToCharge(PAYER_ID, 1000L)).willReturn(true);
@@ -658,9 +575,9 @@ class ClprCompleteChannelHandlerTest {
 
     @Test
     void unexpectedFailureBeforeEvmWorkPropagatesWithoutChangingWorkflowFeeSemantics() {
-        setupHandleContext(validEcdsaTxn());
+        setupHandleContext(validOpenTxn());
         final var failure = new IllegalStateException("Unexpected store failure before verifier execution");
-        given(storeFactory.writableStore(WritablePendingCommitmentStore.class)).willThrow(failure);
+        given(storeFactory.writableStore(WritableChannelStore.class)).willThrow(failure);
 
         assertThatThrownBy(() -> subject.handle(handleContext)).isSameAs(failure);
 
@@ -686,7 +603,6 @@ class ClprCompleteChannelHandlerTest {
 
     @Test
     void oversizedVerifierCertificateIsNeitherStoredNorCached() {
-        commitmentStore.put(ECDSA_COMMITMENT);
         final var oversized = ClprEndpoint.newBuilder()
                 .tlsCertificate(Bytes.wrap(new byte[65_536]))
                 .build();
@@ -695,7 +611,7 @@ class ClprCompleteChannelHandlerTest {
                 .serviceAddress(PEER_CONFIG.serviceAddress())
                 .endpoints(oversized)
                 .build();
-        setupHandleContext(validEcdsaTxnWithManifest(manifest));
+        setupHandleContext(validOpenTxnWithManifest(manifest));
         setupVerifierAccount(true);
 
         subject.handle(handleContext);
@@ -711,13 +627,10 @@ class ClprCompleteChannelHandlerTest {
         // yields an empty manifest, which ClprEndpointManifest explicitly permits at version >= 1
         // (genesis creates exactly that); later manifest-update bundles populate it. So the
         // channel is accepted ACTIVE with an empty stored manifest — NOT rejected.
-        commitmentStore.put(ECDSA_COMMITMENT);
-        final var sig = signChannelId(SECRET_KEY, CHANNEL_ID);
-        final var op = ClprCompleteChannelTransactionBody.newBuilder()
+        final var op = ClprCreateChannelTransactionBody.newBuilder()
                 .channelId(CHANNEL_ID)
-                .publicKey(Bytes.wrap(ECDSA_PUBLIC_KEY))
-                .signature(Bytes.wrap(sig))
-                .signatureScheme(ClprSignatureScheme.ECDSA_SECP256K1)
+                .salt(SALT)
+                .peerVerifier(PEER_VERIFIER)
                 .verifierContract(VERIFIER_CONTRACT_ID)
                 .configProofBytes(ClprLedgerConfiguration.PROTOBUF.toBytes(PEER_CONFIG))
                 .endpointManifestProofBytes(Bytes.EMPTY)
@@ -737,14 +650,11 @@ class ClprCompleteChannelHandlerTest {
     @Test
     void handleRollsBackAllStateOnInvalidManifestProof() {
         // Invalid endpoint_manifest_proof_bytes → verifier throws → no Channel persisted
-        // (spec: "Invalid proof → completeChannel fails; no partial state written").
-        commitmentStore.put(ECDSA_COMMITMENT);
-        final var sig = signChannelId(SECRET_KEY, CHANNEL_ID);
-        final var op = ClprCompleteChannelTransactionBody.newBuilder()
+        // An invalid proof must leave channel state untouched.
+        final var op = ClprCreateChannelTransactionBody.newBuilder()
                 .channelId(CHANNEL_ID)
-                .publicKey(Bytes.wrap(ECDSA_PUBLIC_KEY))
-                .signature(Bytes.wrap(sig))
-                .signatureScheme(ClprSignatureScheme.ECDSA_SECP256K1)
+                .salt(SALT)
+                .peerVerifier(PEER_VERIFIER)
                 .verifierContract(VERIFIER_CONTRACT_ID)
                 .configProofBytes(ClprLedgerConfiguration.PROTOBUF.toBytes(PEER_CONFIG))
                 // Garbage bytes — PassThroughClprVerifier fails to parse as ClprEndpointManifest.
@@ -763,131 +673,24 @@ class ClprCompleteChannelHandlerTest {
 
     @Test
     void doesNotNotifyLifecycleWhenHandleFails() {
-        // Commitment missing — handle should throw and lifecycle must not be notified.
-        setupHandleContext(validEcdsaTxn());
-
+        final var op = validOpenTxn()
+                .clprCreateChannelOrThrow()
+                .copyBuilder()
+                .peerVerifier(Bytes.fromHex("ff"))
+                .build();
+        setupHandleContext(txnWith(op));
+        setupVerifierAccount(true);
         assertThatThrownBy(() -> subject.handle(handleContext))
                 .isInstanceOf(HandleException.class)
-                .has(responseCode(CLPR_COMMITMENT_MISMATCH));
+                .has(responseCode(INVALID_TRANSACTION_BODY));
+        assertThat(channelStore.getChannel(CHANNEL_ID)).isNull();
 
         then(channelLifecycle).should(never()).onChannelActivated(any());
     }
 
     @Test
-    void handleSuccessfullyCreatesChannelWithEd25519() {
-        final byte[] publicKey = new byte[Ed25519.PUBLIC_KEY_BYTES];
-        final byte[] secretKey = new byte[Ed25519.SECRET_KEY_BYTES];
-        Ed25519.newKeypair(publicKey, secretKey, SECRET_KEY);
-
-        final var commitment = computeCommitment(CHANNEL_ID, Bytes.wrap(publicKey));
-        commitmentStore.put(commitment);
-
-        final var messageHash = MiscCryptoUtils.keccak256DigestOf(CHANNEL_ID.toByteArray());
-        final byte[] sig;
-        try {
-            sig = Ed25519.sign(messageHash, secretKey);
-        } catch (final Exception e) {
-            throw new IllegalStateException("Failed to sign with Ed25519", e);
-        }
-
-        final var op = ClprCompleteChannelTransactionBody.newBuilder()
-                .channelId(CHANNEL_ID)
-                .publicKey(Bytes.wrap(publicKey))
-                .signature(Bytes.wrap(sig))
-                .signatureScheme(ClprSignatureScheme.ED25519)
-                .verifierContract(VERIFIER_CONTRACT_ID)
-                .configProofBytes(ClprLedgerConfiguration.PROTOBUF.toBytes(PEER_CONFIG))
-                .build();
-        setupHandleContext(txnWith(op));
-        setupVerifierAccount(true);
-
-        subject.handle(handleContext);
-
-        final var stored = channelStore.getChannel(CHANNEL_ID);
-        assertThat(stored).isNotNull();
-        assertThat(stored.status()).isEqualTo(ClprChannelStatus.ACTIVE);
-        // Commitment stays in pending store (freed only when channel is closed)
-        assertThat(commitmentStore.contains(commitment)).isTrue();
-        assertThat(stored.ownershipCommitment()).isEqualTo(commitment);
-    }
-
-    @Test
-    void rejectsEcdsaSignatureFromWrongKey() {
-        commitmentStore.put(ECDSA_COMMITMENT);
-        // Sign with a *different* private key — produces a structurally valid 64-byte sig
-        // that doesn't match the public key in the commitment
-        final var differentSecretKey = new byte[] {
-            0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28,
-            0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f, 0x30,
-            0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38,
-            0x39, 0x3a, 0x3b, 0x3c, 0x3d, 0x3e, 0x3f, 0x40
-        };
-        final var wrongSig = signChannelId(differentSecretKey, CHANNEL_ID);
-        final var op = ClprCompleteChannelTransactionBody.newBuilder()
-                .channelId(CHANNEL_ID)
-                .publicKey(Bytes.wrap(ECDSA_PUBLIC_KEY))
-                .signature(Bytes.wrap(wrongSig))
-                .signatureScheme(ClprSignatureScheme.ECDSA_SECP256K1)
-                .verifierContract(VERIFIER_CONTRACT_ID)
-                .configProofBytes(ClprLedgerConfiguration.PROTOBUF.toBytes(PEER_CONFIG))
-                .build();
-        setupHandleContext(txnWith(op));
-
-        assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
-                .has(responseCode(CLPR_INVALID_SIGNATURE));
-    }
-
-    @Test
-    void rejectsInvalidEd25519Signature() {
-        final var seed = new byte[32];
-        seed[0] = 0x01;
-        final var ed25519PrivKey = keyFrom(seed);
-        final var ed25519PubKey = ed25519PrivKey.getAbyte();
-        final var ed25519Commitment = computeCommitment(CHANNEL_ID, Bytes.wrap(ed25519PubKey));
-        commitmentStore.put(ed25519Commitment);
-
-        final var op = ClprCompleteChannelTransactionBody.newBuilder()
-                .channelId(CHANNEL_ID)
-                .publicKey(Bytes.wrap(ed25519PubKey))
-                .signature(Bytes.wrap(new byte[64]))
-                .signatureScheme(ClprSignatureScheme.ED25519)
-                .verifierContract(VERIFIER_CONTRACT_ID)
-                .configProofBytes(ClprLedgerConfiguration.PROTOBUF.toBytes(PEER_CONFIG))
-                .build();
-        setupHandleContext(txnWith(op));
-
-        assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
-                .has(responseCode(CLPR_INVALID_SIGNATURE));
-    }
-
-    @Test
-    void rejectsCommitmentWithWrongPublicKey() {
-        // Commit with the real key, then reveal with a different key of the same length
-        commitmentStore.put(ECDSA_COMMITMENT);
-        final var differentKey = new byte[64];
-        Arrays.fill(differentKey, (byte) 0xAA);
-        // keccak256(CHANNEL_ID || differentKey) != ecdsaCommitment
-        final var op = ClprCompleteChannelTransactionBody.newBuilder()
-                .channelId(CHANNEL_ID)
-                .publicKey(Bytes.wrap(differentKey))
-                .signature(Bytes.wrap(new byte[64]))
-                .signatureScheme(ClprSignatureScheme.ECDSA_SECP256K1)
-                .verifierContract(VERIFIER_CONTRACT_ID)
-                .configProofBytes(ClprLedgerConfiguration.PROTOBUF.toBytes(PEER_CONFIG))
-                .build();
-        setupHandleContext(txnWith(op));
-
-        assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
-                .has(responseCode(CLPR_COMMITMENT_MISMATCH));
-    }
-
-    @Test
     void initializesQueueMetadata() {
-        commitmentStore.put(ECDSA_COMMITMENT);
-        setupHandleContext(validEcdsaTxn());
+        setupHandleContext(validOpenTxn());
         setupVerifierAccount(true);
 
         subject.handle(handleContext);
@@ -903,8 +706,7 @@ class ClprCompleteChannelHandlerTest {
 
     @Test
     void storesPeerConfigTimestamp() {
-        commitmentStore.put(ECDSA_COMMITMENT);
-        setupHandleContext(validEcdsaTxn());
+        setupHandleContext(validOpenTxn());
         setupVerifierAccount(true);
 
         subject.handle(handleContext);
@@ -917,9 +719,8 @@ class ClprCompleteChannelHandlerTest {
 
     @Test
     void storesAllPeerEndpointsWhenMaxPeerEndpointsIsZero() {
-        commitmentStore.put(ECDSA_COMMITMENT);
         final var peerManifest = manifestWithEndpointCount(12);
-        setupHandleContext(validEcdsaTxnWithManifest(peerManifest));
+        setupHandleContext(validOpenTxnWithManifest(peerManifest));
         setupVerifierAccount(true);
 
         subject.handle(handleContext);
@@ -929,10 +730,8 @@ class ClprCompleteChannelHandlerTest {
 
     @Test
     void truncatesPeerEndpointsWhenMaxPeerEndpointsIsNonZero() {
-        commitmentStore.put(ECDSA_COMMITMENT);
         final var peerManifest = manifestWithEndpointCount(5);
-        setupHandleContext(
-                validEcdsaTxnWithManifest(peerManifest), enabledConfig(), localConfigWithMaxPeerEndpoints(3));
+        setupHandleContext(validOpenTxnWithManifest(peerManifest), enabledConfig(), localConfigWithMaxPeerEndpoints(3));
         setupVerifierAccount(true);
 
         subject.handle(handleContext);
@@ -944,12 +743,11 @@ class ClprCompleteChannelHandlerTest {
 
     @Test
     void rejectsPeerConfigWithNegativeTimestampSeconds() {
-        commitmentStore.put(ECDSA_COMMITMENT);
         final var peerConfig = PEER_CONFIG
                 .copyBuilder()
                 .timestamp(Timestamp.newBuilder().seconds(-1).nanos(0).build())
                 .build();
-        setupHandleContext(validEcdsaTxnWithPeerConfig(peerConfig));
+        setupHandleContext(validOpenTxnWithPeerConfig(peerConfig));
         setupVerifierAccount(true);
 
         assertThatThrownBy(() -> subject.handle(handleContext))
@@ -959,7 +757,6 @@ class ClprCompleteChannelHandlerTest {
 
     @Test
     void rejectsPeerConfigWithNanosOutOfRange() {
-        commitmentStore.put(ECDSA_COMMITMENT);
         final var peerConfig = PEER_CONFIG
                 .copyBuilder()
                 .timestamp(Timestamp.newBuilder()
@@ -967,7 +764,7 @@ class ClprCompleteChannelHandlerTest {
                         .nanos(1_000_000_000)
                         .build())
                 .build();
-        setupHandleContext(validEcdsaTxnWithPeerConfig(peerConfig));
+        setupHandleContext(validOpenTxnWithPeerConfig(peerConfig));
         setupVerifierAccount(true);
 
         assertThatThrownBy(() -> subject.handle(handleContext))
@@ -976,19 +773,19 @@ class ClprCompleteChannelHandlerTest {
     }
 
     @Test
-    void completeChannelAcceptsCantonBuiltInVerifier() {
+    void createChannelAcceptsCantonBuiltInVerifier() {
         final var cantonCid = ContractID.newBuilder().contractNum(0x173L).build();
-        commitmentStore.put(ECDSA_COMMITMENT);
-        final var op = validEcdsaTxn()
-                .clprCompleteChannelOrThrow()
+        final var op = validOpenTxn()
+                .clprCreateChannelOrThrow()
                 .copyBuilder()
                 .verifierContract(cantonCid)
+                .channelId(channelIdForVerifier(cantonCid))
                 .build();
         setupHandleContext(txnWith(op));
 
         subject.handle(handleContext);
 
-        final var stored = channelStore.getChannel(CHANNEL_ID);
+        final var stored = channelStore.getChannel(op.channelId());
         assertThat(stored).isNotNull();
         assertThat(stored.verifierContract()).isEqualTo(cantonCid);
         assertThat(stored.verifierFingerprint())
@@ -1014,9 +811,6 @@ class ClprCompleteChannelHandlerTest {
         lenient().when(handleContext.configuration()).thenReturn(configuration);
         lenient().when(handleContext.storeFactory()).thenReturn(storeFactory);
         lenient().when(handleContext.consensusNow()).thenReturn(java.time.Instant.EPOCH);
-        lenient()
-                .when(storeFactory.writableStore(WritablePendingCommitmentStore.class))
-                .thenReturn(commitmentStore);
         lenient().when(storeFactory.writableStore(WritableChannelStore.class)).thenReturn(channelStore);
         lenient().when(storeFactory.readableStore(ReadableAccountStore.class)).thenReturn(accountStore);
         lenient()
@@ -1027,34 +821,33 @@ class ClprCompleteChannelHandlerTest {
     }
 
     private void setupVerifierAccount(final boolean isSmartContract) {
-        final var account = Account.newBuilder().smartContract(isSmartContract).build();
+        final var account = Account.newBuilder()
+                .accountId(AccountID.newBuilder().accountNum(5001))
+                .smartContract(isSmartContract)
+                .build();
         given(accountStore.getContractById(VERIFIER_CONTRACT_ID)).willReturn(isSmartContract ? account : null);
     }
 
-    private TransactionBody validEcdsaTxn() {
-        return validEcdsaTxnWithPeerConfig(PEER_CONFIG);
+    private TransactionBody validOpenTxn() {
+        return validOpenTxnWithPeerConfig(PEER_CONFIG);
     }
 
-    private TransactionBody validEcdsaTxnWithPeerConfig(final ClprLedgerConfiguration peerConfig) {
-        final var sig = signChannelId(SECRET_KEY, CHANNEL_ID);
-        final var op = ClprCompleteChannelTransactionBody.newBuilder()
+    private TransactionBody validOpenTxnWithPeerConfig(final ClprLedgerConfiguration peerConfig) {
+        final var op = ClprCreateChannelTransactionBody.newBuilder()
                 .channelId(CHANNEL_ID)
-                .publicKey(Bytes.wrap(ECDSA_PUBLIC_KEY))
-                .signature(Bytes.wrap(sig))
-                .signatureScheme(ClprSignatureScheme.ECDSA_SECP256K1)
+                .salt(SALT)
+                .peerVerifier(PEER_VERIFIER)
                 .verifierContract(VERIFIER_CONTRACT_ID)
                 .configProofBytes(ClprLedgerConfiguration.PROTOBUF.toBytes(peerConfig))
                 .build();
         return txnWith(op);
     }
 
-    private TransactionBody validEcdsaTxnWithManifest(final ClprEndpointManifest peerManifest) {
-        final var sig = signChannelId(SECRET_KEY, CHANNEL_ID);
-        final var op = ClprCompleteChannelTransactionBody.newBuilder()
+    private TransactionBody validOpenTxnWithManifest(final ClprEndpointManifest peerManifest) {
+        final var op = ClprCreateChannelTransactionBody.newBuilder()
                 .channelId(CHANNEL_ID)
-                .publicKey(Bytes.wrap(ECDSA_PUBLIC_KEY))
-                .signature(Bytes.wrap(sig))
-                .signatureScheme(ClprSignatureScheme.ECDSA_SECP256K1)
+                .salt(SALT)
+                .peerVerifier(PEER_VERIFIER)
                 .verifierContract(VERIFIER_CONTRACT_ID)
                 .configProofBytes(ClprLedgerConfiguration.PROTOBUF.toBytes(PEER_CONFIG))
                 .endpointManifestProofBytes(ClprEndpointManifest.PROTOBUF.toBytes(peerManifest))
@@ -1068,6 +861,7 @@ class ClprCompleteChannelHandlerTest {
 
     private static ClprLedgerConfiguration localConfigWithMaxPeerEndpoints(final int maxPeerEndpoints) {
         return ClprLedgerConfiguration.newBuilder()
+                .chainId(LOCAL_CHAIN_ID)
                 .throttles(ClprThrottles.newBuilder()
                         .maxPeerEndpoints(maxPeerEndpoints)
                         .build())
@@ -1092,22 +886,10 @@ class ClprCompleteChannelHandlerTest {
                 .build();
     }
 
-    private TransactionBody txnWith(final ClprCompleteChannelTransactionBody op) {
+    private TransactionBody txnWith(final ClprCreateChannelTransactionBody op) {
         return TransactionBody.newBuilder()
                 .transactionID(TransactionID.newBuilder().accountID(PAYER_ID))
-                .clprCompleteChannel(op)
+                .clprCreateChannel(op)
                 .build();
-    }
-
-    private static Bytes computeCommitment(final Bytes channelId, final Bytes publicKey) {
-        final var payload = new byte[(int) (channelId.length() + publicKey.length())];
-        channelId.getBytes(0, payload, 0, (int) channelId.length());
-        publicKey.getBytes(0, payload, (int) channelId.length(), (int) publicKey.length());
-        return MiscCryptoUtils.keccak256DigestOf(Bytes.wrap(payload));
-    }
-
-    private static byte[] signChannelId(final byte[] secKey, final Bytes connId) {
-        final var messageHash = MiscCryptoUtils.keccak256DigestOf(connId.toByteArray());
-        return ECDSASecp256k1.signDigestWithEcdsaSecp256k1(secKey, messageHash);
     }
 }

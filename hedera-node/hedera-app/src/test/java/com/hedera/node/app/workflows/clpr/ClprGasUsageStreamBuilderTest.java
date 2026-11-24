@@ -16,7 +16,7 @@ import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.FeeData;
-import com.hedera.hapi.node.clpr.ClprCompleteChannelTransactionBody;
+import com.hedera.hapi.node.clpr.ClprCreateChannelTransactionBody;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
 import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.node.transaction.ExchangeRate;
@@ -85,7 +85,7 @@ class ClprGasUsageStreamBuilderTest {
         given(context.payer()).willReturn(PAYER);
         given(context.body())
                 .willReturn(TransactionBody.newBuilder()
-                        .clprCompleteChannel(ClprCompleteChannelTransactionBody.DEFAULT)
+                        .clprCreateChannel(ClprCreateChannelTransactionBody.DEFAULT)
                         .transactionFee(10000L)
                         .build());
         given(context.configuration())

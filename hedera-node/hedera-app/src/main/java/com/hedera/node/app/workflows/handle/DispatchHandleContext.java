@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle;
 
-import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CHANNEL;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_CREATE_CHANNEL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SUBMIT_BUNDLE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNRESOLVABLE_REQUIRED_SIGNERS;
 import static com.hedera.hapi.util.HapiUtils.functionOf;
@@ -551,7 +551,7 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
                 blockRecordInfo,
                 options,
                 childPreHandleResult);
-        if ((txnInfo.functionality() == CLPR_COMPLETE_CHANNEL || txnInfo.functionality() == CLPR_SUBMIT_BUNDLE)
+        if ((txnInfo.functionality() == CLPR_CREATE_CHANNEL || txnInfo.functionality() == CLPR_SUBMIT_BUNDLE)
                 && Boolean.TRUE.equals(options.dispatchMetadata().getMetadataIfPresent(CLPR_VERIFIER, Boolean.class))) {
             dispatchMetaData
                     .getMetadata(CLPR_GAS_RESERVATION, TransactionInfo.class)

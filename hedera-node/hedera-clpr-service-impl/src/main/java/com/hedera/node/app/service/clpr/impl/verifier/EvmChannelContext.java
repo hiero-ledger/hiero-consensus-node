@@ -16,11 +16,11 @@ import java.util.Arrays;
  * {@code channelId} in the local Channel record's {@code channelContext}.
  *
  * <p>The CLPR service contract stores its Channel structs in {@code mapping(bytes32 => Channel) _channels} at
- * storage slot 15, and its messages in a nested mapping keyed by channel ID and then message ID at storage slot 1.
+ * storage slot 11, and its messages in a nested mapping keyed by channel ID and then message ID at storage slot 1.
  * Solidity places these entries at:
  * <pre>
- *   Channel base       = keccak256(channelId32 || uint256(15))
- *   Channel field slot = Channel base + offset, for offset in {1, 2, 4, 5, 16}
+ *   Channel base       = keccak256(channelId32 || uint256(11))
+ *   Channel field slot = Channel base + offset, for offset in {1, 2, 4, 5, 15}
  *   message entry      = keccak256(uint256(messageId) || keccak256(channelId32 || uint256(1)))
  *   running-hash slot  = message entry + 1
  * </pre>
@@ -36,7 +36,7 @@ public final class EvmChannelContext {
     private static final int CHANNEL_CONTEXT_LENGTH = CHANNEL_ID_LENGTH + SERVICE_ADDRESS_LENGTH;
 
     /** Storage slot of the {@code _channels} mapping in the CLPR service contract. */
-    private static final int CHANNELS_MAPPING_SLOT = 15;
+    private static final int CHANNELS_MAPPING_SLOT = 11;
 
     /** Storage slot of the per-channel message mapping in the CLPR service contract. */
     private static final int MESSAGES_MAPPING_SLOT = 1;
@@ -49,7 +49,7 @@ public final class EvmChannelContext {
      * expect: packed status and next-message ID, packed acked/received/next-reply IDs, sent running hash, received
      * running hash, and endpoint-manifest version.
      */
-    private static final int[] CHANNEL_OFFSETS = {1, 2, 4, 5, 16};
+    private static final int[] CHANNEL_OFFSETS = {1, 2, 4, 5, 15};
 
     /** Position of the optional last-message running hash in the array returned by {@link #orderQueueSlots}. */
     private static final int LAST_MESSAGE_RUNNING_HASH_INDEX = CHANNEL_OFFSETS.length;
@@ -104,7 +104,7 @@ public final class EvmChannelContext {
      * @param values the proven 32-byte storage values, aligned with {@code keys}
      * @param channelId the 32-byte channel ID from the local Channel record
      * @return 5 values (no message) or 6 values (last-message running hash appended), in the order of Channel
-     *     offsets {@code {1, 2, 4, 5, 16}} followed by the optional last-message running hash
+     *     offsets {@code {1, 2, 4, 5, 15}} followed by the optional last-message running hash
      * @throws ProofException if the proof shape is wrong or any key does not belong to this channel
      */
     @NonNull

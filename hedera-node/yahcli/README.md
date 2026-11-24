@@ -927,7 +927,9 @@ $ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:${TAG) -n local
 
 # Key files and backups (CLPR identities)
 
-`clpr generate-channel-identity` and `clpr generate-connector-identity` write two files:
+`clpr generate-channel-identity` writes a JSON file with the public channel ID and salt.
+
+`clpr generate-connector-identity` writes two files:
 
 - `<out>` — the public identity bundle (safe to share; it never contains the private key).
 - `<out>.key` — the private key as `0x<64 hex>` plus a newline, mode `0600`.
@@ -938,13 +940,13 @@ refused. Backups are intentionally **never pruned**, so a key can always be reco
 
 ```
 find . -name '*.bak'            # list every backup, newest epoch last when sorted by name
-ls -l channel.json.key*.bak     # backups of one key file
+ls -l connector.json.key*.bak     # backups of one key file
 ```
 
 Backups and `.key` files hold live private keys: protect them like keys, and keep them out of version control
 (`*.bak` is already in `.gitignore`; `*.key` is not yet — see `scripts/clpre2e/KEY-HYGIENE-KNOWN-GAPS.md`).
 
-The Python signers (`hedera-node/tools/sign-clpr-*-identity.py`) and `scripts/clpre2e/gen-channel-identity.sh` read the
+The connector signer (`hedera-node/tools/sign-clpr-connector-identity.py`) reads the
 key only from `--key-file <path>`. They refuse a key file that is a symlink, or (unless `--allow-loose-key-file` /
 `ALLOW_LOOSE_KEY_FILE=1`) one that group/others can read or that you do not own, and they reject bundles that contain an
 inline `privateKey`.
@@ -1001,23 +1003,25 @@ All subcommands inherit the standard yahcli targeting flags (`-n` network, `-i` 
 `-a` operator-account), so the same binary can be pointed at two different ledgers when
 exercising a cross-ledger flow.
 
-### Channel lifecycle (two-phase commit/reveal)
+### Channels
 
-| Phase  |         Command         |                         Description                         |
-|--------|-------------------------|-------------------------------------------------------------|
-| Commit | `clpr register-channel` | Submits `ClprRegisterChannel` with an ownership commitment. |
-| Reveal | `clpr complete-channel` | Submits `ClprCompleteChannel` opening the commitment.       |
-| Close  | `clpr close-channel`    | Terminates the channel.                                     |
+Use `clpr generate-channel-identity` once for the pair of ledgers. Supply each ledger’s CAIP-2 chain ID, service address, and the verifier it uses for the other ledger. Addresses are hex. A Hiero CLPR service uses `000000000000000000000000000000000000016e`. Supply `--salt` to reuse an agreed 32-byte salt. Otherwise the command generates one.
 
-`generate-channel-identity` produces a JSON identity bundle (random id, keypair,
-ownership commitment, reveal signature). Pass it back to `complete-channel` with
-`--identity <path>` and skip the per-flag arguments. The commit/reveal design is in
-[`docs/superpowers/specs/2026-04-29-connector-registration-redesign.md`](../../docs/superpowers/specs/2026-04-29-connector-registration-redesign.md).
+```sh
+yahcli clpr generate-channel-identity --local-chain-id "$CHAIN_A" --local-service "$SERVICE_A" \
+  --local-verifier "$VERIFIER_A" --peer-chain-id "$CHAIN_B" --peer-service "$SERVICE_B" \
+  --peer-verifier "$VERIFIER_B" --out channel.json
+```
 
-`complete-channel` also takes the peer ledger's state proofs: `--config-proof` (written by the
-peer's `get-ledger-configuration --proof-path`) and `--endpoint-manifest-proof` (written by the
-peer's `get-endpoint-manifest --proof-path`). The Hiero TSS verifier (`0.0.366`) requires both;
-the Besu, Sei, and Ethereum verifiers accept an empty manifest proof.
+Use the output ID and salt on both ledgers. For each Hiero ledger, submit its verifier contract ID, the other ledger’s verifier address, and proofs fetched from the other ledger.
+
+```sh
+yahcli -n "$NETWORK_A" clpr create-channel --channel-id "$(jq -r .channelId channel.json)" \
+  --salt "$(jq -r .salt channel.json)" --verifier-contract "$LOCAL_CONTRACT_ID" \
+  --peer-verifier "$VERIFIER_B" --config-proof peer-config.bin --endpoint-manifest-proof peer-manifest.bin
+```
+
+Admin may close a channel with `clpr delete-channel --channel-id <hex>`.
 
 ### Connector lifecycle
 
