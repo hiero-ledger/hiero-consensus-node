@@ -33,12 +33,12 @@ public final class OutboundDispatcher {
      * Creates a new dispatcher instance and immediately starts the background task.
      *
      * @param executor the executor used to run the background task
-     * @param replies the gRPC stream to which messages will be delivered
+     * @param replyPipeline the gRPC stream to which messages will be delivered
      */
     public OutboundDispatcher(
-            @NonNull final ExecutorService executor, @NonNull final Pipeline<? super EventMessage> replies) {
+            @NonNull final ExecutorService executor, @NonNull final Pipeline<? super EventMessage> replyPipeline) {
         // Submit the dispatcher loop.
-        dispatchFuture = executor.submit(() -> runDispatchLoop(replies));
+        dispatchFuture = executor.submit(() -> runDispatchLoop(replyPipeline));
     }
 
     /**
@@ -74,12 +74,12 @@ public final class OutboundDispatcher {
     /**
      * Continuously takes messages from the queue and delivers them to the gRPC stream.
      */
-    private void runDispatchLoop(@NonNull final Pipeline<? super EventMessage> replies) {
+    private void runDispatchLoop(@NonNull final Pipeline<? super EventMessage> replyPipeline) {
         try {
             while (!cancelled.get()) {
                 final EventMessage msg = outboundQueue.take();
                 try {
-                    replies.onNext(msg);
+                    replyPipeline.onNext(msg);
                 } catch (final RuntimeException e) {
                     // The stream is no longer writable. This is also how the dispatcher learns that the client
                     // has gone away, because the pipeline does not report a cancellation.

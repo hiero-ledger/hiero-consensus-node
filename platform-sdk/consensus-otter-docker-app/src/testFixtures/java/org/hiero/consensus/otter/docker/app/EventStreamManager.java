@@ -121,15 +121,15 @@ public final class EventStreamManager {
      * greater than {@code afterSequence}, and then live messages as they are published.
      *
      * @param afterSequence only buffered messages with a sequence number strictly greater than this are replayed
-     * @param replies the pipeline to which messages are delivered
+     * @param replyPipeline the pipeline to which messages are delivered
      */
     public synchronized void subscribe(
-            final long afterSequence, @NonNull final Pipeline<? super EventMessage> replies) {
+            final long afterSequence, @NonNull final Pipeline<? super EventMessage> replyPipeline) {
         // Fence any previous subscription so that only a single consumer is ever active.
         if (dispatcher != null) {
             dispatcher.shutdown();
         }
-        dispatcher = new OutboundDispatcher(dispatchExecutor, replies);
+        dispatcher = new OutboundDispatcher(dispatchExecutor, replyPipeline);
 
         final long oldestBuffered = buffer.isEmpty() ? 0 : buffer.peekFirst().sequence();
         final EventMessage syncPoint = EventMessage.newBuilder()
