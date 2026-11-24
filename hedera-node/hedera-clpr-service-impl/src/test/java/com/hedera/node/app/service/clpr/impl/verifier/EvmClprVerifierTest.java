@@ -21,6 +21,7 @@ import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.T
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -314,6 +315,28 @@ class EvmClprVerifierTest {
                 .has(responseCode(CLPR_VERIFIER_CONFIG_FAILED));
         verify(context).tryToCharge(PAYER, 21_000L);
         verify(context, never()).refundHandlerCharge(any(), org.mockito.ArgumentMatchers.anyLong());
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void verifierOutOfGasFailsWithTheCallFailureCodeAndPaysForItsGas(final boolean configCall) {
+        givenPricedConfig(true);
+        givenDispatchReturns(Bytes.EMPTY);
+        given(dispatchResult.status()).willReturn(INSUFFICIENT_GAS);
+        givenDispatchGasUsed(1000L);
+        final var failureCode = configCall ? CLPR_VERIFIER_CONFIG_FAILED : CLPR_BUNDLE_VERIFICATION_FAILED;
+
+        assertThatThrownBy(() -> {
+                    if (configCall) {
+                        subject.verifyConfig(Bytes.EMPTY, Bytes.EMPTY, Bytes.EMPTY, context);
+                    } else {
+                        subject.verifyBundle(Bytes.EMPTY, Bytes.EMPTY, Bytes.EMPTY, context);
+                    }
+                })
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(failureCode));
+        verify(context).tryToCharge(PAYER, 21_000L);
+        verify(context, never()).refundHandlerCharge(any(), anyLong());
     }
 
     @Test

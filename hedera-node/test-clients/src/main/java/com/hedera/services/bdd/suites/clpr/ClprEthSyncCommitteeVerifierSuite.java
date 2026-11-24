@@ -12,7 +12,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprUpdateLedge
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -57,6 +56,10 @@ import org.junit.jupiter.api.Tag;
  * <p>The payloads are produced by {@link SyncCommitteeProofs}, which re-derives the wire bytes
  * independently of the production encoders, so these tests exercise the node's deserialization on
  * the receiving CLPR endpoint as a black box.
+ *
+ * <p>The tests do not run concurrently: every createChannel and submitBundle reserves {@code clpr.verifierGasLimit}
+ * from the {@code contracts.maxGasPerSec} gas throttle, so a few of them at once exhaust it and ingest returns
+ * {@code BUSY}.
  */
 @Tag(CLPR)
 public class ClprEthSyncCommitteeVerifierSuite {
@@ -73,9 +76,7 @@ public class ClprEthSyncCommitteeVerifierSuite {
     private static final byte[] MESSAGE_DATA = {1, 2, 3};
     private static final byte[] MESSAGE_DATA_2 = {4, 5, 6};
 
-    @LeakyEmbeddedHapiTest(
-            reason = NEEDS_STATE_ACCESS,
-            overrides = {"clpr.verifierGasLimit"})
+    @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS)
     @DisplayName("Eth verifier: self-submitted single-message bundle")
     final Stream<DynamicTest> completesChannelAndDeliversBundle() {
         return hapiTest(sourcingContextual(networkSpec -> {
@@ -103,9 +104,7 @@ public class ClprEthSyncCommitteeVerifierSuite {
         }));
     }
 
-    @LeakyEmbeddedHapiTest(
-            reason = NEEDS_STATE_ACCESS,
-            overrides = {"clpr.verifierGasLimit"})
+    @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS)
     @DisplayName("Eth verifier: minimal-preset (32-member) channel delivers a self-submitted bundle")
     final Stream<DynamicTest> completesMinimalPresetChannelAndDeliversBundle() {
         return hapiTest(sourcingContextual(networkSpec -> {
@@ -132,9 +131,7 @@ public class ClprEthSyncCommitteeVerifierSuite {
         }));
     }
 
-    @LeakyEmbeddedHapiTest(
-            reason = NEEDS_STATE_ACCESS,
-            overrides = {"clpr.verifierGasLimit"})
+    @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS)
     @DisplayName("Eth verifier: peer serviceAddress not 20 bytes → CLPR_VERIFIER_CONFIG_FAILED")
     final Stream<DynamicTest> rejectsConfigWithBadServiceAddress() {
         return hapiTest(sourcingContextual(networkSpec -> {
@@ -145,9 +142,6 @@ public class ClprEthSyncCommitteeVerifierSuite {
                     SyncCommitteeProofs.CHAIN_ID,
                     SyncCommitteeProofs.serviceAddress());
             return blockingOrder(
-                    // Two 512-key committees make the verifier calldata ~50 KB, whose EIP-7623 floor exceeds the
-                    // 2M default verifier gas (#28392).
-                    overriding("clpr.verifierGasLimit", "5000000"),
                     clprUpdateLedgerConfiguration()
                             .configuration(localLedgerConfig())
                             .payingWith(GENESIS),
@@ -162,9 +156,7 @@ public class ClprEthSyncCommitteeVerifierSuite {
         }));
     }
 
-    @LeakyEmbeddedHapiTest(
-            reason = NEEDS_STATE_ACCESS,
-            overrides = {"clpr.verifierGasLimit"})
+    @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS)
     @DisplayName("Eth verifier: tampered bundle account proof → CLPR_BUNDLE_VERIFICATION_FAILED")
     final Stream<DynamicTest> rejectsTamperedBundle() {
         return hapiTest(sourcingContextual(networkSpec -> {
@@ -196,9 +188,7 @@ public class ClprEthSyncCommitteeVerifierSuite {
      * root is then submitted on the same channel and must be accepted. The two payloads differ only in the signed root,
      * which pins the first rejection to the BLS check.
      */
-    @LeakyEmbeddedHapiTest(
-            reason = NEEDS_STATE_ACCESS,
-            overrides = {"clpr.verifierGasLimit"})
+    @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS)
     @DisplayName("Eth verifier: bundle signed over another signing root → CLPR_BUNDLE_VERIFICATION_FAILED")
     final Stream<DynamicTest> rejectsBundleSignedOverWrongSigningRoot() {
         return hapiTest(sourcingContextual(networkSpec -> {
@@ -251,9 +241,7 @@ public class ClprEthSyncCommitteeVerifierSuite {
      *       and delivers message #2.</li>
      * </ol>
      */
-    @LeakyEmbeddedHapiTest(
-            reason = NEEDS_STATE_ACCESS,
-            overrides = {"clpr.verifierGasLimit"})
+    @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS)
     @DisplayName("Eth verifier: rotation bundle updates trust anchor; new-committee bundle succeeds")
     final Stream<DynamicTest> completesChannelAfterCommitteeRotation() {
         return hapiTest(sourcingContextual(networkSpec -> {
@@ -308,18 +296,13 @@ public class ClprEthSyncCommitteeVerifierSuite {
      * Exercises 0, 1, and N (3) manifest endpoints — each on a fresh channel — and asserts the resulting
      * Channel's {@code endpoint_manifest_version >= 1} and that its stored endpoints match the proven manifest.
      */
-    @LeakyEmbeddedHapiTest(
-            reason = NEEDS_STATE_ACCESS,
-            overrides = {"clpr.verifierGasLimit"})
+    @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS)
     @DisplayName("Eth verifier: createChannel installs the config endpoint manifest (0, 1, N endpoints)")
     final Stream<DynamicTest> createChannelInstallsConfigManifest() {
         return hapiTest(sourcingContextual(networkSpec -> {
             final var localChain = "eip155:" + networkSpec.startupProperties().getLong("contracts.chainId");
             final int[] endpointCounts = {0, 1, 3};
             final List<SpecOperation> ops = new ArrayList<>();
-            // Two 512-key committees make the verifier calldata ~50 KB, whose EIP-7623 floor exceeds the 2M
-            // default verifier gas (#28392).
-            ops.add(overriding("clpr.verifierGasLimit", "5000000"));
             ops.add(clprUpdateLedgerConfiguration()
                     .configuration(localLedgerConfig())
                     .payingWith(GENESIS));
@@ -357,9 +340,7 @@ public class ClprEthSyncCommitteeVerifierSuite {
      * manifest at the commitment slot (18) and, when applied, updates {@code endpoint_manifest} / {@code
      * endpoint_manifest_version} while also delivering message #1.
      */
-    @LeakyEmbeddedHapiTest(
-            reason = NEEDS_STATE_ACCESS,
-            overrides = {"clpr.verifierGasLimit"})
+    @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS)
     @DisplayName("Eth verifier: bundle carrying a higher-version manifest updates the Channel via Step-1b")
     final Stream<DynamicTest> bundleAdvancesEndpointManifest() {
         return hapiTest(sourcingContextual(networkSpec -> {
@@ -401,9 +382,7 @@ public class ClprEthSyncCommitteeVerifierSuite {
      * so the Ethereum verifier rejects it inside {@code verifyConfig} and createChannel reverts with
      * {@code CLPR_VERIFIER_CONFIG_FAILED}.
      */
-    @LeakyEmbeddedHapiTest(
-            reason = NEEDS_STATE_ACCESS,
-            overrides = {"clpr.verifierGasLimit"})
+    @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS)
     @DisplayName("Eth verifier: manifest service_address mismatch → CLPR_VERIFIER_CONFIG_FAILED")
     final Stream<DynamicTest> rejectsManifestWithMismatchedServiceAddress() {
         return hapiTest(sourcingContextual(networkSpec -> {
@@ -414,7 +393,6 @@ public class ClprEthSyncCommitteeVerifierSuite {
                     SyncCommitteeProofs.CHAIN_ID,
                     SyncCommitteeProofs.serviceAddress());
             return blockingOrder(
-                    overriding("clpr.verifierGasLimit", "5000000"),
                     clprUpdateLedgerConfiguration()
                             .configuration(localLedgerConfig())
                             .payingWith(GENESIS),
@@ -452,9 +430,6 @@ public class ClprEthSyncCommitteeVerifierSuite {
     private static SpecOperation[] setupChannelWithEthereumVerifier(
             ClprChannelCrypto crypto, byte[] ledgerConfigPayload) {
         return new SpecOperation[] {
-            // Two 512-key committees make the verifier calldata ~50 KB, whose EIP-7623 floor exceeds the
-            // 2M default verifier gas (#28392).
-            overriding("clpr.verifierGasLimit", "5000000"),
             clprUpdateLedgerConfiguration().configuration(localLedgerConfig()).payingWith(GENESIS),
             uploadInitCode(CONNECTOR_CONTRACT),
             contractCreate(CONNECTOR_CONTRACT),
