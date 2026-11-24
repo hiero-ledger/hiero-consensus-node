@@ -7,7 +7,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_CONNECTOR_UNAUTHOR
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NOT_ENABLED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CONNECTORS_STATE_ID;
-import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.PENDING_CONNECTOR_COMMITMENTS_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CONNECTOR_REGISTRATION_HISTORY_STATE_ID;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -19,16 +19,16 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.TransactionID;
-import com.hedera.hapi.node.clpr.ClprDeregisterConnectorTransactionBody;
+import com.hedera.hapi.node.clpr.ClprDeleteConnectorTransactionBody;
 import com.hedera.hapi.node.state.clpr.ClprConnector;
 import com.hedera.hapi.node.state.clpr.ClprConnectorKey;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.clpr.ReadableConnectorStore;
+import com.hedera.node.app.service.clpr.impl.WritableConnectorRegistrationStore;
 import com.hedera.node.app.service.clpr.impl.WritableConnectorStore;
-import com.hedera.node.app.service.clpr.impl.WritablePendingConnectorCommitmentStore;
-import com.hedera.node.app.service.clpr.impl.handlers.ClprDeregisterConnectorHandler;
+import com.hedera.node.app.service.clpr.impl.handlers.ClprDeleteConnectorHandler;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.entityid.impl.AppEntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
@@ -51,7 +51,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class ClprDeregisterConnectorHandlerTest {
+class ClprDeleteConnectorHandlerTest {
 
     private static final AccountID PAYER_ID =
             AccountID.newBuilder().accountNum(1001).build();
@@ -90,12 +90,6 @@ class ClprDeregisterConnectorHandlerTest {
         0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
         0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20
     });
-    private static final Bytes COMMITMENT = Bytes.wrap(new byte[] {
-        0x77, 0x77, 0x77, 0x77, 0x77, 0x77, 0x77, 0x77,
-        0x77, 0x77, 0x77, 0x77, 0x77, 0x77, 0x77, 0x77,
-        0x77, 0x77, 0x77, 0x77, 0x77, 0x77, 0x77, 0x77,
-        0x77, 0x77, 0x77, 0x77, 0x77, 0x77, 0x77, 0x77
-    });
     private static final long VALID_STAKE = 200_000_000L;
 
     @Mock
@@ -116,15 +110,15 @@ class ClprDeregisterConnectorHandlerTest {
     @Mock
     private ReadableAccountStore readableAccountStore;
 
-    private ClprDeregisterConnectorHandler subject;
+    private ClprDeleteConnectorHandler subject;
     private WritableConnectorStore connectorStore;
-    private WritablePendingConnectorCommitmentStore commitmentStore;
+    private WritableConnectorRegistrationStore registrations;
 
     @BeforeEach
     void setUp() {
         final var config = HederaTestConfigBuilder.createConfig();
         final EntityIdFactory idFactory = new AppEntityIdFactory(config);
-        subject = new ClprDeregisterConnectorHandler(idFactory);
+        subject = new ClprDeleteConnectorHandler(idFactory);
 
         final var writableConnectors = MapWritableKVState.<ClprConnectorKey, ClprConnector>builder(
                         CONNECTORS_STATE_ID, "ClprService:CONNECTORS")
@@ -134,13 +128,13 @@ class ClprDeregisterConnectorHandlerTest {
                 .thenReturn(writableConnectors);
         connectorStore = new WritableConnectorStore(writableStates);
 
-        final var writableCommitments = MapWritableKVState.<ProtoBytes, ProtoBytes>builder(
-                        PENDING_CONNECTOR_COMMITMENTS_STATE_ID, "ClprService:PENDING_CONNECTOR_COMMITMENTS")
+        final var writableRegistrations = MapWritableKVState.<ProtoBytes, ProtoBytes>builder(
+                        CONNECTOR_REGISTRATION_HISTORY_STATE_ID, "ClprService:CONNECTOR_REGISTRATION_HISTORY")
                 .build();
         lenient()
-                .when(writableStates.<ProtoBytes, ProtoBytes>get(PENDING_CONNECTOR_COMMITMENTS_STATE_ID))
-                .thenReturn(writableCommitments);
-        commitmentStore = new WritablePendingConnectorCommitmentStore(writableStates);
+                .when(writableStates.<ProtoBytes, ProtoBytes>get(CONNECTOR_REGISTRATION_HISTORY_STATE_ID))
+                .thenReturn(writableRegistrations);
+        registrations = new WritableConnectorRegistrationStore(writableStates);
     }
 
     // ── pureChecks ────────────────────────────────────────────────────────────
@@ -148,7 +142,7 @@ class ClprDeregisterConnectorHandlerTest {
     @Test
     @DisplayName("should reject when channel_id is not 32 bytes")
     void rejectsWrongChannelIdLength() {
-        final var op = ClprDeregisterConnectorTransactionBody.newBuilder()
+        final var op = ClprDeleteConnectorTransactionBody.newBuilder()
                 .channelId(Bytes.wrap(new byte[16]))
                 .connectorId(CONNECTOR_ID)
                 .stakeRecipient(STAKE_RECIPIENT_ID)
@@ -162,7 +156,7 @@ class ClprDeregisterConnectorHandlerTest {
     @Test
     @DisplayName("should reject when connector_id is not 32 bytes")
     void rejectsWrongConnectorIdLength() {
-        final var op = ClprDeregisterConnectorTransactionBody.newBuilder()
+        final var op = ClprDeleteConnectorTransactionBody.newBuilder()
                 .channelId(CHANNEL_ID)
                 .connectorId(Bytes.wrap(new byte[16]))
                 .stakeRecipient(STAKE_RECIPIENT_ID)
@@ -176,7 +170,7 @@ class ClprDeregisterConnectorHandlerTest {
     @Test
     @DisplayName("should reject when stake_recipient is missing")
     void rejectsMissingStakeRecipient() {
-        final var op = ClprDeregisterConnectorTransactionBody.newBuilder()
+        final var op = ClprDeleteConnectorTransactionBody.newBuilder()
                 .channelId(CHANNEL_ID)
                 .connectorId(CONNECTOR_ID)
                 // stake_recipient intentionally omitted
@@ -234,8 +228,8 @@ class ClprDeregisterConnectorHandlerTest {
     }
 
     @Test
-    @DisplayName("should deregister connector, keep its commitment registered, and transfer stake")
-    void deregistersConnectorAndTransfersStake() {
+    @DisplayName("should delete the connector, retain its registration, and transfer stake")
+    void deletesConnectorAndTransfersStake() {
         putConnector();
         setupHandleContext(validTxn(), true);
 
@@ -243,13 +237,13 @@ class ClprDeregisterConnectorHandlerTest {
 
         final var key = new ClprConnectorKey(CHANNEL_ID, CONNECTOR_ID);
         assertThat(connectorStore.getConnector(key)).isNull();
-        assertThat(commitmentStore.contains(COMMITMENT)).isTrue();
+        assertThat(registrations.contains(key)).isTrue();
         verify(tokenServiceApi).transferFromTo(STAKING_ACCOUNT_ID, STAKE_RECIPIENT_ID, VALID_STAKE);
     }
 
     @Test
-    @DisplayName("should deregister connector without transfer when stake is zero")
-    void deregistersConnectorWithZeroStake() {
+    @DisplayName("should delete the connector without transfer when stake is zero")
+    void deletesConnectorWithZeroStake() {
         connectorStore.put(ClprConnector.newBuilder()
                 .connectorId(CONNECTOR_ID)
                 .channelId(CHANNEL_ID)
@@ -339,7 +333,7 @@ class ClprDeregisterConnectorHandlerTest {
                 .adminKey(ADMIN_KEY)
                 .lockedStake(VALID_STAKE)
                 .build());
-        commitmentStore.put(COMMITMENT);
+        registrations.put(new ClprConnectorKey(CHANNEL_ID, CONNECTOR_ID));
     }
 
     private void setupHandleContext(final TransactionBody txn, final boolean clprEnabled) {
@@ -355,17 +349,17 @@ class ClprDeregisterConnectorHandlerTest {
     }
 
     private TransactionBody validTxn() {
-        return txnWith(ClprDeregisterConnectorTransactionBody.newBuilder()
+        return txnWith(ClprDeleteConnectorTransactionBody.newBuilder()
                 .channelId(CHANNEL_ID)
                 .connectorId(CONNECTOR_ID)
                 .stakeRecipient(STAKE_RECIPIENT_ID)
                 .build());
     }
 
-    private TransactionBody txnWith(final ClprDeregisterConnectorTransactionBody op) {
+    private TransactionBody txnWith(final ClprDeleteConnectorTransactionBody op) {
         return TransactionBody.newBuilder()
                 .transactionID(TransactionID.newBuilder().accountID(PAYER_ID))
-                .clprDeregisterConnector(op)
+                .clprDeleteConnector(op)
                 .build();
     }
 }

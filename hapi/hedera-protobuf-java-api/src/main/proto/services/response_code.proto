@@ -2083,10 +2083,7 @@ enum ResponseCodeEnum {
     CLPR_CONNECTOR_NOT_FOUND = 555;
 
     /**
-     * A Connector with the same (channel_id, connector_id) already exists, or
-     * (on registerConnector) the commitment is already registered, either
-     * pending reveal or already used to create a Connector, including one that
-     * has since been deregistered.
+     * This connector ID has already been registered on the specified channel.
      */
     CLPR_CONNECTOR_ALREADY_EXISTS = 556;
 

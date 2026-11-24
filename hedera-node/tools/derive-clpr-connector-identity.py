@@ -1,36 +1,11 @@
 #!/usr/bin/env python3
 """
-Compute the connectorId, commitment, and reveal signature for a CLPR connector
-identity bundle (the JSON file produced by `yahcli clpr generate-connector-identity`
-or written by hand).
-
-Required input fields:
-  - channelId   (32 bytes, hex, 0x prefix optional) — the channel this connector serves
-  - signatureScheme  one of: "ED25519", "ECDSA" (alias), "ECDSA_SECP256K1"
-
-Optional input fields (used when present, derived otherwise):
-  - salt           (32 bytes, hex). If absent or empty, a fresh random 32-byte salt is generated.
-  - publicKey      (hex). If supplied, must match what the private key derives — script errors
-                   on mismatch. If absent, derived from the private key.
-  - connectorId    (32 bytes, hex). If supplied, must match keccak256(channelId || publicKey
-                   || salt). If absent, derived.
-  - serviceAddress (20 bytes, hex). Defaults to 0x000000000000000000000000000000000000016e
-                   (the CLPR system contract — matches the on-ledger handler's hard-coded value).
-
-The script derives:
-  publicKey     = derived from the private key per scheme
-                  • ED25519:         32 bytes (raw point)
-                  • ECDSA_SECP256K1: 64 bytes uncompressed X||Y (no 0x04 header)
-  connectorId   = keccak256(channelId || publicKey || salt)
-  commitment    = keccak256(connectorId  || publicKey)
-  signature     = sign(keccak256(connectorId || serviceAddress)) under the private key
-                  • ED25519:         64-byte raw signature
-                  • ECDSA_SECP256K1: 64-byte r||s (low-s canonical, no v byte)
-
-These match the on-wire format expected by ClprCompleteConnectorHandler.
-
-Output is the input JSON augmented with any newly derived fields. By default the result
-is printed to stdout; pass --out <path> to write it to a file instead.
+Derive a reusable connector identity bundle for `yahcli clpr create-connector`.
+Supply a JSON object with signatureScheme (ED25519 or ECDSA_SECP256K1) and,
+optionally, a 32-byte hex salt. A missing salt is generated randomly. The ID
+is keccak256(publicKey || salt), using the raw Ed25519 point or uncompressed
+secp256k1 X||Y coordinates. Supplied publicKey and connectorId are checked.
+The payer and identity owner sign the HAPI transaction at registration time.
 
 The private key is supplied ONLY via --key-file <path> (a file holding the 32-byte hex key,
 mode 0600). On POSIX a key file that is a symlink or non-regular file is always refused, and one
@@ -59,7 +34,6 @@ from pathlib import Path
 try:
     from Crypto.Hash import keccak
     from Crypto.PublicKey import ECC
-    from Crypto.Signature import eddsa
 except ImportError as e:  # pragma: no cover — install hint
     print(
         "ERROR: missing pycryptodome ({}). Install it with:\n  pip install pycryptodome".format(e),
@@ -81,16 +55,9 @@ _check_key_file = _files._check_key_file
 _write_secure = _files._write_secure
 
 
-CHANNEL_ID_LEN = 32
+CONNECTOR_ID_LEN = 32
 PRIVATE_KEY_LEN = 32
 SALT_LEN = 32
-SERVICE_ADDRESS_LEN = 20
-
-# Mirrors ClprCompleteConnectorHandler.CLPR_SERVICE_ADDRESS (the 20-byte form of 0x...16e).
-DEFAULT_SERVICE_ADDRESS = bytes(
-    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01, 0x6e]
-)
-
 ED25519 = "ED25519"
 ECDSA = "ECDSA_SECP256K1"
 
@@ -102,7 +69,7 @@ def parse_hex(value: str, field: str, expected_len: int | None = None) -> bytes:
     if s.lower().startswith("0x"):
         s = s[2:]
     if not re.fullmatch(r"[0-9a-fA-F]*", s):
-        raise ValueError("{} is not valid hex: {!r}".format(field, value))
+        raise ValueError("{} is not valid hex".format(field))
     try:
         out = bytes.fromhex(s)
     except ValueError as exc:
@@ -136,7 +103,7 @@ def keccak256(data: bytes) -> bytes:
 
 
 # -----------------------------------------------------------------------------
-# ED25519: derive pubkey + sign via pycryptodome
+# ED25519: derive pubkey via pycryptodome
 # -----------------------------------------------------------------------------
 
 def ed25519_pubkey(seed: bytes) -> bytes:
@@ -144,13 +111,8 @@ def ed25519_pubkey(seed: bytes) -> bytes:
     return key.public_key().export_key(format="raw")
 
 
-def ed25519_sign(seed: bytes, message: bytes) -> bytes:
-    key = ECC.construct(curve="Ed25519", seed=seed)
-    return eddsa.new(key, mode="rfc8032").sign(message)
-
-
 # -----------------------------------------------------------------------------
-# ECDSA secp256k1: generate the private key.
+# ECDSA secp256k1: derive the public key.
 # -----------------------------------------------------------------------------
 
 def _coincurve():
@@ -171,33 +133,22 @@ def secp256k1_pubkey(scalar: bytes) -> bytes:
     return _coincurve().PrivateKey(scalar).public_key.format(compressed=False)[1:]
 
 
-def secp256k1_sign(scalar: bytes, message_hash: bytes) -> bytes:
-    """Signs the raw 32-byte hash and returns 64-byte r||s (drops the recovery byte)."""
-    if len(message_hash) != 32:
-        raise ValueError("ECDSA message hash must be 32 bytes; got {}".format(len(message_hash)))
-    return _coincurve().PrivateKey(scalar).sign_recoverable(message_hash, hasher=None)[:64]
-
-
 # -----------------------------------------------------------------------------
 # Glue
 # -----------------------------------------------------------------------------
 
 def derive(
     *,
-    channel_id: bytes,
     private_key: bytes,
     scheme: str,
     salt: bytes,
-    service_address: bytes,
     supplied_public_key: bytes | None = None,
     supplied_connector_id: bytes | None = None,
 ) -> dict[str, bytes]:
     if scheme == ED25519:
         public_key = ed25519_pubkey(private_key)
-        signer = lambda msg_hash: ed25519_sign(private_key, msg_hash)
     elif scheme == ECDSA:
         public_key = secp256k1_pubkey(private_key)
-        signer = lambda msg_hash: secp256k1_sign(private_key, msg_hash)
     else:
         raise AssertionError("unreachable: " + scheme)
 
@@ -208,23 +159,17 @@ def derive(
             "  derived:  0x{}".format(supplied_public_key.hex(), public_key.hex())
         )
 
-    connector_id = keccak256(channel_id + public_key + salt)
+    connector_id = keccak256(public_key + salt)
     if supplied_connector_id is not None and supplied_connector_id != connector_id:
         raise ValueError(
-            "connectorId in input does not match keccak256(channelId || publicKey || salt).\n"
+            "connectorId in input does not match keccak256(publicKey || salt).\n"
             "  supplied: 0x{}\n"
             "  derived:  0x{}".format(supplied_connector_id.hex(), connector_id.hex())
         )
 
-    commitment = keccak256(connector_id + public_key)
-    sig_msg_hash = keccak256(connector_id + service_address)
-    signature = signer(sig_msg_hash)
-
     return {
         "publicKey": public_key,
         "connectorId": connector_id,
-        "commitment": commitment,
-        "signature": signature,
     }
 
 
@@ -234,32 +179,22 @@ def render_json(
     *,
     scheme: str,
     salt: bytes,
-    service_address: bytes,
 ) -> str:
     """Emit the connector-identity JSON in the same field order yahcli uses.
 
     The private key never appears in the bundle — it lives in the companion .key file.
     """
     ordered: dict[str, str] = {
-        "channelId": _ensure_0x(bundle["channelId"]),
         "connectorId": "0x" + derived["connectorId"].hex(),
         "publicKey": "0x" + derived["publicKey"].hex(),
         "salt": "0x" + salt.hex(),
         "signatureScheme": scheme,
-        "serviceAddress": "0x" + service_address.hex(),
-        "commitment": "0x" + derived["commitment"].hex(),
-        "signature": "0x" + derived["signature"].hex(),
     }
     # Preserve any extra keys the caller had (e.g. notes, label) without re-ordering them in front.
     for k, v in bundle.items():
-        if k not in ordered:
+        if k not in ordered and k not in {"commitment", "signature", "channelId", "serviceAddress"}:
             ordered[k] = v
     return json.dumps(ordered, indent=2) + "\n"
-
-
-def _ensure_0x(value: str) -> str:
-    s = value.strip()
-    return s if s.lower().startswith("0x") else "0x" + s
 
 
 def _optional_hex(raw, field: str, expected_len: int | None = None) -> bytes | None:
@@ -274,7 +209,7 @@ def _optional_hex(raw, field: str, expected_len: int | None = None) -> bytes | N
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
-        description="Compute connectorId, commitment, and signature for a CLPR connector identity JSON.",
+        description="Derive the public key and connector ID for a CLPR connector identity JSON.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
@@ -301,7 +236,6 @@ def main(argv=None) -> int:
 
     try:
         scheme = normalize_scheme(bundle.get("signatureScheme", ""))
-        channel_id = parse_hex(bundle.get("channelId"), "channelId", CHANNEL_ID_LEN)
         if "privateKey" in bundle:
             print(
                 "ERROR: the input bundle contains an inline privateKey, which is no longer supported. "
@@ -322,15 +256,9 @@ def main(argv=None) -> int:
         else:
             salt = parse_hex(salt_raw, "salt", SALT_LEN)
 
-        service_raw = bundle.get("serviceAddress")
-        if service_raw is None or not str(service_raw).strip() or str(service_raw).strip() in ("0x", "0X"):
-            service_address = DEFAULT_SERVICE_ADDRESS
-        else:
-            service_address = parse_hex(service_raw, "serviceAddress", SERVICE_ADDRESS_LEN)
-
         supplied_public_key = _optional_hex(bundle.get("publicKey"), "publicKey")
         supplied_connector_id = _optional_hex(
-            bundle.get("connectorId"), "connectorId", expected_len=CHANNEL_ID_LEN
+            bundle.get("connectorId"), "connectorId", expected_len=CONNECTOR_ID_LEN
         )
     except ValueError as e:
         print("ERROR: {}".format(e), file=sys.stderr)
@@ -338,11 +266,9 @@ def main(argv=None) -> int:
 
     try:
         derived = derive(
-            channel_id=channel_id,
             private_key=private_key,
             scheme=scheme,
             salt=salt,
-            service_address=service_address,
             supplied_public_key=supplied_public_key,
             supplied_connector_id=supplied_connector_id,
         )
@@ -350,9 +276,7 @@ def main(argv=None) -> int:
         print("ERROR: {}".format(e), file=sys.stderr)
         return 1
 
-    rendered = render_json(
-        bundle, derived, scheme=scheme, salt=salt, service_address=service_address
-    )
+    rendered = render_json(bundle, derived, scheme=scheme, salt=salt)
 
     if args.out:
         target = Path(args.out)
