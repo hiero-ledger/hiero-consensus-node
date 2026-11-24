@@ -3,7 +3,7 @@ package org.hiero.consensus.event.creator.impl.tipset;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.event.creator.impl.EventCreator;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.orphan.OrphanBuffer;
 
 /**

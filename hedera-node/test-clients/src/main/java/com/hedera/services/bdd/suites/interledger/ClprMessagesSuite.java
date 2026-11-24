@@ -2,10 +2,8 @@
 package com.hedera.services.bdd.suites.interledger;
 
 import static com.hedera.services.bdd.spec.HapiSpec.networkHapiTest;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteChannel;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteConnector;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterChannel;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterConnector;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCreateChannel;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCreateConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprUpdateLedgerConfiguration;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
@@ -23,19 +21,15 @@ import static com.hedera.services.bdd.suites.clpr.HieroToHieroBase.multiNetworkH
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
-import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.CHANNEL_ID;
-import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.CHANNEL_SECRET_KEY;
 import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.CLPR_SERVICE_ADDRESS_20;
 import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.CONNECTOR_SALT;
 import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.CONNECTOR_SECRET_KEY;
-import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.computeCommitment;
 import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.deriveConnectorId;
-import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.signChannelId;
-import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.signConnectorMessage;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.protobuf.ByteString;
+import com.hedera.node.app.hapi.utils.ClprChannelId;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.MultiNetworkHapiTest;
 import com.hedera.services.bdd.junit.MultiNetworkHapiTest.Network;
@@ -44,7 +38,6 @@ import com.hedera.services.bdd.junit.TestTags;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.spec.queries.QueryVerbs;
 import com.hederahashgraph.api.proto.java.ClprLedgerConfiguration;
-import com.hederahashgraph.api.proto.java.ClprSignatureScheme;
 import com.hederahashgraph.api.proto.java.ClprThrottles;
 import com.hederahashgraph.api.proto.java.ContractID;
 import java.math.BigInteger;
@@ -137,18 +130,23 @@ public class ClprMessagesSuite {
     @MultiNetworkHapiTest({@Network("ledgerA"), @Network("ledgerB")})
     @DisplayName("Multi-message CLPR: 3×7 messages with EchoApplication auto-sync round-trip")
     Stream<DynamicTest> multiMessageRoundTrip(final SubProcessNetwork netA, final SubProcessNetwork netB) {
-        // ── Channel keypair ────────────────────────────────────────────────────────────────────
-        final var connPubKey64 = ECDSASecp256k1.derivePublicKey(CHANNEL_SECRET_KEY);
-        final var connPubKeyBytes = Bytes.wrap(connPubKey64);
-        final var channelCommitment = computeCommitment(CHANNEL_ID, connPubKeyBytes);
-        final var channelSig = signChannelId(CHANNEL_SECRET_KEY, CHANNEL_ID);
+        final var channelSalt = new byte[32];
+        new java.security.SecureRandom().nextBytes(channelSalt);
+        final var service =
+                Bytes.wrap(com.hedera.node.app.hapi.utils.CommonUtils.asEvmAddress(CLPR_SYSTEM_CONTRACT_NUM));
+        final var channelId = ClprChannelId.derive(
+                "eip155:" + netA.startupProperties().getLong("contracts.chainId"),
+                service,
+                service,
+                "eip155:" + netB.startupProperties().getLong("contracts.chainId"),
+                service,
+                service,
+                Bytes.wrap(channelSalt));
 
         // ── Connector keypair ─────────────────────────────────────────────────────────────────────
         final var connectorPubKey64 = ECDSASecp256k1.derivePublicKey(CONNECTOR_SECRET_KEY);
         final var connectorPubKeyBytes = Bytes.wrap(connectorPubKey64);
-        final var connectorId = deriveConnectorId(CHANNEL_ID, connectorPubKeyBytes, CONNECTOR_SALT);
-        final var connectorCommitment = computeCommitment(connectorId, connectorPubKeyBytes);
-        final var connectorSig = signConnectorMessage(CONNECTOR_SECRET_KEY, connectorId);
+        final var connectorId = deriveConnectorId(connectorPubKeyBytes, CONNECTOR_SALT);
 
         // ── CLPR system contract (precompile) ContractID — used as both networks' verifier
         final var clprSystemContract =
@@ -187,13 +185,13 @@ public class ClprMessagesSuite {
                                 .payingWith(GENESIS))
                 .findFirst()
                 .orElseThrow();
-        // NET_A's config and finalized endpoint-manifest StateProofs, threaded into NET_B's completeChannel.
+        // NET_A's config and finalized endpoint-manifest StateProofs, threaded into NET_B's createChannel.
         final var netAConfigCapture =
                 captureConfigProof(netA, configProofForNetB, MAX_MESSAGES_PER_BUNDLE, MAX_QUEUE_DEPTH);
         final var netAManifestCapture = captureManifestProof(netA, manifestProofForNetB);
 
         // ── Step 1: Setup NET_B ───────────────────────────────────────────────────────────────────
-        // Deploy EchoApplication, complete channel/connector, capture EchoApplication address for
+        // Deploy EchoApplication, open the channel and activate the connector, capture EchoApplication address for
         // use in SourceApplication's constructor.
         final var netBSetup = networkHapiTest(
                         netB,
@@ -210,53 +208,41 @@ public class ClprMessagesSuite {
                         // Fund EchoApplication as the connector contract: must cover
                         // messageExecutionCost plus the rate-converted USD progress reward per DATA message.
                         cryptoTransfer(tinyBarsFromTo(GENESIS, ECHO_APP, ONE_HUNDRED_HBARS)),
-                        clprRegisterChannel()
-                                .ownershipCommitment(channelCommitment.toByteArray())
-                                .payingWith(GENESIS)
-                                .via("registerChannelB"),
                         // NET_B uses the CLPR precompile's native verifyConfig — requires real
                         // TSS-signed config and endpoint-manifest StateProofs captured from NET_A above.
                         // sourcing(...) defers both .get() calls until runtime so the captured values are
                         // visible.
-                        sourcing(() -> clprCompleteChannel()
-                                .channelId(CHANNEL_ID.toByteArray())
-                                .publicKey(connPubKey64)
-                                .signature(channelSig)
-                                .signatureScheme(ClprSignatureScheme.ECDSA_SECP256K1)
+                        sourcing(() -> clprCreateChannel()
+                                .channelId(channelId.toByteArray())
+                                .salt(channelSalt)
+                                .peerVerifier(service.toByteArray())
                                 .verifierContractId(clprSystemContract)
                                 .configProofBytes(configProofForNetB.get().toByteArray())
                                 .endpointManifestProofBytes(
                                         manifestProofForNetB.get().toByteArray())
                                 .payingWith(GENESIS)
-                                .via("completeChannelB")),
-                        clprRegisterConnector()
-                                .channelId(CHANNEL_ID.toByteArray())
-                                .commitment(connectorCommitment.toByteArray())
-                                .payingWith(GENESIS)
-                                .via("registerConnectorB"),
-                        clprCompleteConnector()
+                                .via("createChannelB")),
+                        clprCreateConnector()
                                 .connectorId(connectorId.toByteArray())
-                                .publicKey(connectorPubKey64)
-                                .signature(connectorSig)
-                                .signatureScheme(ClprSignatureScheme.ECDSA_SECP256K1)
+                                .secp256k1Identity(CONNECTOR_SECRET_KEY)
                                 .salt(CONNECTOR_SALT.toByteArray())
-                                .channelId(CHANNEL_ID.toByteArray())
+                                .channelId(channelId.toByteArray())
                                 .connectorContract(ECHO_APP)
                                 .adminKeyName(GENESIS)
                                 .lockedStake(MIN_STAKE)
                                 .payingWith(GENESIS)
-                                .via("completeConnectorB"),
+                                .via("createConnectorB"),
                         withOpContext((spec, opLog) ->
                                 echoContractIdRef.set(spec.registry().getContractId(ECHO_APP))))
                 .findFirst()
                 .orElseThrow();
-        // NET_B's config and finalized endpoint-manifest StateProofs, threaded into NET_A's completeChannel.
+        // NET_B's config and finalized endpoint-manifest StateProofs, threaded into NET_A's createChannel.
         final var netBConfigCapture =
                 captureConfigProof(netB, configProofForNetA, MAX_MESSAGES_PER_BUNDLE, MAX_QUEUE_DEPTH);
         final var netBManifestCapture = captureManifestProof(netB, manifestProofForNetA);
 
         // ── Step 2: Setup NET_A ───────────────────────────────────────────────────────────────────
-        // Deploy SourceApplication and complete channel/connector. SourceApplication is
+        // Deploy SourceApplication and open the channel and activate the connector. SourceApplication is
         // deployed inside withOpContext so its constructor can receive EchoApplication's EVM
         // address from NET_B. SourceApplication itself serves as the connector contract on
         // NET_A — it holds HBAR for slashing and is the correct entity to vouch for outbound
@@ -274,48 +260,36 @@ public class ClprMessagesSuite {
                             allRunFor(
                                     spec,
                                     contractCreate(
-                                            SOURCE_APP, CHANNEL_ID.toByteArray(), connectorId.toByteArray(), echoAddr));
+                                            SOURCE_APP, channelId.toByteArray(), connectorId.toByteArray(), echoAddr));
                         }),
                         // Fund SourceApplication.
                         cryptoTransfer(tinyBarsFromTo(GENESIS, SOURCE_APP, ONE_HUNDRED_HBARS)),
                         // Fund CONNECTOR_AUTH.
                         cryptoTransfer(tinyBarsFromTo(GENESIS, CONNECTOR_AUTH, ONE_HUNDRED_HBARS)),
-                        clprRegisterChannel()
-                                .ownershipCommitment(channelCommitment.toByteArray())
-                                .payingWith(GENESIS)
-                                .via("registerChannelA"),
                         // NET_A uses the CLPR precompile's native verifyConfig — requires real
                         // TSS-signed config and endpoint-manifest StateProofs captured from NET_B above.
                         // sourcing(...) defers both .get() calls until runtime so the captured values are
                         // visible.
-                        sourcing(() -> clprCompleteChannel()
-                                .channelId(CHANNEL_ID.toByteArray())
-                                .publicKey(connPubKey64)
-                                .signature(channelSig)
-                                .signatureScheme(ClprSignatureScheme.ECDSA_SECP256K1)
+                        sourcing(() -> clprCreateChannel()
+                                .channelId(channelId.toByteArray())
+                                .salt(channelSalt)
+                                .peerVerifier(service.toByteArray())
                                 .verifierContractId(clprSystemContract)
                                 .configProofBytes(configProofForNetA.get().toByteArray())
                                 .endpointManifestProofBytes(
                                         manifestProofForNetA.get().toByteArray())
                                 .payingWith(GENESIS)
-                                .via("completeChannelA")),
-                        clprRegisterConnector()
-                                .channelId(CHANNEL_ID.toByteArray())
-                                .commitment(connectorCommitment.toByteArray())
-                                .payingWith(GENESIS)
-                                .via("registerConnectorA"),
-                        clprCompleteConnector()
+                                .via("createChannelA")),
+                        clprCreateConnector()
                                 .connectorId(connectorId.toByteArray())
-                                .publicKey(connectorPubKey64)
-                                .signature(connectorSig)
-                                .signatureScheme(ClprSignatureScheme.ECDSA_SECP256K1)
+                                .secp256k1Identity(CONNECTOR_SECRET_KEY)
                                 .salt(CONNECTOR_SALT.toByteArray())
-                                .channelId(CHANNEL_ID.toByteArray())
+                                .channelId(channelId.toByteArray())
                                 .connectorContract(CONNECTOR_AUTH)
                                 .adminKeyName(GENESIS)
                                 .lockedStake(MIN_STAKE)
                                 .payingWith(GENESIS)
-                                .via("completeConnectorA"),
+                                .via("createConnectorA"),
                         withOpContext((spec, opLog) ->
                                 sourceAppIdRef.set(spec.registry().getContractId(SOURCE_APP))))
                 .findFirst()

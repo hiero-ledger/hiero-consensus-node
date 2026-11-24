@@ -17,13 +17,11 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCloseChannel;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteChannel;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteConnector;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprDeregisterConnector;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCreateChannel;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCreateConnector;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprDeleteChannel;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprDeleteConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprEvictPeerEndpoint;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterChannel;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprSubmitBundle;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprUpdateLedgerConfiguration;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
@@ -34,6 +32,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingAllOf;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -79,7 +78,7 @@ import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
-import com.hedera.services.bdd.spec.transactions.clpr.HapiClprRegisterChannel;
+import com.hedera.services.bdd.spec.transactions.clpr.HapiClprCreateChannel;
 import com.hedera.services.bdd.spec.transactions.clpr.HapiClprUpdateLedgerConfiguration;
 import com.hederahashgraph.api.proto.java.ClprChannelStatus;
 import com.hederahashgraph.api.proto.java.ClprEndpoint;
@@ -259,47 +258,49 @@ public class ClprEnabledSuite {
     @HapiTest
     @DisplayName("A nonpayable deployed contract sends with zero value and uses a static CLPR queue read")
     final Stream<DynamicTest> clprRouterCallsSucceedFromContract() {
-        final var crypto = new ClprChannelCrypto();
-        final var gasPrice = new AtomicLong();
-        final var operations = contractSetup();
-        final var txns = clprTxns(crypto);
-        for (final var name : List.of(
-                "updateLedgerConfiguration",
-                "registerChannel",
-                "completeChannel",
-                "registerConnector",
-                "completeConnector")) {
-            operations.add(dispatch(txns.get(name), false, false));
-        }
-        operations.add(getContractInfo(CLPR_CONTRACT).has(contractWith().balance(0L)));
-        operations.add(
-                withOpContext((spec, opLog) -> gasPrice.set(spec.ratesProvider().currentTinybarGasPrice())));
-        operations.add(sendMessage(crypto).via("sentMessage"));
-        operations.add(getTxnRecord("sentMessage").exposingTo(record -> {
-            assertTrue(
-                    new BigInteger(
-                                            1,
-                                            record.getContractCallResult()
-                                                    .getContractCallResult()
-                                                    .toByteArray())
-                                    .longValueExact()
-                            > 0,
-                    "sendMessage must return the enqueued message ID");
-            final var rate = record.getReceipt().getExchangeRate().getCurrentRate();
-            final long targetInTinybars = 1_000_000_000L * rate.getHbarEquiv() / rate.getCentEquiv();
-            assertTrue(
-                    Math.multiplyExact(record.getContractCallResult().getGasUsed(), gasPrice.get()) >= targetInTinybars,
-                    "Gas alone must cover the $0.10 send target");
-            assertEquals(0L, record.getContractCallResult().getAmount(), "No value is attached to the send");
-        }));
-        operations.add(contractCall(CLPR_CONTRACT, "getChannelQueueState", (Object) crypto.channelId())
-                .payingWith(CALLER)
-                .gas(GAS_TO_OFFER)
-                .hasKnownStatus(SUCCESS));
-        operations.add(contractCallLocal(CLPR_CONTRACT, "getChannelQueueState", (Object) crypto.channelId())
-                .gas(GAS_TO_OFFER));
-        operations.add(getContractInfo(CLPR_CONTRACT).has(contractWith().balance(0L)));
-        return hapiTest(operations.toArray(SpecOperation[]::new));
+        return hapiTest(ClprChannelCrypto.withVerifier(
+                VERIFIER_CONTRACT, "hiero:testing", CLPR_SERVICE_ADDRESS_20, crypto -> {
+                    final var gasPrice = new AtomicLong();
+                    final var operations = contractSetup();
+                    final var txns = clprTxns(crypto);
+                    for (final var name : List.of("updateLedgerConfiguration", "createChannel", "createConnector")) {
+                        operations.add(dispatch(txns.get(name), false, false));
+                    }
+                    operations.add(
+                            getContractInfo(CLPR_CONTRACT).has(contractWith().balance(0L)));
+                    operations.add(withOpContext(
+                            (spec, opLog) -> gasPrice.set(spec.ratesProvider().currentTinybarGasPrice())));
+                    operations.add(sendMessage(crypto).via("sentMessage"));
+                    operations.add(getTxnRecord("sentMessage").exposingTo(record -> {
+                        assertTrue(
+                                new BigInteger(
+                                                        1,
+                                                        record.getContractCallResult()
+                                                                .getContractCallResult()
+                                                                .toByteArray())
+                                                .longValueExact()
+                                        > 0,
+                                "sendMessage must return the enqueued message ID");
+                        final var rate = record.getReceipt().getExchangeRate().getCurrentRate();
+                        final long targetInTinybars = 1_000_000_000L * rate.getHbarEquiv() / rate.getCentEquiv();
+                        assertTrue(
+                                Math.multiplyExact(
+                                                record.getContractCallResult().getGasUsed(), gasPrice.get())
+                                        >= targetInTinybars,
+                                "Gas alone must cover the $0.10 send target");
+                        assertEquals(
+                                0L, record.getContractCallResult().getAmount(), "No value is attached to the send");
+                    }));
+                    operations.add(contractCall(CLPR_CONTRACT, "getChannelQueueState", (Object) crypto.channelId())
+                            .payingWith(CALLER)
+                            .gas(GAS_TO_OFFER)
+                            .hasKnownStatus(SUCCESS));
+                    operations.add(contractCallLocal(CLPR_CONTRACT, "getChannelQueueState", (Object) crypto.channelId())
+                            .gas(GAS_TO_OFFER));
+                    operations.add(
+                            getContractInfo(CLPR_CONTRACT).has(contractWith().balance(0L)));
+                    return blockingOrder(operations.toArray(SpecOperation[]::new));
+                }));
     }
 
     @LeakyHapiTest(
@@ -312,114 +313,124 @@ public class ClprEnabledSuite {
     final Stream<DynamicTest> prepaidCallbackExternalizesSelfDestruct() {
         final var application = "SelfDestructClpr";
         final var submittedBundle = "selfDestructBundle";
-        final var crypto = new ClprChannelCrypto();
-        final long executionCost = 1_000_000L;
-        final long progressRewardTinycents = 100_000_000L;
-        final var callbackGasFee = new AtomicLong();
-        final var operations = contractSetup();
-        operations.add(overridingAllOf(Map.of(
-                "clpr.messageExecutionCost", Long.toString(executionCost),
-                "clpr.progressRewardTinycents", Long.toString(progressRewardTinycents),
-                "contracts.selfDestructs.externalization.enabled", "true")));
-        operations.add(uploadInitCode(application));
-        operations.add(contractCreate(application).refusingEthConversion());
-        final var txns = clprTxns(crypto);
-        for (final var name : List.of(
-                "updateLedgerConfiguration",
-                "registerChannel",
-                "completeChannel",
-                "registerConnector",
-                "completeConnector")) {
-            operations.add(dispatch(txns.get(name), false, false));
-        }
-        operations.add(cryptoTransfer(tinyBarsFromTo(GENESIS, CONNECTOR_CONTRACT, ONE_HUNDRED_HBARS)));
-        operations.add(withOpContext((spec, log) -> {
-            final var applicationId = spec.registry().getContractId(application);
-            final var payload = ClprMessagePayload.newBuilder()
-                    .setMessage(ClprMessage.newBuilder()
-                            .setConnectorId(ByteString.copyFrom(crypto.connectorId()))
-                            .setTargetApplication(ByteString.copyFrom(asSolidityAddress(applicationId)))
-                            .setSender(ByteString.copyFrom(new byte[20]))
-                            .setMessageData(ByteString.EMPTY))
-                    .build();
-            final var bundleBytes =
-                    toBundleProofBytes(ClprChannelStatus.ACTIVE, 0L, 0L, new byte[32], List.of(payload));
-            final var verifierId = spec.registry().getContractId(VERIFIER_CONTRACT);
-            allRunFor(
-                    spec,
-                    clprSubmitBundle()
-                            .channelId(crypto.channelId())
-                            .endpointNodeId(0L)
-                            .bundlePayload(bundleBytes)
-                            .payingWith(CALLER)
-                            .via(submittedBundle)
-                            .hasKnownStatus(SUCCESS),
-                    getTxnRecord(submittedBundle).exposingAllTo(records -> {
-                        final var verifier = records.stream()
-                                .filter(r -> r.hasContractCallResult()
-                                        && r.getContractCallResult()
-                                                .getContractID()
-                                                .equals(verifierId))
-                                .findFirst()
-                                .orElseThrow();
-                        final long verifierGas =
-                                verifier.getContractCallResult().getGasUsed();
-                        assertTrue(verifierGas > 0);
-                        final long expectedNativeFee = spec.ratesProvider()
-                                .toTbWithActiveRates(100_000_000L
-                                        + 1_000L * bundleBytes.length
-                                        + Math.min(verifierGas, 300_000L)
-                                                * spec.ratesProvider().tinycentGasPrice());
-                        final var creations = records.stream()
-                                .filter(r -> r.hasContractCreateResult())
-                                .toList();
-                        assertEquals(1, creations.size(), "The CLPR callback creates exactly one child");
-                        final var creation = creations.getFirst();
-                        assertEquals(SUCCESS, creation.getReceipt().getStatus());
-                        final var deletedId = creation.getReceipt().getContractID();
-                        final var deletions = records.stream()
-                                .filter(r -> !r.hasContractCreateResult()
-                                        && r.getReceipt().getContractID().equals(deletedId))
-                                .toList();
-                        assertEquals(1, deletions.size(), "The committed deletion is externalized exactly once");
-                        final var deletion = deletions.getFirst();
-                        assertEquals(SUCCESS, deletion.getReceipt().getStatus());
-                        assertEquals(0L, deletion.getTransactionFee());
-                        assertEquals(0, deletion.getTransferList().getAccountAmountsCount());
-                        assertTrue(records.indexOf(creation) < records.indexOf(deletion));
-                        final var callbacks = records.stream()
-                                .filter(r -> r.hasContractCallResult()
-                                        && r.getContractCallResult()
-                                                .getContractID()
-                                                .equals(applicationId))
-                                .toList();
-                        assertEquals(1, callbacks.size());
-                        assertEquals(SUCCESS, callbacks.getFirst().getReceipt().getStatus());
-                        assertEquals(0L, callbacks.getFirst().getTransactionFee(), "Callback gas is prepaid");
-                        final var gasUsed =
-                                callbacks.getFirst().getContractCallResult().getGasUsed();
-                        assertTrue(gasUsed > 0);
-                        callbackGasFee.set(
-                                Math.multiplyExact(gasUsed, spec.ratesProvider().currentTinybarGasPrice()));
-                        assertTrue(callbackGasFee.get() > 0, "The connector reimburses the callback's network gas fee");
-                        assertEquals(
-                                Math.addExact(expectedNativeFee, callbackGasFee.get()),
-                                records.getFirst().getTransactionFee());
-                        spec.registry().saveContractId("deletedClprChild", deletedId);
-                    }),
-                    getContractInfo("deletedClprChild").has(contractWith().isDeleted()));
-        }));
-        operations.add(contractCallLocal(application, "deliveries")
-                .exposingTypedResultsTo(results -> assertEquals(BigInteger.ONE, results[0])));
-        operations.add(getContractInfo(application).has(contractWith().isNotDeleted()));
-        operations.add(withOpContext((spec, log) -> allRunFor(
-                spec,
-                getAccountBalance(CONNECTOR_CONTRACT)
-                        .hasTinyBars(ONE_HUNDRED_HBARS
-                                - executionCost
-                                - spec.ratesProvider().toTbWithActiveRates(progressRewardTinycents)
-                                - callbackGasFee.get()))));
-        return hapiTest(operations.toArray(SpecOperation[]::new));
+        return hapiTest(ClprChannelCrypto.withVerifier(
+                VERIFIER_CONTRACT, "hiero:testing", CLPR_SERVICE_ADDRESS_20, crypto -> {
+                    final long executionCost = 1_000_000L;
+                    final long progressRewardTinycents = 100_000_000L;
+                    final var callbackGasFee = new AtomicLong();
+                    final var operations = contractSetup();
+                    operations.add(overridingAllOf(Map.of(
+                            "clpr.messageExecutionCost", Long.toString(executionCost),
+                            "clpr.progressRewardTinycents", Long.toString(progressRewardTinycents),
+                            "contracts.selfDestructs.externalization.enabled", "true")));
+                    operations.add(uploadInitCode(application));
+                    operations.add(contractCreate(application).refusingEthConversion());
+                    final var txns = clprTxns(crypto);
+                    for (final var name : List.of("updateLedgerConfiguration", "createChannel", "createConnector")) {
+                        operations.add(dispatch(txns.get(name), false, false));
+                    }
+                    operations.add(cryptoTransfer(tinyBarsFromTo(GENESIS, CONNECTOR_CONTRACT, ONE_HUNDRED_HBARS)));
+                    operations.add(withOpContext((spec, log) -> {
+                        final var applicationId = spec.registry().getContractId(application);
+                        final var payload = ClprMessagePayload.newBuilder()
+                                .setMessage(ClprMessage.newBuilder()
+                                        .setConnectorId(ByteString.copyFrom(crypto.connectorId()))
+                                        .setTargetApplication(ByteString.copyFrom(asSolidityAddress(applicationId)))
+                                        .setSender(ByteString.copyFrom(new byte[20]))
+                                        .setMessageData(ByteString.EMPTY))
+                                .build();
+                        final var bundleBytes =
+                                toBundleProofBytes(ClprChannelStatus.ACTIVE, 0L, 0L, new byte[32], List.of(payload));
+                        final var verifierId = spec.registry().getContractId(VERIFIER_CONTRACT);
+                        allRunFor(
+                                spec,
+                                clprSubmitBundle()
+                                        .channelId(crypto.channelId())
+                                        .endpointNodeId(0L)
+                                        .bundlePayload(bundleBytes)
+                                        .payingWith(CALLER)
+                                        .via(submittedBundle)
+                                        .hasKnownStatus(SUCCESS),
+                                getTxnRecord(submittedBundle).exposingAllTo(records -> {
+                                    final var verifier = records.stream()
+                                            .filter(r -> r.hasContractCallResult()
+                                                    && r.getContractCallResult()
+                                                            .getContractID()
+                                                            .equals(verifierId))
+                                            .findFirst()
+                                            .orElseThrow();
+                                    final long verifierGas =
+                                            verifier.getContractCallResult().getGasUsed();
+                                    assertTrue(verifierGas > 0);
+                                    final long expectedNativeFee = spec.ratesProvider()
+                                            .toTbWithActiveRates(100_000_000L
+                                                    + 1_000L * bundleBytes.length
+                                                    + Math.min(verifierGas, 300_000L)
+                                                            * spec.ratesProvider()
+                                                                    .tinycentGasPrice());
+                                    final var creations = records.stream()
+                                            .filter(r -> r.hasContractCreateResult())
+                                            .toList();
+                                    assertEquals(1, creations.size(), "The CLPR callback creates exactly one child");
+                                    final var creation = creations.getFirst();
+                                    assertEquals(SUCCESS, creation.getReceipt().getStatus());
+                                    final var deletedId = creation.getReceipt().getContractID();
+                                    final var deletions = records.stream()
+                                            .filter(r -> !r.hasContractCreateResult()
+                                                    && r.getReceipt()
+                                                            .getContractID()
+                                                            .equals(deletedId))
+                                            .toList();
+                                    assertEquals(
+                                            1, deletions.size(), "The committed deletion is externalized exactly once");
+                                    final var deletion = deletions.getFirst();
+                                    assertEquals(SUCCESS, deletion.getReceipt().getStatus());
+                                    assertEquals(0L, deletion.getTransactionFee());
+                                    assertEquals(0, deletion.getTransferList().getAccountAmountsCount());
+                                    assertTrue(records.indexOf(creation) < records.indexOf(deletion));
+                                    final var callbacks = records.stream()
+                                            .filter(r -> r.hasContractCallResult()
+                                                    && r.getContractCallResult()
+                                                            .getContractID()
+                                                            .equals(applicationId))
+                                            .toList();
+                                    assertEquals(1, callbacks.size());
+                                    assertEquals(
+                                            SUCCESS,
+                                            callbacks.getFirst().getReceipt().getStatus());
+                                    assertEquals(
+                                            0L, callbacks.getFirst().getTransactionFee(), "Callback gas is prepaid");
+                                    final var gasUsed = callbacks
+                                            .getFirst()
+                                            .getContractCallResult()
+                                            .getGasUsed();
+                                    assertTrue(gasUsed > 0);
+                                    callbackGasFee.set(Math.multiplyExact(
+                                            gasUsed, spec.ratesProvider().currentTinybarGasPrice()));
+                                    assertTrue(
+                                            callbackGasFee.get() > 0,
+                                            "The connector reimburses the callback's network gas fee");
+                                    assertEquals(
+                                            Math.addExact(expectedNativeFee, callbackGasFee.get()),
+                                            records.getFirst().getTransactionFee());
+                                    spec.registry().saveContractId("deletedClprChild", deletedId);
+                                }),
+                                getContractInfo("deletedClprChild")
+                                        .has(contractWith().isDeleted()));
+                    }));
+                    operations.add(contractCallLocal(application, "deliveries")
+                            .exposingTypedResultsTo(results -> assertEquals(BigInteger.ONE, results[0])));
+                    operations.add(
+                            getContractInfo(application).has(contractWith().isNotDeleted()));
+                    operations.add(withOpContext((spec, log) -> allRunFor(
+                            spec,
+                            getAccountBalance(CONNECTOR_CONTRACT)
+                                    .hasTinyBars(ONE_HUNDRED_HBARS
+                                            - executionCost
+                                            - spec.ratesProvider().toTbWithActiveRates(progressRewardTinycents)
+                                            - callbackGasFee.get()))));
+                    return blockingOrder(operations.toArray(SpecOperation[]::new));
+                }));
     }
 
     @HapiTest
@@ -584,21 +595,24 @@ public class ClprEnabledSuite {
     }
 
     private static Stream<DynamicTest> exerciseTransactions(final boolean inBatch, final boolean bypassIngest) {
-        final var crypto = new ClprChannelCrypto();
-        final var txns = clprTxns(crypto);
-        final var operations = contractSetup();
-        operations.add(withOpContext((spec, opLog) -> assertCoversEveryClprEntryPoint(txns)));
-        operations.add(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
-        for (final var entry : txns.entrySet()) {
-            operations.add(dispatch(entry.getValue(), inBatch, bypassIngest));
-        }
-        if (inBatch) {
-            operations.add(dispatch(endpointPublicationProbe(), true, bypassIngest));
-        } else if (bypassIngest) {
-            operations.add(
-                    endpointPublicationProbe().setNode(INGEST_BYPASS_NODE).hasKnownStatus(UNAUTHORIZED));
-        }
-        return hapiTest(operations.toArray(SpecOperation[]::new));
+        return hapiTest(ClprChannelCrypto.withVerifier(
+                VERIFIER_CONTRACT, "hiero:testing", CLPR_SERVICE_ADDRESS_20, crypto -> {
+                    final var txns = clprTxns(crypto);
+                    final var operations = contractSetup();
+                    operations.add(withOpContext((spec, opLog) -> assertCoversEveryClprEntryPoint(txns)));
+                    operations.add(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
+                    for (final var entry : txns.entrySet()) {
+                        operations.add(dispatch(entry.getValue(), inBatch, bypassIngest));
+                    }
+                    if (inBatch) {
+                        operations.add(dispatch(endpointPublicationProbe(), true, bypassIngest));
+                    } else if (bypassIngest) {
+                        operations.add(endpointPublicationProbe()
+                                .setNode(INGEST_BYPASS_NODE)
+                                .hasKnownStatus(UNAUTHORIZED));
+                    }
+                    return blockingOrder(operations.toArray(SpecOperation[]::new));
+                }));
     }
 
     private static HapiTxnOp<?> dispatch(final HapiTxnOp<?> op, final boolean inBatch, final boolean bypassIngest) {
@@ -619,8 +633,7 @@ public class ClprEnabledSuite {
 
     private static ArrayList<SpecOperation> contractSetup() {
         return new ArrayList<>(List.of(
-                uploadInitCode(VERIFIER_CONTRACT, CONNECTOR_CONTRACT, CLPR_CONTRACT),
-                contractCreate(VERIFIER_CONTRACT),
+                uploadInitCode(CONNECTOR_CONTRACT, CLPR_CONTRACT),
                 contractCreate(CONNECTOR_CONTRACT),
                 contractCreate(CLPR_CONTRACT),
                 cryptoCreate(CALLER).balance(ONE_MILLION_HBARS)));
@@ -642,32 +655,27 @@ public class ClprEnabledSuite {
     private static LinkedHashMap<String, HapiTxnOp<?>> clprTxns(final ClprChannelCrypto crypto) {
         final var txns = new LinkedHashMap<String, HapiTxnOp<?>>();
         txns.put("updateLedgerConfiguration", clprUpdateLedgerConfiguration().configuration(ledgerConfig()));
-        txns.put("registerChannel", clprRegisterChannel().ownershipCommitment(crypto.commitment()));
         txns.put(
-                "completeChannel",
-                clprCompleteChannel()
+                "createChannel",
+                clprCreateChannel()
                         .channelId(crypto.channelId())
-                        .publicKey(crypto.publicKey())
-                        .signature(crypto.signature())
+                        .salt(crypto.salt())
+                        .peerVerifier(crypto.peerVerifier())
                         .verifierContract(VERIFIER_CONTRACT)
                         .configProofBytes(toConfigProofBytes(ledgerConfig())));
         txns.put(
-                "registerConnector",
-                clprRegisterConnector().channelId(crypto.channelId()).commitment(crypto.connectorCommitment()));
-        txns.put(
-                "completeConnector",
-                clprCompleteConnector()
+                "createConnector",
+                clprCreateConnector()
                         .connectorId(crypto.connectorId())
-                        .publicKey(crypto.publicKey())
-                        .signature(crypto.connectorSignature())
+                        .ed25519Identity(crypto.seed())
                         .salt(crypto.connectorSalt())
                         .channelId(crypto.channelId())
                         .connectorContract(CONNECTOR_CONTRACT)
                         .adminKeyName(GENESIS)
                         .lockedStakeTinycents(DEFAULT_MIN_LOCKED_STAKE_TINYCENTS));
         txns.put(
-                "deregisterConnector",
-                clprDeregisterConnector()
+                "deleteConnector",
+                clprDeleteConnector()
                         .channelId(crypto.channelId())
                         .connectorId(crypto.connectorId())
                         .adminKey(GENESIS)
@@ -691,12 +699,12 @@ public class ClprEnabledSuite {
         txns.put(
                 "evictPeerEndpoint",
                 clprEvictPeerEndpoint().channelId(crypto.channelId()).endpoint("203.0.113.1", 50211));
-        txns.put("closeChannel", clprCloseChannel().channelId(crypto.channelId()));
+        txns.put("deleteChannel", clprDeleteChannel().channelId(crypto.channelId()));
         // Only governance operations require an administrator; public operations must exercise user throttles.
         txns.values()
                 .forEach(op -> op.payingWith(
                         switch (op.type()) {
-                            case ClprUpdateLedgerConfiguration, ClprCloseChannel, ClprEvictPeerEndpoint -> GENESIS;
+                            case ClprUpdateLedgerConfiguration, ClprDeleteChannel, ClprEvictPeerEndpoint -> GENESIS;
                             default -> CALLER;
                         }));
         return txns;
@@ -744,10 +752,10 @@ public class ClprEnabledSuite {
                         + "in NODE_INTERNAL_CLPR_FUNCTIONS with the reason it is unreachable from HAPI");
     }
 
-    private static HapiClprRegisterChannel endpointPublicationProbe() {
+    private static HapiClprCreateChannel endpointPublicationProbe() {
         // Reuse a transaction transport but replace its oneof body before signing. This checks
         // the actual parsed functionality, including an internal operation without its own RPC.
-        return clprRegisterChannel()
+        return clprCreateChannel()
                 .payingWith(GENESIS)
                 .withBodyMutation((body, spec) ->
                         body.setClprEndpointPublication(ClprEndpointPublicationTransactionBody.newBuilder()

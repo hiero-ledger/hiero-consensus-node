@@ -1,16 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.test.calculator;
 
-import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_CLOSE_CHANNEL;
-import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CHANNEL;
-import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CONNECTOR;
-import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_DEREGISTER_CONNECTOR;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_CREATE_CHANNEL;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_CREATE_CONNECTOR;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_DELETE_CHANNEL;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_DELETE_CONNECTOR;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_ENDPOINT_PUBLICATION;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_EVICT_PEER_ENDPOINT;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_GET_ENDPOINT_MANIFEST;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_GET_LEDGER_CONFIGURATION;
-import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_REGISTER_CHANNEL;
-import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_REGISTER_CONNECTOR;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SUBMIT_BUNDLE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_UPDATE_LEDGER_CONFIGURATION;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -72,11 +70,9 @@ class ClprGenesisFeeScheduleTest {
 
     /** The proposal's price for every CLPR transaction and query. */
     private static final Map<HederaFunctionality, Price> EXPECTED = Map.ofEntries(
-            Map.entry(CLPR_REGISTER_CHANNEL, Price.of(100 * USD)),
-            Map.entry(CLPR_COMPLETE_CHANNEL, Price.of(100 * USD).withExtras(Map.of(Extra.STATE_BYTES, 8_192))),
-            Map.entry(CLPR_REGISTER_CONNECTOR, Price.of(10 * USD)),
-            Map.entry(CLPR_COMPLETE_CONNECTOR, Price.of(25 * USD)),
-            Map.entry(CLPR_DEREGISTER_CONNECTOR, Price.of(ONE_CENT)),
+            Map.entry(CLPR_CREATE_CHANNEL, Price.of(100 * USD).withExtras(Map.of(Extra.STATE_BYTES, 8_192))),
+            Map.entry(CLPR_CREATE_CONNECTOR, Price.of(25 * USD)),
+            Map.entry(CLPR_DELETE_CONNECTOR, Price.of(ONE_CENT)),
             // A bundle costs $0.01 + bundle bytes, so its bytes are not charged again by the node and network
             // fees; its verifier gas is billed at actual use, outside the schedule
             Map.entry(
@@ -85,7 +81,7 @@ class ClprGenesisFeeScheduleTest {
                             .withExtras(Map.of(Extra.PROCESSING_BYTES, 0))
                             .exemptFromNodeAndNetworkFees()),
             // Admin-only: a privileged payer's fees are waived
-            Map.entry(CLPR_CLOSE_CHANNEL, Price.of(0)),
+            Map.entry(CLPR_DELETE_CHANNEL, Price.of(0)),
             Map.entry(CLPR_EVICT_PEER_ENDPOINT, Price.of(0)),
             Map.entry(CLPR_UPDATE_LEDGER_CONFIGURATION, Price.of(0)),
             // Node self-publications must not depend on operator funding.

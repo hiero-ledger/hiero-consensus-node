@@ -38,7 +38,7 @@ derived from the network's HIP-26 EVM chain ID, `contracts.chainId`, as `eip155:
 
 |             Key             |                 Default                 | Network? |                                                                      Purpose                                                                       |
 |-----------------------------|-----------------------------------------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------|
-| `minLockedStakeTinycents`   | `30 000 000 000 000` tinycents ($3,000) | yes      | Minimum bond for `completeConnector`, converted at its active consensus exchange rate; the submitted tinybars are transferred to `stakingAccount`. |
+| `minLockedStakeTinycents`   | `30 000 000 000 000` tinycents ($3,000) | yes      | Minimum bond for `createConnector`, converted at its active consensus exchange rate; the submitted tinybars are transferred to `stakingAccount`. |
 | `stakingAccount`            | `0.0.803` (account num `803`)           | yes      | Holds locked connector stake; created at genesis/upgrade if CLPR enabled.                                                                          |
 | `slashBasePenaltyTinycents` | `100 000 000 000` tinycents ($10)       | yes      | Base slash on first offence, converted at the active consensus exchange rate; each penalty is paid to the submitting endpoint.                     |
 | `slashMultiplier`           | `2`                                     | yes      | Geometric escalation factor per repeat offence.                                                                                                    |
@@ -87,7 +87,7 @@ derived from the network's HIP-26 EVM chain ID, `contracts.chainId`, as `eip155:
 | `verifierGasLimit`     | `2 000 000`  | yes      | Gas for `ClprVerifier.verifyBundle` / `verifyConfig` (`EvmClprVerifier`).   |
 | `submitBundleGasLimit` | `50 000 000` | yes      | Total gas a `ClprSubmitBundle` can spend on its verifier and its callbacks. |
 
-> `ClprCompleteChannel` and `ClprSubmitBundle` each reserve `verifierGasLimit` from the network gas throttle
+> `ClprCreateChannel` and `ClprSubmitBundle` each reserve `verifierGasLimit` from the network gas throttle
 > (`contracts.maxGasPerSec` / `maxGasPerSecBackend`), the same way a contract call reserves its gas limit, so verifier
 > execution can't run unthrottled.
 >
@@ -181,7 +181,7 @@ calculator instance. Each looks up its base fee from the platform `FeeSchedule` 
 `FacilityInitModule.provideClprServiceFeeCalculators` registers the calculators with the standard fee workflow.
 The CLPR-specific byte rates are $0.00001 per state byte and $0.0000001 per bundle byte.
 
-Besides its base fee, `ClprCompleteChannel` pays the `STATE_BYTES` extra for its serialized channel state,
+`ClprCreateConnector` costs $25. In addition to its $100 base fee, `ClprCreateChannel` pays the `STATE_BYTES` extra for its serialized channel state,
 with the first 8,192 bytes included. `ClprSubmitBundle` pays the `PROCESSING_BYTES` extra for its bundle
 payload. Both bill the verifier's measured gas, capped at 300,000 units, at the schedule's global
 `GAS` rate during successful handling.
@@ -192,7 +192,7 @@ schedule rate before building a proof. The gas units estimate the Java proof wor
 
 `ClprSubmitBundle` is exempt from node and network fees (`nodeNetworkFeeExempt`) so that bundle bytes
 are billed once. A 4 MiB bundle costs about $0.46 at the proposal's byte and gas rates. The node-originated
-`ClprEndpointPublication` pays a $1 service base fee plus the ordinary node and network components.
+`ClprEndpointPublication` is free and exempt from node and network fees.
 
 CLPR transactions use the standard fee workflow. On handle failure, the workflow charges the upfront
 fees after rolling back handle effects. The admin-only transactions have a $0 service fee and waive the
@@ -220,7 +220,7 @@ Yahcli defaults to 2 million gas for a single small message; larger payloads and
 budgets within the network transaction gas limit. Zero-price gas configurations retain native-work metering and
 ordinary fee-waiver handling.
 
-The minimum connector bond is denominated in tinycents and defaults to $3,000. `completeConnector` converts
+The minimum connector bond is denominated in tinycents and defaults to $3,000. `createConnector` converts
 this minimum using the active network exchange rate at the transaction's consensus time and requires the
 submitted tinybar bond to meet it. The transferred and stored bond remains in tinybars; existing locked stake
 is not continuously revalued or topped up as the exchange rate changes.
@@ -250,6 +250,7 @@ else:
 
 `ClprSubmitBundleHandler` then calls `reimburseEndpoint`, which transfers the whole `penalty` from `stakingAccount` to
 the submitting endpoint, capped at the staking account's balance so that hbar is conserved.
+After a ban, the registration history prevents reuse of that connector ID on the same channel.
 
 ### Which `ClprMessageReplyStatus` triggers a slash?
 

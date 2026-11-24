@@ -17,6 +17,7 @@ module org.hiero.consensus.reconnect.impl {
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.consensus.gossip.impl;
     requires transitive org.hiero.consensus.gossip;
+    requires transitive org.hiero.consensus.main.model;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.reconnect;
     requires transitive org.hiero.consensus.state;

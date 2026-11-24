@@ -128,7 +128,7 @@ public final class ClprContractStorage {
                 channelSlotValues.get(ChannelSlot.RECEIVED_MESSAGE_ID), SLOT_VALUE_LENGTH, "connReceivedMsgIdSlot");
         final long receivedMessageId = readUint64BigEndian(receivedIdSlot, 16);
 
-        // Slot +16: endpointManifestVersion (uint64) — a lone field in its own slot, LSB-packed (last 8 bytes).
+        // Slot +15: endpointManifestVersion (uint64) — a lone field in its own slot, LSB-packed (last 8 bytes).
         final byte[] manifestVersionSlot = checkedCopy(
                 channelSlotValues.get(ChannelSlot.ENDPOINT_MANIFEST_VERSION),
                 SLOT_VALUE_LENGTH,
@@ -154,7 +154,7 @@ public final class ClprContractStorage {
 
     /**
      * The storage slots of a ClprService {@code Channel} struct that a bundle proves. Each constant is one 32-byte
-     * slot, at its offset from the struct's base slot {@code keccak256(channelId ‖ uint256(15))}, where 15 is the slot
+     * slot, at its offset from the struct's base slot {@code keccak256(channelId ‖ uint256(11))}, where 11 is the slot
      * of the {@code _channels} mapping. Mirrors {@code ClprEvmBundleVerifier._channelMetadataSlots} in
      * clpr-smart-contracts.
      */
@@ -178,12 +178,12 @@ public final class ClprContractStorage {
         /**
          * {@code endpointManifestVersion}.
          */
-        ENDPOINT_MANIFEST_VERSION(16);
+        ENDPOINT_MANIFEST_VERSION(15);
 
         /**
          * Storage slot of the ClprService {@code _channels} mapping.
          */
-        private static final byte CHANNELS_MAPPING_SLOT = 15;
+        private static final byte CHANNELS_MAPPING_SLOT = 11;
 
         private static final int CHANNEL_ID_LENGTH = 32;
 

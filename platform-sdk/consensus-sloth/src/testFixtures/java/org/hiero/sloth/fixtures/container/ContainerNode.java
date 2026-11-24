@@ -39,8 +39,8 @@ import java.util.concurrent.LinkedBlockingQueue;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.PathsConfig;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.sloth.fixtures.Node;
@@ -285,13 +285,11 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     @Override
     protected void doSendQuiescenceCommand(@NonNull final QuiescenceCommand command, @NonNull final Duration timeout) {
         log.info("Sending quiescence command {} on node {}", command, selfId);
-        final org.hiero.sloth.fixtures.container.proto.QuiescenceCommand dto =
-                switch (command) {
-                    case QUIESCE -> org.hiero.sloth.fixtures.container.proto.QuiescenceCommand.QUIESCE;
-                    case BREAK_QUIESCENCE ->
-                        org.hiero.sloth.fixtures.container.proto.QuiescenceCommand.BREAK_QUIESCENCE;
-                    case DONT_QUIESCE -> org.hiero.sloth.fixtures.container.proto.QuiescenceCommand.DONT_QUIESCE;
-                };
+        final org.hiero.sloth.fixtures.container.proto.QuiescenceCommand dto = switch (command) {
+            case QUIESCE -> org.hiero.sloth.fixtures.container.proto.QuiescenceCommand.QUIESCE;
+            case BREAK_QUIESCENCE -> org.hiero.sloth.fixtures.container.proto.QuiescenceCommand.BREAK_QUIESCENCE;
+            case DONT_QUIESCE -> org.hiero.sloth.fixtures.container.proto.QuiescenceCommand.DONT_QUIESCE;
+        };
         nodeCommBlockingStub
                 .withDeadlineAfter(timeout)
                 .quiescenceCommandUpdate(

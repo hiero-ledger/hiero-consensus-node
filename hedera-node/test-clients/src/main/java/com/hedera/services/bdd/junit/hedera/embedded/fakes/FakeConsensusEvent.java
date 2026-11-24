@@ -6,7 +6,7 @@ import static java.util.Objects.requireNonNull;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.model.event.ConsensusEvent;
+import org.hiero.consensus.main.model.ConsensusEvent;
 
 public class FakeConsensusEvent extends FakeEvent implements ConsensusEvent {
     private final long consensusOrder;

@@ -4,7 +4,7 @@ pragma solidity >=0.4.9 <0.9.0;
 interface IClprSystemContract {
     /// Enqueue a cross-ledger message on the specified channel.
     /// @param channelId 32-byte channel identifier
-    /// @param connectorId 32-byte connector identifier (keccak256(channelId || pubKey || salt))
+    /// @param connectorId 32-byte connector identifier (keccak256(pubKey || salt))
     /// @param targetApplication destination application address bytes on the peer ledger
     /// @param messageData opaque application payload
     /// @return messageId the assigned message sequence number

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.calculator;
 
-import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CHANNEL;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_CREATE_CHANNEL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SUBMIT_BUNDLE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
@@ -70,9 +70,9 @@ public record ClprFeeCalculator(
     }
 
     /** Settles measured verification gas and persistent bytes before storing the channel. */
-    public static void settleCompleteChannelFee(
+    public static void settleCreateChannelFee(
             @NonNull final HandleContext context, final long gasUsed, final int stateBytes) {
-        settleServiceFee(context, CLPR_COMPLETE_CHANNEL, gasUsed, stateBytes);
+        settleServiceFee(context, CLPR_CREATE_CHANNEL, gasUsed, stateBytes);
     }
 
     /** Charges the bundle's measured verifier gas. Its processing bytes were known up front. */
@@ -145,11 +145,11 @@ public record ClprFeeCalculator(
             @NonNull final TransactionBody body,
             final int stateBytes) {
         result.setServiceBaseFeeTinycents(serviceDef.baseFee());
-        if (serviceDef.name() == CLPR_COMPLETE_CHANNEL || serviceDef.name() == CLPR_SUBMIT_BUNDLE) {
+        if (serviceDef.name() == CLPR_CREATE_CHANNEL || serviceDef.name() == CLPR_SUBMIT_BUNDLE) {
             for (final var extra : serviceDef.extras()) {
                 switch (extra.name()) {
                     case STATE_BYTES -> {
-                        if (serviceDef.name() == CLPR_COMPLETE_CHANNEL) {
+                        if (serviceDef.name() == CLPR_CREATE_CHANNEL) {
                             result.addServiceExtraFeeTinycents(
                                     Extra.STATE_BYTES.name(),
                                     CLPR_STATE_BYTE_FEE_TINYCENTS,

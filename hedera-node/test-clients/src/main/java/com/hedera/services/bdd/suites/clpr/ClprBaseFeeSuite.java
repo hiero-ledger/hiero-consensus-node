@@ -8,9 +8,9 @@ import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.r
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.clprGetEndpointManifest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.clprGetLedgerConfiguration;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCloseChannel;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterChannel;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterConnector;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCreateChannel;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCreateConnector;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprDeleteChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprSubmitBundle;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprUpdateLedgerConfiguration;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -49,18 +49,10 @@ import org.junit.jupiter.api.Tag;
  *
  * <p>Coverage:
  * <ul>
- *   <li>{@code registerChannel} — success path; the permissionless commit only needs CLPR enabled, and pays the
- *       full $100 base fee.</li>
- *   <li>{@code submitBundle} and {@code registerConnector} — failure paths against an unknown channel. Both
- *       pay the configured base fee. Bundle submission also pays for its payload bytes, and the handler
- *       returns {@code CLPR_CHANNEL_NOT_FOUND} before running the verifier. Bundles are exempt from node and
- *       network fees.</li>
- *   <li>{@code updateLedgerConfiguration} and {@code closeChannel} — a non-admin payer fails authorization at
- *       consensus. The admin-only transactions have a $0 service fee, so a non-admin pays only the node and
- *       network fees.</li>
+ *   <li>Channel and connector creation pay their base fees when the verifier or channel is missing.</li>
+ *   <li>Bundle submission pays its base fee and payload bytes on an unknown channel.</li>
+ *   <li>A non-admin ledger update or channel deletion pays the node and network fees.</li>
  *   <li>Both proof queries quote and collect the base fee plus verifier gas.</li>
- *   <li>Reveal-phase ops ({@code completeChannel}, {@code completeConnector}) are not covered here because they
- *       require a deployed verifier/connector smart contract and a full two-phase lifecycle setup.</li>
  * </ul>
  *
  * <p>Tests pay with a freshly-created account rather than {@code GENESIS}: the treasury is
@@ -83,11 +75,11 @@ public class ClprBaseFeeSuite {
 
     private static final String PAYER = "feePayer";
 
-    /** {@code ClprRegisterChannel} base fee from genesis simpleFeesSchedules.json. */
-    private static final double REGISTER_CHANNEL_FEE_USD = 100.0;
+    /** {@code ClprCreateChannel} base fee from genesis simpleFeesSchedules.json. */
+    private static final double CREATE_CHANNEL_FEE_USD = 100.0;
 
-    /** {@code ClprRegisterConnector} base fee from genesis simpleFeesSchedules.json. */
-    private static final double REGISTER_CONNECTOR_FEE_USD = 10.0;
+    /** {@code ClprCreateConnector} base fee from genesis simpleFeesSchedules.json. */
+    private static final double CREATE_CONNECTOR_FEE_USD = 25.0;
 
     /** {@code ClprSubmitBundle} base fee charged by its calculator. */
     private static final double SUBMIT_BUNDLE_BASE_FEE_USD = 0.01;
@@ -121,36 +113,51 @@ public class ClprBaseFeeSuite {
     }
 
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
-    final Stream<DynamicTest> registerChannelChargesConfiguredBaseFee() {
-        final var txn = "clprRegisterChannelBaseFeeTxn";
+    final Stream<DynamicTest> createChannelChargesConfiguredBaseFee() {
+        final var txn = "clprCreateChannelBaseFeeTxn";
         return hapiTest(
                 overriding("fees.simpleFeesEnabled", "true"),
                 cryptoCreate(PAYER).balance(ONE_MILLION_HBARS),
-                clprRegisterChannel()
-                        .ownershipCommitment(commitment((byte) 0x01))
+                clprCreateChannel()
+                        .channelId(new byte[32])
+                        .salt(new byte[32])
+                        .peerVerifier(new byte[20])
+                        .configProofBytes(new byte[] {1})
+                        .verifierContractId(com.hederahashgraph.api.proto.java.ContractID.newBuilder()
+                                .setContractNum(99999999)
+                                .build())
+                        .hasKnownStatus(
+                                com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_INVALID_VERIFIER_CONTRACT)
                         .payingWith(PAYER)
                         .via(txn),
                 validateChargedUsdFromRecordWithTxnSize(
                         txn,
-                        txnSize -> expectedClprTotalUsd(REGISTER_CHANNEL_FEE_USD, PAYER_SIGNATURES, txnSize),
+                        txnSize -> expectedClprTotalUsd(CREATE_CHANNEL_FEE_USD, PAYER_SIGNATURES, txnSize),
                         ALLOWED_PERCENT_DIFF));
     }
 
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
-    final Stream<DynamicTest> failedRegisterConnectorChargesConfiguredBaseFee() {
-        final var txn = "clprRegisterConnectorBaseFeeTxn";
+    final Stream<DynamicTest> createConnectorChargesConfiguredBaseFee() {
+        final var txn = "clprCreateConnectorBaseFeeTxn";
+        final var crypto = new ClprChannelCrypto();
         return hapiTest(
                 overriding("fees.simpleFeesEnabled", "true"),
                 cryptoCreate(PAYER).balance(ONE_MILLION_HBARS),
-                clprRegisterConnector()
+                clprCreateConnector()
                         .channelId(new byte[32])
-                        .commitment(commitment((byte) 0x02))
+                        .connectorId(crypto.connectorId())
+                        .ed25519Identity(crypto.seed())
+                        .salt(crypto.connectorSalt())
+                        .connectorContractId(com.hederahashgraph.api.proto.java.ContractID.newBuilder()
+                                .setContractNum(1234)
+                                .build())
+                        .adminKeyName(PAYER)
                         .payingWith(PAYER)
                         .via(txn)
                         .hasKnownStatus(CLPR_CHANNEL_NOT_FOUND),
                 validateChargedUsdFromRecordWithTxnSize(
                         txn,
-                        txnSize -> expectedClprTotalUsd(REGISTER_CONNECTOR_FEE_USD, PAYER_SIGNATURES, txnSize),
+                        txnSize -> expectedClprTotalUsd(CREATE_CONNECTOR_FEE_USD, PAYER_SIGNATURES + 1, txnSize),
                         ALLOWED_PERCENT_DIFF));
     }
 
@@ -171,12 +178,12 @@ public class ClprBaseFeeSuite {
     }
 
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
-    final Stream<DynamicTest> nonAdminCloseChannelChargesOnlyNodeAndNetworkFees() {
-        final var txn = "clprCloseChannelFeesTxn";
+    final Stream<DynamicTest> nonAdminDeleteChannelChargesOnlyNodeAndNetworkFees() {
+        final var txn = "clprDeleteChannelFeesTxn";
         return hapiTest(
                 overriding("fees.simpleFeesEnabled", "true"),
                 cryptoCreate(PAYER).balance(ONE_MILLION_HBARS),
-                clprCloseChannel()
+                clprDeleteChannel()
                         .channelId(new byte[32])
                         .payingWith(PAYER)
                         .via(txn)
@@ -240,12 +247,5 @@ public class ClprBaseFeeSuite {
         final double nodeFee = NODE_BASE_FEE_USD + sigExtras + bytesExtras;
         final double networkFee = nodeFee * NETWORK_MULTIPLIER;
         return serviceFeeUsd + nodeFee + networkFee;
-    }
-
-    /** A 32-byte commitment whose first byte distinguishes it from other tests in this suite. */
-    private static byte[] commitment(final byte tag) {
-        final var bytes = new byte[32];
-        bytes[0] = tag;
-        return bytes;
     }
 }

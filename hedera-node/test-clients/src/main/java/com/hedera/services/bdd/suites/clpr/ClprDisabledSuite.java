@@ -16,13 +16,11 @@ import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.clprGetEndpointManifest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.clprGetLedgerConfiguration;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCloseChannel;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteChannel;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteConnector;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprDeregisterConnector;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCreateChannel;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCreateConnector;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprDeleteChannel;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprDeleteConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprEvictPeerEndpoint;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterChannel;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprSubmitBundle;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprUpdateLedgerConfiguration;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
@@ -71,7 +69,7 @@ import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
-import com.hedera.services.bdd.spec.transactions.clpr.HapiClprRegisterChannel;
+import com.hedera.services.bdd.spec.transactions.clpr.HapiClprCreateChannel;
 import com.hedera.services.bdd.spec.transactions.clpr.HapiClprUpdateLedgerConfiguration;
 import com.hederahashgraph.api.proto.java.ClprChannelStatus;
 import com.hederahashgraph.api.proto.java.ClprEndpoint;
@@ -476,32 +474,27 @@ public class ClprDisabledSuite {
     private static LinkedHashMap<String, HapiTxnOp<?>> clprTxns(final ClprChannelCrypto crypto) {
         final var txns = new LinkedHashMap<String, HapiTxnOp<?>>();
         txns.put("updateLedgerConfiguration", clprUpdateLedgerConfiguration().configuration(ledgerConfig()));
-        txns.put("registerChannel", clprRegisterChannel().ownershipCommitment(crypto.commitment()));
         txns.put(
-                "completeChannel",
-                clprCompleteChannel()
+                "createChannel",
+                clprCreateChannel()
                         .channelId(crypto.channelId())
-                        .publicKey(crypto.publicKey())
-                        .signature(crypto.signature())
+                        .salt(crypto.salt())
+                        .peerVerifier(crypto.peerVerifier())
                         .verifierContract(VERIFIER_CONTRACT)
                         .configProofBytes(toConfigProofBytes(ledgerConfig())));
         txns.put(
-                "registerConnector",
-                clprRegisterConnector().channelId(crypto.channelId()).commitment(crypto.connectorCommitment()));
-        txns.put(
-                "completeConnector",
-                clprCompleteConnector()
+                "createConnector",
+                clprCreateConnector()
                         .connectorId(crypto.connectorId())
-                        .publicKey(crypto.publicKey())
-                        .signature(crypto.connectorSignature())
+                        .ed25519Identity(crypto.seed())
                         .salt(crypto.connectorSalt())
                         .channelId(crypto.channelId())
                         .connectorContract(CONNECTOR_CONTRACT)
                         .adminKeyName(GENESIS)
                         .lockedStakeTinycents(DEFAULT_MIN_LOCKED_STAKE_TINYCENTS));
         txns.put(
-                "deregisterConnector",
-                clprDeregisterConnector()
+                "deleteConnector",
+                clprDeleteConnector()
                         .channelId(crypto.channelId())
                         .connectorId(crypto.connectorId())
                         .adminKey(GENESIS)
@@ -525,12 +518,12 @@ public class ClprDisabledSuite {
         txns.put(
                 "evictPeerEndpoint",
                 clprEvictPeerEndpoint().channelId(crypto.channelId()).endpoint("203.0.113.1", 50211));
-        txns.put("closeChannel", clprCloseChannel().channelId(crypto.channelId()));
+        txns.put("deleteChannel", clprDeleteChannel().channelId(crypto.channelId()));
         // Only governance operations require an administrator; public operations must exercise user throttles.
         txns.values()
                 .forEach(op -> op.payingWith(
                         switch (op.type()) {
-                            case ClprUpdateLedgerConfiguration, ClprCloseChannel, ClprEvictPeerEndpoint -> GENESIS;
+                            case ClprUpdateLedgerConfiguration, ClprDeleteChannel, ClprEvictPeerEndpoint -> GENESIS;
                             default -> CALLER;
                         }));
         return txns;
@@ -578,10 +571,10 @@ public class ClprDisabledSuite {
                         + "in NODE_INTERNAL_CLPR_FUNCTIONS with the reason it is unreachable from HAPI");
     }
 
-    private static HapiClprRegisterChannel endpointPublicationProbe() {
+    private static HapiClprCreateChannel endpointPublicationProbe() {
         // Reuse a transaction transport but replace its oneof body before signing. This checks
         // the actual parsed functionality, including an internal operation without its own RPC.
-        return clprRegisterChannel()
+        return clprCreateChannel()
                 .payingWith(GENESIS)
                 .withBodyMutation((body, spec) ->
                         body.setClprEndpointPublication(ClprEndpointPublicationTransactionBody.newBuilder()

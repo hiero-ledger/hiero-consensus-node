@@ -16,7 +16,7 @@ import org.hiero.base.io.exceptions.BadIOException;
 import org.hiero.consensus.gossip.config.SocketConfig;
 import org.hiero.consensus.gossip.impl.gossip.sync.SyncInputStream;
 import org.hiero.consensus.gossip.impl.gossip.sync.SyncOutputStream;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * Manage a single connection with another member, which can be initiated by self or by them. Once the connection is

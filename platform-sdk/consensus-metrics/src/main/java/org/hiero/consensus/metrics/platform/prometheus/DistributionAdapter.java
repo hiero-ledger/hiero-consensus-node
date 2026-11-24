@@ -12,10 +12,10 @@ import io.prometheus.client.Collector;
 import io.prometheus.client.CollectorRegistry;
 import io.prometheus.client.Gauge;
 import java.util.Objects;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.metrics.RunningAverageMetric;
 import org.hiero.consensus.metrics.SpeedometerMetric;
 import org.hiero.consensus.metrics.platform.prometheus.PrometheusEndpoint.AdapterType;
-import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Adapter that synchronizes {@link RunningAverageMetric} and
@@ -63,13 +63,12 @@ public class DistributionAdapter extends AbstractMetricAdapter {
             Objects.requireNonNull(nodeId, "nodeId must not be null");
         }
         for (final Snapshot.SnapshotEntry entry : snapshot.entries()) {
-            final String valueType =
-                    switch (entry.valueType()) {
-                        case MIN -> "min";
-                        case MAX -> "max";
-                        case STD_DEV -> "stddev";
-                        default -> "mean";
-                    };
+            final String valueType = switch (entry.valueType()) {
+                case MIN -> "min";
+                case MAX -> "max";
+                case STD_DEV -> "stddev";
+                default -> "mean";
+            };
             final Gauge.Child child =
                     adapterType == GLOBAL ? gauge.labels(valueType) : gauge.labels(nodeId.toString(), valueType);
             child.set(((Number) entry.value()).doubleValue());

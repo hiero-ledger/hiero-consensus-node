@@ -20,7 +20,7 @@ abstract class enforces:
    `ClprChannel` or throws `HandleException` (e.g. `INVALID_CLPR_CHANNEL_ID`,
    `CLPR_CHANNEL_NOT_ACTIVE`).
 3. **Admin gating** uses the platform's `PrivilegesVerifier`. The treasury, system
-   admin, and configured `accounts.clprAdmin` payer can submit `closeChannel`,
+   admin, and configured `accounts.clprAdmin` payer can submit `deleteChannel`,
    `evictPeerEndpoint`, and `updateLedgerConfiguration`.
    The framework verifies the payer signature and rejects unauthorized payers with
    `AUTHORIZATION_FAILED`.
@@ -30,7 +30,7 @@ Subclasses implement `pureChecks`, `preHandle`, and `doHandle` (per
 
 ## Aggregator: `ClprHandlers`
 
-`@Singleton` Dagger-injectable record (10 handlers + 1 query handler). Wired into the
+Dagger injects this singleton with eight transaction handlers and two query handlers. It supplies the
 HAPI dispatch table for the CLPR `HederaFunctionality` values. Add new handlers here.
 
 ## Handler-by-handler
@@ -38,33 +38,13 @@ HAPI dispatch table for the CLPR `HederaFunctionality` values. Add new handlers 
 For each: trigger functionality → spec §6 method → key validation → state writes →
 side-effects.
 
-### `ClprRegisterChannelHandler` — commit phase
+### `ClprCreateChannelHandler`
 
-- Functionality: `CLPR_REGISTER_CHANNEL`. Spec §5.1.2 / §6.2 (`registerChannel`).
-- Body: `ClprRegisterChannelTransactionBody`.
-- Validates: payer pays the registration fee; commitment hash well-formed; commitment not
-  already in `PENDING_COMMITMENTS` (pending reveal, or bound to an existing Channel in any
-  status, including `CLOSED`) — otherwise `CLPR_CHANNEL_ALREADY_EXISTS`.
-- Writes: `PENDING_COMMITMENTS[commitment_hash] = commitment_hash`.
-- No channel record is created in this phase.
+Any payer can open a channel in one transaction. The selected verifier authenticates the peer configuration and endpoint manifest. The handler derives the channel ID from both ledgers’ chain IDs, service addresses, verifier addresses, and the shared 32-byte salt. If the ID matches the submitted ID and the channel is new, the handler stores the active channel and schedules synchronization with its verified endpoints.
 
-### `ClprCompleteChannelHandler` — reveal phase
+### `ClprDeleteChannelHandler` — admin close
 
-- Functionality: `CLPR_COMPLETE_CHANNEL`. Spec §5.1.3 / §6.2 (`completeChannel`).
-- Validates: preimage matches the prior `PENDING_COMMITMENTS` entry; signer key matches
-  preimage; verifier contract resolves; chain ID, throttles, etc. on the candidate config
-  pass `verifyConfig`. Re-derives `channelId`.
-- Writes: `CHANNELS[channelId] = ClprChannel{ status: ACTIVE, ownership_commitment, … }`. The
-  commitment is **not** removed: it stays in `PENDING_COMMITMENTS` for as long as the Channel
-  record exists. Channel records are kept in every status, including `CLOSED`, so a Channel
-  can never be created again.
-- **Lifecycle hook:** calls `ClprChannelLifecycle.onChannelActivated(channelId)`
-  → `ClprChannelManager` adds the channel to its sync schedule. (In the standalone
-  executor module the lifecycle is a no-op.)
-
-### `ClprCloseChannelHandler` — admin close
-
-- Functionality: `CLPR_CLOSE_CHANNEL`. Spec §6.2 (`closeChannel`).
+- Functionality: `CLPR_DELETE_CHANNEL`. HAPI method: `deleteChannel` (channel closure in spec §6.2).
 - Admin-gated.
 - From `ACTIVE`/`PAUSED`, status becomes `CLOSING`, or `DRAINED` directly if the whole
   outbound queue is already acknowledged. From `DRAINED`, status becomes `CLOSED`.
@@ -90,35 +70,22 @@ side-effects.
   `CLPR_PEER_ENDPOINT_NOT_FOUND`.
 - The manifest version is unchanged, so a later manifest-advancing bundle can list the endpoint again.
 
-### `ClprRegisterConnectorHandler` / `ClprCompleteConnectorHandler`
+### `ClprCreateConnectorHandler`
 
-- Functionalities: `CLPR_REGISTER_CONNECTOR`, `CLPR_COMPLETE_CONNECTOR`. Spec §6.3.
-- Same commit-reveal shape as channel registration.
-- Register requires a 32-byte `channel_id` identifying an existing channel and a 32-byte
-  `commitment`. A missing channel fails with `CLPR_CHANNEL_NOT_FOUND` before storing the commitment.
-  The channel ID is public metadata; the commitment preimage is verified during reveal.
-- Reveal verifies signature `ECDSA(keccak256(connector_id ‖ 0x…16e))` (Hiero-specific
-  binding from spec §6.3 callout).
-- Stake: `complete` converts `ClprConfig.minLockedStakeTinycents` (default $3,000) at the active
-  exchange rate for the transaction's consensus time and requires `locked_stake` to meet that minimum.
-  The submitted `locked_stake` is transferred in tinybars from payer to `ClprConfig.stakingAccount`
-  and stored on the connector. Existing locked stake is not continuously revalued as exchange rates change.
-- Register rejects a commitment already in `PENDING_CONNECTOR_COMMITMENTS` with
-  `CLPR_CONNECTOR_ALREADY_EXISTS`.
-- Writes: `CONNECTORS[ClprConnectorKey] = ClprConnector{...}`. The commitment stays in
-  `PENDING_CONNECTOR_COMMITMENTS` permanently, so the same Connector can never be created again.
+The payer and the identity key sign a single `CLPR_CREATE_CONNECTOR` transaction.
+The expected connector ID must equal `keccak256(publicKey ‖ salt)`, using the raw
+32-byte Ed25519 key or the 64-byte secp256k1 coordinates and a 32-byte salt.
+The handler checks the channel, local contract, minimum stake, and payer balance,
+then transfers the stake and records the connector under `(channel_id, connector_id)`.
+An existing or previously used pair returns `CLPR_CONNECTOR_ALREADY_EXISTS`.
+The minimum stake is $3,000 by default (`ClprConfig.minLockedStakeTinycents`), converted at the consensus-time exchange rate.
+The submitted tinybar amount stays locked as exchange rates change.
 
-### `ClprDeregisterConnectorHandler`
+### `ClprDeleteConnectorHandler`
 
-- Functionality: `CLPR_DEREGISTER_CONNECTOR`. Spec §6.3.
-- Removes connector record; releases locked stake back to the connector owner via system
-  transfer. The `PENDING_CONNECTOR_COMMITMENTS` entry is kept, so the same connector ID cannot
-  be registered again (a new salt yields a new connector ID). The same holds for a connector
-  removed by a slashing ban.
-- **Known gap (see [drift-from-spec.md §2.5](drift-from-spec.md)):** spec §6.3 requires
-  "MUST NOT deregister if the Connector has unresolved in-flight messages." Hiero does
-  not currently enforce this — deregister succeeds even with messages still queued for
-  the connector.
+Deletion requires the admin and stake recipient signatures and zero in-flight
+messages. It removes the active binding and returns the remaining stake to the
+recipient. The channel and connector ID pair stays recorded after deletion or a ban.
 
 ### `ClprSubmitBundleHandler`
 

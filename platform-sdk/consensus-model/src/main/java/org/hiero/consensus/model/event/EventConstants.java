@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.model.event;
 
-import org.hiero.base.crypto.DigestType;
-
 public final class EventConstants {
     /**
      * Private constructor so that this class is never instantiated
@@ -25,7 +23,4 @@ public final class EventConstants {
      * numbers are non-negative, making {@code -1} a clear and unambiguous indicator of the unassigned state.
      */
     public static final long SEQUENCE_NUMBER_UNDEFINED = -1;
-
-    /** The default digest type for events. */
-    public static final DigestType DEFAULT_EVENT_DIGEST_TYPE = DigestType.SHA_256;
 }

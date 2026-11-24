@@ -27,7 +27,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.sloth.fixtures.container.proto.ContainerControlServiceGrpc;
 import org.hiero.sloth.fixtures.container.proto.InitRequest;
 import org.hiero.sloth.fixtures.container.proto.KillImmediatelyRequest;

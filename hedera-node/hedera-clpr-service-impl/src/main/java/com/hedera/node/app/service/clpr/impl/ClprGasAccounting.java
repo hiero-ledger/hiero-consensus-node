@@ -48,7 +48,7 @@ public final class ClprGasAccounting {
         final long maximum = Math.max(0, contractsConfig.maxGasPerTransaction());
         final var clprConfig = context.configuration().getConfigData(ClprConfig.class);
         final var body = context.body();
-        if (body != null && body.hasClprCompleteChannel()) {
+        if (body != null && body.hasClprCreateChannel()) {
             totalGas = Math.min(maximum, Math.max(0, clprConfig.verifierGasLimit()));
         } else if (body != null && body.hasClprSubmitBundle()) {
             // A bundle runs many separately capped calls, so its total can exceed one transaction's gas
@@ -79,7 +79,7 @@ public final class ClprGasAccounting {
     /** Prepays the whole transaction allowance from the original payer before any EVM work. */
     public boolean reserveParentGas() {
         if (prepaid) return true;
-        final long billableGas = context.body() != null && context.body().hasClprCompleteChannel()
+        final long billableGas = context.body() != null && context.body().hasClprCreateChannel()
                 ? Math.min(totalGas, MAX_BILLED_VERIFIER_GAS)
                 : totalGas;
         final long fee = costForGas(billableGas);

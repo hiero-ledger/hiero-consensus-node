@@ -3,8 +3,8 @@ package org.hiero.consensus.model.test.fixtures.roster;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.RosterWrapper;
 
 /**
