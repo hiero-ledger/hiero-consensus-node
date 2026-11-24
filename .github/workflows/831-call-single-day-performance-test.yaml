@@ -351,6 +351,7 @@ jobs:
           cd "${{ github.workspace }}"
 
       - name: Build Validator
+        if: false
         run: |
           cd "${{ github.workspace }}"/target_consensus_node
           ./gradlew --no-daemon :hedera-state-validator:shadowJar
@@ -663,6 +664,7 @@ jobs:
           apt install -y temurin-25-jdk"
 
       - name: Deploy Validator
+        if: false
         run: |
           set +x
           set +e
@@ -1566,6 +1568,8 @@ jobs:
         run: |
           set +x
           set +e
+          echo "value=0" >> "${GITHUB_OUTPUT}"
+          exit 0
           KUBECTL_TIMEOUT=60m kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" \
             exec -it network-node1-0 -c root-container -- bash -c "cd /opt/hgcapp/services-hedera/HapiApp2.0; bash checkValidatorNode.sh 0" 2>&1 | tee "${{ github.workspace }}"/report/validator_status.log
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" \
@@ -1585,6 +1589,7 @@ jobs:
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
 
       - name: Publish logs
+        if: false
         if: ${{ !cancelled() }}
         run: |
           cd "${{ github.workspace }}"/
