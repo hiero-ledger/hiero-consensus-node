@@ -32,12 +32,6 @@
       "basePriceMills": 10
     },
     {
-      "name": "ScheduleCreate",
-      "baseRate": 100,
-      "maxTps": 10000,
-      "basePriceMills": 20
-    },
-    {
       "name": "CryptoApproveAllowance",
       "baseRate": 10000,
       "maxTps": 10000,
@@ -50,22 +44,10 @@
       "basePriceMills": 50
     },
     {
-      "name": "FileAppend",
-      "baseRate": 10,
-      "maxTps": 50000,
-      "basePriceMills": 50
-    },
-    {
       "name": "ContractCreate",
       "baseRate": 350,
       "maxTps": 17500,
       "basePriceMills": 1000
-    },
-    {
-      "name": "HookStore",
-      "baseRate": 10,
-      "maxTps": 50000,
-      "basePriceMills": 5
     },
     {
       "name": "TokenAssociateToAccount",

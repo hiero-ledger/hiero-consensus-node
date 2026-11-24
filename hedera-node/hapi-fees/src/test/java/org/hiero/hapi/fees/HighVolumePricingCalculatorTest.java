@@ -16,6 +16,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_CLAIM_AIRDROP;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_MINT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import java.util.List;
 import java.util.Set;
@@ -39,12 +40,9 @@ class HighVolumePricingCalculatorTest {
                 Set.of(
                         CRYPTO_CREATE,
                         CONSENSUS_CREATE_TOPIC,
-                        SCHEDULE_CREATE,
                         CRYPTO_APPROVE_ALLOWANCE,
                         FILE_CREATE,
-                        FILE_APPEND,
                         CONTRACT_CREATE,
-                        HOOK_STORE,
                         TOKEN_ASSOCIATE_TO_ACCOUNT,
                         TOKEN_AIRDROP,
                         TOKEN_CLAIM_AIRDROP,
@@ -55,12 +53,9 @@ class HighVolumePricingCalculatorTest {
                 Set.of(
                         CRYPTO_CREATE,
                         CONSENSUS_CREATE_TOPIC,
-                        SCHEDULE_CREATE,
                         CRYPTO_APPROVE_ALLOWANCE,
                         FILE_CREATE,
-                        FILE_APPEND,
                         CONTRACT_CREATE,
-                        HOOK_STORE,
                         TOKEN_ASSOCIATE_TO_ACCOUNT,
                         TOKEN_AIRDROP,
                         TOKEN_CLAIM_AIRDROP,
@@ -68,6 +63,15 @@ class HighVolumePricingCalculatorTest {
                         TOKEN_CREATE,
                         CRYPTO_TRANSFER),
                 HighVolumePricingCalculator.HIGH_VOLUME_THROTTLE_FUNCTIONS);
+    }
+
+    @Test
+    @DisplayName("Never prices or routes FileAppend, ScheduleCreate or HookStore as high volume")
+    void excludesFileAppendScheduleCreateAndHookStore() {
+        for (final var function : List.of(FILE_APPEND, SCHEDULE_CREATE, HOOK_STORE)) {
+            assertFalse(HighVolumePricingCalculator.HIGH_VOLUME_PRICING_FUNCTIONS.contains(function), function.name());
+            assertFalse(HighVolumePricingCalculator.HIGH_VOLUME_THROTTLE_FUNCTIONS.contains(function), function.name());
+        }
     }
 
     @Test

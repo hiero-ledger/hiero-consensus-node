@@ -240,21 +240,6 @@
 	  {
 		  "burstPeriod": 0,
 		  "burstPeriodMs": 1000,
-		  "name": "HVScheduleCreateThrottles",
-		  "highVolume": true,
-		  "throttleGroups": [
-			  {
-				  "opsPerSec": 0,
-				  "milliOpsPerSec": 10000000,
-				  "operations": [
-					  "ScheduleCreate"
-				  ]
-			  }
-		  ]
-	  },
-	  {
-		  "burstPeriod": 0,
-		  "burstPeriodMs": 1000,
 		  "name": "HVFileCreateThrottles",
 		  "highVolume": true,
 		  "throttleGroups": [
@@ -270,21 +255,6 @@
 	  {
 		  "burstPeriod": 0,
 		  "burstPeriodMs": 1000,
-		  "name": "HVFileAppendThrottles",
-		  "highVolume": true,
-		  "throttleGroups": [
-			  {
-				  "opsPerSec": 0,
-				  "milliOpsPerSec": 50000000,
-				  "operations": [
-					  "FileAppend"
-				  ]
-			  }
-		  ]
-	  },
-	  {
-		  "burstPeriod": 0,
-		  "burstPeriodMs": 1000,
 		  "name": "HVContractCreateThrottles",
 		  "highVolume": true,
 		  "throttleGroups": [
@@ -293,21 +263,6 @@
 				  "milliOpsPerSec": 17500000,
 				  "operations": [
 					  "ContractCreate"
-				  ]
-			  }
-		  ]
-	  },
-	  {
-		  "burstPeriod": 0,
-		  "burstPeriodMs": 1000,
-		  "name": "HVHookStoreThrottles",
-		  "highVolume": true,
-		  "throttleGroups": [
-			  {
-				  "opsPerSec": 0,
-				  "milliOpsPerSec": 50000000,
-				  "operations": [
-					  "HookStore"
 				  ]
 			  }
 		  ]
@@ -400,11 +355,8 @@
 					  "CryptoCreate",
 					  "CryptoApproveAllowance",
 					  "ConsensusCreateTopic",
-					  "ScheduleCreate",
 					  "FileCreate",
-					  "FileAppend",
 					  "ContractCreate",
-					  "HookStore",
 					  "TokenAssociateToAccount",
 					  "TokenAirdrop",
 					  "TokenClaimAirdrop",

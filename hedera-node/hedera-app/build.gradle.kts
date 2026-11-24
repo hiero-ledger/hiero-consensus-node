@@ -58,14 +58,17 @@ testModuleInfo {
 }
 
 tasks.test {
-    // HtsAutoCreationIngestThrottleTest reads the network throttle files
+    // HtsAutoCreationIngestThrottleTest and HighVolumeConfigTest read the network upgrade files
     inputs
         .files(
-            listOf("mainnet", "testnet", "previewnet").map {
-                "../configuration/$it/upgrade/throttles.json"
+            listOf("mainnet", "testnet", "previewnet").flatMap {
+                listOf(
+                    "../configuration/$it/upgrade/throttles.json",
+                    "../configuration/$it/upgrade/simpleFeesSchedules.json",
+                )
             },
         )
-        .withPropertyName("networkThrottles")
+        .withPropertyName("networkUpgradeFiles")
         .withPathSensitivity(PathSensitivity.RELATIVE)
 }
 

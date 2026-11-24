@@ -23,10 +23,6 @@ import static com.hedera.services.bdd.suites.throttling.hip1313.Hip1313EnabledTe
 import static com.hedera.services.bdd.suites.throttling.hip1313.Hip1313EnabledTest.CRYPTO_TOPIC_CREATE_MULTIPLIER_MAP;
 import static com.hedera.services.bdd.suites.throttling.hip1313.Hip1313EnabledTest.LINEAR_CRYPTO_CREATE_MAX_MULTIPLIER;
 import static com.hedera.services.bdd.suites.throttling.hip1313.Hip1313EnabledTest.ONE_X_MULTIPLIER;
-import static com.hedera.services.bdd.suites.throttling.hip1313.Hip1313EnabledTest.SCHEDULE_CREATE_HV_TPS;
-import static com.hedera.services.bdd.suites.throttling.hip1313.Hip1313EnabledTest.SCHEDULE_CREATE_MULTIPLIER_MAP;
-import static com.hedera.services.bdd.suites.throttling.hip1313.Hip1313EnabledTest.TOPIC_CREATE_BASE_FEE;
-import static com.hedera.services.bdd.suites.throttling.hip1313.Hip1313EnabledTest.TOPIC_CREATE_HV_TPS;
 import static com.hedera.services.bdd.suites.throttling.hip1313.Hip1313EnabledTest.assertAnyRecordMatches;
 import static com.hedera.services.bdd.suites.throttling.hip1313.Hip1313EnabledTest.assertHighVolumeMultiplierSet;
 import static com.hedera.services.bdd.suites.throttling.hip1313.Hip1313EnabledTest.assertMultiplierAtLeast;
@@ -38,7 +34,6 @@ import static com.hedera.services.bdd.suites.throttling.hip1313.Hip1313EnabledTe
 import static com.hedera.services.bdd.suites.throttling.hip1313.Hip1313EnabledTest.simpleFeesWithOneXCryptoCreateHighVolumeRates;
 import static com.hedera.services.bdd.suites.throttling.hip1313.Hip1313EnabledTest.simpleFeesWithoutCryptoCreatePricingCurve;
 import static com.hedera.services.bdd.suites.throttling.hip1313.Hip1313EnabledTest.submitHighVolumeCryptoCreates;
-import static com.hedera.services.bdd.suites.throttling.hip1313.Hip1313EnabledTest.submitMixedHighVolumeTopicAndScheduleCreates;
 import static org.hiero.hapi.fees.HighVolumePricingCalculator.linearInterpolate;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -51,7 +46,6 @@ import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
@@ -98,73 +92,6 @@ public class Hip1313GenesisTest {
                                 numCreateTxnsAllowed);
                     }
                     assertEquals(200, entries.size());
-                }));
-    }
-
-    @GenesisHapiTest
-    @Disabled
-    final Stream<DynamicTest> mixedHighVolumeTxnsWorkAsExpectedForTopicCreateAndScheduleCreate() {
-        final AtomicReference<List<RecordStreamEntry>> highVolumeTxns = new AtomicReference<>();
-        final int numBursts = 200;
-        return hapiTest(
-                overridingThrottles("testSystemFiles/hip1313-multi-op-pricing-throttles.json"),
-                streamMustIncludeNoFailuresFrom(allVisibleItems(feeMultiplierValidator(highVolumeTxns))),
-                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted),
-                cryptoCreate(CIVILIAN_PAYER).balance(ONE_MILLION_HBARS),
-                overriding("networkAdmin.highVolumeThrottlesEnabled", "true"),
-                withOpContext((spec, opLog) -> submitMixedHighVolumeTopicAndScheduleCreates(spec, numBursts)),
-                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted),
-                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted),
-                withOpContext((spec, opLog) -> {
-                    final var entries = filteredHighVolumeEntries(
-                            highVolumeTxns,
-                            e -> e.body().hasConsensusCreateTopic() || e.body().hasScheduleCreate());
-                    final var topicThrottle = DeterministicThrottle.withTpsAndBurstPeriodMs(TOPIC_CREATE_HV_TPS, 1000);
-                    final var scheduleThrottle =
-                            DeterministicThrottle.withTpsAndBurstPeriodMs(SCHEDULE_CREATE_HV_TPS, 1000);
-                    int topicCreates = 0;
-                    int scheduleCreates = 0;
-                    for (final var entry : entries) {
-                        final var fee = entry.txnRecord().getTransactionFee();
-                        if (entry.body().hasConsensusCreateTopic()) {
-                            topicThrottle.leakUntil(entry.consensusTime());
-                            final var utilizationBasisPointsBefore = topicThrottle.instantaneousBps();
-                            topicThrottle.allow(1, entry.consensusTime());
-                            topicCreates++;
-                            final var utilizationBasisPointsAfter = topicThrottle.instantaneousBps();
-                            assertHighVolumeMultiplierSet(entry, "topic create");
-                            final var observedMultiplier = observedMultiplier(spec, fee, TOPIC_CREATE_BASE_FEE);
-                            final var observedRawMultiplier =
-                                    entry.txnRecord().getHighVolumePricingMultiplier() / 1000.0;
-                            assertMultiplierAtLeast(observedMultiplier, "topic create");
-                            assertMultiplierMatchesExpectation(
-                                    CRYPTO_TOPIC_CREATE_MULTIPLIER_MAP,
-                                    observedRawMultiplier,
-                                    utilizationBasisPointsBefore,
-                                    utilizationBasisPointsAfter,
-                                    "topic create",
-                                    topicCreates);
-                        } else if (entry.body().hasScheduleCreate()) {
-                            scheduleThrottle.leakUntil(entry.consensusTime());
-                            final var utilizationBasisPointsBefore = scheduleThrottle.instantaneousBps();
-                            scheduleThrottle.allow(1, entry.consensusTime());
-                            scheduleCreates++;
-                            final var utilizationBasisPointsAfter = scheduleThrottle.instantaneousBps();
-                            assertHighVolumeMultiplierSet(entry, "schedule create");
-                            final var observedRawMultiplier =
-                                    entry.txnRecord().getHighVolumePricingMultiplier() / 1000.0;
-                            assertMultiplierMatchesExpectation(
-                                    SCHEDULE_CREATE_MULTIPLIER_MAP,
-                                    observedRawMultiplier,
-                                    utilizationBasisPointsBefore,
-                                    utilizationBasisPointsAfter,
-                                    "schedule create",
-                                    scheduleCreates);
-                        }
-                    }
-                    assertEquals(numBursts * 2, entries.size());
-                    assertEquals(numBursts, topicCreates);
-                    assertEquals(numBursts, scheduleCreates);
                 }));
     }
 

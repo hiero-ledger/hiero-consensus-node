@@ -12,6 +12,8 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileAppend;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAirdrop;
@@ -54,6 +56,7 @@ import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.HapiSpec;
+import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsValidator;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
@@ -98,22 +101,7 @@ public class Hip1313EnabledTest {
             Map.entry(500, 150000L),
             Map.entry(1000, 200000L),
             Map.entry(10000, 200000L)));
-    public static final NavigableMap<Integer, Long> SCHEDULE_CREATE_MULTIPLIER_MAP = new TreeMap<>(Map.ofEntries(
-            Map.entry(100, 4000L),
-            Map.entry(150, 8000L),
-            Map.entry(250, 10000L),
-            Map.entry(350, 15000L),
-            Map.entry(500, 20000L),
-            Map.entry(750, 30000L),
-            Map.entry(1000, 40000L),
-            Map.entry(2500, 60000L),
-            Map.entry(5000, 80000L),
-            Map.entry(10000, 100000L)));
 
-    private static final double SCHEDULE_CREATE_BASE_FEE = 0.01;
-    static final int SCHEDULE_CREATE_HV_TPS = 1300;
-    static final int TOPIC_CREATE_HV_TPS = 800;
-    static final double TOPIC_CREATE_BASE_FEE = 0.01;
     private static final double MULTIPLIER_TOLERANCE = 0.05;
     static final long ONE_X_MULTIPLIER = 1000L;
     private static final long FOUR_X_MULTIPLIER = 4000L;
@@ -298,6 +286,54 @@ public class Hip1313EnabledTest {
                         .exposingAllTo(records ->
                                 assertNoRecordMatches(records, record -> record.getHighVolumePricingMultiplier() > 0L))
                         .logged());
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> highVolumeFlagIsIgnoredForFileAppendAndScheduleCreate() {
+        final var plainAppendFee = new AtomicLong();
+        final var flaggedAppendFee = new AtomicLong();
+        final var plainScheduleFee = new AtomicLong();
+        final var flaggedScheduleFee = new AtomicLong();
+        return hapiTest(
+                cryptoCreate("unsignedSender").balance(ONE_HBAR),
+                fileCreate("appendTarget").contents("0").payingWith(CIVILIAN_PAYER),
+                fileAppend("appendTarget")
+                        .content("1")
+                        .payingWith(CIVILIAN_PAYER)
+                        .via("plainAppend"),
+                fileAppend("appendTarget")
+                        .content("2")
+                        .payingWith(CIVILIAN_PAYER)
+                        .withHighVolume()
+                        .via("flaggedAppend"),
+                // The sender never signs, so neither schedule executes; the two creates differ only in their memo
+                scheduleCreate("plainSchedule", cryptoTransfer(movingHbar(1).between("unsignedSender", CIVILIAN_PAYER)))
+                        .withEntityMemo("hv-ignored-1")
+                        .payingWith(CIVILIAN_PAYER)
+                        .via("plainSchedule"),
+                scheduleCreate(
+                                "flaggedSchedule",
+                                cryptoTransfer(movingHbar(1).between("unsignedSender", CIVILIAN_PAYER)))
+                        .withEntityMemo("hv-ignored-2")
+                        .payingWith(CIVILIAN_PAYER)
+                        .withHighVolume()
+                        .via("flaggedSchedule"),
+                feeWithoutHighVolumePricing("plainAppend", plainAppendFee),
+                feeWithoutHighVolumePricing("flaggedAppend", flaggedAppendFee),
+                feeWithoutHighVolumePricing("plainSchedule", plainScheduleFee),
+                feeWithoutHighVolumePricing("flaggedSchedule", flaggedScheduleFee),
+                withOpContext((spec, opLog) -> {
+                    assertEquals(plainAppendFee.get(), flaggedAppendFee.get(), "flagged FileAppend fee");
+                    assertEquals(plainScheduleFee.get(), flaggedScheduleFee.get(), "flagged ScheduleCreate fee");
+                }));
+    }
+
+    private static HapiGetTxnRecord feeWithoutHighVolumePricing(
+            @NonNull final String txnName, @NonNull final AtomicLong fee) {
+        return getTxnRecord(txnName).exposingTo(txnRecord -> {
+            assertEquals(0L, txnRecord.getHighVolumePricingMultiplier(), txnName + " high-volume multiplier");
+            fee.set(txnRecord.getTransactionFee());
+        });
     }
 
     @HapiTest
@@ -532,22 +568,6 @@ public class Hip1313EnabledTest {
                     spec,
                     cryptoCreate("hvTotalCreate" + i)
                             .payingWith(CIVILIAN_PAYER)
-                            .deferStatusResolution()
-                            .withHighVolume());
-        }
-    }
-
-    static void submitMixedHighVolumeTopicAndScheduleCreates(@NonNull final HapiSpec spec, final int numBursts) {
-        for (int i = 0; i < numBursts; i++) {
-            allRunFor(
-                    spec,
-                    createTopic("mixedHvTopic" + i)
-                            .payingWith(CIVILIAN_PAYER)
-                            .deferStatusResolution()
-                            .withHighVolume(),
-                    scheduleCreate("mixedHvSchedule" + i, cryptoCreate("mixedHvScheduledAccount" + i))
-                            .payingWith(CIVILIAN_PAYER)
-                            .expiringIn(7_200L + (i * 1_000L))
                             .deferStatusResolution()
                             .withHighVolume());
         }
