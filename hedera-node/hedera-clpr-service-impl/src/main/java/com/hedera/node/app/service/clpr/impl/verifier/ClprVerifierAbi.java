@@ -66,7 +66,7 @@ public final class ClprVerifierAbi {
      *
      * <p>{@code endpointManifestVersion} is the sender's cached version of the receiver's endpoint manifest. Every
      * producer sources it from PROVEN state — the Hiero TSS producer from a proven {@code ClprChannel} leaf, and the
-     * Besu QBFT, Sei and Ethereum producers from the proven Channel storage slot (offset 16) via the
+     * Besu QBFT, Sei and Ethereum producers from the proven Channel storage slot (offset 15) via the
      * {@link #metadataTuple(ClprQueueMetadata, long)} overload — never from relayed content, which a relay could
      * inflate. It drives the receiver's node-local decision whether to re-send its own manifest (liveness), never
      * consensus state.
@@ -79,7 +79,7 @@ public final class ClprVerifierAbi {
     /**
      * As {@link #metadataTuple(ClprQueueMetadata)}, but with {@code endpointManifestVersion} supplied explicitly —
      * used by the EVM producers (Besu QBFT, Sei, Ethereum) to carry the version PROVEN from the peer Channel storage
-     * slot (offset 16) rather than the unproven copy in {@code meta}.
+     * slot (offset 15) rather than the unproven copy in {@code meta}.
      */
     @Nullable
     public static Tuple metadataTuple(@NonNull final ClprQueueMetadata meta, final long endpointManifestVersion) {

@@ -21,7 +21,7 @@ class EvmChannelContextTest {
 
     private static final byte[] SERVICE = new byte[20];
     /** Channel struct field offsets, in queue-metadata order. */
-    private static final int[] OFFSETS = {1, 2, 4, 5, 16};
+    private static final int[] OFFSETS = {1, 2, 4, 5, 15};
 
     @Test
     void requiresFullContextAndMatchingService() {
@@ -58,7 +58,7 @@ class EvmChannelContextTest {
 
     @Test
     void rejectsDuplicateAndMissingChannelSlots() {
-        // Replacing the offset-16 key with a second offset-1 key leaves one slot duplicated and one missing; the
+        // Replacing the offset-15 key with a second offset-1 key leaves one slot duplicated and one missing; the
         // duplicate is reported first.
         final byte[][] keys = keys(CHANNEL, false);
         keys[4] = keys[0];
@@ -94,14 +94,14 @@ class EvmChannelContextTest {
     }
 
     /**
-     * The canonical keys of {@code channel}: {@code keccak256(channel || uint256(15)) + OFFSETS[i]}, plus (when
+     * The canonical keys of {@code channel}: {@code keccak256(channel || uint256(11)) + OFFSETS[i]}, plus (when
      * {@code message}) the running-hash slot of message 41, {@code keccak256(uint256(41) || keccak256(channel ||
      * uint256(1))) + 1}.
      */
     private static byte[][] keys(final byte[] channel, final boolean message) {
         final byte[] preimage = new byte[64];
         System.arraycopy(channel, 0, preimage, 0, 32);
-        preimage[63] = 15;
+        preimage[63] = 11;
         final var base = new BigInteger(1, MiscCryptoUtils.keccak256DigestOf(preimage));
         final byte[][] keys = new byte[message ? 6 : 5][];
         for (int i = 0; i < 5; i++) {

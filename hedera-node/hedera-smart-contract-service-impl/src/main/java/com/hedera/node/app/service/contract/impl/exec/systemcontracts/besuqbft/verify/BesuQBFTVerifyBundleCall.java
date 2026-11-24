@@ -236,7 +236,7 @@ public class BesuQBFTVerifyBundleCall extends AbstractCall {
                 Bytes.wrap(verified.blockHash32()),
                 finalBundleContentBytes.length,
                 provenTrustAnchor != null);
-        // Source endpointManifestVersion from the PROVEN queue metadata (SC-189 Channel offset 16), never from
+        // Source endpointManifestVersion from the PROVEN queue metadata (Channel offset 15), never from
         // the relayed content: a relay could otherwise inflate it to make the peer look up-to-date and suppress
         // our manifest re-pushes (spec §4.5, liveness).
         return bundleSuccess(

@@ -49,14 +49,14 @@ import org.hyperledger.besu.crypto.SECPSignature;
  *   index 6: manifestPreimage      // (optional) protobuf ClprEndpointManifest preimage
  * </pre>
  *
- * <p>Storage-proof slot layout (SC-189 Channel struct, 5 or 6 entries). The relay proves these
- * Channel-struct slots at {@code keccak(connId,15)+offset}:
+ * <p>Storage-proof slot layout (Channel struct, 5 or 6 entries). The relay proves these
+ * Channel-struct slots at {@code keccak(connId,11)+offset}:
  * <pre>
  *   offset  1: verifier(20) | status(1) | nextMessageId(8)
  *   offset  2: ackedMessageId(8) | receivedMessageId(8) | nextExpectedReplyId(8)
  *   offset  4: sentRunningHash (bytes32)
  *   offset  5: receivedRunningHash (bytes32)
- *   offset 16: endpointManifestVersion (uint64)
+ *   offset 15: endpointManifestVersion (uint64)
  *   + (only for a bundle that ends before nextMessageId - 1) the running-hash slot of its last message
  *     (message-queue mapping); the system contract binds it to a message id ({@link #findLastMessageId})
  * </pre>
@@ -175,8 +175,8 @@ public final class BesuQbftVerifier {
      */
     static final int MAX_VALIDATORS = 256;
 
-    // ── Storage-proof layout produced by QbftBundleConstructor (SC-189 Channel struct) ──
-    // The relay proves 5 Channel-struct slots — keccak(connId,15)+{1,2,4,5,16} = status|nextMsgId,
+    // ── Storage-proof layout produced by QbftBundleConstructor (Channel struct) ──
+    // The relay proves 5 Channel-struct slots — keccak(connId,11)+{1,2,4,5,15} = status|nextMsgId,
     // acked|received|reply, sentRunningHash, receivedRunningHash, endpointManifestVersion — plus, when
     // the bundle carries messages, the running-hash slot of the last message. So a bundle proves 5
     // (the bundle ends at nextMessageId - 1, with or without messages) or 6 (the bundle stops earlier and
@@ -189,7 +189,7 @@ public final class BesuQbftVerifier {
     // SC-189 storage layout of the `_channels` mapping and the proven Channel-struct field
     // offsets, used for exact slot-key matching against the channel id
     // (base = keccak256(channelId(32) || uint256(CHANNELS_MAPPING_SLOT))).
-    private static final int CHANNELS_MAPPING_SLOT = 15;
+    private static final int CHANNELS_MAPPING_SLOT = 11;
     // `_messageQueues` mapping base slot: message L's running hash sits at
     // keccak256(abi.encode(uint64(L), keccak256(abi.encode(channelId, 1)))) + 1.
     private static final int MESSAGE_QUEUES_MAPPING_SLOT = 1;
@@ -199,9 +199,9 @@ public final class BesuQbftVerifier {
     private static final int CHANNEL_OFFSET_ACKED_RECEIVED = 2;
     private static final int CHANNEL_OFFSET_SENT_RUNNING_HASH = 4;
     private static final int CHANNEL_OFFSET_RECEIVED_RUNNING_HASH = 5;
-    private static final int CHANNEL_OFFSET_ENDPOINT_MANIFEST_VERSION = 16;
+    private static final int CHANNEL_OFFSET_ENDPOINT_MANIFEST_VERSION = 15;
     // After reordering into the queue-metadata positional layout, decodeQueueMetadata sees 5 slots (the bundle
-    // ends at nextMessageId - 1) or 6: the 4 queue-metadata slots, the endpointManifestVersion slot (offset 16),
+    // ends at nextMessageId - 1) or 6: the 4 queue-metadata slots, the endpointManifestVersion slot (offset 15),
     // and, for a bundle that ends earlier, the running-hash slot of its last message.
     private static final int STORAGE_PROOF_MIN_ENTRIES = 5;
     private static final int STORAGE_PROOF_MAX_ENTRIES = 6;
@@ -209,13 +209,12 @@ public final class BesuQbftVerifier {
 
     /**
      * EVM storage slot for {@code _config.serviceAddress} in the deployed ClprService contract.
-     * Slot 25 = _config struct base (23) + serviceAddress field offset (2). SC-189 shifted the
-     * _config base from 21 to 23 by inserting _endpointManifest and _peerEndpointManifests before it.
+     * Slot 21 = _config struct base (19) + serviceAddress field offset (2).
      */
     static final byte[] SERVICE_ADDR_STORAGE_SLOT = new byte[32];
 
     static {
-        SERVICE_ADDR_STORAGE_SLOT[31] = (byte) 25;
+        SERVICE_ADDR_STORAGE_SLOT[31] = (byte) 21;
     }
 
     /**
@@ -280,7 +279,7 @@ public final class BesuQbftVerifier {
      * Verifies a bundle against a header-mode anchor (validators listed in block headers), binding the proven
      * Channel storage slots to {@code channelId}. The four queue-metadata slots and the {@code endpointManifestVersion} slot are
      * identified by recomputing their canonical storage keys — {@code keccak256(channelId || 15)} (the
-     * {@code _channels} mapping base) plus field offsets {@code {1,2,4,5}} and {@code 16}. A sixth proven
+     * {@code _channels} mapping base) plus field offsets {@code {1,2,4,5}} and {@code 15}. A sixth proven
      * slot that matches none of the expected Channel keys is taken to be the running-hash slot of the
      * bundle's last message; its key is returned so the system contract can bind it to a message id
      * ({@link #findLastMessageId}). More than one such leftover is a hard error.
@@ -901,7 +900,7 @@ public final class BesuQbftVerifier {
     }
 
     /**
-     * Verifies a proof of the {@code _config.serviceAddress} slot (25) against the proven service account's
+     * Verifies a proof of the {@code _config.serviceAddress} slot (21) against the proven service account's
      * storage root: the slot must hold {@code serviceAddress20} in Solidity's short-{@code bytes} layout.
      */
     private static void verifyServiceAddressSlot(
@@ -1003,7 +1002,7 @@ public final class BesuQbftVerifier {
 
     /**
      * Verify a bundle's endpoint-manifest advance (spec §4.9 / §2.4.2). Mirrors the peer ClprService's
-     * on-chain commitment: prove the single commitment slot (18)
+     * on-chain commitment: prove the single commitment slot (14)
      * against the authenticated account {@code storageRoot32}, bind the supplied protobuf preimage to it
      * ({@code keccak256(preimage) == provenCommitment}), then require {@code version >= 1} and (when the
      * trusted peer service address is known) {@code service_address} equality. An empty endpoint list is
@@ -1022,7 +1021,7 @@ public final class BesuQbftVerifier {
         final SlotProof entry = entries.get(0);
         final byte[] slot32 = leftPad32(entry.key(), "endpointManifestProof.key");
         if (!Arrays.equals(slot32, endpointManifestCommitmentSlot())) {
-            throw ProofException.besuQbft("endpoint-manifest storage proof is not for the commitment slot (18)");
+            throw ProofException.besuQbft("endpoint-manifest storage proof is not for the commitment slot (14)");
         }
         final byte[] provenCommitment = Mpt.get(
                         storageRoot32, MiscCryptoUtils.keccak256DigestOf(slot32), entry.proofNodes())
@@ -1829,9 +1828,9 @@ public final class BesuQbftVerifier {
 
     /**
      * Reorders the proven storage slots into the queue-metadata positional layout by <em>exact</em>
-     * slot-key matching against the canonical SC-189 Channel storage keys derived from
+     * slot-key matching against the canonical Channel storage keys derived from
      * {@code channelId32}, so only slots of the channel being verified are accepted.
-     * The {@code _channels} mapping base is {@code keccak256(channelId(32) || uint256(15))}; the
+     * The {@code _channels} mapping base is {@code keccak256(channelId(32) || uint256(11))}; the
      * four queue-metadata fields sit at offsets {@code {1,2,4,5}}, {@code endpointManifestVersion} at
      * {@code 16} (carried through from proven state). Any proven key matching none of the five is taken
      * to be the last message's running-hash slot; a second such leftover, or a missing required queue
@@ -1867,7 +1866,7 @@ public final class BesuQbftVerifier {
             } else if (Arrays.equals(key, kRecvHash)) {
                 out[SP_INDEX_CHANNEL_RECEIVED_RUNNING_HASH] = provenSlotValues[i];
             } else if (Arrays.equals(key, kManifestVer)) {
-                // endpointManifestVersion (offset 16) — carried from PROVEN state (spec §4.5), never
+                // endpointManifestVersion (offset 15) — carried from PROVEN state (spec §4.5), never
                 // from relayed content, which a relay could inflate to suppress our manifest re-pushes.
                 out[SP_INDEX_CHANNEL_ENDPOINT_MANIFEST_VERSION] = provenSlotValues[i];
             } else if (messageHashIdx < 0) {
@@ -2198,7 +2197,7 @@ public final class BesuQbftVerifier {
      *     outbound message — proven alongside the queue metadata; carried here so callers can
      *     cross-check it against the bundle's last {@code ClprMessageValue}
      * @param endpointManifestVersion the peer Channel's {@code endpoint_manifest_version} (SC-189
-     *     Channel offset 16) — the peer's cached view of our endpoint-manifest version; proven, so a
+     *     Channel offset 15) — the peer's cached view of our endpoint-manifest version; proven, so a
      *     relay cannot inflate it to suppress our manifest re-pushes (spec §4.5)
      * @param ackedMessageId the peer's {@code ackedMessageId}: the highest of its outbound messages this ledger
      *     has acknowledged; bounds the search for a partial bundle's last message

@@ -2,6 +2,7 @@
 package org.hiero.consensus.crypto;
 
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.model.event.EventConstants.DEFAULT_EVENT_DIGEST_TYPE;
 
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.EventDescriptor;
@@ -15,7 +16,6 @@ import java.util.List;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
-import org.hiero.consensus.model.event.EventHashFactory;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
@@ -29,8 +29,7 @@ public class PbjStreamHasher implements EventHasher {
     /** The initial size of the buffer, enough for the core and the parents of a typical event. */
     private static final int INITIAL_BUFFER_SIZE = 1024;
 
-    private final MessageDigest sha256EventDigest = DigestType.SHA_256.buildDigest();
-    private final MessageDigest sha384EventDigest = DigestType.SHA_384.buildDigest();
+    private final MessageDigest eventDigest = DigestType.SHA_256.buildDigest();
 
     /** The digest for the transactions. */
     private final MessageDigest transactionDigest = DigestType.SHA_384.buildDigest();
@@ -78,16 +77,6 @@ public class PbjStreamHasher implements EventHasher {
             @NonNull final List<TransactionWrapper> transactions) {
         boolean success = false;
 
-        final DigestType digestType;
-        final MessageDigest eventDigest;
-        if (EventHashFactory.isBirthRoundPostCutover(eventCore.birthRound())) {
-            digestType = DigestType.SHA_256;
-            eventDigest = sha256EventDigest;
-        } else {
-            digestType = DigestType.SHA_384;
-            eventDigest = sha384EventDigest;
-        }
-
         try {
             writeToBuffer(eventCore, parents);
             eventDigest.update(bufferArray, 0, (int) buffer.position());
@@ -108,7 +97,7 @@ public class PbjStreamHasher implements EventHasher {
             }
         }
 
-        return new Hash(eventDigest.digest(), digestType);
+        return new Hash(eventDigest.digest(), DEFAULT_EVENT_DIGEST_TYPE);
     }
 
     /**

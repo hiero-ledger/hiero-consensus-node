@@ -58,16 +58,16 @@ public final class ProofBytes {
     }
 
     /**
-     * The 32-byte storage slot key (18, left-padded) holding a ClprService contract's
-     * {@code ClprEndpointManifest} commitment ({@code keccak256} of the protobuf preimage). Slot 18 =
-     * {@code EndpointManifestState} base (17) + {@code commitment} field offset (1). Shared across all EVM
+     * The 32-byte storage slot key (14, left-padded) holding a ClprService contract's
+     * {@code ClprEndpointManifest} commitment ({@code keccak256} of the protobuf preimage). Slot 14 =
+     * {@code EndpointManifestState} base (13) + {@code commitment} field offset (1). Shared across all EVM
      * chains: they deploy the same {@code ClprService} layout and their verifiers extend the common
-     * {@code ClprEvmBundleVerifier}, which pins {@code ENDPOINT_MANIFEST_COMMITMENT_SLOT = 18} (confirmed
-     * against clpr-smart-contracts {@code storage-layout.json}, SC-189). Returns a fresh array each call.
+     * {@code ClprEvmBundleVerifier}, which pins {@code ENDPOINT_MANIFEST_COMMITMENT_SLOT = 14} (confirmed
+     * against clpr-smart-contracts {@code storage-layout.json}). Returns a fresh array each call.
      */
     @NonNull
     public static byte[] endpointManifestCommitmentSlot() {
-        return leftPad32(new byte[] {18}, "endpointManifestCommitmentSlot");
+        return leftPad32(new byte[] {14}, "endpointManifestCommitmentSlot");
     }
 
     /** Expands a byte array into its nibbles, high nibble first (e.g. {@code 0xAB → [0xA, 0xB]}). */
