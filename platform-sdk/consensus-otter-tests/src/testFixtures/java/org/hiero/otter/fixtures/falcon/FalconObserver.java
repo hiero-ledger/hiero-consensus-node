@@ -8,14 +8,14 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.network.simulation.SimulatedNetworkConnectivity;
 
 /**
- * Follows a {@link FalconNetwork} for measurings extra things which arenot part of Falcon itself.
- * It is set with {@link FalconNetwork#registerObserver(FalconObserver)}
+ * Follows a {@link FalconNetwork} for measuring extra things which are not part of Falcon itself.
+ * It is set with {@link FalconNetwork#registerObserver(FalconObserver)}.
  *
- * Its main entry point is {@link #onConsensusRound(NodeId, ConsensusRound)}, which gets called every time a round
+ * <p>Its main entry point is {@link #onConsensusRound(NodeId, ConsensusRound)}, which gets called every time a round
  * has reached consensus on a given <b>full</b> node. It can be used to observe timings, size of events, round
  * composition and many other things.
- * <p>
- * Other methods are called on startup, to help identify/understand the environment in which observation will be run.
+ *
+ * <p>Other methods are called on startup, to help identify/understand the environment in which observation will be run.
  *
  * <p>What the nodes gossip can be followed by adding a
  * {@link org.hiero.otter.fixtures.network.simulation.NetworkObserver} to the simulated network when it starts, see
