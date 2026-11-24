@@ -2791,6 +2791,56 @@ public class ThrottleAccumulatorTest {
                 "Fixture should include a high-volume throttle for CRYPTO_TRANSFER");
     }
 
+    @ParameterizedTest
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
+    void highVolumeCryptoTransferWithImplicitCreationStillUsesNormalTransferCapacity(
+            ThrottleAccumulator.ThrottleType throttleType) throws IOException, ParseException {
+        // given
+        subject = new ThrottleAccumulator(
+                () -> CAPACITY_SPLIT,
+                configProvider::getConfiguration,
+                throttleType,
+                throttleMetrics,
+                gasThrottle,
+                bytesThrottle,
+                opsDurationThrottle);
+        given(configProvider.getConfiguration()).willReturn(configuration);
+        given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
+        given(accountsConfig.lastThrottleExempt()).willReturn(100L);
+        given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
+        given(contractsConfig.throttleThrottleByGas()).willReturn(false);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(false);
+        given(configuration.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
+        given(entitiesConfig.unlimitedAutoAssociationsEnabled()).willReturn(false);
+        given(state.getReadableStates(any())).willReturn(readableStates);
+        given(readableStates.get(anyInt())).willReturn(aliases);
+        given(transactionInfo.payerID()).willReturn(PAYER_ID);
+        given(transactionInfo.functionality()).willReturn(CRYPTO_TRANSFER);
+        givenTransferWithImplicitCreations(1, true);
+
+        // The fixture's normal CryptoTransfer buckets hold a tenth of its high-volume CryptoCreate bucket
+        subject.rebuildFor(getThrottleDefs("bootstrap/high-volume-throttles.json"));
+
+        // when - submit high-volume transfers, each with one implicit creation, until throttled
+        var throttled = false;
+        for (int i = 0; i < 250 && !throttled; i++) {
+            throttled = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null, false);
+        }
+
+        // then - the normal transfer capacity runs out while the high-volume creation bucket still has room
+        assertTrue(throttled, "High-volume transfers must also be limited by the normal CryptoTransfer capacity");
+        assertTrue(
+                subject.getHighVolumeThrottleInstantaneousUtilizationBps(CRYPTO_CREATE, TIME_INSTANT) < 5_000,
+                "The high-volume CryptoCreate bucket should still have room");
+        // and a plain transfer now finds the normal CryptoTransfer capacity used up
+        given(transactionInfo.txBody())
+                .willReturn(TransactionBody.newBuilder()
+                        .cryptoTransfer(CryptoTransferTransactionBody.DEFAULT)
+                        .build());
+        assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null, false));
+    }
+
     @Test
     void usesHighVolumeBucketForImplicitCreationsMirrorsClaimRouting() {
         subject = new ThrottleAccumulator(
@@ -2962,6 +3012,10 @@ public class ThrottleAccumulatorTest {
     }
 
     private void givenTransferWithImplicitCreations(int numImplicitCreations) {
+        givenTransferWithImplicitCreations(numImplicitCreations, false);
+    }
+
+    private void givenTransferWithImplicitCreations(int numImplicitCreations, boolean highVolume) {
         var accountAmounts = new ArrayList<AccountAmount>();
         for (int i = 1; i <= numImplicitCreations; i++) {
             accountAmounts.add(AccountAmount.newBuilder()
@@ -2977,8 +3031,10 @@ public class ThrottleAccumulatorTest {
                         TransferList.newBuilder().accountAmounts(accountAmounts).build())
                 .build();
 
-        final var txn =
-                TransactionBody.newBuilder().cryptoTransfer(cryptoTransferBody).build();
+        final var txn = TransactionBody.newBuilder()
+                .cryptoTransfer(cryptoTransferBody)
+                .highVolume(highVolume)
+                .build();
         given(transactionInfo.txBody()).willReturn(txn);
     }
 

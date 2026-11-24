@@ -923,6 +923,14 @@ public class ThrottleAccumulator {
         if (!hasImplicitCreations && !hasAutoAssociations) {
             return !manager.allReqsMetAt(now, throttleUsages);
         }
+        // Only the implicit creations of a high-volume transfer use the high-volume buckets; the transfer itself
+        // still takes normal CryptoTransfer capacity (HIP-1313), so the flag adds no transfer capacity
+        if (useHighVolumeBucket) {
+            final var transferManager = functionReqs.get(CRYPTO_TRANSFER);
+            if (transferManager == null || !transferManager.allReqsMetAt(now, throttleUsages)) {
+                return true;
+            }
+        }
         // The two dimensions are additive, so a transfer doing both must lease from both buckets
         if (hasImplicitCreations
                 && shouldThrottleBasedOnImplicitCreations(

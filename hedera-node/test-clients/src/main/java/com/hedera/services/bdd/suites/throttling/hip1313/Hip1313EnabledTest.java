@@ -372,6 +372,25 @@ public class Hip1313EnabledTest {
                         .hasPrecheck(BUSY));
     }
 
+    @LeakyHapiTest(
+            requirement = {THROTTLE_OVERRIDES},
+            throttles = "testSystemFiles/hip1313-one-tps-transfer-hv-create.json")
+    final Stream<DynamicTest> highVolumeAutoCreatingTransferStillUsesNormalTransferCapacity() {
+        return hapiTest(
+                newKeyNamed("firstHvAlias"),
+                newKeyNamed("secondHvAlias"),
+                cryptoTransfer(movingHbar(ONE_HBAR).between(CIVILIAN_PAYER, "firstHvAlias"))
+                        .payingWith(CIVILIAN_PAYER)
+                        .withHighVolume()
+                        .deferStatusResolution()
+                        .hasPrecheck(OK),
+                // The high-volume CryptoCreate bucket has room, but the one-per-second transfer capacity is used up
+                cryptoTransfer(movingHbar(ONE_HBAR).between(CIVILIAN_PAYER, "secondHvAlias"))
+                        .payingWith(CIVILIAN_PAYER)
+                        .withHighVolume()
+                        .hasPrecheck(BUSY));
+    }
+
     @HapiTest
     final Stream<DynamicTest> onlyCryptoCreateChildHasHigherFeesWhileTransferStaysBaseFee() {
         return hapiTest(
