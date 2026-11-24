@@ -20,7 +20,7 @@ class BlockStreamConfigTest {
                 .getConfigData(BlockStreamConfig.class);
 
         assertThat(config.maxBlockSizeBytes()).isEqualTo(20L * 1024 * 1024);
-        assertThat(config.maxBlockExecutionSizeBytes()).isEqualTo(100L * 1024 * 1024);
+        assertThat(config.maxBlockExecutionSizeBytes()).isEqualTo(40L * 1024 * 1024);
     }
 
     @Test
