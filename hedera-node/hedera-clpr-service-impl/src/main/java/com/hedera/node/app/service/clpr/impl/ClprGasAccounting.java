@@ -8,6 +8,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_GAS_LIMIT_EXCEEDED;
 import static com.hedera.hapi.node.base.SubType.DEFAULT;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_GAS_ACCOUNTING;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_GAS_RESERVATION;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
 
@@ -195,13 +196,20 @@ public final class ClprGasAccounting {
     /** Bills verifier execution once, sharing the native operation's 300,000-unit ceiling. */
     public long settleVerifierWithGasUsage(
             @NonNull final AccountID payer, final long gasLimit, @NonNull final ContractGasUsage usage) {
-        final long billedGas = Math.min(Math.clamp(usage.gasUsed(), 0, gasLimit), remainingVerifierBillingGas);
+        final long reportedGas = Math.clamp(usage.gasUsed(), 0, gasLimit);
+        final long billedGas = Math.min(reportedGas, remainingVerifierBillingGas);
         remainingVerifierBillingGas -= billedGas;
+        // A consensus reservation leaks only gasLimit - reportedGas, including the EVM refund floor.
+        // An exempt or unthrottled parent is constrained only by executed work and its fee escrow.
+        final boolean hasReservation =
+                context.dispatchMetadata().getMetadataIfPresent(CLPR_GAS_RESERVATION, Object.class) != null;
+        final long retainedGas = hasReservation ? reportedGas : billedGas;
+        remainingGas += Math.min(usage.takeUnspentGas(), gasLimit - retainedGas);
         return settleGas(billedGas);
     }
 
     private long settleGas(final long gasUsed) {
-        // Consume every granted gas unit for capacity, independently of billed EVM refunds.
+        // Billing is independent of how much execution capacity remains.
         final long actualFee = costForGas(gasUsed);
         spentFee = Math.addExact(spentFee, actualFee);
         return actualFee;

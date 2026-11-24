@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.clpr;
 
+import static com.hedera.node.app.service.clpr.ClprEndpointServiceDefinition.parseSyncPayload;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.clpr.ClprStreamingSyncPayload;
@@ -117,7 +118,7 @@ public final class ClprStreamingSyncCall implements AutoCloseable {
                 peerClosed = true;
                 return null;
             }
-            final var payload = ClprStreamingSyncPayload.PROTOBUF.parseStrict(Bytes.wrap(bytes));
+            final var payload = parseSyncPayload(Bytes.wrap(bytes));
             final int seq = ++readsCount;
             if (LOG.isDebugEnabled()) {
                 LOG.debug(

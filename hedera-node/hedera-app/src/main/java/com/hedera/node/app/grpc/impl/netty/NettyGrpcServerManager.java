@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.grpc.impl.netty;
 
+import static com.hedera.node.app.service.clpr.ClprEndpointServiceDefinition.MAX_SYNC_BYTES;
 import static io.netty.handler.ssl.SupportedCipherSuiteFilter.INSTANCE;
 import static java.util.Objects.requireNonNull;
 
@@ -36,6 +37,7 @@ import io.grpc.MethodDescriptor.MethodType;
 import io.grpc.Server;
 import io.grpc.ServerServiceDefinition;
 import io.grpc.ServiceDescriptor;
+import io.grpc.Status;
 import io.grpc.netty.GrpcSslContexts;
 import io.grpc.netty.NettyServerBuilder;
 import io.grpc.stub.ServerCalls;
@@ -45,6 +47,8 @@ import io.netty.handler.ssl.SslContextBuilder;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
 import java.util.Collections;
 import java.util.List;
@@ -501,7 +505,7 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
                     // build service
                     final var service = builder.build(metrics, configProvider);
                     if (containsSyncEndpoint.get()) {
-                        return addClprStreamingSync(service, requireNonNull(clprSyncWorkflow), jumboBufferMarshaller);
+                        return addClprStreamingSync(service, requireNonNull(clprSyncWorkflow));
                     }
                     return service;
                 })
@@ -522,9 +526,29 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
      */
     @NonNull
     static ServerServiceDefinition addClprStreamingSync(
-            @NonNull final ServerServiceDefinition service,
-            @NonNull final ClprSyncWorkflow clprSyncWorkflow,
-            @NonNull final DataBufferMarshaller marshaller) {
+            @NonNull final ServerServiceDefinition service, @NonNull final ClprSyncWorkflow clprSyncWorkflow) {
+        // CLPR frames have their own wire limit. Allocate for the frame actually received.
+        final var marshaller = new MethodDescriptor.Marshaller<BufferedData>() {
+            @Override
+            public InputStream stream(final BufferedData value) {
+                return new KnownLengthStream(value);
+            }
+
+            @Override
+            public BufferedData parse(final InputStream input) {
+                try {
+                    final var bytes = input.readNBytes(MAX_SYNC_BYTES + 1);
+                    if (bytes.length > MAX_SYNC_BYTES) {
+                        throw Status.RESOURCE_EXHAUSTED
+                                .withDescription("CLPR sync frame exceeds wire limit")
+                                .asRuntimeException();
+                    }
+                    return BufferedData.wrap(bytes);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
+        };
         final var descriptor = MethodDescriptor.<BufferedData, BufferedData>newBuilder()
                 .setType(MethodType.BIDI_STREAMING)
                 .setFullMethodName(ClprEndpointServiceDefinition.SYNC_FULL_METHOD_NAME)

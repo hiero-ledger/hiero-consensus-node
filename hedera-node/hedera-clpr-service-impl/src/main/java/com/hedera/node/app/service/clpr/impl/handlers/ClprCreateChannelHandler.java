@@ -8,6 +8,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BOD
 import static com.hedera.node.app.hapi.utils.CommonUtils.asEvmAddress;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_SERVICE_ACCOUNT_NUM;
+import static com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator.channelFitsSingleMessageProof;
 import static com.hedera.node.app.service.token.AliasUtils.extractEvmAddress;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
@@ -329,6 +330,12 @@ public final class ClprCreateChannelHandler extends AbstractClprHandler {
         // orchestrator dials, so it must honor the same bound applied to the seeded cache below.
         channelBuilder.endpointManifest(storedManifest).endpointManifestVersion(storedManifest.version());
         final var channel = channelBuilder.build();
+        validateTrue(
+                channelFitsSingleMessageProof(
+                        context.configuration(),
+                        channel,
+                        peerConfig.throttlesOrThrow().maxSyncBytes()),
+                CLPR_VERIFIER_CONFIG_FAILED);
         ClprFeeCalculator.settleCreateChannelFee(
                 context, 0L, Math.toIntExact(ClprChannel.PROTOBUF.measureRecord(channel)));
         channelStore.put(channel);

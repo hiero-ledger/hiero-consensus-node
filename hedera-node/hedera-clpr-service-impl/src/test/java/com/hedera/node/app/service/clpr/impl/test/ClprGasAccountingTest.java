@@ -152,6 +152,32 @@ class ClprGasAccountingTest {
     }
 
     @Test
+    void onlyUnusedVerifierCapacityIsAvailableToSubsequentCallbacks() {
+        final var subject = ClprGasAccounting.forContext(context);
+        assertThat(subject.prepayVerifier(PARENT, 100)).isTrue();
+        final var usage = gasResult(40);
+        usage.recordUnspentGas(54); // 46 consumed before EVM refunds, 40 billed
+        subject.settleVerifierWithGasUsage(PARENT, 100, usage);
+        assertThat(subject.availableApplicationGas(TOTAL_GAS)).isEqualTo(954);
+        assertThat(subject.prepay(CONNECTOR_A, 955)).isFalse();
+        assertThat(usage.takeUnspentGas()).isZero();
+    }
+
+    @Test
+    void releasingVerifierCapacityLeavesEnoughInEscrowForBilledGas() {
+        final var subject = ClprGasAccounting.forContext(context);
+        assertThat(subject.prepayVerifier(PARENT, 100)).isTrue();
+        final var usage = gasResult(80);
+        usage.recordUnspentGas(54);
+        assertThat(subject.settleVerifierWithGasUsage(PARENT, 100, usage)).isEqualTo(80 * GAS_PRICE);
+        assertThat(subject.availableApplicationGas(TOTAL_GAS)).isEqualTo(920);
+        assertThat(subject.prepay(CONNECTOR_A, 920)).isTrue();
+        subject.settleWithGasUsage(CONNECTOR_A, 920, gasResult(920));
+        subject.refundUnusedGas();
+        assertThat(balances.get(PARENT)).isEqualTo(INITIAL_BALANCE - TOTAL_GAS * GAS_PRICE);
+    }
+
+    @Test
     void billingRefundsDoNotReopenTheDeclaredExecutionBudget() {
         final var subject = ClprGasAccounting.forContext(context);
         assertThat(subject.prepayVerifier(PARENT, 100)).isTrue();
@@ -274,6 +300,27 @@ class ClprGasAccountingTest {
         assertThat(recordedFee).hasValue((300_000 + 100_000) * GAS_PRICE);
         assertThat(balances.get(PARENT)).isEqualTo(10_000_000L - 400_000 * GAS_PRICE);
         assertThat(subject.availableApplicationGas(1)).isZero();
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void callbackCapacityReflectsTheConsensusReservationWhileBillingStaysCapped(final boolean reserved) {
+        given(context.configuration())
+                .willReturn(HederaTestConfigBuilder.create()
+                        .withValue("contracts.maxGasPerTransaction", 15_000_000L)
+                        .getOrCreateConfig());
+        if (reserved) {
+            context.dispatchMetadata().putMetadata(DispatchMetadata.Type.CLPR_GAS_RESERVATION, context.body());
+        }
+        balances.put(PARENT, 15_000_000L * GAS_PRICE);
+        final var subject = ClprGasAccounting.forContext(context);
+        assertThat(subject.prepayVerifier(PARENT, 8_000_000)).isTrue();
+        final var usage = gasResult(6_400_000); // 20% maximum refund on an 8M grant
+        usage.recordUnspentGas(7_900_000);
+        assertThat(subject.settleVerifierWithGasUsage(PARENT, 8_000_000, usage)).isEqualTo(300_000 * GAS_PRICE);
+        assertThat(subject.availableApplicationGas(15_000_000)).isEqualTo(reserved ? 8_600_000 : 14_700_000);
+        subject.refundUnusedGas();
+        assertThat(recordedFee).hasValue(300_000 * GAS_PRICE);
     }
 
     @Test

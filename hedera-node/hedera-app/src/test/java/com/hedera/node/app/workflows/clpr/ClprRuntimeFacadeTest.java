@@ -78,7 +78,6 @@ class ClprRuntimeFacadeTest {
         subject.start();
         subject.stop();
         subject.onChannelActivated(Bytes.EMPTY);
-        subject.onChannelClosed(Bytes.EMPTY);
         subject.seedPeerEndpoints(Bytes.EMPTY, List.of());
         subject.recordPeerObservedManifestVersion(Bytes.EMPTY, 1L);
 
@@ -140,7 +139,6 @@ class ClprRuntimeFacadeTest {
         given(clprConfig.enabled()).willReturn(false);
         subject.start();
         subject.onChannelActivated(Bytes.EMPTY);
-        subject.onChannelClosed(Bytes.EMPTY);
         subject.seedPeerEndpoints(Bytes.EMPTY, List.of());
         subject.recordPeerObservedManifestVersion(Bytes.EMPTY, 1L);
         assertAllInboundCallsDisabled(subject);

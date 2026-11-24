@@ -78,6 +78,10 @@ message ClprLedgerConfiguration {
 
 /**
  * Capacity limits published in the ledger's configuration.
+ * On Hiero, max_message_payload_bytes, max_sync_bytes, max_messages_per_bundle
+ * and max_queue_depth can only grow. Peers can continue to deliver messages
+ * and bundles admitted under any configuration published since this rule took effect.
+ * Hiero rejects an inbound ConfigUpdate that lowers any of these four advertised limits.
  */
 message ClprThrottles {
     /**
@@ -86,12 +90,17 @@ message ClprThrottles {
     uint32 max_messages_per_bundle = 1;
 
     /**
-     * Maximum serialized size in bytes of a Data ClprMessagePayload, including
-     * connector_id, target_application, sender, message_data, and protobuf framing.
-     * The same limit applies to the serialized Response ClprMessagePayload a ledger
-     * enqueues for a Data message; a Response that would exceed it SHALL be replaced
-     * with an APPLICATION_ERROR Response without data. Control payloads are exempt
-     * from this limit.
+     * Maximum serialized size in bytes of a Data or application reply ClprMessagePayload,
+     * including all metadata and protobuf framing. On Hiero, oversized application returns
+     * roll back the application dispatch before producing an empty APPLICATION_ERROR reply.
+     * Hiero requires a local limit of at least 15 bytes
+     * so an empty error reply fits for every message id. If that reply exceeds the peer's
+     * payload limit or conservative proof allowance, DATA is not dispatched and the empty
+     * error is still enqueued to preserve protocol progress. The proof builder enforces
+     * the actual serialized bundle limit. Incoming replies are hashed as attested, but an
+     * oversized reply preserves its execution status and uses Hiero's separate
+     * onClprResponseUnavailable callback without the response data. Slashing still follows
+     * the attested status. Control payloads are exempt.
      */
     uint32 max_message_payload_bytes = 2;
 
@@ -101,7 +110,19 @@ message ClprThrottles {
     uint64 max_gas_per_message = 3;
 
     /**
-     * Maximum unacknowledged messages in the outbound queue per Channel.
+     * Current ordinary outbound queue limit per Channel. Hiero's locally initiated
+     * DATA and all previously queued slots may use up to max_queue_depth - 1 slots.
+     * A ConfigUpdate prepended by this send may use the last ordinary slot.
+     * A peer MUST NOT enqueue new DATA if that would exceed the most
+     * recently received advertised max_queue_depth in outstanding DATA to this
+     * ledger. A rejected decrease leaves the prior advertisement in effect.
+     *
+     * On Hiero this local limit MUST NOT decrease. Administrator decreases fail with
+     * INVALID_CLPR_CONFIGURATION; increases are bounded by clpr.maxQueueDepthCeiling.
+     * Upgrade files preserve the existing limit when a lower value is requested.
+     * The current limit reserves both ordinary and reply capacity, for a total bound
+     * of twice max_queue_depth. Peers that exceed advertised credit can stall their
+     * channel; administrative force-close remains available for recovery.
      */
     uint32 max_queue_depth = 4;
 

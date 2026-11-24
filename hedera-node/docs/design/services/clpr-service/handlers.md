@@ -46,19 +46,30 @@ Any payer can open a channel in one transaction. The selected verifier authentic
 
 - Functionality: `CLPR_DELETE_CHANNEL`. HAPI method: `deleteChannel` (channel closure in spec §6.2).
 - Admin-gated.
-- From `ACTIVE`/`PAUSED`, status becomes `CLOSING`, or `DRAINED` directly if the whole
-  outbound queue is already acknowledged. From `DRAINED`, status becomes `CLOSED`.
-  `CLOSING` and `CLOSED` are rejected; a `PENDING` Channel is deleted.
+- Without `force_close`: from `ACTIVE`/`PAUSED`, status becomes `CLOSING`, or `DRAINED`
+  directly if the whole outbound queue is already acknowledged. From `DRAINED`, status
+  becomes `CLOSED`. `CLOSING` and `CLOSED` are rejected; a `PENDING` Channel is deleted.
 - New local `sendMessage` calls are blocked during `CLOSING` and `DRAINED`. Inbound Data
   Messages still dispatch normally, charge the connector, and generate responses.
 - `DRAINED` means the peer has acknowledged this side's outbound Data Messages; responses
   may still be generated and drain before `CLOSED`. Admin may close a stuck `DRAINED`
   Channel through the recovery path (canonical spec §3.4); the handler does not check
   acknowledgements for this transition.
-- **Lifecycle hook:** `onChannelClosed(channelId)` runs only when status becomes `CLOSED`
-  and unschedules the channel; the orchestrator continues syncing during `CLOSING` and
-  `DRAINED`. Implementation status: no close-notification bundle is sent after `CLOSED`
+- `force_close=true` immediately marks an established channel CLOSED and examines at
+  most 16 consecutive outbound message IDs per transaction, including absent slots.
+  Existing slots of every payload type are removed without application callbacks;
+  DATA removal decrements its connector's in-flight count without going below zero.
+- Repeat force-close to advance `queue_purge_cursor` to `next_message_id` (or 1 for a
+  channel that never assigned IDs). `SUCCESS` accepts a batch, and also represents an
+  unchanged no-op once cleanup is finished. Node logs expose the cursor and completion;
+  no HAPI query currently exposes it.
+- The endpoint observes the committed `CLOSED` status and stops scheduling the channel.
+  The administrator close handler leaves scheduling to the endpoint so a rolled-back state change
+  cannot stop sync. The node continues syncing during `CLOSING` and `DRAINED`.
+  Implementation status: no close-notification bundle is sent after `CLOSED`
   yet ([#28315](https://github.com/hiero-ledger/hiero-consensus-node/issues/28315)).
+  Force-close is one-sided: the peer does not receive a CLOSED proof, so its
+  administrator must close and clean up that side independently.
 
 ### `ClprEvictPeerEndpointHandler` — admin endpoint eviction
 
@@ -97,9 +108,13 @@ recipient. The channel and connector ID pair stays recorded after deletion or a 
   2. Call `ClprVerifier.verifyBundle` (see [`verifier.md`](verifier.md)) → `ClprBundleContent`.
   3. Check monotonic & contiguous message IDs vs. channel's `acked_message_id`.
   4. Recompute received running hash with `ClprHashUtils.computeRunningHash`; compare.
-  5. Apply control messages (only `ConfigUpdate` today) before data messages.
+  5. Validate all incoming `ConfigUpdate` messages before application dispatch. A decrease in any
+     previously advertised delivery limit rejects the whole bundle. Apply accepted updates in
+     message order so later callbacks see the updated limits.
   6. Dispatch each data message to its `targetApplication` via a child contract call;
-     charge the connector and bookkeep replies (`ClprMessageReply`). This also applies in
+     charge the connector and bookkeep replies (`ClprMessageReply`). A successful
+     `onClprMessage` call must return ABI-encoded `bytes`. An encoded empty byte string is valid.
+     A call that returns no ABI data rolls back and produces `APPLICATION_ERROR`. This also applies in
      `CLOSING`/`DRAINED`: graceful close drains inbound traffic through normal dispatch.
 - State writes: channel's `received_running_hash`, `last_received_message_id`; per-data-
   message replies stored back into the queue (replies on the source-side queue).
@@ -135,6 +150,10 @@ recipient. The channel and connector ID pair stays recorded after deletion or a 
 
 - Functionality: `CLPR_UPDATE_LEDGER_CONFIGURATION`. Spec §6.1.
 - Admin-gated.
+- Rejects a decrease in any advertised delivery limit with `INVALID_CLPR_CONFIGURATION`.
+  Increases are bounded by 64 KiB for `max_message_payload_bytes`, 4 MiB for `max_sync_bytes`,
+  1,000 for `max_messages_per_bundle`, and `clpr.maxQueueDepthCeiling` for `max_queue_depth`.
+  Existing advertisements above a ceiling may be retained.
 - Writes the singleton `LEDGER_CONFIGURATION`. Bumps `timestamp`. Only path to add/edit
   `endpoints`. Throttle changes propagate to existing channels **lazily** via the
   next `sendMessage` (see `ClprServiceApiImpl` / [`evm-integration.md`](evm-integration.md)).

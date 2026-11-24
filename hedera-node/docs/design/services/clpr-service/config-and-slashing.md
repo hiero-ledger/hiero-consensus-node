@@ -68,15 +68,16 @@ derived from the network's HIP-26 EVM chain ID, `contracts.chainId`, as `eip155:
 
 ### Queue monopolisation (CLPR-3.5, used by `ClprServiceApiImpl`)
 
-|           Key            | Default | Network? |                          Purpose                          |
-|--------------------------|---------|----------|-----------------------------------------------------------|
-| `connectorQueueQuotaPct` | `50`    | yes      | Max % of total queue depth a single connector may occupy. |
+|           Key            | Default | Network? |                                         Purpose                                          |
+|--------------------------|---------|----------|------------------------------------------------------------------------------------------|
+| `connectorQueueQuotaPct` | `50`    | yes      | Max % of total queue depth a single connector may occupy.                                |
+| `maxQueueDepthCeiling`   | `10000` | yes      | Positive ceiling on newly configured local queue depth; does not revoke existing credit. |
 
 ### Dispatch gas budgets (CLPR-4.4 / 5.3)
 
 |        Key         |   Default   | Network? |                                  Purpose                                  |
 |--------------------|-------------|----------|---------------------------------------------------------------------------|
-| `verifierGasLimit` | `2 000 000` | yes      | Gas for `ClprVerifier.verifyBundle` / `verifyConfig` (`EvmClprVerifier`). |
+| `verifierGasLimit` | `8 000 000` | yes      | Gas for `ClprVerifier.verifyBundle` / `verifyConfig` (`EvmClprVerifier`). |
 
 > `ClprCreateChannel` and `ClprSubmitBundle` each reserve `verifierGasLimit` from the network gas throttle
 > (`contracts.maxGasPerSec` / `maxGasPerSecBackend`), the same way a contract call reserves its gas limit, so verifier
@@ -138,6 +139,15 @@ of them is rejected:
   and when `LEDGER_CONFIGURATION` does not exist yet (it is then seeded from the same file).
 - `max_gas_per_message` is capped at `contracts.maxGasPerTransaction` in both cases, and the
   throttles are validated like `CLPR_UPDATE_LEDGER_CONFIGURATION` validates them.
+- Local `max_queue_depth`, `max_message_payload_bytes`, `max_sync_bytes` and `max_messages_per_bundle`
+  are expand-only. Lowering any one rejects the entire admin transaction with
+  `INVALID_CLPR_CONFIGURATION`. Queue depth increases must also fit the positive
+  `clpr.maxQueueDepthCeiling` (default 10,000). Lowering this ceiling does not shrink an existing
+  larger limit, but prevents further increases. Gas and endpoint limits remain adjustable.
+- Growth ceilings are 64 KiB per DATA payload, 4 MiB per sync frame, 1,000 messages per bundle
+  and `clpr.maxQueueDepthCeiling` for queue depth. Genesis caps each field before advertising it.
+  Upgrades use `max(existing, min(requested, ceiling))` for each field, preserving legacy
+  advertisements. If the resulting throttles match the stored configuration, the timestamp stays unchanged.
 - The file is node-local. As with `throttles.json`, every node must have an identical file, or
   nodes seed different state and ISS.
 
@@ -224,10 +234,10 @@ compensation; absent or underfunded source connectors skip best-effort delivery.
 Callbacks rejected by consensus throttling before execution incur no gas charge,
 so their entire gas reimbursement is returned to the connector.
 
-The full sum of verifier and callback gas grants is capped by
-`contracts.maxGasPerTransaction`. Remaining callback payloads share the available gas,
-with each grant capped by `maxGasPerMessage`. EVM billing refunds do not restore granted
-execution capacity. See [E-10](clpr-hiero-spec.md#e-10-application-execution-gas-and-endpoint-compensation)
+Verification and callback execution share `contracts.maxGasPerTransaction`. A successful
+verifier releases unused root-frame gas after accounting for intrinsic gas, the calldata floor
+and the fee owed. EVM billing refunds leave execution capacity unchanged. Remaining callbacks share the
+available gas, with each grant capped by `maxGasPerMessage`. See [E-10](clpr-hiero-spec.md#e-10-application-execution-gas-and-endpoint-compensation)
 for pricing, rollback, and grant-allocation details.
 
 ### Slashing payouts (non-success path)

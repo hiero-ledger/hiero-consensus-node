@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.clpr;
 
+import static com.hedera.node.app.service.clpr.ClprEndpointServiceDefinition.MAX_SYNC_BYTES;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.service.clpr.ClprEndpointServiceDefinition;
@@ -127,13 +128,12 @@ class ClprEndpointClientImpl implements ClprEndpointClient {
         if (address.isUnresolved() || address.getPort() == 0) {
             throw new ClientException("CLPR peer endpoint must have a resolved address and nonzero port", null);
         }
+        final var builder = NettyChannelBuilder.forAddress(address).maxInboundMessageSize(MAX_SYNC_BYTES);
         if (!useTls) {
-            return NettyChannelBuilder.forAddress(address).usePlaintext().build();
+            return builder.usePlaintext().build();
         }
         try {
-            return NettyChannelBuilder.forAddress(address)
-                    .sslContext(buildClientSslContext())
-                    .build();
+            return builder.sslContext(buildClientSslContext()).build();
         } catch (final SSLException e) {
             throw new ClientException(
                     "Failed to build TLS channel for CLPR peer " + address + ": " + e.getMessage(), e);

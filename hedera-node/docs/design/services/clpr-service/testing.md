@@ -22,6 +22,7 @@ All tagged `CLPR` (`TestTags.CLPR`). Multi-network ones additionally tagged
 |--------------------------------|-----------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `ClprConnectorSuite`           | CLPR                                                | Connector registration, stake locking, and error paths.                                                                                                     |
 | `ClprDeleteChannelSuite`       | CLPR                                                | Admin auth + channel status transitions for `deleteChannel`.                                                                                                |
+| `ClprForceCloseEmbeddedTest`   | CLPR + `@LeakyEmbeddedHapiTest(NEEDS_STATE_ACCESS)` | Force-close authorization, immediate terminal status, sparse multi-batch cleanup, connector counts, and idempotent completion.                              |
 | `ClprLedgerConfigurationSuite` | CLPR                                                | Admin auth + validation for `updateLedgerConfiguration` (CLPR-1.2): seed-endpoint limits, invalid configs.                                                  |
 | `ClprRedactMessageSuite`       | CLPR                                                | Admin-key redaction; running-hash preservation.                                                                                                             |
 | `ClprSendMessageSuite`         | CLPR                                                | EVM `0x16e.sendMessage` happy path + throttle / authorization revert paths.                                                                                 |
@@ -72,6 +73,9 @@ directories and non-overlapping port ranges per network. See
 
 # All CLPR-tagged BDD suites
 ./gradlew :test-clients:test --tests '*Clpr*'
+
+# Force-close through the embedded HAPI transaction pipeline
+./gradlew :test-clients:hapiTestClprEmbedded --tests '*ClprForceCloseEmbeddedTest'
 
 # Multi-network E2E only (slow; spawns 2 networks)
 ./gradlew :test-clients:test --tests '*ClprHieroToHiero*'

@@ -37,6 +37,7 @@ import com.hedera.hapi.node.state.clpr.ClprThrottles;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.clpr.ReadableChannelStore;
 import com.hedera.node.app.service.clpr.ReadableLedgerConfigurationStore;
+import com.hedera.node.app.service.clpr.impl.ClprStateProofManager;
 import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfiguration;
@@ -89,6 +90,9 @@ class ClprChannelManagerTest {
     @Mock
     private ClprEndpointClientCache clientCache;
 
+    @Mock
+    private ClprStateProofManager stateProofManager;
+
     @TempDir
     private Path tempDir;
 
@@ -100,7 +104,7 @@ class ClprChannelManagerTest {
         given(versionedConfig.getConfigData(ClprConfig.class))
                 .willReturn(defaultClprConfig().build());
         Mockito.reset(synchronizer);
-        subject = new ClprChannelManager(configProvider, stateAccessor, synchronizer, clientCache);
+        subject = new ClprChannelManager(configProvider, stateAccessor, synchronizer, clientCache, stateProofManager);
     }
 
     @AfterEach
@@ -272,7 +276,7 @@ class ClprChannelManagerTest {
             try (var _ = givenMockedStateForSync(channelStore, ledgerConfigWithMaxPeerEndpoints(0))) {
                 subject.syncChannel(CHANNEL_ID_1);
 
-                // Null channel is not auto-removed; cleanup is driven by onChannelClosed only.
+                // The sync tick removes a channel once it observes its committed CLOSED state.
                 assertThat(subject.knownChannelsIds()).contains(CHANNEL_ID_1);
                 assertThat(subject.getKnownEndpoints(CHANNEL_ID_1)).isEmpty();
             }
@@ -292,6 +296,7 @@ class ClprChannelManagerTest {
 
                 assertThat(subject.knownChannelsIds()).doesNotContain(CHANNEL_ID_1);
             }
+            verify(stateProofManager).forgetManifestOffer(CHANNEL_ID_1);
             verify(synchronizer, never()).synchronize(any(), any(), anyLong(), anyLong());
         }
 
@@ -364,7 +369,8 @@ class ClprChannelManagerTest {
                     .willReturn(defaultClprConfig()
                             .maxConcurrentSyncs(maxConcurrentSyncs)
                             .build());
-            subject = new ClprChannelManager(configProvider, stateAccessor, synchronizer, clientCache);
+            subject =
+                    new ClprChannelManager(configProvider, stateAccessor, synchronizer, clientCache, stateProofManager);
 
             final List<ClprChannel> channels = IntStream.range(0, maxConcurrentSyncs + 1)
                     .mapToObj((id) -> makeActiveChannelWithPendingMessages(Bytes.wrap("channel_" + id)))
@@ -452,16 +458,6 @@ class ClprChannelManagerTest {
             subject.onChannelActivated(CHANNEL_ID_2);
 
             assertThat(subject.knownChannelsIds()).containsExactlyInAnyOrder(CHANNEL_ID_1, CHANNEL_ID_2);
-        }
-
-        @Test
-        @DisplayName("onChannelClosed removes the closed channel")
-        void onChannelClosed() {
-            subject.onChannelActivated(CHANNEL_ID_1);
-            subject.onChannelActivated(CHANNEL_ID_2);
-            subject.onChannelClosed(CHANNEL_ID_1);
-
-            assertThat(subject.knownChannelsIds()).containsExactlyInAnyOrder(CHANNEL_ID_2);
         }
 
         @Test
@@ -629,7 +625,8 @@ class ClprChannelManagerTest {
 
             // Manager B: fresh instance, same (temp) cache file. It must rebuild the registry, the
             // peer endpoint cache, the interval, and the timer purely from disk + committed state.
-            final var managerB = new ClprChannelManager(configProvider, stateAccessor, synchronizer, clientCache);
+            final var managerB =
+                    new ClprChannelManager(configProvider, stateAccessor, synchronizer, clientCache, stateProofManager);
             final var channelStore = mock(ReadableChannelStore.class);
             given(channelStore.getChannel(CHANNEL_ID_1))
                     .willReturn(ClprChannel.newBuilder()
@@ -666,7 +663,8 @@ class ClprChannelManagerTest {
                     .until(() -> cacheHas(cacheFile, CHANNEL_ID_1) && !cacheHasEndpoint(cacheFile, CHANNEL_ID_1));
             subject.stop();
 
-            final var managerB = new ClprChannelManager(configProvider, stateAccessor, synchronizer, clientCache);
+            final var managerB =
+                    new ClprChannelManager(configProvider, stateAccessor, synchronizer, clientCache, stateProofManager);
             final var channelStore = mock(ReadableChannelStore.class);
             given(channelStore.getChannel(CHANNEL_ID_1))
                     .willReturn(ClprChannel.newBuilder()
@@ -693,7 +691,8 @@ class ClprChannelManagerTest {
             await().atMost(Duration.ofSeconds(5)).until(() -> cacheHas(cacheFile, CHANNEL_ID_1));
             subject.stop();
 
-            final var managerB = new ClprChannelManager(configProvider, stateAccessor, synchronizer, clientCache);
+            final var managerB =
+                    new ClprChannelManager(configProvider, stateAccessor, synchronizer, clientCache, stateProofManager);
             final var channelStore = mock(ReadableChannelStore.class);
             given(channelStore.getChannel(CHANNEL_ID_1))
                     .willReturn(makeChannel(CHANNEL_ID_1, ClprChannelStatus.CLOSED, 0L, 0L));

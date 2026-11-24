@@ -372,6 +372,13 @@ interface IClprApplication {
 }
 ```
 
+**Hiero application compatibility:** Hiero additionally invokes
+`onClprResponseUnavailable(bytes32,uint64,uint8)` when an authenticated reply from a legacy or external peer exceeds the local
+payload limit. This preserves the destination execution status while distinguishing missing
+response bytes from a valid empty response. It is a local callback extension, not a new wire status.
+Applications deployed on Hiero should implement the hook; see
+[Hiero response delivery](clpr-hiero-impl-spec.md#72-response-delivery) for its best-effort semantics.
+
 ## 2.5 Events
 
 ```solidity

@@ -7,6 +7,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INVALID_CHANNEL_ST
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NOT_ENABLED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_PAYLOAD_TOO_LARGE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_QUEUE_FULL;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_QUEUE_QUOTA_EXCEEDED;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -14,9 +15,11 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.clpr.ClprChannel;
@@ -28,6 +31,7 @@ import com.hedera.hapi.node.state.clpr.ClprControlMessage;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.clpr.ClprMessage;
 import com.hedera.hapi.node.state.clpr.ClprMessagePayload;
+import com.hedera.hapi.node.state.clpr.ClprMessageReply;
 import com.hedera.hapi.node.state.clpr.ClprMessageValue;
 import com.hedera.hapi.node.state.clpr.ClprThrottles;
 import com.hedera.node.app.service.clpr.impl.ClprServiceApiImpl;
@@ -38,11 +42,16 @@ import com.hedera.node.app.service.clpr.impl.WritableConnectorStore;
 import com.hedera.node.app.service.clpr.impl.WritableMessageQueueStore;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.ClprConfig;
+import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.node.config.testfixtures.ClprConfigBuilder;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.MessageDigest;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -60,6 +69,8 @@ import org.mockito.quality.Strictness;
 @MockitoSettings(strictness = Strictness.LENIENT)
 class ClprServiceApiImplTest {
 
+    private static final ClprThrottles DEFAULT_THROTTLES =
+            ClprThrottles.newBuilder().maxSyncBytes(4 * 1024 * 1024).build();
     private static final Bytes CHANNEL_ID = Bytes.wrap(new byte[32]);
     private static final Bytes CONNECTOR_CONTRACT = Bytes.wrap(new byte[20]);
     private static final Bytes TARGET_APP = Bytes.wrap(new byte[] {10, 20, 30});
@@ -98,6 +109,9 @@ class ClprServiceApiImplTest {
     @BeforeEach
     void setUp() {
         given(configuration.getConfigData(ClprConfig.class)).willReturn(DEFAULT_CLPR_CONFIG);
+        org.mockito.Mockito.lenient()
+                .when(configuration.getConfigData(JumboTransactionsConfig.class))
+                .thenReturn(HederaTestConfigBuilder.createConfig().getConfigData(JumboTransactionsConfig.class));
         subject = new ClprServiceApiImpl(
                 channelReadStore, channelWriteStore, connectorStore, configStore, messageQueueStore, configuration);
     }
@@ -149,6 +163,64 @@ class ClprServiceApiImplTest {
     }
 
     @Test
+    void legacyPeerCannotAdmitDataAboveTheHieroSenderLimit() {
+        final var legacy = DEFAULT_THROTTLES
+                .copyBuilder()
+                .maxMessagePayloadBytes(1_048_576)
+                .maxQueueDepth(100)
+                .build();
+        final var channel = createChannel(ClprChannelStatus.ACTIVE)
+                .copyBuilder()
+                .peerThrottles(legacy)
+                .build();
+        given(channelReadStore.getChannel(CHANNEL_ID)).willReturn(channel);
+        given(configStore.getConfiguration()).willReturn(createLedgerConfig(CONFIG_TIMESTAMP, 1_048_576, 100));
+        given(connectorStore.getConnector(new ClprConnectorKey(CHANNEL_ID, CONNECTOR_CONTRACT)))
+                .willReturn(createConnector());
+        assertThatThrownBy(() -> subject.sendMessage(
+                        CHANNEL_ID, CONNECTOR_CONTRACT, TARGET_APP, SENDER, Bytes.wrap(new byte[65_536])))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(CLPR_PAYLOAD_TOO_LARGE));
+        verifyNoInteractions(channelWriteStore, messageQueueStore);
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {64, 32_768})
+    void reducedCalldataLimitBoundsNewDataAtItsSerializedSize(final int anchorSize) {
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("jumboTransactions.ethereumMaxCallDataSize", 64 * 1024)
+                .getOrCreateConfig();
+        given(configuration.getConfigData(JumboTransactionsConfig.class))
+                .willReturn(config.getConfigData(JumboTransactionsConfig.class));
+        final var channel = createChannel(ClprChannelStatus.ACTIVE)
+                .copyBuilder()
+                .trustAnchor(Bytes.wrap(new byte[anchorSize]))
+                .build();
+        given(channelReadStore.getChannel(CHANNEL_ID)).willReturn(channel);
+        final int budget = anchorSize == 64 ? 22 * 1024 : (62 - 23) * 1024 - channel.protobufSize();
+        given(configStore.getConfiguration()).willReturn(createLedgerConfig(CONFIG_TIMESTAMP, 65_536, 100));
+        given(connectorStore.getConnector(new ClprConnectorKey(CHANNEL_ID, CONNECTOR_CONTRACT)))
+                .willReturn(createConnector());
+
+        final int overhead =
+                createMessagePayload(SOURCE_CONNECTOR_ADDRESS, TARGET_APP, SENDER, Bytes.wrap(new byte[budget]))
+                                .protobufSize()
+                        - budget;
+        final var fits = Bytes.wrap(new byte[budget - overhead]);
+        final var exceeds = Bytes.wrap(new byte[budget - overhead + 1]);
+        assertThat(createMessagePayload(SOURCE_CONNECTOR_ADDRESS, TARGET_APP, SENDER, fits)
+                        .protobufSize())
+                .isEqualTo(budget);
+        assertThatThrownBy(() -> subject.sendMessage(CHANNEL_ID, CONNECTOR_CONTRACT, TARGET_APP, SENDER, exceeds))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(CLPR_PAYLOAD_TOO_LARGE));
+        assertNoStateWrites();
+        assertThat(subject.sendMessage(CHANNEL_ID, CONNECTOR_CONTRACT, TARGET_APP, SENDER, fits))
+                .isZero();
+        verify(messageQueueStore).put(eq(CHANNEL_ID), eq(0L), any());
+    }
+
+    @Test
     @DisplayName("should reject when the serialized payload exceeds maximum size")
     void rejectsWhenPayloadTooLarge() {
         final var channel = createChannel(ClprChannelStatus.ACTIVE);
@@ -168,7 +240,8 @@ class ClprServiceApiImplTest {
     @DisplayName("should validate payload size against peer's limit, not local")
     void rejectsWhenPayloadExceedsPeerLimit() {
         // Local config allows 1000 bytes; peer only allows 10. Even the 11-byte data alone cannot fit.
-        final var peerThrottles = ClprThrottles.newBuilder()
+        final var peerThrottles = DEFAULT_THROTTLES
+                .copyBuilder()
                 .maxMessagePayloadBytes(10)
                 .maxQueueDepth(100)
                 .build();
@@ -288,9 +361,13 @@ class ClprServiceApiImplTest {
     }
 
     @Test
-    @DisplayName("should reject when queue is full")
+    @DisplayName("should reject when the local queue is full even if the peer has more capacity")
     void rejectsWhenQueueFull() {
-        final var channel = createChannelWithQueue(ClprChannelStatus.ACTIVE, 10, 0);
+        final var channel = createChannelWithQueue(ClprChannelStatus.ACTIVE, 10, 0)
+                .copyBuilder()
+                .peerThrottles(
+                        DEFAULT_THROTTLES.copyBuilder().maxQueueDepth(100).build())
+                .build();
         final var connector = createConnector();
         given(channelReadStore.getChannel(CHANNEL_ID)).willReturn(channel);
         given(configStore.getConfiguration()).willReturn(createLedgerConfig(CONFIG_TIMESTAMP, 1024, 10));
@@ -301,6 +378,27 @@ class ClprServiceApiImplTest {
         assertThatThrownBy(() -> subject.sendMessage(CHANNEL_ID, CONNECTOR_CONTRACT, TARGET_APP, SENDER, MESSAGE_DATA))
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(CLPR_QUEUE_FULL));
+    }
+
+    @Test
+    @DisplayName("should reject when the peer has less capacity for replies than the local queue has for sends")
+    void rejectsWhenPeerReplyCapacityIsFull() {
+        final var channel = createChannelWithQueue(ClprChannelStatus.ACTIVE, 16, 5)
+                .copyBuilder()
+                .peerThrottles(DEFAULT_THROTTLES.copyBuilder().maxQueueDepth(10).build())
+                .build();
+        given(channelReadStore.getChannel(CHANNEL_ID)).willReturn(channel);
+        given(configStore.getConfiguration()).willReturn(createLedgerConfig(CONFIG_TIMESTAMP, 1024, 100));
+        given(connectorStore.getConnector(new ClprConnectorKey(CHANNEL_ID, CONNECTOR_CONTRACT)))
+                .willReturn(createConnector());
+
+        for (long id = 6; id < 16; id++) {
+            given(messageQueueStore.getMessage(CHANNEL_ID, id)).willReturn(queuedData(SOURCE_CONNECTOR_ADDRESS));
+        }
+        assertThatThrownBy(() -> subject.sendMessage(CHANNEL_ID, CONNECTOR_CONTRACT, TARGET_APP, SENDER, MESSAGE_DATA))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(CLPR_QUEUE_FULL));
+        assertNoStateWrites();
     }
 
     @Test
@@ -369,7 +467,16 @@ class ClprServiceApiImplTest {
 
         // Two messages stored: config update at 5, data message at 6
         verify(messageQueueStore, times(2)).put(eq(CHANNEL_ID), any(Long.class), any(ClprMessageValue.class));
-        verify(messageQueueStore).put(eq(CHANNEL_ID), eq(5L), any(ClprMessageValue.class));
+        final var messageCaptor = ArgumentCaptor.forClass(ClprMessageValue.class);
+        verify(messageQueueStore).put(eq(CHANNEL_ID), eq(5L), messageCaptor.capture());
+        final var advertised = messageCaptor
+                .getValue()
+                .payloadOrThrow()
+                .controlOrThrow()
+                .configUpdateOrThrow()
+                .configurationOrThrow();
+        assertThat(advertised).isEqualTo(configStore.getConfiguration());
+        assertThat(advertised.throttlesOrThrow().maxQueueDepth()).isEqualTo(100);
         verify(messageQueueStore).put(eq(CHANNEL_ID), eq(6L), any(ClprMessageValue.class));
 
         // Channel updated with nextMessageId = 7, and lastConfigTimestamp updated
@@ -501,11 +608,10 @@ class ClprServiceApiImplTest {
     }
 
     @Test
-    @DisplayName("stale config: should reject when queueDepth = maxQueueDepth-1 — control update needs the last slot")
-    void rejectsWhenQueueAlmostFullWithStaleConfig() {
-        // queueDepth(9) + reservedSlots(1) = 10 >= maxQueueDepth(10) → QUEUE_FULL
+    @DisplayName("stale config and DATA cannot exceed the ordinary queue limit")
+    void rejectsWhenOnlyOneOrdinarySlotRemainsForConfigAndData() {
         final var staleTimestamp = Timestamp.newBuilder().seconds(500).nanos(0).build();
-        final var channel = createChannelWithTimestamp(ClprChannelStatus.ACTIVE, 9, 0, staleTimestamp);
+        final var channel = createChannelWithTimestamp(ClprChannelStatus.ACTIVE, 10, 0, staleTimestamp);
         final var connector = createConnector();
         given(channelReadStore.getChannel(CHANNEL_ID)).willReturn(channel);
         given(configStore.getConfiguration()).willReturn(createLedgerConfig(CONFIG_TIMESTAMP, 1024, 10));
@@ -518,19 +624,22 @@ class ClprServiceApiImplTest {
     }
 
     @Test
-    @DisplayName("stale config: should allow when queueDepth = maxQueueDepth-2 — room for both control and data")
+    @DisplayName("should allow a stale config update and DATA to reach the peer's reply capacity")
     void allowsWhenQueueHasRoomForStaleConfigUpdate() {
-        // queueDepth(8) + reservedSlots(1) = 9 < maxQueueDepth(10) → ALLOW; control at 8, data at 9
+        // Eight outstanding slots leave room for both control at 9 and DATA at 10.
         final var staleTimestamp = Timestamp.newBuilder().seconds(500).nanos(0).build();
-        final var channel = createChannelWithTimestamp(ClprChannelStatus.ACTIVE, 8, 0, staleTimestamp);
+        final var channel = createChannelWithTimestamp(ClprChannelStatus.ACTIVE, 9, 0, staleTimestamp)
+                .copyBuilder()
+                .peerThrottles(DEFAULT_THROTTLES.copyBuilder().maxQueueDepth(10).build())
+                .build();
         final var connector = createConnector();
         given(channelReadStore.getChannel(CHANNEL_ID)).willReturn(channel);
-        given(configStore.getConfiguration()).willReturn(createLedgerConfig(CONFIG_TIMESTAMP, 1024, 10));
+        given(configStore.getConfiguration()).willReturn(createLedgerConfig(CONFIG_TIMESTAMP, 1024, 100));
         given(connectorStore.getConnector(new ClprConnectorKey(CHANNEL_ID, CONNECTOR_CONTRACT)))
                 .willReturn(connector);
 
         final var result = subject.sendMessage(CHANNEL_ID, CONNECTOR_CONTRACT, TARGET_APP, SENDER, MESSAGE_DATA);
-        assertThat(result).isEqualTo(9L);
+        assertThat(result).isEqualTo(10L);
     }
 
     @Test
@@ -596,6 +705,146 @@ class ClprServiceApiImplTest {
         assertThat(storedMessage.connectorId()).isEqualTo(SOURCE_CONNECTOR_ADDRESS);
         assertThat(storedMessage.targetApplication()).isEqualTo(TARGET_APP);
         assertThat(storedMessage.messageData()).isEqualTo(MESSAGE_DATA);
+    }
+
+    @Test
+    void idleDepthTwoChannelCanSendAfterASameDepthConfigurationUpdate() {
+        final var channel = createChannelWithTimestamp(
+                ClprChannelStatus.ACTIVE,
+                1,
+                0,
+                Timestamp.newBuilder().seconds(500).build());
+        final Map<Long, ClprMessageValue> queue = new HashMap<>();
+        final var liveChannel = useLiveQueue(channel, queue);
+        given(configStore.getConfiguration()).willReturn(createLedgerConfig(CONFIG_TIMESTAMP, 1024, 2));
+
+        assertThat(subject.sendMessage(CHANNEL_ID, CONNECTOR_CONTRACT, TARGET_APP, SENDER, MESSAGE_DATA))
+                .isEqualTo(2);
+        assertThat(queue.get(1L)
+                        .payloadOrThrow()
+                        .controlOrThrow()
+                        .configUpdateOrThrow()
+                        .configurationOrThrow()
+                        .throttlesOrThrow()
+                        .maxQueueDepth())
+                .isEqualTo(2);
+        assertThat(queue.get(2L).payloadOrThrow().hasMessage()).isTrue();
+        assertThat(liveChannel.get().lastConfigTimestamp()).isEqualTo(CONFIG_TIMESTAMP);
+        assertThatThrownBy(() -> subject.sendMessage(CHANNEL_ID, CONNECTOR_CONTRACT, TARGET_APP, SENDER, MESSAGE_DATA))
+                .has(responseCode(CLPR_QUEUE_FULL));
+
+        // Once the peer returns a terminal reply, the next send needs only one ordinary slot.
+        queue.clear();
+        liveChannel.set(liveChannel.get().copyBuilder().ackedMessageId(2).build());
+        assertThat(subject.sendMessage(CHANNEL_ID, CONNECTOR_CONTRACT, TARGET_APP, SENDER, MESSAGE_DATA))
+                .isEqualTo(3);
+        assertThat(queue).containsOnlyKeys(3L);
+    }
+
+    @Test
+    void staleConfigurationDoesNotConsumeThePeersOnlyDataCredit() {
+        final var initial = createChannelWithTimestamp(
+                        ClprChannelStatus.ACTIVE,
+                        1,
+                        0,
+                        Timestamp.newBuilder().seconds(500).build())
+                .copyBuilder()
+                .peerThrottles(DEFAULT_THROTTLES.copyBuilder().maxQueueDepth(1))
+                .build();
+        final Map<Long, ClprMessageValue> queue = new HashMap<>();
+        final var liveChannel = useLiveQueue(initial, queue);
+        given(configStore.getConfiguration()).willReturn(createLedgerConfig(CONFIG_TIMESTAMP, 1024, 10));
+
+        assertThat(subject.sendMessage(CHANNEL_ID, CONNECTOR_CONTRACT, TARGET_APP, SENDER, MESSAGE_DATA))
+                .isEqualTo(2);
+
+        assertThat(queue).hasSize(2);
+        assertThat(queue.get(1L).payloadOrThrow().hasControl()).isTrue();
+        assertThat(queue.get(2L).payloadOrThrow().hasMessage()).isTrue();
+        assertThat(liveChannel.get().lastConfigTimestamp()).isEqualTo(CONFIG_TIMESTAMP);
+        // The next invocation sees the committed DATA, including when sends are nested through authorization.
+        assertThatThrownBy(() -> subject.sendMessage(CHANNEL_ID, CONNECTOR_CONTRACT, TARGET_APP, SENDER, MESSAGE_DATA))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(CLPR_QUEUE_FULL));
+        assertThat(queue).hasSize(2);
+        assertThat(liveChannel.get().nextMessageId()).isEqualTo(3);
+
+        // submitBundle deletes the terminal DATA before invoking its response callback, and publishes
+        // the final ACK later. That nested callback can reuse credit even while the control is queued.
+        queue.remove(2L);
+        assertThat(subject.sendMessage(CHANNEL_ID, CONNECTOR_CONTRACT, TARGET_APP, SENDER, MESSAGE_DATA))
+                .isEqualTo(3);
+        assertThat(queue.keySet()).containsExactlyInAnyOrder(1L, 3L);
+        assertThat(liveChannel.get().ackedMessageId()).isZero();
+    }
+
+    @Test
+    void controlsAndRepliesConsumeLocalSlotsButNotPeerDataCredit() {
+        final var initial = createChannelWithQueue(ClprChannelStatus.ACTIVE, 6, 0)
+                .copyBuilder()
+                .peerThrottles(DEFAULT_THROTTLES.copyBuilder().maxQueueDepth(2))
+                .build();
+        final Map<Long, ClprMessageValue> queue = new HashMap<>(Map.of(
+                1L,
+                queuedControl(),
+                2L,
+                queuedReply(),
+                3L,
+                queuedData(Bytes.fromHex("ab")),
+                4L,
+                queuedControl(),
+                5L,
+                queuedReply()));
+        final var liveChannel = useLiveQueue(initial, queue);
+        given(configStore.getConfiguration()).willReturn(createLedgerConfig(CONFIG_TIMESTAMP, 1024, 10));
+
+        assertThat(subject.sendMessage(CHANNEL_ID, CONNECTOR_CONTRACT, TARGET_APP, SENDER, MESSAGE_DATA))
+                .isEqualTo(6);
+        assertThat(queue).hasSize(6);
+        // Credit is global across connectors, including empty/redacted DATA payloads.
+        assertThatThrownBy(() -> subject.sendMessage(CHANNEL_ID, CONNECTOR_CONTRACT, TARGET_APP, SENDER, MESSAGE_DATA))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(CLPR_QUEUE_FULL));
+        assertThat(liveChannel.get().nextMessageId()).isEqualTo(7);
+
+        // Reducing the local all-slot limit still blocks sends even with generous peer DATA credit.
+        liveChannel.set(liveChannel
+                .get()
+                .copyBuilder()
+                .peerThrottles(DEFAULT_THROTTLES.copyBuilder().maxQueueDepth(100))
+                .build());
+        given(configStore.getConfiguration()).willReturn(createLedgerConfig(CONFIG_TIMESTAMP, 1024, 7));
+        assertThatThrownBy(() -> subject.sendMessage(CHANNEL_ID, CONNECTOR_CONTRACT, TARGET_APP, SENDER, MESSAGE_DATA))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(CLPR_QUEUE_FULL));
+        assertThat(queue).hasSize(6);
+    }
+
+    @Test
+    void sharedDataScanPreservesConnectorQuota() {
+        final var initial = createChannelWithQueue(ClprChannelStatus.ACTIVE, 4, 0)
+                .copyBuilder()
+                .peerThrottles(DEFAULT_THROTTLES.copyBuilder().maxQueueDepth(10))
+                .build();
+        useLiveQueue(
+                initial,
+                new HashMap<>(
+                        Map.of(1L, queuedControl(), 2L, queuedData(SOURCE_CONNECTOR_ADDRESS), 3L, queuedReply())));
+        given(configStore.getConfiguration()).willReturn(createLedgerConfig(CONFIG_TIMESTAMP, 1024, 10));
+        given(configuration.getConfigData(ClprConfig.class))
+                .willReturn(ClprConfigBuilder.newBuilder()
+                        .enabled(true)
+                        .connectorQueueQuotaPct(10)
+                        .build());
+
+        assertThatThrownBy(() -> subject.sendMessage(CHANNEL_ID, CONNECTOR_CONTRACT, TARGET_APP, SENDER, MESSAGE_DATA))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(CLPR_QUEUE_QUOTA_EXCEEDED));
+
+        for (long id = 1; id < 4; id++) {
+            verify(messageQueueStore).getMessage(CHANNEL_ID, id);
+        }
+        assertNoStateWrites();
     }
 
     // ---- Queue monopolization protection tests (CLPR-3.5) ----
@@ -679,7 +928,8 @@ class ClprServiceApiImplTest {
                 .ackedMessageId(0)
                 .sentRunningHash(INITIAL_RUNNING_HASH)
                 .lastConfigTimestamp(CONFIG_TIMESTAMP)
-                .peerThrottles(ClprThrottles.newBuilder()
+                .peerThrottles(DEFAULT_THROTTLES
+                        .copyBuilder()
                         .maxMessagePayloadBytes(0)
                         .maxQueueDepth(100)
                         .build())
@@ -716,12 +966,12 @@ class ClprServiceApiImplTest {
         return switch (limitSource) {
             case PEER ->
                 channel.copyBuilder()
-                        .peerThrottles(ClprThrottles.newBuilder().maxMessagePayloadBytes(maxPayloadBytes))
+                        .peerThrottles(DEFAULT_THROTTLES.copyBuilder().maxMessagePayloadBytes(maxPayloadBytes))
                         .build();
             case LOCAL_WITHOUT_PEER_THROTTLES -> channel;
             case LOCAL_WITH_UNSET_PEER_LIMIT ->
                 channel.copyBuilder()
-                        .peerThrottles(ClprThrottles.newBuilder().maxMessagePayloadBytes(0))
+                        .peerThrottles(DEFAULT_THROTTLES.copyBuilder().maxMessagePayloadBytes(0))
                         .build();
         };
     }
@@ -741,6 +991,59 @@ class ClprServiceApiImplTest {
         verify(messageQueueStore, never()).put(any(), anyLong(), any());
         verify(channelWriteStore, never()).put(any());
         verify(connectorStore, never()).put(any());
+    }
+
+    private AtomicReference<ClprChannel> useLiveQueue(
+            final ClprChannel initial, final Map<Long, ClprMessageValue> queue) {
+        final var channel = new AtomicReference<>(initial);
+        final var connector = new AtomicReference<>(createConnector());
+        given(channelReadStore.getChannel(CHANNEL_ID)).willAnswer(ignored -> channel.get());
+        given(connectorStore.getConnector(new ClprConnectorKey(CHANNEL_ID, CONNECTOR_CONTRACT)))
+                .willAnswer(ignored -> connector.get());
+        given(messageQueueStore.getMessage(eq(CHANNEL_ID), anyLong()))
+                .willAnswer(invocation -> queue.get(invocation.<Long>getArgument(1)));
+        doAnswer(invocation -> {
+                    channel.set(invocation.getArgument(0));
+                    return null;
+                })
+                .when(channelWriteStore)
+                .put(any());
+        doAnswer(invocation -> {
+                    connector.set(invocation.getArgument(0));
+                    return null;
+                })
+                .when(connectorStore)
+                .put(any());
+        doAnswer(invocation -> {
+                    queue.put(invocation.getArgument(1), invocation.getArgument(2));
+                    return null;
+                })
+                .when(messageQueueStore)
+                .put(eq(CHANNEL_ID), anyLong(), any());
+        return channel;
+    }
+
+    private static ClprMessageValue queuedData(final Bytes connectorId) {
+        return ClprMessageValue.newBuilder()
+                .payload(ClprMessagePayload.newBuilder()
+                        .message(ClprMessage.newBuilder()
+                                .connectorId(connectorId)
+                                .messageData(Bytes.EMPTY)))
+                .build();
+    }
+
+    private static ClprMessageValue queuedControl() {
+        return ClprMessageValue.newBuilder()
+                .payload(ClprMessagePayload.newBuilder()
+                        .control(ClprControlMessage.newBuilder().configUpdate(ClprConfigUpdate.DEFAULT)))
+                .build();
+    }
+
+    private static ClprMessageValue queuedReply() {
+        return ClprMessageValue.newBuilder()
+                .payload(ClprMessagePayload.newBuilder()
+                        .messageReply(ClprMessageReply.newBuilder().messageId(1)))
+                .build();
     }
 
     private ClprChannel createChannel(@NonNull final ClprChannelStatus status) {
@@ -784,7 +1087,8 @@ class ClprServiceApiImplTest {
             final Timestamp timestamp, final int maxPayloadBytes, final int maxQueueDepth) {
         return ClprLedgerConfiguration.newBuilder()
                 .timestamp(timestamp)
-                .throttles(ClprThrottles.newBuilder()
+                .throttles(DEFAULT_THROTTLES
+                        .copyBuilder()
                         .maxMessagePayloadBytes(maxPayloadBytes)
                         .maxQueueDepth(maxQueueDepth)
                         .build())

@@ -10,6 +10,8 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_HEDERA_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_DATA_WITH_CALL_DATA;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.FEE_SCHEDULE_UNITS_PER_TINYCENT;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_VERIFIER;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CONTRACT_GAS_USAGE;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -50,6 +52,7 @@ import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.ComputeDispatchFeesAsTopLevel;
+import com.hedera.node.app.spi.workflows.ContractGasUsage;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
@@ -58,6 +61,8 @@ import java.util.Map;
 import org.hiero.hapi.support.fees.FeeSchedule;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -143,8 +148,13 @@ class TransactionModuleTest {
         assertThat(provideSenderEcdsaKey(ethTxSigsCache, hydration)).isEqualTo(A_SECP256K1_KEY);
     }
 
-    @Test
-    void providesExpectedEvmContextWithExplicitTracingOff() {
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void providesExpectedEvmContextWithExplicitTracingOff(final boolean verifier) {
+        final var usage = new ContractGasUsage();
+        given(context.dispatchMetadata())
+                .willReturn(
+                        new HandleContext.DispatchMetadata(Map.of(CONTRACT_GAS_USAGE, usage, CLPR_VERIFIER, verifier)));
         final var recordBuilder = mock(ContractOperationStreamBuilder.class);
         final var gasCalculator = mock(SystemContractGasCalculator.class);
         final var blocks = mock(HederaEvmBlocks.class);
@@ -165,6 +175,7 @@ class TransactionModuleTest {
                 hederaOperations,
                 blocks,
                 pendingCreationBuilder);
+        assertSame(verifier ? usage : null, result.verifierGasUsage());
         assertSame(blocks, result.blocks());
         assertSame(123L, result.gasPrice());
         assertSame(recordBuilder, result.streamBuilder());

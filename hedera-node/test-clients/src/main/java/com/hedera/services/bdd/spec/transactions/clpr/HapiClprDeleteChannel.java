@@ -22,6 +22,7 @@ public class HapiClprDeleteChannel extends HapiTxnOp<HapiClprDeleteChannel> {
 
     private byte[] channelId;
     private byte[] ownershipCommitment;
+    private boolean forceClose;
 
     public HapiClprDeleteChannel() {}
 
@@ -32,6 +33,11 @@ public class HapiClprDeleteChannel extends HapiTxnOp<HapiClprDeleteChannel> {
 
     public HapiClprDeleteChannel ownershipCommitment(final byte[] ownershipCommitment) {
         this.ownershipCommitment = ownershipCommitment;
+        return this;
+    }
+
+    public HapiClprDeleteChannel forceClose(final boolean forceClose) {
+        this.forceClose = forceClose;
         return this;
     }
 
@@ -56,6 +62,7 @@ public class HapiClprDeleteChannel extends HapiTxnOp<HapiClprDeleteChannel> {
                             if (ownershipCommitment != null) {
                                 b.setOwnershipCommitment(ByteString.copyFrom(ownershipCommitment));
                             }
+                            b.setForceClose(forceClose);
                         });
         return b -> b.setClprDeleteChannel(opBody);
     }

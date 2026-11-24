@@ -500,6 +500,9 @@ public interface HandleContext {
          */
         void rollback();
 
+        /** Rolls back application effects while retaining finalized child resource usage in the enclosing savepoint. */
+        void rollbackPreservingThrottleUsage();
+
         /**
          * Returns the depth of the savepoint stack.
          *

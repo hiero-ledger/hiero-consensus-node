@@ -157,7 +157,8 @@ class ClprEndpointClientTest {
         @DisplayName("sync drives a multi-message exchange over TLS")
         void syncSucceedsOverTls() throws Exception {
             final var mockedResponseMessages = new ClprStreamingSyncPayload[] {
-                buildStreamingSyncPayload(9, Bytes.wrap("1st response bundle")), buildStreamingSyncPayload(null, null),
+                buildStreamingSyncPayload(9, Bytes.wrap(new byte[4 * 1024 * 1024 - 114])),
+                buildStreamingSyncPayload(null, null),
             };
             final var received = new CopyOnWriteArrayList<ClprStreamingSyncPayload>();
 

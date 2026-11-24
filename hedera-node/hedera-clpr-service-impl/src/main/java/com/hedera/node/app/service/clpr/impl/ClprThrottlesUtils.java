@@ -16,8 +16,8 @@ public final class ClprThrottlesUtils {
 
     /**
      * Returns the largest payload this ledger may enqueue for a peer, whether a data message or a reply. The
-     * destination is authoritative for its own max_message_payload_bytes, so a payload within this limit always fits in
-     * a bundle the peer accepts. Falls back to the local limit when the peer has not advertised one.
+     * destination sets its receive limit and Hiero caps new payloads at its own sending capacity.
+     * Falls back to the local advertisement when the peer has not advertised a limit.
      *
      * @param peerThrottles  the throttles last advertised by the peer, if any
      * @param localThrottles this ledger's throttles
@@ -26,8 +26,9 @@ public final class ClprThrottlesUtils {
     public static int effectiveMaxPayloadBytes(
             @Nullable final ClprThrottles peerThrottles, @NonNull final ClprThrottles localThrottles) {
         requireNonNull(localThrottles);
-        return (peerThrottles != null && peerThrottles.maxMessagePayloadBytes() > 0)
+        final int advertised = (peerThrottles != null && peerThrottles.maxMessagePayloadBytes() > 0)
                 ? peerThrottles.maxMessagePayloadBytes()
                 : localThrottles.maxMessagePayloadBytes();
+        return Math.min(advertised, ClprThrottlesValidator.MAX_MESSAGE_PAYLOAD_BYTES);
     }
 }

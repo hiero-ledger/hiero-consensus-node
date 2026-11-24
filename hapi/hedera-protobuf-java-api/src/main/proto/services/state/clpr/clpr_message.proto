@@ -20,7 +20,9 @@ enum ClprMessageReplyStatus {
     SUCCESS = 0;
 
     /**
-     * The destination application reverted during execution.
+     * Destination execution was skipped or failed, and its application effects did not commit.
+     * An invalid or oversized return may produce this status only after rolling back those effects.
+     * Failure to deliver already committed response data MUST NOT change the execution status.
      */
     APPLICATION_ERROR = 1;
 
@@ -82,7 +84,12 @@ message ClprMessageReply {
     ClprMessageReplyStatus status = 2;
 
     /**
-     * Opaque application response (empty on protocol errors).
+     * Opaque application response. The entire serialized ClprMessagePayload, including
+     * this reply's id, status, and framing, is bounded by the recipient's payload limit.
+     * On Hiero, a return that exceeds the reply budget rolls back the application dispatch
+     * before producing an empty APPLICATION_ERROR reply. A receiver whose limit has since
+     * decreased preserves this attested status and reports response-data unavailability
+     * separately to its application.
      */
     bytes message_reply_data = 3;
 }

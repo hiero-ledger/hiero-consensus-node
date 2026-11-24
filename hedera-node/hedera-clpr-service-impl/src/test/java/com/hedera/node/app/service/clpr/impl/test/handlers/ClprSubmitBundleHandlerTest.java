@@ -10,6 +10,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INVALID_CHANNEL_ST
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NOT_ENABLED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NO_PROGRESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_PAYLOAD_TOO_LARGE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_QUEUE_FULL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_RUNNING_HASH_MISMATCH;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
@@ -31,11 +32,14 @@ import static org.mockito.ArgumentMatchers.notNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.lenient;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
+import com.esaulpaugh.headlong.abi.Function;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
@@ -83,6 +87,7 @@ import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.ContractGasUsage;
@@ -94,13 +99,16 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.base.time.Time;
 import com.swirlds.state.spi.WritableStates;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import org.apache.commons.lang3.RandomUtils;
+import org.apache.logging.log4j.LogManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -157,6 +165,9 @@ class ClprSubmitBundleHandlerTest {
 
     @Mock
     private HandleContext handleContext;
+
+    @Mock
+    private HandleContext.SavepointStack applicationStack;
 
     @Mock
     private StoreFactory storeFactory;
@@ -712,6 +723,877 @@ class ClprSubmitBundleHandlerTest {
         assertThat(response.payload().messageReplyOrThrow().messageReplyData()).isEqualTo(Bytes.wrap(innerData));
     }
 
+    @ParameterizedTest
+    @CsvSource({
+        "17, 23, 1000000, true", // exact serialized destination payload limit
+        "18, 23, 1000000, false", // just over the limit, within the same ABI padding
+        "2000000, 17, 1000000, false", // large untrusted EVM return
+        "65526, 2000000, 4000000, true", // exact local serialized payload limit (10 framing bytes)
+        "65527, 2000000, 4000000, false", // framing takes this return over the local cap
+        "65537, 2000000, 4000000, false", // destination cannot override the local cap
+        "17, 1000, 65559, true", // exact serialized destination sync budget after proof overhead
+        "18, 1000, 65559, false", // within payload limit, but exceeds destination sync budget
+        "17, 0, 1000000, true" // destination advertises no payload limit, so the local cap applies
+    })
+    void boundsApplicationReply(
+            final int returnSize, final int peerMaxPayload, final long peerMaxSync, final boolean fits) {
+        putChannel(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH);
+        channelStore.put(channelStore
+                .getChannel(CHANNEL_ID)
+                .copyBuilder()
+                .peerThrottles(defaultTestThrottles()
+                        .copyBuilder()
+                        .maxMessagePayloadBytes(peerMaxPayload)
+                        .maxSyncBytes(peerMaxSync)
+                        .build())
+                .build());
+        setupHandleContext(validSingleDataBundle(), true);
+        putConnector();
+        final var returnData = new byte[returnSize];
+        returnData[returnSize - 1] = 42;
+        given(dispatchResult.getEvmCallResult()).willReturn(abiEncodeBytes(returnData));
+
+        subject.handle(handleContext);
+
+        final var queued = messageQueueStore.getMessage(CHANNEL_ID, 1);
+        final var reply = queued.payloadOrThrow().messageReplyOrThrow();
+        assertThat(reply.messageId()).isEqualTo(1);
+        assertThat(reply.status())
+                .isEqualTo(fits ? ClprMessageReplyStatus.SUCCESS : ClprMessageReplyStatus.APPLICATION_ERROR);
+        assertThat(reply.messageReplyData()).isEqualTo(fits ? Bytes.wrap(returnData) : Bytes.EMPTY);
+        assertThat(queued.runningHashAfterProcessing())
+                .isEqualTo(ClprHashUtils.computeRunningHash(ZERO_HASH, queued.payloadOrThrow()));
+        assertThat(channelStore.getChannel(CHANNEL_ID).receivedMessageId()).isEqualTo(1);
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        "1,17,SUCCESS,0,true",
+        "1,17,SUCCESS,-1,false",
+        "127,127,SUCCESS,0,true",
+        "128,128,SUCCESS,0,true",
+        "128,128,SUCCESS,-1,false",
+        "16384,16384,SUCCESS,0,true",
+        "72057594037927936,17,SUCCESS,0,true",
+        "72057594037927936,17,SUCCESS,-1,false",
+        "1,17,CONTRACT_REVERT_EXECUTED,0,true",
+        "1,17,CONTRACT_REVERT_EXECUTED,-1,false",
+        "128,128,CONTRACT_REVERT_EXECUTED,0,true",
+        "128,128,CONTRACT_REVERT_EXECUTED,-1,false"
+    })
+    void boundsCompleteSerializedReplyAtMetadataBoundaries(
+            final long inboundMessageId,
+            final int returnSize,
+            final ResponseCodeEnum dispatchStatus,
+            final int limitOffset,
+            final boolean fits) {
+        final var expectedStatus = dispatchStatus == ResponseCodeEnum.SUCCESS
+                ? ClprMessageReplyStatus.SUCCESS
+                : ClprMessageReplyStatus.APPLICATION_ERROR;
+        final var returned = new byte[returnSize];
+        final var expectedPayload = ClprMessagePayload.newBuilder()
+                .messageReply(ClprMessageReply.newBuilder()
+                        .messageId(inboundMessageId)
+                        .status(expectedStatus)
+                        .messageReplyData(Bytes.wrap(returned)))
+                .build();
+        final int limit = Math.toIntExact(
+                        ClprMessagePayload.PROTOBUF.toBytes(expectedPayload).length())
+                + limitOffset;
+        putChannel(ClprChannelStatus.ACTIVE, 1, 0, inboundMessageId - 1, ZERO_HASH);
+        channelStore.put(channelStore
+                .getChannel(CHANNEL_ID)
+                .copyBuilder()
+                .peerThrottles(defaultTestThrottles().copyBuilder().maxMessagePayloadBytes(limit))
+                .build());
+        setupHandleContext(
+                buildBundle(ClprChannelStatus.ACTIVE, inboundMessageId - 1, 0, ZERO_HASH, List.of(dataPayload())),
+                true);
+        putConnector();
+        given(dispatchResult.status()).willReturn(dispatchStatus);
+        given(dispatchResult.getEvmCallResult()).willReturn(abiEncodeBytes(returned));
+
+        subject.handle(handleContext);
+
+        final var payload = messageQueueStore.getMessage(CHANNEL_ID, 1).payloadOrThrow();
+        final var reply = payload.messageReplyOrThrow();
+        assertThat(reply.messageId()).isEqualTo(inboundMessageId);
+        assertThat(reply.status()).isEqualTo(fits ? expectedStatus : ClprMessageReplyStatus.APPLICATION_ERROR);
+        assertThat(reply.messageReplyData()).isEqualTo(fits ? Bytes.wrap(returned) : Bytes.EMPTY);
+        assertThat(ClprMessagePayload.PROTOBUF.toBytes(payload).length()).isLessThanOrEqualTo(limit);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"1,5,1000000", "128,6,1000000", "1,0,65541", "1,1024,33792", "1,1024,65536", "1,1024,65541"})
+    void impossibleReplyBudgetQueuesMinimumErrorWithoutApplicationWork(
+            final long inboundMessageId, final int peerPayloadLimit, final long peerSyncLimit) {
+        putChannel(ClprChannelStatus.ACTIVE, 1, 0, inboundMessageId - 1, ZERO_HASH);
+        channelStore.put(channelStore
+                .getChannel(CHANNEL_ID)
+                .copyBuilder()
+                .peerThrottles(defaultTestThrottles()
+                        .copyBuilder()
+                        .maxMessagePayloadBytes(peerPayloadLimit)
+                        .maxSyncBytes(peerSyncLimit))
+                .build());
+        setupHandleContext(
+                buildBundle(ClprChannelStatus.ACTIVE, inboundMessageId - 1, 0, ZERO_HASH, List.of(dataPayload())),
+                true);
+        putConnector();
+
+        subject.handle(handleContext);
+
+        verify(handleContext, never()).dispatch(any(DispatchOptions.class));
+        verify(tokenServiceApi, never()).transferFromTo(any(), any(), anyLong());
+        assertThat(writableMessages.size()).isEqualTo(1);
+        assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1).payloadOrThrow())
+                .isEqualTo(replyPayloadWithStatus(inboundMessageId, ClprMessageReplyStatus.APPLICATION_ERROR));
+        assertThat(channelStore.getChannel(CHANNEL_ID).receivedMessageId()).isEqualTo(inboundMessageId);
+        assertThat(channelStore.getChannel(CHANNEL_ID).receivedRunningHash())
+                .isEqualTo(runningHashOver(ZERO_HASH, List.of(dataPayload())));
+    }
+
+    @Test
+    void minimumReplyWarningsAreRateLimitedAcrossBundlesAndResumeWithSuppressedCount() {
+        final var time = mock(Time.class);
+        final var initialTime = Instant.parse("2026-01-01T00:00:00Z");
+        subject = new ClprSubmitBundleHandler(
+                verifierFactory, entityIdFactory, channelLifecycle, new ClprBundleValidator(), time);
+        putChannel(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH);
+        channelStore.put(channelStore
+                .getChannel(CHANNEL_ID)
+                .copyBuilder()
+                .peerThrottles(defaultTestThrottles().copyBuilder().maxMessagePayloadBytes(1))
+                .build());
+        putConnector();
+        final var captured = new LogCaptor(LogManager.getLogger(ClprSubmitBundleHandler.class));
+        try {
+            final int[] messagesPerBundle = {3, 2, 1, 1};
+            final long[] elapsedSeconds = {0, 0, 59, 60};
+            int totalMessages = 0;
+            for (int bundle = 0; bundle < messagesPerBundle.length; bundle++) {
+                given(time.now()).willReturn(initialTime.plusSeconds(elapsedSeconds[bundle]));
+                final var before = channelStore.getChannel(CHANNEL_ID);
+                final var messages = Collections.nCopies(messagesPerBundle[bundle], dataPayload());
+                setupHandleContext(
+                        buildBundle(
+                                ClprChannelStatus.ACTIVE,
+                                before.receivedMessageId(),
+                                0,
+                                before.receivedRunningHash(),
+                                messages),
+                        true);
+
+                subject.handle(handleContext);
+
+                totalMessages += messages.size();
+                assertThat(channelStore.getChannel(CHANNEL_ID).receivedMessageId())
+                        .isEqualTo(totalMessages);
+                assertThat(captured.warnLogs()).hasSize(bundle == 3 ? 2 : 1);
+            }
+            assertThat(captured.warnLogs().getFirst())
+                    .contains(
+                            "minimum error reply exceeds conservative allowance",
+                            "minimumReplyBytes=6",
+                            "maxSerializedReplyBytes=1",
+                            "skipping application dispatch")
+                    .doesNotContain("Due to rate limiting");
+            assertThat(captured.warnLogs().getLast()).contains("receivedMsgId=7", "5 times without being reported");
+            assertThat(writableMessages.size()).isEqualTo(totalMessages);
+            for (int id = 1; id <= totalMessages; id++) {
+                assertThat(messageQueueStore.getMessage(CHANNEL_ID, id).payloadOrThrow())
+                        .isEqualTo(replyPayloadWithStatus(id, ClprMessageReplyStatus.APPLICATION_ERROR));
+            }
+            verify(handleContext, never()).dispatch(any(DispatchOptions.class));
+            verify(tokenServiceApi, never()).transferFromTo(any(), any(), anyLong());
+        } finally {
+            captured.stopCapture();
+        }
+    }
+
+    @Test
+    void impossibleReplyBudgetPreservesAckAnchorManifestAndDataProgress() {
+        putChannel(ClprChannelStatus.ACTIVE, 2, 0, ZERO_HASH);
+        putOutboundSlot(1, replyPayload(1));
+        channelStore.put(channelStore
+                .getChannel(CHANNEL_ID)
+                .copyBuilder()
+                .peerThrottles(defaultTestThrottles().copyBuilder().maxMessagePayloadBytes(1))
+                .build());
+        final var manifest = buildManifest(1, "10.0.0.1");
+        final var content = buildBundleWithManifest(manifest, List.of(dataPayload()));
+        final var bundle = content.copyBuilder()
+                .metadata(content.metadataOrThrow().copyBuilder().receivedMessageId(1))
+                .newTrustAnchor(Bytes.fromHex("01"))
+                .newTrustAnchorId(Bytes.fromHex("02"))
+                .build();
+        setupHandleContext(bundleTxn(bundle), true);
+        putConnector();
+
+        subject.handle(handleContext);
+
+        final var channel = channelStore.getChannel(CHANNEL_ID);
+        assertThat(channel.ackedMessageId()).isEqualTo(1);
+        assertThat(channel.receivedMessageId()).isEqualTo(1);
+        assertThat(channel.receivedRunningHash()).isEqualTo(runningHashOver(ZERO_HASH, List.of(dataPayload())));
+        assertThat(channel.trustAnchor()).isEqualTo(bundle.newTrustAnchor());
+        assertThat(channel.trustAnchorId()).isEqualTo(bundle.newTrustAnchorId());
+        assertThat(channel.endpointManifest()).isEqualTo(manifest);
+        assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1)).isNull();
+        assertThat(messageQueueStore.getMessage(CHANNEL_ID, 2).payloadOrThrow())
+                .isEqualTo(replyPayloadWithStatus(1, ClprMessageReplyStatus.APPLICATION_ERROR));
+        assertThat(writableMessages.size()).isEqualTo(1);
+        verify(channelLifecycle).seedPeerEndpoints(CHANNEL_ID, manifest.endpoints());
+        verify(handleContext, never()).dispatch(any(DispatchOptions.class));
+        verify(tokenServiceApi, never()).transferFromTo(any(), any(), anyLong());
+    }
+
+    @Test
+    void tinyPeerReplyBudgetStillAllowsAckAndStateProgress() {
+        putChannel(ClprChannelStatus.ACTIVE, 2, 0, ZERO_HASH);
+        putOutboundSlot(1, replyPayload(1));
+        channelStore.put(channelStore
+                .getChannel(CHANNEL_ID)
+                .copyBuilder()
+                .peerThrottles(defaultTestThrottles().copyBuilder().maxMessagePayloadBytes(1))
+                .build());
+        final var content = buildBundleWithManifest(null, List.of());
+        final var updated = content.copyBuilder()
+                .metadata(content.metadataOrThrow().copyBuilder().receivedMessageId(1))
+                .newTrustAnchor(Bytes.fromHex("01"))
+                .newTrustAnchorId(Bytes.fromHex("02"))
+                .build();
+        setupHandleContext(bundleTxn(updated), true);
+
+        subject.handle(handleContext);
+
+        final var channel = channelStore.getChannel(CHANNEL_ID);
+        assertThat(channel.ackedMessageId()).isEqualTo(1);
+        assertThat(channel.trustAnchor()).isEqualTo(updated.newTrustAnchor());
+        assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1)).isNull();
+        verify(handleContext, never()).dispatch(any(DispatchOptions.class));
+    }
+
+    @Test
+    void peerCanRaiseAnImpossibleReplyBudgetBeforeDataInTheSameBundle() {
+        putChannel(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH);
+        channelStore.put(channelStore
+                .getChannel(CHANNEL_ID)
+                .copyBuilder()
+                .peerThrottles(defaultTestThrottles().copyBuilder().maxMessagePayloadBytes(1))
+                .build());
+        final var repairedThrottles =
+                defaultTestThrottles().copyBuilder().maxMessagePayloadBytes(23).build();
+        final var configUpdate = ClprMessagePayload.newBuilder()
+                .control(ClprControlMessage.newBuilder()
+                        .configUpdate(ClprConfigUpdate.newBuilder()
+                                .configuration(
+                                        createLedgerConfig().copyBuilder().throttles(repairedThrottles))))
+                .build();
+        setupHandleContext(
+                buildBundle(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH, List.of(configUpdate, dataPayload())), true);
+        putConnector();
+        final var returned = new byte[17];
+        given(dispatchResult.getEvmCallResult()).willReturn(abiEncodeBytes(returned));
+
+        subject.handle(handleContext);
+
+        final var payload = messageQueueStore.getMessage(CHANNEL_ID, 1).payloadOrThrow();
+        assertThat(payload.messageReplyOrThrow().status()).isEqualTo(ClprMessageReplyStatus.SUCCESS);
+        assertThat(payload.messageReplyOrThrow().messageId()).isEqualTo(2);
+        assertThat(payload.messageReplyOrThrow().messageReplyData()).isEqualTo(Bytes.wrap(returned));
+        assertThat(ClprMessagePayload.PROTOBUF.toBytes(payload).length()).isEqualTo(23);
+        assertThat(channelStore.getChannel(CHANNEL_ID).peerThrottles()).isEqualTo(repairedThrottles);
+    }
+
+    @Test
+    void configBehindDataRepairsImpossibleReplyBudgetForLaterData() {
+        putChannel(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH);
+        channelStore.put(channelStore
+                .getChannel(CHANNEL_ID)
+                .copyBuilder()
+                .peerThrottles(defaultTestThrottles().copyBuilder().maxMessagePayloadBytes(1))
+                .build());
+        final var repairedThrottles =
+                defaultTestThrottles().copyBuilder().maxMessagePayloadBytes(23).build();
+        final var configUpdate = ClprMessagePayload.newBuilder()
+                .control(ClprControlMessage.newBuilder()
+                        .configUpdate(ClprConfigUpdate.newBuilder()
+                                .configuration(
+                                        createLedgerConfig().copyBuilder().throttles(repairedThrottles))))
+                .build();
+        final var messages = List.of(dataPayload(), configUpdate, dataPayload());
+        setupHandleContext(buildBundle(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH, messages), true);
+        putConnector();
+        final var returned = new byte[17];
+        given(dispatchResult.getEvmCallResult()).willReturn(abiEncodeBytes(returned));
+
+        subject.handle(handleContext);
+
+        final var channel = channelStore.getChannel(CHANNEL_ID);
+        assertThat(channel.receivedMessageId()).isEqualTo(3);
+        assertThat(channel.receivedRunningHash()).isEqualTo(runningHashOver(ZERO_HASH, messages));
+        assertThat(channel.peerThrottles()).isEqualTo(repairedThrottles);
+        assertThat(writableMessages.size()).isEqualTo(2);
+        assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1).payloadOrThrow())
+                .isEqualTo(replyPayloadWithStatus(1, ClprMessageReplyStatus.APPLICATION_ERROR));
+        final var success = messageQueueStore.getMessage(CHANNEL_ID, 2).payloadOrThrow();
+        assertThat(success.messageReplyOrThrow().messageId()).isEqualTo(3);
+        assertThat(success.messageReplyOrThrow().status()).isEqualTo(ClprMessageReplyStatus.SUCCESS);
+        assertThat(success.messageReplyOrThrow().messageReplyData()).isEqualTo(Bytes.wrap(returned));
+        assertThat(ClprMessagePayload.PROTOBUF.measureRecord(success)).isEqualTo(23);
+        verify(handleContext).dispatch(any(DispatchOptions.class));
+    }
+
+    @Test
+    void configWithoutThrottlesPreservesImpossibleReplyBudgetAndLaterConfigProgress() {
+        putChannel(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH);
+        final var reducedThrottles =
+                defaultTestThrottles().copyBuilder().maxMessagePayloadBytes(1).build();
+        final var lowered = ClprMessagePayload.newBuilder()
+                .control(ClprControlMessage.newBuilder()
+                        .configUpdate(ClprConfigUpdate.newBuilder()
+                                .configuration(
+                                        createLedgerConfig().copyBuilder().throttles(reducedThrottles))))
+                .build();
+        final var withoutThrottles = ClprMessagePayload.newBuilder()
+                .control(ClprControlMessage.newBuilder()
+                        .configUpdate(ClprConfigUpdate.newBuilder()
+                                .configuration(createLedgerConfig()
+                                        .copyBuilder()
+                                        .throttles((ClprThrottles) null)
+                                        .timestamp(CONFIG_TIMESTAMP
+                                                .copyBuilder()
+                                                .seconds(CONFIG_TIMESTAMP.seconds() + 1)))))
+                .build();
+        final var restored = ClprMessagePayload.newBuilder()
+                .control(ClprControlMessage.newBuilder()
+                        .configUpdate(ClprConfigUpdate.newBuilder()
+                                .configuration(createLedgerConfig()
+                                        .copyBuilder()
+                                        .timestamp(CONFIG_TIMESTAMP
+                                                .copyBuilder()
+                                                .seconds(CONFIG_TIMESTAMP.seconds() + 2)))))
+                .build();
+        // The final budget fits a reply, but the DATA still sees the earlier one-byte cap.
+        // A configuration without throttles must not reset that cap to the local fallback.
+        setupHandleContext(
+                buildBundle(
+                        ClprChannelStatus.ACTIVE,
+                        0,
+                        0,
+                        ZERO_HASH,
+                        List.of(lowered, withoutThrottles, dataPayload(), restored)),
+                true);
+
+        subject.handle(handleContext);
+
+        verify(handleContext, never()).dispatch(any(DispatchOptions.class));
+        assertThat(writableMessages.size()).isEqualTo(1);
+        assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1).payloadOrThrow())
+                .isEqualTo(replyPayloadWithStatus(3, ClprMessageReplyStatus.CONNECTOR_NOT_FOUND));
+        assertThat(channelStore.getChannel(CHANNEL_ID).receivedMessageId()).isEqualTo(4);
+        assertThat(channelStore.getChannel(CHANNEL_ID).peerThrottles())
+                .isEqualTo(createLedgerConfig().throttles());
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {1, 9})
+    void earlierReplyHonorsFirstPeerAdvertisementLaterInBundle(final int peerPayloadLimit) {
+        putChannel(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH);
+        final var reducedThrottles = defaultTestThrottles()
+                .copyBuilder()
+                .maxMessagePayloadBytes(peerPayloadLimit)
+                .build();
+        final var configUpdate = ClprMessagePayload.newBuilder()
+                .control(ClprControlMessage.newBuilder()
+                        .configUpdate(ClprConfigUpdate.newBuilder()
+                                .configuration(createLedgerConfig()
+                                        .copyBuilder()
+                                        .throttles(reducedThrottles)
+                                        .build())
+                                .build())
+                        .build())
+                .build();
+        setupHandleContext(
+                buildBundle(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH, List.of(dataPayload(), configUpdate)), true);
+        putConnector();
+        lenient().when(dispatchResult.getEvmCallResult()).thenReturn(abiEncodeBytes(new byte[4]));
+
+        subject.handle(handleContext);
+
+        final var reply =
+                messageQueueStore.getMessage(CHANNEL_ID, 1).payloadOrThrow().messageReplyOrThrow();
+        assertThat(reply.status()).isEqualTo(ClprMessageReplyStatus.APPLICATION_ERROR);
+        assertThat(reply.messageReplyData()).isEqualTo(Bytes.EMPTY);
+        assertThat(channelStore.getChannel(CHANNEL_ID).peerThrottles()).isEqualTo(reducedThrottles);
+        assertThat(channelStore.getChannel(CHANNEL_ID).receivedMessageId()).isEqualTo(2);
+        verify(handleContext, times(peerPayloadLimit == 1 ? 0 : 1)).dispatch(any(DispatchOptions.class));
+    }
+
+    @Test
+    void replyUsesLastPeerLimitWhenBundleCarriesSeveralConfigUpdates() {
+        putChannel(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH);
+        final var reducedThrottles =
+                defaultTestThrottles().copyBuilder().maxMessagePayloadBytes(9).build();
+        final var lowered = ClprMessagePayload.newBuilder()
+                .control(ClprControlMessage.newBuilder()
+                        .configUpdate(ClprConfigUpdate.newBuilder()
+                                .configuration(createLedgerConfig()
+                                        .copyBuilder()
+                                        .throttles(reducedThrottles)
+                                        .build())
+                                .build())
+                        .build())
+                .build();
+        final var restoredConfig = createLedgerConfig()
+                .copyBuilder()
+                .timestamp(CONFIG_TIMESTAMP
+                        .copyBuilder()
+                        .seconds(CONFIG_TIMESTAMP.seconds() + 1)
+                        .build())
+                .build();
+        final var restored = ClprMessagePayload.newBuilder()
+                .control(ClprControlMessage.newBuilder()
+                        .configUpdate(ClprConfigUpdate.newBuilder()
+                                .configuration(restoredConfig)
+                                .build())
+                        .build())
+                .build();
+        setupHandleContext(
+                buildBundle(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH, List.of(dataPayload(), lowered, restored)),
+                true);
+        putConnector();
+        final var returned = new byte[] {1, 2, 3, 4};
+        given(dispatchResult.getEvmCallResult()).willReturn(abiEncodeBytes(returned));
+
+        subject.handle(handleContext);
+
+        final var reply =
+                messageQueueStore.getMessage(CHANNEL_ID, 1).payloadOrThrow().messageReplyOrThrow();
+        assertThat(reply.status()).isEqualTo(ClprMessageReplyStatus.SUCCESS);
+        assertThat(reply.messageReplyData()).isEqualTo(Bytes.wrap(returned));
+        assertThat(channelStore.getChannel(CHANNEL_ID).peerThrottles()).isEqualTo(restoredConfig.throttles());
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {1, 9})
+    void acceptedReplyHonorsFirstPeerAdvertisementInDeferredTail(final int peerPayloadLimit) {
+        putChannel(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH);
+        final var reducedThrottles = defaultTestThrottles()
+                .copyBuilder()
+                .maxMessagePayloadBytes(peerPayloadLimit)
+                .build();
+        final var configUpdate = ClprMessagePayload.newBuilder()
+                .control(ClprControlMessage.newBuilder()
+                        .configUpdate(ClprConfigUpdate.newBuilder()
+                                .configuration(createLedgerConfig()
+                                        .copyBuilder()
+                                        .throttles(reducedThrottles)
+                                        .build())
+                                .build())
+                        .build())
+                .build();
+        // With max_queue_depth 1, only the first DATA has reply capacity; the second DATA and the
+        // configuration update are deferred, but the reply is proved after the peer's update applies.
+        setupHandleContext(
+                buildBundle(
+                        ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH, List.of(dataPayload(), dataPayload(), configUpdate)),
+                true);
+        setQueueDepth(1);
+        putConnector();
+        lenient().when(dispatchResult.getEvmCallResult()).thenReturn(abiEncodeBytes(new byte[4]));
+
+        subject.handle(handleContext);
+
+        final var channel = channelStore.getChannel(CHANNEL_ID);
+        assertThat(channel.receivedMessageId()).isEqualTo(1);
+        assertThat(channel.peerThrottles()).isNull();
+        final var reply =
+                messageQueueStore.getMessage(CHANNEL_ID, 1).payloadOrThrow().messageReplyOrThrow();
+        assertThat(reply.status()).isEqualTo(ClprMessageReplyStatus.APPLICATION_ERROR);
+        assertThat(reply.messageReplyData()).isEqualTo(Bytes.EMPTY);
+        verify(handleContext, times(peerPayloadLimit == 1 ? 0 : 1)).dispatch(any(DispatchOptions.class));
+    }
+
+    @Test
+    void fullOrdinaryQueueCanSendRepliesAndDefersConfigurationUpdate() {
+        putChannelWithConfigTimestamp(ClprChannelStatus.ACTIVE, 3, 0, 0, ZERO_HASH, ZERO_TIMESTAMP);
+        putOutboundDataMessage(1);
+        putOutboundDataMessage(2);
+        final var inbound = List.of(dataPayload(), dataPayload());
+        setupHandleContext(buildBundle(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH, inbound), true);
+        setQueueDepth(2);
+
+        subject.handle(handleContext);
+
+        final var channel = channelStore.getChannel(CHANNEL_ID);
+        assertThat(channel.nextMessageId()).isEqualTo(5);
+        assertThat(channel.lastConfigTimestamp()).isEqualTo(ZERO_TIMESTAMP);
+        assertThat(messageQueueStore.getMessage(CHANNEL_ID, 3).payloadOrThrow().hasMessageReply())
+                .isTrue();
+        assertThat(messageQueueStore.getMessage(CHANNEL_ID, 4).payloadOrThrow().hasMessageReply())
+                .isTrue();
+    }
+
+    @Test
+    void acceptsFittingPrefixAndDispatchesDeferredDataOnRetry() {
+        putChannel(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH);
+        putConnector();
+        final var inbound = List.of(dataPayload(), dataPayload(), dataPayload());
+        setupHandleContext(buildBundle(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH, inbound), true);
+        setQueueDepth(2);
+
+        subject.handle(handleContext);
+
+        final var afterPrefix = channelStore.getChannel(CHANNEL_ID);
+        assertThat(afterPrefix.receivedMessageId()).isEqualTo(2);
+        assertThat(afterPrefix.receivedRunningHash()).isEqualTo(runningHashOver(ZERO_HASH, inbound.subList(0, 2)));
+        assertThat(afterPrefix.nextMessageId()).isEqualTo(3);
+        verify(handleContext, times(2)).dispatch(any(DispatchOptions.class));
+
+        // The peer can prove the original messages again with a fresh ACK. Only the unseen third DATA is dispatched.
+        setupHandleContext(buildBundle(ClprChannelStatus.ACTIVE, 0, 2, ZERO_HASH, inbound), true);
+        setQueueDepth(2);
+        subject.handle(handleContext);
+
+        final var afterRetry = channelStore.getChannel(CHANNEL_ID);
+        assertThat(afterRetry.receivedMessageId()).isEqualTo(3);
+        assertThat(afterRetry.receivedRunningHash()).isEqualTo(runningHashOver(ZERO_HASH, inbound));
+        assertThat(afterRetry.ackedMessageId()).isEqualTo(2);
+        assertThat(writableMessages.size()).isEqualTo(1);
+        assertThat(messageQueueStore
+                        .getMessage(CHANNEL_ID, 3)
+                        .payloadOrThrow()
+                        .messageReplyOrThrow()
+                        .messageId())
+                .isEqualTo(3);
+        verify(handleContext, times(3)).dispatch(any(DispatchOptions.class));
+    }
+
+    @Test
+    void fullQueueCommitsAnchorAndManifestWithoutAcceptingData() {
+        putChannel(ClprChannelStatus.ACTIVE, 5, 0, Bytes.EMPTY);
+        for (int id = 1; id <= 4; id++) {
+            putOutboundSlot(id, replyPayload(id));
+        }
+        final var manifest = buildManifest(1, "10.0.0.1");
+        final var bundle = buildBundleWithManifest(manifest, List.of(dataPayload()))
+                .copyBuilder()
+                .newTrustAnchor(Bytes.wrap(new byte[] {1}))
+                .newTrustAnchorId(Bytes.wrap(new byte[] {2}))
+                .build();
+        setupHandleContext(bundleTxn(bundle), true);
+        setQueueDepth(2);
+
+        subject.handle(handleContext);
+
+        final var channel = channelStore.getChannel(CHANNEL_ID);
+        assertThat(channel.trustAnchor()).isEqualTo(bundle.newTrustAnchor());
+        assertThat(channel.trustAnchorId()).isEqualTo(bundle.newTrustAnchorId());
+        assertThat(channel.endpointManifest()).isEqualTo(manifest);
+        assertThat(channel.receivedMessageId()).isZero();
+        assertThat(channel.receivedRunningHash()).isEqualTo(Bytes.EMPTY);
+        assertThat(channel.nextMessageId()).isEqualTo(5);
+        verify(handleContext, never()).dispatch(any(DispatchOptions.class));
+        verify(channelLifecycle).seedPeerEndpoints(CHANNEL_ID, manifest.endpoints());
+    }
+
+    @Test
+    void queueAboveReducedLimitAcceptsOneWayAckWithoutData() {
+        putChannel(ClprChannelStatus.ACTIVE, 6, 0, ZERO_HASH);
+        for (int id = 1; id <= 5; id++) {
+            putOutboundSlot(id, replyPayload(id));
+        }
+        setupHandleContext(buildBundle(ClprChannelStatus.ACTIVE, 0, 1, ZERO_HASH, List.of(dataPayload())), true);
+        setQueueDepth(2);
+
+        subject.handle(handleContext);
+
+        final var channel = channelStore.getChannel(CHANNEL_ID);
+        assertThat(channel.ackedMessageId()).isEqualTo(1);
+        assertThat(channel.receivedMessageId()).isZero();
+        assertThat(channel.nextMessageId()).isEqualTo(6);
+        assertThat(writableMessages.size()).isEqualTo(4);
+        verify(handleContext, never()).dispatch(any(DispatchOptions.class));
+    }
+
+    @Test
+    void rejectsDataBeforeDispatchWhenReplyCapacityIsExhausted() {
+        putChannel(ClprChannelStatus.ACTIVE, 5, 0, ZERO_HASH);
+        for (int id = 1; id <= 4; id++) {
+            putOutboundSlot(id, replyPayload(id));
+        }
+        final var originalChannel = channelStore.getChannel(CHANNEL_ID);
+        setupHandleContext(validSingleDataBundle(), true);
+        setQueueDepth(2);
+        putConnector();
+
+        assertThatThrownBy(() -> subject.handle(handleContext)).has(responseCode(CLPR_QUEUE_FULL));
+
+        verify(handleContext, never()).dispatch(any(DispatchOptions.class));
+        verify(tokenServiceApi, never()).transferFromTo(any(), any(), anyLong());
+        assertThat(channelStore.getChannel(CHANNEL_ID)).isEqualTo(originalChannel);
+        assertThat(writableMessages.size()).isEqualTo(4L);
+    }
+
+    @Test
+    void fullReplyQueueCanUseSpaceFreedByAckInSameBundle() {
+        putChannel(ClprChannelStatus.ACTIVE, 5, 0, ZERO_HASH);
+        for (int id = 1; id <= 4; id++) {
+            putOutboundSlot(id, replyPayload(id));
+        }
+        setupHandleContext(buildBundle(ClprChannelStatus.ACTIVE, 0, 1, ZERO_HASH, List.of(dataPayload())), true);
+        setQueueDepth(2);
+
+        subject.handle(handleContext);
+
+        final var channel = channelStore.getChannel(CHANNEL_ID);
+        assertThat(channel.ackedMessageId()).isEqualTo(1);
+        assertThat(channel.nextMessageId()).isEqualTo(6);
+        assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1)).isNull();
+        assertThat(messageQueueStore.getMessage(CHANNEL_ID, 5).payloadOrThrow().hasMessageReply())
+                .isTrue();
+        assertThat(writableMessages.size()).isEqualTo(4L);
+    }
+
+    @Test
+    void replyToUnacknowledgedOneWaySlotDoesNotRemoveIt() {
+        putChannel(ClprChannelStatus.ACTIVE, 2, 0, ZERO_HASH);
+        putOutboundSlot(1, replyPayload(9));
+        final var queued = messageQueueStore.getMessage(CHANNEL_ID, 1);
+        setupHandleContext(buildBundle(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH, List.of(replyPayload(1))), true);
+
+        subject.handle(handleContext);
+
+        assertThat(channelStore.getChannel(CHANNEL_ID).ackedMessageId()).isZero();
+        assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1)).isEqualTo(queued);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"1", "2", "3", "4", "5", "6", "7"})
+    void expandOnlyQueueLimitDrainsPeerDataAheadOfReplies(final int bundleSize) {
+        // A keeps its advertised credit of 5 even after its growth ceiling falls to 2.
+        // B legitimately queues three DATA ahead of replies R1..R4.
+        putChannelWithConfigTimestamp(ClprChannelStatus.ACTIVE, 5, 0, 0, ZERO_HASH, ZERO_TIMESTAMP);
+        for (int id = 1; id <= 4; id++) {
+            putOutboundDataMessage(id);
+        }
+        final var currentConfig = createLedgerConfig()
+                .copyBuilder()
+                .throttles(defaultTestThrottles().copyBuilder().maxQueueDepth(5))
+                .build();
+        final var peerMessages = List.of(
+                dataPayload(),
+                dataPayload(),
+                dataPayload(),
+                replyPayload(1),
+                replyPayload(2),
+                replyPayload(3),
+                replyPayload(4));
+        final var lowerCeiling = HederaTestConfigBuilder.create()
+                .withValue("clpr.maxQueueDepthCeiling", 2)
+                .getOrCreateConfig();
+        int received = 0;
+        while (received < peerMessages.size()) {
+            final var channel = channelStore.getChannel(CHANNEL_ID);
+            final int end = Math.min(received + bundleSize, peerMessages.size());
+            setupHandleContext(
+                    buildBundle(
+                            ClprChannelStatus.ACTIVE,
+                            received,
+                            4,
+                            channel.receivedRunningHash(),
+                            peerMessages.subList(received, end)),
+                    true);
+            given(configStore.getConfiguration()).willReturn(currentConfig);
+            given(handleContext.configuration()).willReturn(lowerCeiling);
+
+            subject.handle(handleContext);
+
+            final var updated = channelStore.getChannel(CHANNEL_ID);
+            assertThat(updated.receivedMessageId()).isEqualTo(end);
+            assertThat(updated.nextMessageId() - updated.ackedMessageId() - 1).isLessThanOrEqualTo(10);
+            assertThat(updated.lastConfigTimestamp()).isEqualTo(CONFIG_TIMESTAMP);
+            received = end;
+        }
+        final var channel = channelStore.getChannel(CHANNEL_ID);
+        assertThat(channel.ackedMessageId()).isEqualTo(4);
+        assertThat(channel.receivedRunningHash()).isEqualTo(runningHashOver(ZERO_HASH, peerMessages));
+        final var advertised = messageQueueStore
+                .getMessage(CHANNEL_ID, 5)
+                .payloadOrThrow()
+                .controlOrThrow()
+                .configUpdateOrThrow()
+                .configurationOrThrow();
+        assertThat(advertised.throttlesOrThrow().maxQueueDepth()).isEqualTo(5);
+        assertThat(advertised).isEqualTo(currentConfig);
+
+        // B can now receive and ACK A's config and replies, so both queues drain.
+        setupHandleContext(
+                buildBundle(
+                        ClprChannelStatus.ACTIVE,
+                        received,
+                        channel.nextMessageId() - 1,
+                        channel.receivedRunningHash(),
+                        List.of()),
+                true);
+        given(configStore.getConfiguration()).willReturn(currentConfig);
+        given(handleContext.configuration()).willReturn(lowerCeiling);
+        subject.handle(handleContext);
+        assertThat(writableMessages.size()).isZero();
+    }
+
+    @Test
+    void replyCreditRemainsFiniteForPeerExceedingItsAdvertisedCredit() {
+        putChannelWithConfigTimestamp(ClprChannelStatus.ACTIVE, 5, 0, 0, ZERO_HASH, ZERO_TIMESTAMP);
+        for (int id = 1; id <= 4; id++) {
+            putOutboundDataMessage(id);
+        }
+        setupHandleContext(
+                buildBundle(
+                        ClprChannelStatus.ACTIVE,
+                        0,
+                        4,
+                        ZERO_HASH,
+                        List.of(
+                                dataPayload(),
+                                dataPayload(),
+                                dataPayload(),
+                                dataPayload(),
+                                dataPayload(),
+                                dataPayload())),
+                true);
+        given(configStore.getConfiguration())
+                .willReturn(createLedgerConfig()
+                        .copyBuilder()
+                        .throttles(defaultTestThrottles().copyBuilder().maxQueueDepth(5))
+                        .build());
+
+        subject.handle(handleContext);
+
+        final var updated = channelStore.getChannel(CHANNEL_ID);
+        assertThat(updated.receivedMessageId()).isEqualTo(5);
+        assertThat(updated.nextMessageId() - updated.ackedMessageId() - 1).isEqualTo(10);
+        assertThat(writableMessages.size()).isEqualTo(10);
+    }
+
+    @Test
+    void queueAboveTwiceReducedLimitStillAcceptsOneWayAck() {
+        // Five outstanding slots after the ACK exceed the reduced total capacity of four.
+        putChannel(ClprChannelStatus.ACTIVE, 7, 0, ZERO_HASH);
+        for (int id = 1; id <= 6; id++) {
+            putOutboundSlot(id, replyPayload(id));
+        }
+        setupHandleContext(buildBundle(ClprChannelStatus.ACTIVE, 0, 1, ZERO_HASH, List.of(dataPayload())), true);
+        setQueueDepth(2);
+
+        subject.handle(handleContext);
+
+        final var channel = channelStore.getChannel(CHANNEL_ID);
+        assertThat(channel.ackedMessageId()).isEqualTo(1);
+        assertThat(channel.receivedMessageId()).isZero();
+        assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1)).isNull();
+        assertThat(writableMessages.size()).isEqualTo(5);
+        verify(handleContext, never()).dispatch(any(DispatchOptions.class));
+    }
+
+    @Test
+    void deferredReplyKeepsOneWaySlotsPastTheAcceptedAck() {
+        putChannel(ClprChannelStatus.ACTIVE, 3, 0, ZERO_HASH);
+        putOutboundDataMessage(1);
+        putOutboundSlot(2, replyPayload(9));
+        putConnector();
+        // The peer has received both slots, but its reply to DATA 1 is deferred behind a third DATA.
+        setupHandleContext(
+                buildBundle(
+                        ClprChannelStatus.ACTIVE,
+                        0,
+                        2,
+                        ZERO_HASH,
+                        List.of(dataPayload(), dataPayload(), dataPayload(), replyPayload(1))),
+                true);
+        setQueueDepth(2);
+
+        subject.handle(handleContext);
+
+        final var channel = channelStore.getChannel(CHANNEL_ID);
+        assertThat(channel.receivedMessageId()).isEqualTo(2);
+        assertThat(channel.ackedMessageId()).isZero();
+        assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1)).isNotNull();
+        assertThat(messageQueueStore.getMessage(CHANNEL_ID, 2)).isNotNull();
+    }
+
+    @ParameterizedTest
+    @CsvSource({"125,2", "126,1"})
+    void emptyErrorReplyBudgetUsesEachInboundMessageId(final long receivedBefore, final int dispatched) {
+        // A six-byte budget fits an empty APPLICATION_ERROR reply for ids below 128, but not for id 128.
+        putChannel(ClprChannelStatus.ACTIVE, 1, 0, receivedBefore, ZERO_HASH);
+        channelStore.put(channelStore
+                .getChannel(CHANNEL_ID)
+                .copyBuilder()
+                .peerThrottles(defaultTestThrottles().copyBuilder().maxSyncBytes(65_536L + 6))
+                .build());
+        setupHandleContext(
+                buildBundle(
+                        ClprChannelStatus.ACTIVE, receivedBefore, 0, ZERO_HASH, List.of(dataPayload(), dataPayload())),
+                true);
+        putConnector();
+        given(dispatchResult.getEvmCallResult()).willReturn(abiEncodeBytes(new byte[0]));
+
+        subject.handle(handleContext);
+
+        assertThat(channelStore.getChannel(CHANNEL_ID).receivedMessageId()).isEqualTo(receivedBefore + 2);
+        assertThat(writableMessages.size()).isEqualTo(2);
+        verify(handleContext, times(dispatched)).dispatch(any(DispatchOptions.class));
+        for (int slot = 1; slot <= 2; slot++) {
+            assertThat(messageQueueStore.getMessage(CHANNEL_ID, slot).payloadOrThrow())
+                    .isEqualTo(replyPayloadWithStatus(
+                            receivedBefore + slot,
+                            slot <= dispatched
+                                    ? ClprMessageReplyStatus.SUCCESS
+                                    : ClprMessageReplyStatus.APPLICATION_ERROR));
+        }
+    }
+
+    @Test
+    void incomingReplyIsBoundedByLocalLimitNotPeerLimit() {
+        putChannel(ClprChannelStatus.ACTIVE, 2, 0, ZERO_HASH);
+        putOutboundDataMessage(1);
+        putConnectorWithStake(100_000_000L, 0);
+        channelStore.put(channelStore
+                .getChannel(CHANNEL_ID)
+                .copyBuilder()
+                .peerThrottles(defaultTestThrottles().copyBuilder().maxMessagePayloadBytes(3))
+                .build());
+        final var reply = ClprMessagePayload.newBuilder()
+                .messageReply(ClprMessageReply.newBuilder()
+                        .messageId(1)
+                        .status(ClprMessageReplyStatus.SUCCESS)
+                        .messageReplyData(Bytes.wrap(new byte[] {1, 2, 3, 4})))
+                .build();
+        setupHandleContext(buildBundle(ClprChannelStatus.ACTIVE, 0, 1, ZERO_HASH, List.of(reply)), true);
+
+        subject.handle(handleContext);
+
+        final var captor = ArgumentCaptor.forClass(DispatchOptions.class);
+        verify(handleContext).dispatch(captor.capture());
+        final var calldata = captor.getValue().body().contractCallOrThrow().functionParameters();
+        assertThat(calldata.getByte(4 + 3 * 32 - 1)).isEqualTo((byte) ClprMessageReplyStatus.SUCCESS.protoOrdinal());
+        assertThat(calldata.getByte(4 + 5 * 32 - 1)).isEqualTo((byte) 4);
+    }
+
+    private void setQueueDepth(final int maxQueueDepth) {
+        given(configStore.getConfiguration())
+                .willReturn(createLedgerConfig()
+                        .copyBuilder()
+                        .throttles(defaultTestThrottles()
+                                .copyBuilder()
+                                .maxQueueDepth(maxQueueDepth)
+                                .build())
+                        .build());
+    }
+
     @Test
     @DisplayName("failed dispatch captures revert data in response")
     void failedDispatchCapturesRevertData() {
@@ -734,8 +1616,8 @@ class ClprSubmitBundleHandlerTest {
     }
 
     @Test
-    @DisplayName("null EVM result defaults to empty response data")
-    void nullEvmResultDefaultsToEmpty() {
+    @DisplayName("null successful EVM result rolls back before reporting application failure")
+    void nullSuccessfulEvmResultRollsBack() {
         putChannel(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH);
         final var bundle = buildBundle(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH, List.of(dataPayload()));
         setupHandleContext(bundle, true);
@@ -747,8 +1629,11 @@ class ClprSubmitBundleHandlerTest {
 
         final var response = messageQueueStore.getMessage(CHANNEL_ID, 0);
         assertThat(response).isNotNull();
-        assertThat(response.payload().messageReplyOrThrow().status()).isEqualTo(ClprMessageReplyStatus.SUCCESS);
+        assertThat(response.payload().messageReplyOrThrow().status())
+                .isEqualTo(ClprMessageReplyStatus.APPLICATION_ERROR);
         assertThat(response.payload().messageReplyOrThrow().messageReplyData()).isEqualTo(Bytes.EMPTY);
+        verify(applicationStack).rollbackPreservingThrottleUsage();
+        verify(applicationStack, never()).commit();
     }
 
     @Test
@@ -769,6 +1654,75 @@ class ClprSubmitBundleHandlerTest {
         assertThat(response.payload().messageReplyOrThrow().status())
                 .isEqualTo(ClprMessageReplyStatus.APPLICATION_ERROR);
         assertThat(response.payload().messageReplyOrThrow().messageReplyData()).isEqualTo(Bytes.EMPTY);
+        verify(applicationStack).rollback();
+        verify(applicationStack, never()).commit();
+    }
+
+    @Test
+    void validAbiEmptyResponseCommitsSuccessfulApplication() {
+        putChannel(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH);
+        setupHandleContext(buildBundle(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH, List.of(dataPayload())), true);
+        putConnector();
+        given(dispatchResult.getEvmCallResult()).willReturn(abiEncodeBytes(new byte[0]));
+
+        subject.handle(handleContext);
+
+        assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1).payloadOrThrow()).isEqualTo(replyPayload(1));
+        verify(applicationStack).createSavepoint();
+        verify(applicationStack).commit();
+        verify(applicationStack, never()).rollbackPreservingThrottleUsage();
+    }
+
+    @ParameterizedTest
+    @ValueSource(
+            strings = {
+                "oversized",
+                "malformed",
+                "truncated",
+                "missing",
+                "unalignedOffset",
+                "gapBeforeTail",
+                "trailingWord"
+            })
+    void invalidSuccessfulResponseRollsBackBeforeSettlingExecutedGas(final String kind) {
+        putChannel(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH);
+        channelStore.put(channelStore
+                .getChannel(CHANNEL_ID)
+                .copyBuilder()
+                .peerThrottles(defaultTestThrottles().copyBuilder().maxMessagePayloadBytes(128))
+                .build());
+        setupHandleContext(buildBundle(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH, List.of(dataPayload())), true);
+        putConnector();
+        pricedGasContext();
+        final var result = switch (kind) {
+            case "oversized" -> abiEncodeBytes(new byte[256]);
+            case "malformed" -> Bytes.fromHex("ff");
+            case "truncated" -> Bytes.wrap(new byte[32]);
+            case "unalignedOffset", "gapBeforeTail" -> {
+                final int offset = kind.equals("unalignedOffset") ? 33 : 64;
+                final byte[] encoded = new byte[offset + 32];
+                encoded[31] = (byte) offset;
+                yield Bytes.wrap(encoded);
+            }
+            case "trailingWord" -> abiEncodeBytes(new byte[0]).append(Bytes.wrap(new byte[32]));
+            default -> Bytes.EMPTY;
+        };
+        given(dispatchResult.getEvmCallResult()).willReturn(result);
+
+        subject.handle(handleContext);
+
+        final var order = inOrder(tokenServiceApi, applicationStack, handleContext, dispatchResult);
+        order.verify(tokenServiceApi).transferFromTo(CONNECTOR_CONTRACT_ACCOUNT, PAYER_ID, WORST_CASE_CHARGE + 800);
+        order.verify(applicationStack).createSavepoint();
+        order.verify(handleContext).dispatch(any(DispatchOptions.class));
+        order.verify(applicationStack).rollbackPreservingThrottleUsage();
+        // The 100 gas reported during dispatch is still billed after rollback: 800 reserved, 600 returned.
+        order.verify(tokenServiceApi).transferFromTo(PAYER_ID, CONNECTOR_CONTRACT_ACCOUNT, 600L);
+        verify(applicationStack, never()).commit();
+        verify(handleContext).refundHandlerCharge(PAYER_ID, 1800L);
+        assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1).payloadOrThrow())
+                .isEqualTo(replyPayloadWithStatus(1, ClprMessageReplyStatus.APPLICATION_ERROR));
+        assertThat(channelStore.getChannel(CHANNEL_ID).receivedMessageId()).isEqualTo(1);
     }
 
     @Nested
@@ -809,6 +1763,53 @@ class ClprSubmitBundleHandlerTest {
             subject.handle(handleContext);
 
             assertApplicationErrorResponse();
+        }
+
+        @Test
+        void legacyLedgerLimitsCannotQueueAnUnsendableReply() {
+            givenChannelWithPeerPayloadLimit(1_048_576);
+            setupHandleContext(validSingleDataBundle(), true, 100, 1_048_576, 8_388_608L);
+            putConnector();
+            given(dispatchResult.getEvmCallResult()).willReturn(abiEncodeBytes(new byte[65_536]));
+            subject.handle(handleContext);
+            assertApplicationErrorResponse();
+        }
+
+        @ParameterizedTest
+        @CsvSource({"64,0", "64,1", "32768,0", "32768,1"})
+        void reducedCalldataLimitBoundsTheSerializedApplicationReply(final int anchorSize, final int extraByte) {
+            givenChannelWithPeerPayloadLimit(65_536);
+            final var channel = channelStore
+                    .getChannel(CHANNEL_ID)
+                    .copyBuilder()
+                    .trustAnchor(Bytes.wrap(new byte[anchorSize]))
+                    .build();
+            channelStore.put(channel);
+            setupHandleContext(validSingleDataBundle(), true, 100, 65_536, 1_048_576L);
+            given(handleContext.configuration())
+                    .willReturn(HederaTestConfigBuilder.create()
+                            .withValue("clpr.enabled", true)
+                            .withValue("jumboTransactions.ethereumMaxCallDataSize", 64 * 1024)
+                            .getOrCreateConfig());
+            putConnector();
+            final int budget = anchorSize == 64 ? 22 * 1024 : (62 - 23) * 1024 - channel.protobufSize();
+            final int overhead = serializedReplySize(Bytes.wrap(new byte[budget])) - budget;
+            final var replyData = Bytes.wrap(new byte[budget - overhead + extraByte]);
+            assertThat(serializedReplySize(replyData)).isEqualTo(budget + extraByte);
+            given(dispatchResult.getEvmCallResult()).willReturn(abiEncodeBytes(replyData.toByteArray()));
+
+            subject.handle(handleContext);
+
+            if (extraByte == 0) {
+                final var reply =
+                        messageQueueStore.getMessage(CHANNEL_ID, 0).payload().messageReplyOrThrow();
+                assertThat(reply.status()).isEqualTo(ClprMessageReplyStatus.SUCCESS);
+                assertThat(reply.messageReplyData()).isEqualTo(replyData);
+                verify(applicationStack).commit();
+            } else {
+                assertApplicationErrorResponse();
+                verify(applicationStack).rollbackPreservingThrottleUsage();
+            }
         }
 
         @Test
@@ -911,6 +1912,27 @@ class ClprSubmitBundleHandlerTest {
         verify(tokenServiceApi).transferFromTo(CONNECTOR_CONTRACT_ACCOUNT, PAYER_ID, WORST_CASE_CHARGE);
     }
 
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void minimumReplyPreservesConnectorFault(final boolean missing) {
+        putChannel(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH);
+        channelStore.put(channelStore
+                .getChannel(CHANNEL_ID)
+                .copyBuilder()
+                .peerThrottles(defaultTestThrottles().copyBuilder().maxMessagePayloadBytes(1))
+                .build());
+        setupHandleContext(validSingleDataBundle(), true);
+        if (!missing) putConnectorWithStakeAndBalance(100_000_000L, 0, 0L);
+        subject.handle(handleContext);
+        assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1).payloadOrThrow())
+                .isEqualTo(replyPayloadWithStatus(
+                        1,
+                        missing
+                                ? ClprMessageReplyStatus.CONNECTOR_NOT_FOUND
+                                : ClprMessageReplyStatus.CONNECTOR_UNDERFUNDED));
+        verify(handleContext, never()).dispatch(any(DispatchOptions.class));
+    }
+
     @Test
     @DisplayName("connector underfunded when balance insufficient — no dispatch, slashing triggered")
     void connectorUnderfundedWhenBalanceInsufficient() {
@@ -931,13 +1953,8 @@ class ClprSubmitBundleHandlerTest {
                 .isEqualTo(ClprMessageReplyStatus.CONNECTOR_UNDERFUNDED);
     }
 
-    @org.junit.jupiter.params.ParameterizedTest
-    @org.junit.jupiter.params.provider.CsvSource({
-        "false, SUCCESS",
-        "true, SUCCESS",
-        "false, CONTRACT_REVERT_EXECUTED",
-        "true, CONTRACT_REVERT_EXECUTED"
-    })
+    @ParameterizedTest
+    @CsvSource({"false, SUCCESS", "true, SUCCESS", "false, CONTRACT_REVERT_EXECUTED", "true, CONTRACT_REVERT_EXECUTED"})
     void dataAndResponseExecutionPayActualNetworkGas(final boolean response, final ResponseCodeEnum status) {
         putChannel(ClprChannelStatus.ACTIVE, response ? 2 : 0, 0, ZERO_HASH);
         if (response) putOutboundDataMessage(1);
@@ -961,8 +1978,8 @@ class ClprSubmitBundleHandlerTest {
         assertThat(captor.getValue().throttling()).isEqualTo(HandleContext.ConsensusThrottling.ON);
     }
 
-    @org.junit.jupiter.params.ParameterizedTest
-    @org.junit.jupiter.params.provider.CsvSource({
+    @ParameterizedTest
+    @CsvSource({
         "false, THROTTLED_AT_CONSENSUS",
         "true, THROTTLED_AT_CONSENSUS",
         "false, CONSENSUS_GAS_EXHAUSTED",
@@ -1042,8 +2059,8 @@ class ClprSubmitBundleHandlerTest {
         verify(handleContext).refundHandlerCharge(PAYER_ID, 1600L);
     }
 
-    @org.junit.jupiter.params.ParameterizedTest
-    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
     void fundedConnectorCannotFinanceAnUnderfundedParentsGasEscrow(final boolean response) {
         putChannel(ClprChannelStatus.ACTIVE, response ? 2 : 0, 0, ZERO_HASH);
         if (response) putOutboundDataMessage(1);
@@ -1082,9 +2099,6 @@ class ClprSubmitBundleHandlerTest {
                         .build());
         given(handleContext.getGasPriceInTinycents()).willReturn(2L);
         given(handleContext.tryToCharge(any(), anyLong())).willReturn(true);
-        final var stack = org.mockito.Mockito.mock(HandleContext.SavepointStack.class);
-        given(handleContext.savepointStack()).willReturn(stack);
-        given(stack.getBaseBuilder(StreamBuilder.class)).willReturn(org.mockito.Mockito.mock(StreamBuilder.class));
         final var prices = org.mockito.Mockito.mock(com.hedera.node.app.spi.fees.ResourcePriceCalculator.class);
         given(handleContext.resourcePriceCalculator()).willReturn(prices);
         given(prices.resourcePricesFor(any(), any()))
@@ -1161,7 +2175,7 @@ class ClprSubmitBundleHandlerTest {
         @Test
         @DisplayName("3.10.3 — dispatched gas tracks the configured throttle value (not hard-coded)")
         void dispatchGasTracksConfiguredThrottle() {
-            final long customGas = 7_777_777L;
+            final long customGas = 6_777_777L;
             setUpSingleDataDispatch();
             // An updateLedgerConfiguration change is honored on the next dispatch: throttles are
             // re-read from LEDGER_CONFIGURATION each handle.
@@ -1408,7 +2422,6 @@ class ClprSubmitBundleHandlerTest {
         final var updated = channelStore.getChannel(CHANNEL_ID);
         assertNotNull(updated);
         assertThat(updated.status()).isEqualTo(ClprChannelStatus.CLOSED);
-        verify(channelLifecycle).onChannelClosed(CHANNEL_ID);
     }
 
     @Test
@@ -1477,7 +2490,6 @@ class ClprSubmitBundleHandlerTest {
         final var updated = channelStore.getChannel(CHANNEL_ID);
         assertNotNull(updated);
         assertThat(updated.status()).isEqualTo(ClprChannelStatus.CLOSED);
-        verify(channelLifecycle).onChannelClosed(CHANNEL_ID);
     }
 
     @Test
@@ -1516,7 +2528,6 @@ class ClprSubmitBundleHandlerTest {
         final var updated = channelStore.getChannel(CHANNEL_ID);
         assertNotNull(updated);
         assertThat(updated.status()).isEqualTo(ClprChannelStatus.CLOSED);
-        verify(channelLifecycle).onChannelClosed(CHANNEL_ID);
     }
 
     @Test
@@ -1541,6 +2552,12 @@ class ClprSubmitBundleHandlerTest {
         final var bundle = buildBundle(ClprChannelStatus.ACTIVE, 0, 1, ZERO_HASH, List.of(replyPayload(1)));
         setupHandleContext(bundle, true);
         putConnector();
+
+        given(handleContext.dispatch(any(DispatchOptions.class))).willAnswer(invocation -> {
+            // A send from this callback scans this same queue for peer DATA credit.
+            assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1)).isNull();
+            return dispatchResult;
+        });
 
         subject.handle(handleContext);
 
@@ -2005,6 +3022,44 @@ class ClprSubmitBundleHandlerTest {
         assertThat(updated.trustAnchorId()).isEqualTo(Bytes.wrap(new byte[] {5, 6, 7, 8}));
     }
 
+    @ParameterizedTest
+    @CsvSource({"1024, 0, true", "12288, 0, false", "12288, 1, true"})
+    void largerAnchorMustFitTheUnreceivedQueue(final int replyBytes, final long received, final boolean fits) {
+        putChannel(ClprChannelStatus.ACTIVE, 2, 0, ZERO_HASH);
+        final var previous = channelStore.getChannel(CHANNEL_ID);
+        final var queued = ClprMessagePayload.newBuilder()
+                .messageReply(
+                        ClprMessageReply.newBuilder().messageId(1).messageReplyData(Bytes.wrap(new byte[replyBytes])))
+                .build();
+        putOutboundSlot(1, queued);
+        final var rotation = ClprBundleContent.newBuilder()
+                .metadata(ClprQueueMetadata.newBuilder()
+                        .nextMessageId(1)
+                        .sentRunningHash(ZERO_HASH)
+                        .receivedMessageId(received)
+                        .status(ClprChannelStatus.ACTIVE))
+                .newTrustAnchor(Bytes.wrap(new byte[32 * 1024]))
+                .newTrustAnchorId(Bytes.fromHex("02"))
+                .build();
+        setupHandleContext(bundleTxn(rotation), true);
+        given(handleContext.configuration())
+                .willReturn(HederaTestConfigBuilder.create()
+                        .withValue("clpr.enabled", true)
+                        .withValue("jumboTransactions.ethereumMaxCallDataSize", 64 * 1024)
+                        .getOrCreateConfig());
+
+        if (fits) {
+            subject.handle(handleContext);
+            final var updated = channelStore.getChannel(CHANNEL_ID);
+            assertThat(updated.trustAnchor()).isEqualTo(rotation.newTrustAnchor());
+            assertThat(updated.ackedMessageId()).isEqualTo(received);
+        } else {
+            assertThatThrownBy(() -> subject.handle(handleContext)).has(responseCode(CLPR_QUEUE_FULL));
+            assertThat(channelStore.getChannel(CHANNEL_ID)).isEqualTo(previous);
+            assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1).payload()).isEqualTo(queued);
+        }
+    }
+
     @Test
     @DisplayName("rejects bundle when verifier returns same trust_anchor_id as stored (spec §2.1.2 Criterion 2)")
     void rejectsBundleWithSameTrustAnchorIdAsStored() {
@@ -2257,7 +3312,7 @@ class ClprSubmitBundleHandlerTest {
             setupHandleContext(bundleTxn(content), true);
             assertThatThrownBy(() -> subject.handle(handleContext))
                     .isInstanceOf(HandleException.class)
-                    .has(responseCode(CLPR_BUNDLE_VERIFICATION_FAILED));
+                    .has(responseCode(CLPR_NO_PROGRESS));
             assertThat(channelStore.getChannel(CHANNEL_ID)).isEqualTo(recovered);
         }
         verify(channelLifecycle, times(2)).seedPeerEndpoints(eq(CHANNEL_ID), any());
@@ -2485,6 +3540,19 @@ class ClprSubmitBundleHandlerTest {
     }
 
     @Test
+    void reducedPeerSyncLimitRejectsTheWholeBundleBeforeCallbacksOrQueueChanges() {
+        final var reduced =
+                defaultTestThrottles().copyBuilder().maxSyncBytes(512 * 1024).build();
+        final var control = ClprMessagePayload.newBuilder()
+                .control(ClprControlMessage.newBuilder()
+                        .configUpdate(ClprConfigUpdate.newBuilder()
+                                .configuration(
+                                        createLedgerConfig().copyBuilder().throttles(reduced))))
+                .build();
+        assertLaterInvalidControlRejectsBeforeDispatchOrStateChanges(control);
+    }
+
+    @Test
     @DisplayName("invalid ConfigUpdate after data rejects before dispatch or state changes")
     void invalidConfigUpdateAfterDataRejectsBeforeDispatchOrStateChanges() {
         final var invalidConfig = ClprMessagePayload.newBuilder()
@@ -2514,6 +3582,11 @@ class ClprSubmitBundleHandlerTest {
     private void assertLaterInvalidControlRejectsBeforeDispatchOrStateChanges(
             @NonNull final ClprMessagePayload invalidControl) {
         putChannel(ClprChannelStatus.ACTIVE, 2, 0, ZERO_HASH);
+        channelStore.put(channelStore
+                .getChannel(CHANNEL_ID)
+                .copyBuilder()
+                .peerThrottles(defaultTestThrottles())
+                .build());
         putOutboundSlot(1, replyPayload(9));
         putConnector();
         final var originalChannel = channelStore.getChannel(CHANNEL_ID);
@@ -2758,6 +3831,156 @@ class ClprSubmitBundleHandlerTest {
         verify(tokenServiceApi, never()).transferFromTo(any(), any(), anyLong());
     }
 
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void oversizedInFlightReplyUsesUnavailableHookWithAttestedOutcomeAndSlashing(final boolean pricedGas) {
+        putChannel(ClprChannelStatus.ACTIVE, 2, 0, ZERO_HASH);
+        putOutboundDataMessage(1);
+        putConnectorWithStake(100_000_000L, 0);
+        final var connectorKey = new ClprConnectorKey(CHANNEL_ID, CONNECTOR_ADDRESS);
+        connectorStore.put(connectorStore
+                .getConnector(connectorKey)
+                .copyBuilder()
+                .inFlightMessageCount(1)
+                .build());
+        final var reply = ClprMessagePayload.newBuilder()
+                .messageReply(ClprMessageReply.newBuilder()
+                        .messageId(1)
+                        .status(ClprMessageReplyStatus.CONNECTOR_UNDERFUNDED)
+                        .messageReplyData(Bytes.wrap(new byte[32])))
+                .build();
+        final var bundle = buildBundle(ClprChannelStatus.ACTIVE, 0, 1, ZERO_HASH, List.of(reply));
+        setupHandleContext(bundle, true);
+        if (pricedGas) {
+            pricedGasContext();
+        }
+        final var ledgerConfig = configStore.getConfiguration();
+        given(configStore.getConfiguration())
+                .willReturn(ledgerConfig
+                        .copyBuilder()
+                        .throttles(ledgerConfig.throttlesOrThrow().copyBuilder().maxMessagePayloadBytes(15))
+                        .build());
+
+        subject.handle(handleContext);
+
+        final var updated = channelStore.getChannel(CHANNEL_ID);
+        assertThat(updated.status()).isEqualTo(ClprChannelStatus.ACTIVE);
+        assertThat(updated.ackedMessageId()).isEqualTo(1);
+        assertThat(updated.receivedMessageId()).isEqualTo(1);
+        assertThat(updated.receivedRunningHash()).isEqualTo(runningHashOver(ZERO_HASH, List.of(reply)));
+        assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1)).isNull();
+        final var connector = connectorStore.getConnector(connectorKey);
+        assertThat(connector.inFlightMessageCount()).isZero();
+        assertThat(connector.lockedStake()).isEqualTo(90_000_000L);
+        assertThat(connector.slashCount()).isEqualTo(1);
+        if (pricedGas) {
+            verify(handleContext).tryToCharge(PAYER_ID, 2000L);
+            verify(handleContext).refundHandlerCharge(PAYER_ID, 1800L);
+            verify(tokenServiceApi).transferFromTo(CONNECTOR_CONTRACT_ACCOUNT, PAYER_ID, 800L);
+            verify(tokenServiceApi).transferFromTo(PAYER_ID, CONNECTOR_CONTRACT_ACCOUNT, 600L);
+
+        } else {
+            verify(handleContext, never()).tryToCharge(any(), anyLong());
+        }
+
+        verify(tokenServiceApi).transferFromTo(STAKING_ACCOUNT, PAYER_ID, 10_000_000L);
+
+        final var captor = ArgumentCaptor.forClass(DispatchOptions.class);
+        verify(handleContext).dispatch(captor.capture());
+        assertThat(captor.getValue().payerId()).isEqualTo(CONNECTOR_CONTRACT_ACCOUNT);
+        assertThat(captor.getValue().throttling()).isEqualTo(HandleContext.ConsensusThrottling.ON);
+        final var calldata = captor.getValue().body().contractCallOrThrow().functionParameters();
+        assertThat(calldata.slice(0, 4))
+                .isEqualTo(Bytes.wrap(new Function("onClprResponseUnavailable(bytes32,uint64,uint8)").selector()));
+        assertThat(calldata.getByte(4 + 3 * 32 - 1))
+                .isEqualTo((byte) ClprMessageReplyStatus.CONNECTOR_UNDERFUNDED.protoOrdinal());
+        assertThat(calldata.length()).isEqualTo(4 + 3 * 32);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"0,true", "-1,false"})
+    void inFlightReplyHonorsSerializedLocalPayloadBoundary(final int limitOffset, final boolean fits) {
+        putChannel(ClprChannelStatus.ACTIVE, 2, 0, ZERO_HASH);
+        putOutboundDataMessage(1);
+        putConnectorWithStake(100_000_000L, 0);
+        final var reply = ClprMessagePayload.newBuilder()
+                .messageReply(ClprMessageReply.newBuilder()
+                        .messageId(1)
+                        .status(ClprMessageReplyStatus.SUCCESS)
+                        .messageReplyData(Bytes.wrap(new byte[32])))
+                .build();
+        setupHandleContext(buildBundle(ClprChannelStatus.ACTIVE, 0, 1, ZERO_HASH, List.of(reply)), true);
+        final var ledgerConfig = configStore.getConfiguration();
+        given(configStore.getConfiguration())
+                .willReturn(ledgerConfig
+                        .copyBuilder()
+                        .throttles(ledgerConfig
+                                .throttlesOrThrow()
+                                .copyBuilder()
+                                .maxMessagePayloadBytes(ClprMessagePayload.PROTOBUF.measureRecord(reply) + limitOffset))
+                        .build());
+
+        subject.handle(handleContext);
+
+        final var captor = ArgumentCaptor.forClass(DispatchOptions.class);
+        verify(handleContext).dispatch(captor.capture());
+        final var calldata = captor.getValue().body().contractCallOrThrow().functionParameters();
+        assertThat(calldata.getByte(4 + 3 * 32 - 1)).isEqualTo((byte) ClprMessageReplyStatus.SUCCESS.protoOrdinal());
+        assertThat(calldata.length()).isEqualTo(4 + (fits ? 6 : 3) * 32);
+        assertThat(calldata.slice(0, 4))
+                .isEqualTo(Bytes.wrap(new Function(
+                                fits
+                                        ? "onClprResponse(bytes32,uint64,uint8,bytes)"
+                                        : "onClprResponseUnavailable(bytes32,uint64,uint8)")
+                        .selector()));
+        if (fits) {
+            assertThat(calldata.getByte(4 + 5 * 32 - 1)).isEqualTo((byte) 32);
+            assertThat(calldata.slice(4 + 5 * 32, 32)).isEqualTo(Bytes.wrap(new byte[32]));
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void unavailableHookFailureIsTerminalWithoutOrdinaryCallbackFallback(final boolean throwsException) {
+        putChannel(ClprChannelStatus.ACTIVE, 2, 0, ZERO_HASH);
+        putOutboundDataMessage(1);
+        putConnector();
+        final var reply = ClprMessagePayload.newBuilder()
+                .messageReply(ClprMessageReply.newBuilder()
+                        .messageId(1)
+                        .status(ClprMessageReplyStatus.SUCCESS)
+                        .messageReplyData(Bytes.wrap(new byte[32])))
+                .build();
+        setupHandleContext(buildBundle(ClprChannelStatus.ACTIVE, 0, 1, ZERO_HASH, List.of(reply)), true);
+        given(configStore.getConfiguration())
+                .willReturn(createLedgerConfig()
+                        .copyBuilder()
+                        .throttles(defaultTestThrottles().copyBuilder().maxMessagePayloadBytes(15))
+                        .build());
+        if (throwsException) {
+            given(handleContext.dispatch(any(DispatchOptions.class)))
+                    .willThrow(new HandleException(ResponseCodeEnum.CONTRACT_REVERT_EXECUTED));
+        } else {
+            given(dispatchResult.status()).willReturn(ResponseCodeEnum.CONTRACT_REVERT_EXECUTED);
+        }
+
+        subject.handle(handleContext);
+
+        final var captor = ArgumentCaptor.forClass(DispatchOptions.class);
+        verify(handleContext, times(1)).dispatch(captor.capture());
+        final var callData = captor.getValue().body().contractCallOrThrow().functionParameters();
+        assertThat(callData.slice(0, 4))
+                .isEqualTo(Bytes.wrap(new Function("onClprResponseUnavailable(bytes32,uint64,uint8)").selector()));
+        assertThat(callData.length()).isEqualTo(100);
+        assertThat(callData.getByte(99)).isEqualTo((byte) ClprMessageReplyStatus.SUCCESS.protoOrdinal());
+        final var channel = channelStore.getChannel(CHANNEL_ID);
+        assertThat(channel.status()).isEqualTo(ClprChannelStatus.ACTIVE);
+        assertThat(channel.ackedMessageId()).isEqualTo(1);
+        assertThat(channel.receivedMessageId()).isEqualTo(1);
+        assertThat(channel.receivedRunningHash()).isEqualTo(runningHashOver(ZERO_HASH, List.of(reply)));
+        assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1)).isNull();
+    }
+
     @Test
     @DisplayName("source-side: ban after threshold slashes removes connector")
     void sourceSlashBanRemovesConnector() {
@@ -2895,9 +4118,15 @@ class ClprSubmitBundleHandlerTest {
         final var bundle = buildBundle(
                 ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH, List.of(dataPayload(), configPayload, dataPayload()));
         setupHandleContext(bundle, true);
+        final var callbackConfigTimestamps = new java.util.ArrayList<Timestamp>();
+        given(handleContext.dispatch(any(DispatchOptions.class))).willAnswer(ignored -> {
+            callbackConfigTimestamps.add(channelStore.getChannel(CHANNEL_ID).peerConfigTimestamp());
+            return dispatchResult;
+        });
 
         subject.handle(handleContext);
 
+        assertThat(callbackConfigTimestamps.get(1)).isEqualTo(newTimestamp);
         // After the bundle, peerConfigTimestamp must reflect C2's timestamp
         final var updated = channelStore.getChannel(CHANNEL_ID);
         assertThat(updated.peerConfigTimestamp()).isEqualTo(newTimestamp);
@@ -3411,6 +4640,40 @@ class ClprSubmitBundleHandlerTest {
         }
 
         @Test
+        void anchorUpdatePreservesDataEnqueuedByVerifier() {
+            putChannel(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH);
+            setupHandleContext(validSingleDataBundle(), true);
+            final var anchorUpdate = ClprBundleContent.newBuilder()
+                    .newTrustAnchor(Bytes.wrap(new byte[] {1}))
+                    .newTrustAnchorId(Bytes.wrap(new byte[] {2}))
+                    .build();
+            final var sentHash = ClprHashUtils.computeRunningHash(ZERO_HASH, dataPayload());
+            given(mockVerifier.verifyBundle(any(), any(), any(), any())).willAnswer(ignored -> {
+                messageQueueStore.put(
+                        CHANNEL_ID,
+                        1,
+                        ClprMessageValue.newBuilder()
+                                .payload(dataPayload())
+                                .runningHashAfterProcessing(sentHash)
+                                .build());
+                channelStore.put(channelStore
+                        .getChannel(CHANNEL_ID)
+                        .copyBuilder()
+                        .nextMessageId(2)
+                        .sentRunningHash(sentHash)
+                        .build());
+                return anchorUpdate;
+            });
+
+            subject.handle(handleContext);
+
+            final var channel = channelStore.getChannel(CHANNEL_ID);
+            assertThat(channel.trustAnchor()).isEqualTo(anchorUpdate.newTrustAnchor());
+            assertThat(channel.nextMessageId()).isEqualTo(2);
+            assertThat(channel.sentRunningHash()).isEqualTo(sentHash);
+        }
+
+        @Test
         @DisplayName("metadata-free manifest-only recovery replaces the peer manifest and returns (spec §8.1.4)")
         void metadataFreeManifestOnlyRecoveryReplacesManifest() {
             final var newManifest = ClprEndpointManifest.newBuilder()
@@ -3452,7 +4715,7 @@ class ClprSubmitBundleHandlerTest {
 
             assertThatThrownBy(() -> subject.handle(handleContext))
                     .isInstanceOf(HandleException.class)
-                    .has(responseCode(CLPR_BUNDLE_VERIFICATION_FAILED));
+                    .has(responseCode(CLPR_NO_PROGRESS));
         }
 
         @Test
@@ -3806,13 +5069,11 @@ class ClprSubmitBundleHandlerTest {
         lenient()
                 .when(handleContext.dispatchMetadata())
                 .thenReturn(new HandleContext.DispatchMetadata(new java.util.HashMap<>()));
-        final var feeStack = org.mockito.Mockito.mock(HandleContext.SavepointStack.class);
-        lenient().when(handleContext.savepointStack()).thenReturn(feeStack);
-        lenient()
-                .when(feeStack.getBaseBuilder(StreamBuilder.class))
-                .thenReturn(org.mockito.Mockito.mock(StreamBuilder.class));
         lenient().when(handleContext.configuration()).thenReturn(config);
         lenient().when(handleContext.storeFactory()).thenReturn(storeFactory);
+        // One stack serves both the application savepoint and the fee-headroom checks on its base builder.
+        lenient().when(handleContext.savepointStack()).thenReturn(applicationStack);
+        lenient().when(applicationStack.getBaseBuilder(StreamBuilder.class)).thenReturn(mock(StreamBuilder.class));
         lenient().when(handleContext.creatorInfo()).thenReturn(creatorInfo);
         // Default to self-submitted (creatorNodeId == endpointNodeId): the handler skips
         // endpoint-signature verification for self-submitted bundles. Tests that need to
@@ -3842,7 +5103,7 @@ class ClprSubmitBundleHandlerTest {
         lenient().when(handleContext.dispatch(any(DispatchOptions.class))).thenReturn(dispatchResult);
         lenient().when(dispatchResult.status()).thenReturn(ResponseCodeEnum.SUCCESS);
         lenient().when(dispatchResult.hasContractResult()).thenReturn(true);
-        lenient().when(dispatchResult.getEvmCallResult()).thenReturn(Bytes.EMPTY);
+        lenient().when(dispatchResult.getEvmCallResult()).thenReturn(abiEncodeBytes(new byte[0]));
         // Mock entity factory for staking account
         lenient().when(entityIdFactory.newAccountId(803L)).thenReturn(STAKING_ACCOUNT);
         // Staking account is escrowed with ample stake by default so slash reimbursements pay out in

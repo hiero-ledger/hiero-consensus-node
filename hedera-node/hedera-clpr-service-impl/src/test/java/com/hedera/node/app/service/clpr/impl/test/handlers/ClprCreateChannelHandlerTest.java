@@ -742,6 +742,20 @@ class ClprCreateChannelHandlerTest {
     }
 
     @Test
+    void rejectsChannelWhoseSerializedLeafLeavesNoRoomForATerminalReply() {
+        final var peerConfig = PEER_CONFIG
+                .copyBuilder()
+                .throttles(ClprThrottles.newBuilder().maxSyncBytes(80 * 1024))
+                .initialTrustAnchor(Bytes.wrap(new byte[64 * 1024]))
+                .build();
+        setupHandleContext(validOpenTxnWithPeerConfig(peerConfig));
+        setupVerifierAccount(true);
+
+        assertThatThrownBy(() -> subject.handle(handleContext)).has(responseCode(CLPR_VERIFIER_CONFIG_FAILED));
+        assertThat(channelStore.getChannel(CHANNEL_ID)).isNull();
+    }
+
+    @Test
     void rejectsPeerConfigWithNegativeTimestampSeconds() {
         final var peerConfig = PEER_CONFIG
                 .copyBuilder()

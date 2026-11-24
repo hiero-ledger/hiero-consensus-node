@@ -24,14 +24,6 @@ public interface ClprChannelLifecycle {
     void onChannelActivated(@NonNull Bytes channelId);
 
     /**
-     * Notify the orchestrator that a Channel has been closed and should
-     * be removed from the outbound sync loop.
-     *
-     * @param channelId the 32-byte Channel ID
-     */
-    void onChannelClosed(@NonNull Bytes channelId);
-
-    /**
      * Seed the orchestrator's peer endpoint cache for a Channel with the
      * endpoints attested in the peer's verified ledger configuration. Used by
      * the create-channel handler so the first outbound sync tick has

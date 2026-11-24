@@ -23,6 +23,7 @@ import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.service.clpr.ClprChannelLifecycle;
 import com.hedera.node.app.service.clpr.ReadableChannelStore;
 import com.hedera.node.app.service.clpr.ReadableLedgerConfigurationStore;
+import com.hedera.node.app.service.clpr.ReadableMessageQueueStore;
 import com.hedera.node.app.service.clpr.impl.ClprBundleValidator;
 import com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierFactory;
 import com.hedera.node.app.service.contract.impl.handlers.ContractHandlers;
@@ -34,6 +35,7 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.workflows.query.QueryContextImpl;
 import com.hedera.node.config.data.ClprConfig;
+import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.config.api.Configuration;
@@ -118,10 +120,9 @@ public class ClprBundlePrevalidator {
      * and {@link ClprBundleValidator#prevalidate} passes.
      *
      * <p>This runs on the working state while the handle thread changes it, so the channel read here can be older than
-     * the state consensus applies the bundle to. Only checks that an older channel cannot turn from a rejection into an
-     * acceptance are applied (see {@link ClprBundleValidator#prevalidate}), so a valid bundle is never dropped for this
-     * ledger's stale view. The rest, including the replies against the outbound queue, is left to consensus, which
-     * checks them on consistent state.
+     * the state consensus applies the bundle to. When the proof aligns with that view, a full queue
+     * defers submission until a later sync. DATA-only frames ahead of a full queue can also wait if they
+     * carry no independent progress. Consensus decides reply ordering and inconclusive queue reads.
      *
      * <p>As at consensus, once the proof and the trust-anchor invariant pass, the peer's proven view of this ledger's
      * endpoint-manifest version is recorded, even if a later check rejects the bundle. Idle peers send pure
@@ -168,7 +169,15 @@ public class ClprBundlePrevalidator {
                         .recordPeerObservedManifestVersion(
                                 channel.channelId(), content.metadataOrThrow().endpointManifestVersion());
             }
-            bundleValidator.prevalidate(channel, content, ledgerConfig);
+            final var aligned = bundleValidator.prevalidate(channel, content, ledgerConfig);
+            if (aligned != null) {
+                bundleValidator.prevalidateCapacity(
+                        channel,
+                        aligned,
+                        ledgerConfig.throttlesOrThrow(),
+                        configuration,
+                        stores.readableStore(ReadableMessageQueueStore.class));
+            }
         } catch (final HandleException e) {
             throw new PreCheckException(e.getStatus());
         }
@@ -200,6 +209,10 @@ public class ClprBundlePrevalidator {
             @NonNull final Configuration configuration,
             final long gasLimit,
             @NonNull final Bytes callData) {
+        if (callData.length()
+                > configuration.getConfigData(JumboTransactionsConfig.class).ethereumMaxCallDataSize()) {
+            throw new HandleException(CLPR_BUNDLE_VERIFICATION_FAILED);
+        }
         final var query = Query.newBuilder()
                 .contractCallLocal(ContractCallLocalQuery.newBuilder()
                         .contractID(channel.verifierContractOrThrow())

@@ -2,8 +2,11 @@
 package com.hedera.node.app.service.clpr;
 
 import com.hedera.hapi.node.state.clpr.ClprStreamingSyncPayload;
+import com.hedera.pbj.runtime.Codec;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.RpcMethodDefinition;
 import com.hedera.pbj.runtime.RpcServiceDefinition;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 
@@ -36,6 +39,18 @@ public final class ClprEndpointServiceDefinition implements RpcServiceDefinition
 
     private static final Set<RpcMethodDefinition<?, ?>> methods =
             Set.of(new RpcMethodDefinition<>("sync", ClprStreamingSyncPayload.class, ClprStreamingSyncPayload.class));
+
+    /** Maximum supported wire frame, including the previously bundled 4 MiB advertisement. */
+    public static final int MAX_SYNC_BYTES = 4 * 1024 * 1024;
+
+    /** Parses both directions with the same strict protobuf and wire limits. */
+    public static ClprStreamingSyncPayload parseSyncPayload(@NonNull final Bytes wire) throws ParseException {
+        if (wire.length() > MAX_SYNC_BYTES) {
+            throw new ParseException("CLPR sync frame exceeds wire limit");
+        }
+        return ClprStreamingSyncPayload.PROTOBUF.parse(
+                wire.toReadableSequentialData(), true, false, Codec.DEFAULT_MAX_DEPTH, MAX_SYNC_BYTES);
+    }
 
     private ClprEndpointServiceDefinition() {
         // Forbid instantiation

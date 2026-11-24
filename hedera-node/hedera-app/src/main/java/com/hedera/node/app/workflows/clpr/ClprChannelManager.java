@@ -12,6 +12,7 @@ import com.hedera.hapi.node.state.clpr.ClprPeerEndpointsEntry;
 import com.hedera.node.app.service.clpr.ClprChannelLifecycle;
 import com.hedera.node.app.service.clpr.ClprService;
 import com.hedera.node.app.service.clpr.ReadableChannelStore;
+import com.hedera.node.app.service.clpr.impl.ClprStateProofManager;
 import com.hedera.node.app.service.clpr.impl.ReadableEndpointManifestStoreImpl;
 import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.config.ConfigProvider;
@@ -72,6 +73,7 @@ public class ClprChannelManager implements ClprChannelLifecycle {
     private final Set<String> ongoingChannelSyncs = ConcurrentHashMap.newKeySet();
     private final ClprSynchronizer synchronizer;
     private final ClprEndpointClientCache clientCache;
+    private final ClprStateProofManager stateProofManager;
 
     private volatile boolean started = false;
 
@@ -127,11 +129,13 @@ public class ClprChannelManager implements ClprChannelLifecycle {
             @NonNull final ConfigProvider configProvider,
             @NonNull final Supplier<AutoCloseableWrapper<State>> stateAccessor,
             @NonNull final ClprSynchronizer synchronizer,
-            @NonNull final ClprEndpointClientCache clientCache) {
+            @NonNull final ClprEndpointClientCache clientCache,
+            @NonNull final ClprStateProofManager stateProofManager) {
         this.configProvider = requireNonNull(configProvider);
         this.stateAccessor = requireNonNull(stateAccessor);
         this.synchronizer = requireNonNull(synchronizer);
         this.clientCache = requireNonNull(clientCache);
+        this.stateProofManager = requireNonNull(stateProofManager);
         final var clprConfig = configProvider.getConfiguration().getConfigData(ClprConfig.class);
         this.peerEndpointsPath = Paths.get(clprConfig.peerEndpointsFile());
         this.syncSemaphore = new Semaphore(clprConfig.maxConcurrentSyncs());
@@ -360,17 +364,11 @@ public class ClprChannelManager implements ClprChannelLifecycle {
             final var channelStore = storeFactory.readableStore(ReadableChannelStore.class);
             final var channel = channelStore.getChannel(channelId);
             if (channel == null) {
-                // Channel not (yet) in committed state. May be a freshly registered id
-                // whose round has not committed, or a rolled-back registration. Skip this
-                // tick without unscheduling — cleanup is driven by an observed CLOSED status
-                // or an explicit onChannelClosed() call only.
+                // Registration can precede round commit. Check the next committed state on the next tick.
                 return;
             }
             if (channel.status() == ClprChannelStatus.CLOSED) {
-                // Self-healing drop: the handler's onChannelClosed callback may have been
-                // lost to a transaction rollback, or this id may have transitioned to CLOSED
-                // before the orchestrator observed it. Either way, an observed-CLOSED channel
-                // has no future sync work, so cancel its timer and drop it now.
+                // Cancel the timer once closure is visible in committed state.
                 logger.info("CLPR sync: removing CLOSED channel {}", channelId.toHex());
                 unscheduleChannel(channelId);
                 return;
@@ -535,19 +533,13 @@ public class ClprChannelManager implements ClprChannelLifecycle {
         return Collections.unmodifiableSet(knownChannelIds);
     }
 
-    /** Removes the channel from the local registry, cancels its sync timer, and purges its caches. */
-    @Override
-    public void onChannelClosed(@NonNull final Bytes channelId) {
-        requireNonNull(channelId);
-        unscheduleChannel(channelId);
-    }
-
     /** Cancels a channel's sync timer (if any) and removes it from all local registries. */
     private void unscheduleChannel(@NonNull final Bytes channelId) {
         final var future = channelSyncFutures.remove(channelId);
         if (future != null) {
             future.cancel(false);
         }
+        stateProofManager.forgetManifestOffer(channelId);
         if (knownChannelIds.remove(channelId)) {
             peerEndpointCache.remove(channelId);
             peerObservedManifestVersions.remove(channelId);

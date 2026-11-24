@@ -149,34 +149,10 @@ write_default_local_config() {
 
     local service_hex="${LOCAL_CLPR_SERVICE_ADDRESS_HEX:-000000000000000000000000000000000000016e}"
 
-    python3 - "${out_file}" "${service_hex}" <<'PY'
-import base64
-import json
-import sys
-from pathlib import Path
-
-out_file, service_hex = sys.argv[1:3]
-
-def b64hex(value: str) -> str:
-    value = value[2:] if value.startswith(("0x", "0X")) else value
-    if len(value) % 2:
-        value = "0" + value
-    return base64.b64encode(bytes.fromhex(value)).decode("ascii")
-
-cfg = {
-    "serviceAddress": b64hex(service_hex),
-    "throttles": {
-        "maxMessagesPerBundle": 100,
-        "maxSyncsPerSec": 10,
-        "maxMessagePayloadBytes": 1024,
-        "maxGasPerMessage": 1000000,
-        "maxQueueDepth": 1000,
-        "maxSyncBytes": 1048576,
-        "maxBundlesPerSec": 0,
-    },
-}
-Path(out_file).write_text(json.dumps(cfg, indent=2) + "\n")
-PY
+    local live_config="${LOG_DIR}/00-current-ledger-config.json"
+    yh "read current ledger configuration on ${NET}" "${LOG_DIR}/00-read-cfg.log" \
+        -n "${NET}" -p "${PAYER}" clpr get-ledger-configuration --include-defaults --out "${live_config}"
+    python3 "${SCRIPT_DIR}/build-sei-bridge-config.py" "${live_config}" "${service_hex}" "${out_file}"
 }
 
 mkdir -p "${SCRIPT_DIR}/.bridge" "${LOG_DIR}"
@@ -185,10 +161,8 @@ header "Preflight"
 for tool in jq cast python3 curl; do
     command -v "$tool" >/dev/null 2>&1 || die "$tool not in PATH"
 done
-write_default_local_config "${CONFIG_LOCAL}"
 [[ -x "${YAHCLI_DIR}/yahcli" ]] || die "missing ${YAHCLI_DIR}/yahcli launcher"
 [[ -f "${YAHCLI_DIR}/yahcli.jar" ]] || die "missing yahcli.jar - run ./gradlew :yahcli:copyYahCli"
-[[ -f "${CONFIG_LOCAL}" ]] || die "missing local ledger-config: ${CONFIG_LOCAL}"
 [[ -f "${PASS_THROUGH_AUTH}" ]] || die "missing PassThroughAuth.bin at ${PASS_THROUGH_AUTH}"
 [[ -f "${TOOLS_DIR}/build-sei-config-payload.py" ]] || die "missing ${TOOLS_DIR}/build-sei-config-payload.py"
 [[ -f "${TOOLS_DIR}/derive-clpr-connector-identity.py" ]] || die "missing ${TOOLS_DIR}/derive-clpr-connector-identity.py"
@@ -229,6 +203,7 @@ echo "  PEER_CHAIN_ID  : ${PEER_CHAIN_ID}"
 ok "Sei state resolved"
 
 header "[1/7] update-ledger-configuration on ${NET}"
+write_default_local_config "${CONFIG_LOCAL}"
 yh "update-ledger-configuration on ${NET}" "${LOG_DIR}/01-update-cfg.log" \
     -n "${NET}" -p "${PAYER}" \
     clpr update-ledger-configuration --config-file "${CONFIG_LOCAL}"

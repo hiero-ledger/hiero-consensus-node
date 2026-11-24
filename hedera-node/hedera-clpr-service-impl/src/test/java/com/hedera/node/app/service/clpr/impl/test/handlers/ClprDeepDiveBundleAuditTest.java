@@ -158,6 +158,9 @@ class ClprDeepDiveBundleAuditTest {
     private HandleContext handleContext;
 
     @Mock
+    private HandleContext.SavepointStack applicationStack;
+
+    @Mock
     private StoreFactory storeFactory;
 
     @Mock
@@ -702,8 +705,8 @@ class ClprDeepDiveBundleAuditTest {
     }
 
     @Test
-    @DisplayName("null EVM result defaults to empty response data")
-    void nullEvmResultDefaultsToEmpty() {
+    @DisplayName("null successful EVM result rolls back before reporting application failure")
+    void nullSuccessfulEvmResultRollsBack() {
         putChannel(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH);
         final var bundle = buildBundle(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH, List.of(dataPayload()));
         setupHandleContext(bundle, true);
@@ -715,8 +718,11 @@ class ClprDeepDiveBundleAuditTest {
 
         final var response = messageQueueStore.getMessage(CHANNEL_ID, 0);
         assertThat(response).isNotNull();
-        assertThat(response.payload().messageReplyOrThrow().status()).isEqualTo(ClprMessageReplyStatus.SUCCESS);
+        assertThat(response.payload().messageReplyOrThrow().status())
+                .isEqualTo(ClprMessageReplyStatus.APPLICATION_ERROR);
         assertThat(response.payload().messageReplyOrThrow().messageReplyData()).isEqualTo(Bytes.EMPTY);
+        verify(applicationStack).rollbackPreservingThrottleUsage();
+        verify(applicationStack, never()).commit();
     }
 
     @Test
@@ -840,7 +846,7 @@ class ClprDeepDiveBundleAuditTest {
         @Test
         @DisplayName("3.10.3 — dispatched gas tracks the configured throttle value (not hard-coded)")
         void dispatchGasTracksConfiguredThrottle() {
-            final long customGas = 7_777_777L;
+            final long customGas = 6_777_777L;
             setUpSingleDataDispatch();
             // An updateLedgerConfiguration change is honored on the next dispatch: throttles are
             // re-read from LEDGER_CONFIGURATION each handle.
@@ -1070,7 +1076,6 @@ class ClprDeepDiveBundleAuditTest {
         final var updated = channelStore.getChannel(CHANNEL_ID);
         assertNotNull(updated);
         assertThat(updated.status()).isEqualTo(ClprChannelStatus.CLOSED);
-        verify(channelLifecycle).onChannelClosed(CHANNEL_ID);
     }
 
     @Test
@@ -1139,7 +1144,6 @@ class ClprDeepDiveBundleAuditTest {
         final var updated = channelStore.getChannel(CHANNEL_ID);
         assertNotNull(updated);
         assertThat(updated.status()).isEqualTo(ClprChannelStatus.CLOSED);
-        verify(channelLifecycle).onChannelClosed(CHANNEL_ID);
     }
 
     @Test
@@ -1178,7 +1182,6 @@ class ClprDeepDiveBundleAuditTest {
         final var updated = channelStore.getChannel(CHANNEL_ID);
         assertNotNull(updated);
         assertThat(updated.status()).isEqualTo(ClprChannelStatus.CLOSED);
-        verify(channelLifecycle).onChannelClosed(CHANNEL_ID);
     }
 
     @Test
@@ -2749,7 +2752,7 @@ class ClprDeepDiveBundleAuditTest {
 
             assertThatThrownBy(() -> subject.handle(handleContext))
                     .isInstanceOf(HandleException.class)
-                    .has(responseCode(CLPR_BUNDLE_VERIFICATION_FAILED));
+                    .has(responseCode(CLPR_NO_PROGRESS));
         }
 
         @Test
@@ -3109,13 +3112,11 @@ class ClprDeepDiveBundleAuditTest {
         lenient()
                 .when(handleContext.dispatchMetadata())
                 .thenReturn(new HandleContext.DispatchMetadata(new java.util.HashMap<>()));
-        final var feeStack = org.mockito.Mockito.mock(HandleContext.SavepointStack.class);
-        lenient().when(handleContext.savepointStack()).thenReturn(feeStack);
-        lenient()
-                .when(feeStack.getBaseBuilder(StreamBuilder.class))
-                .thenReturn(org.mockito.Mockito.mock(StreamBuilder.class));
         lenient().when(handleContext.configuration()).thenReturn(config);
         lenient().when(handleContext.storeFactory()).thenReturn(storeFactory);
+        // One stack serves both the application savepoint and the fee-headroom checks on its base builder.
+        lenient().when(handleContext.savepointStack()).thenReturn(applicationStack);
+        lenient().when(applicationStack.getBaseBuilder(StreamBuilder.class)).thenReturn(mock(StreamBuilder.class));
         lenient().when(handleContext.creatorInfo()).thenReturn(creatorInfo);
         // Default to self-submitted (creatorNodeId == endpointNodeId): the handler skips
         // endpoint-signature verification for self-submitted bundles. Tests that need to
@@ -3145,7 +3146,7 @@ class ClprDeepDiveBundleAuditTest {
         lenient().when(handleContext.dispatch(any(DispatchOptions.class))).thenReturn(dispatchResult);
         lenient().when(dispatchResult.status()).thenReturn(ResponseCodeEnum.SUCCESS);
         lenient().when(dispatchResult.hasContractResult()).thenReturn(true);
-        lenient().when(dispatchResult.getEvmCallResult()).thenReturn(Bytes.EMPTY);
+        lenient().when(dispatchResult.getEvmCallResult()).thenReturn(abiEncodeBytes(new byte[0]));
         // Mock entity factory for staking account
         lenient().when(entityIdFactory.newAccountId(803L)).thenReturn(STAKING_ACCOUNT);
         // Staking account is escrowed with ample stake by default so slash reimbursements pay out in

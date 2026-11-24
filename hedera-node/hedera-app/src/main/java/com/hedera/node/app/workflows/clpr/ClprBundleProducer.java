@@ -202,7 +202,7 @@ final class ClprBundleProducer {
             @NonNull final Bytes anchor,
             final boolean includeEndpointManifest) {
         final var throttles = channel.peerThrottlesOrThrow();
-        final long maxPayloadBytes = ClprStateProofManager.maxBundlePayloadBytes(throttles);
+        final long maxPayloadBytes = stateProofManager.maxBundlePayloadBytes(throttles);
         final var signature = ClprHieroProofCodec.compactSignature(snapshot.tssSignature());
         final var signingKey = signature.slice(0, VK_LENGTH);
         final var signer = new ClprHieroProofCodec.CompactStateProof(signingKey, Bytes.EMPTY);
@@ -248,10 +248,8 @@ final class ClprBundleProducer {
                 if (!stateProofManager.verifyHieroProof(encoded, anchor)) {
                     return skipCompactProof(INVALID_PROOF);
                 }
-                if (sizeLimited.get() && bundle.messageCount() == 0) {
-                    // The channel proof can still advance an ACK or anchor, but the head message remains blocked.
-                    stateProofManager.reportHieroProofSkip(channel.channelId(), SIZE_LIMIT);
-                }
+                // An emitted ACK, anchor, or manifest-only proof is progress, even if size checks trimmed DATA.
+                // Count SIZE_LIMIT only when no bundle can be emitted.
                 // A rotating state proof also changes the confirmed anchor for subsequent bundles.
                 queueEmptyForCycle = rotating;
                 return emitStateProof(bundle, encoded);

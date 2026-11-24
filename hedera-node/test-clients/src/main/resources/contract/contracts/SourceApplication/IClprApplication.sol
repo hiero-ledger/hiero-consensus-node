@@ -13,6 +13,8 @@ interface IClprApplication {
         bytes calldata messageData
     ) external returns (bytes memory responseData);
 
+    function onClprResponseUnavailable(bytes32 channelId, uint64 messageId, uint8 status) external;
+
     function onClprResponse(
         bytes32 channelId,
         uint64 messageId,

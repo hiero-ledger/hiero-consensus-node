@@ -289,7 +289,7 @@ DRAINED as part of initiating the close.
 
 ### 3.2.6 Invalid Transition Rejection
 
-- `deleteChannel` on a CLOSING or CLOSED channel is rejected.
+- Graceful `deleteChannel` on a CLOSING or CLOSED channel is rejected.
 - `deleteChannel` on an ACTIVE or PAUSED channel succeeds (use an unacknowledged outbound Data
   Message to assert a persisted CLOSING state).
 - **Current Hiero behavior:** `deleteChannel` on a DRAINED Channel succeeds and transitions it to
@@ -302,6 +302,24 @@ DRAINED as part of initiating the close.
   explicit acknowledgement guard for DRAINED → CLOSED. The unacknowledged-response case documents current
   Hiero behavior rather than a settled canonical conformance requirement.
 - No admin halt or resume transactions exist.
+
+### 3.2.7 Administrative Force-close (Hiero)
+
+- The treasury, system admin, and local payer configured by `accounts.clprAdmin`
+  may set `force_close`; other payers are rejected without changing channel state.
+  It cannot be combined with `ownership_commitment` or used for a PENDING channel.
+- An established channel becomes CLOSED immediately, even with unacknowledged slots.
+- Each transaction examines at most 16 consecutive IDs, including missing slots,
+  starting after the actual ACK or at the persisted cleanup cursor. DATA, replies,
+  and controls are discarded without callbacks. Other channels remain unchanged.
+- Purged DATA decrements the connector's in-flight count, with a floor of zero.
+- A subsequent force-close continues cleanup. Once the cursor reaches the next
+  unassigned ID (or 1 for an unused channel), further calls return no-op SUCCESS.
+  SUCCESS alone does not distinguish a partial batch from finished cleanup.
+- The channel's actual ACK, next message ID, and running hashes remain unchanged.
+  Closed channels reject ordinary sends and bundles while cleanup continues.
+- Force-close stops local syncing without notifying the peer. The peer's side and
+  its queued slots need separate administrator cleanup.
 
 ## 3.3 Connector Lifecycle
 
@@ -332,7 +350,10 @@ DRAINED as part of initiating the close.
 - Connector must be registered and authorized. The CLPR Service calls `authorizeMessage()` on the
   Connector's authorization contract. If the Connector rejects, the message is not enqueued.
 - Payload size must not exceed the destination's `max_message_payload_bytes`.
-- Queue depth must not exceed `max_queue_depth`.
+- Existing slots plus new DATA must stay below the current local `max_queue_depth`.
+  A config update prepended on that send may use the last ordinary slot.
+  Outstanding DATA plus the new DATA must fit the peer's most recently advertised DATA credit;
+  configuration controls and replies consume local queue space but no peer DATA credit.
 - Message is assigned `next_message_id`; the counter increments.
 - Running hash is updated: `SHA-256(sent_running_hash || serialized_payload)`.
 - The `sender` field is stamped from the transaction caller (not caller-supplied).
@@ -355,9 +376,37 @@ DRAINED as part of initiating the close.
 
 ### 3.4.4 Queue Depth Enforcement
 
-- When the queue reaches `max_queue_depth`, new sendMessage calls are rejected.
-- When the peer acknowledges messages (advancing `acked_message_id`), queue space opens and sendMessage
-  succeeds again.
+- With both peers idle at queue depth 2, a same-depth configuration change must allow each peer
+  to enqueue a ConfigUpdate and DATA together. After both queues drain, each peer can send again.
+  Peer credit counts only outstanding DATA, across all connectors.
+- An empty queue with local limit 10, peer DATA credit 1, and a stale configuration must accept
+  a ConfigUpdate plus one DATA. A second DATA must fail until the first receives a terminal reply.
+- Mixed control/reply slots must not consume peer DATA credit, while still consuming local space.
+  Empty/redacted DATA still consumes credit; an accepted terminal reply releases it before nested
+  response callbacks. Repeated sends must reread current state and preserve connector quotas.
+- Each channel reserves replies using the current local limit `Q = max_queue_depth`.
+  Total outbound depth must remain at most `2 * Q`.
+- Local queue depth, payload bytes, sync bytes and messages per bundle are non-decreasing.
+  Lower each limit individually and expect `INVALID_CLPR_CONFIGURATION` with the full configuration
+  and timestamp preserved. Deliver an already assembled bundle containing a larger DATA head and
+  its smaller successor, and verify both executions, replies and the received running hash.
+  Unchanged values and increases succeed subject to the queue depth ceiling. Cover the ceiling boundary and
+  an existing limit above a subsequently lowered ceiling: retain that credit but reject growth.
+- Genesis caps queue depth at the configured ceiling. Upgrade files retain existing queue credit
+  when a smaller value is requested, cap new growth, and do not fail because of a requested decrease.
+  Retain payload bytes, sync bytes and messages per bundle independently. A normalized no-op must
+  preserve the timestamp. Apply increases and unrelated gas or endpoint changes.
+- Exercise saturated queues and raise-only governance changes with independently delayed config
+  publication. With four local DATA outstanding at limit 5 and peer traffic
+  `[DATA, DATA, DATA, REPLY1, REPLY2, REPLY3, REPLY4]`, bundle sizes 1–7 must progress and drain.
+  Configuration proofs and ConfigUpdate payloads retain their existing encoding.
+- Bundle backpressure accepts the longest fitting prefix, advances its received hash/ID and
+  acknowledgement consistently, and leaves later one-way slots queued. ACK-only/state-only
+  progress still works when the ordinary budget is full.
+- A peer exceeding its advertised credit must not grow the queue beyond `2 * Q`.
+- When the peer acknowledges messages (advancing `acked_message_id`), queue space opens and
+  sendMessage succeeds again. Queue checks occur at consensus, so rejected relay submissions
+  may still pay transaction fees.
 
 ## 3.5 Bundle Verification (`submitBundle`)
 
@@ -498,11 +547,43 @@ DRAINED as part of initiating the close.
 - If `max_sync_bytes` is configured too low (less than `max_message_payload_bytes` plus protocol overhead),
   no valid bundle can be constructed — the Channel is effectively deadlocked. This configuration should
   be prevented by throttle validation in `updateLedgerConfiguration`.
+- The fixed 64 KiB proof allowance is a minimum, not a guarantee for arbitrary channel leaves. The
+  channel leaf includes the cached peer endpoint manifest; an unlimited `max_peer_endpoints` can make
+  even a channel-only proof exceed this allowance. Size `max_sync_bytes` for the largest supported
+  cached manifest and Merkle paths as well as the complete message payload. Exercise both native and
+  compact proofs at that size, and verify oversized proofs are never sent.
+- If a requested manifest crowds out a fitting queued head, both native and compact senders deliver
+  the head with its channel receipt first. Verify that the receiver can acknowledge its outstanding
+  DATA and then install the larger manifest. A native proof can carry the manifest alone when no
+  queued head fits. Compact proofs always include the channel leaf. An unfit head must never result
+  in a channel-only offer attesting a queue tip ahead of the receiver. A duplicate verified manifest
+  returns `CLPR_NO_PROGRESS`.
+- With an empty queue after a terminal reply arrives, verify that a receipt reaches the peer even
+  when a standalone manifest was deferred. The next sync must install the manifest at the same receive ID.
+- Rotate both manifests while each peer has undelivered DATA. Make both combined proofs fit the wire
+  but exceed the receiver's budget for its outstanding slot after manifest growth. With no new
+  application traffic, verify the DATA and terminal replies are delivered, both queues drain, and
+  both new manifests install.
+- Against a 4 MiB peer, queue two maximum-size DATA messages and a successor. Verify that separate
+  prefixes deliver all three in order and that their terminal replies reach the source application.
 
 ### 3.10.3 `MaxGasPerMessage`
 
 - A message whose execution exceeds `max_gas_per_message` is handled according to the platform's gas
   metering. On EVM platforms, the application callback receives a fixed gas stipend.
+
+### 3.10.4 Reply Size and Execution Outcome
+
+- A stateful destination application changes storage and returns a valid ABI result exceeding the
+  serialized reply budget. Its effects (including nested sends) roll back before an empty
+  `APPLICATION_ERROR` is queued, while compensation and executed-gas charges remain. A fitting
+  successful result commits; a genuine application revert also rolls back.
+- A legacy or external peer returns an attested `SUCCESS` reply above the source's payload limit. Acceptance preserves the attested hash, removes the original DATA
+  and advances ACK. The application receives `onClprResponseUnavailable` with `SUCCESS`, and must
+  not compensate for failed destination execution.
+- A fitting empty success uses the ordinary `onClprResponse` callback and is distinguishable from
+  unavailable data. An absent or reverting unavailable-data hook does not trigger an ordinary
+  callback or prevent protocol progress. Connector slashing uses the original attested status.
 
 ## 3.11 Metadata Exchange
 

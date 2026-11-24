@@ -9,7 +9,8 @@ option java_multiple_files = true;
 
 /**
  * Initiates graceful closure of a CLPR Channel, or deletes an abandoned
- * pending ownership commitment. Requires the CLPR admin key.
+ * pending ownership commitment. Requires an authorized CLPR admin payer: the
+ * treasury, system admin, or local account configured by accounts.clprAdmin.
  *
  * When channel_id maps to an existing ACTIVE or PAUSED Channel,
  * transitions it to CLOSING. No new sendMessage calls are accepted.
@@ -18,6 +19,16 @@ option java_multiple_files = true;
  *
  * When no Channel exists for channel_id and ownership_commitment is
  * set, the admin can remove a matching legacy pending commitment.
+ *
+ * With force_close set, immediately closes an established channel and
+ * discards a bounded batch of unacknowledged messages from its outbound
+ * queue. Each transaction examines at most 16 consecutive message IDs, including
+ * missing slots. Repeat with force_close set to discard any remaining messages.
+ * SUCCESS means the cleanup request was accepted; it does not guarantee that all
+ * queued messages were removed. Repeating after cleanup finishes is a no-op SUCCESS.
+ *
+ * Force-close is local: the CLOSED channel stops syncing, so the peer is not
+ * notified. The peer's administrator must separately close and clean up its side.
  */
 message ClprDeleteChannelTransactionBody {
     /**
@@ -31,4 +42,14 @@ message ClprDeleteChannelTransactionBody {
      * Ignored when a Channel record is found for channel_id.
      */
     bytes ownership_commitment = 2;
+
+    /**
+     * Abandon an established channel without waiting for peer acknowledgments.
+     * The channel becomes terminal immediately and any abandoned messages are
+     * discarded without application callbacks. May also be set on a CLOSED
+     * channel to continue cleanup. SUCCESS may leave more batches to purge, and is
+     * also returned without changes after cleanup is complete. This does not close
+     * or purge the peer's channel. Mutually exclusive with ownership_commitment.
+     */
+    bool force_close = 3;
 }

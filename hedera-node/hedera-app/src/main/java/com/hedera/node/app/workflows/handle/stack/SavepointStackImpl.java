@@ -19,6 +19,8 @@ import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBe
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REMOVABLE;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
+import static com.hedera.node.app.throttle.schemas.V0490CongestionThrottleSchema.CONGESTION_LEVEL_STARTS_STATE_ID;
+import static com.hedera.node.app.throttle.schemas.V0490CongestionThrottleSchema.THROTTLE_USAGE_SNAPSHOTS_STATE_ID;
 import static com.hedera.node.app.workflows.handle.stack.savepoints.AbstractSavepoint.SUCCESSES;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.BOTH;
@@ -27,6 +29,8 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.state.congestion.CongestionLevelStarts;
+import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshots;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.node.app.blocks.impl.BlockStreamBuilder;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
@@ -42,6 +46,7 @@ import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.node.app.state.WrappedState;
 import com.hedera.node.app.state.recordcache.BlockRecordSource;
 import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
+import com.hedera.node.app.throttle.CongestionThrottleService;
 import com.hedera.node.app.workflows.handle.HandleOutput;
 import com.hedera.node.app.workflows.handle.record.RecordStreamBuilder;
 import com.hedera.node.app.workflows.handle.stack.savepoints.BuilderSinkImpl;
@@ -287,6 +292,20 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
             throw new IllegalStateException("The savepoint stack is empty");
         }
         stack.pop().rollback();
+    }
+
+    @Override
+    public void rollbackPreservingThrottleUsage() {
+        // Child finalization saved these together. Read its exact charges (including exemptions and refunds)
+        // before popping the callback, then publish them where the next child will reload its throttles.
+        final var throttles = getWritableStates(CongestionThrottleService.NAME);
+        final var usage = throttles.<ThrottleUsageSnapshots>getSingleton(THROTTLE_USAGE_SNAPSHOTS_STATE_ID);
+        final var congestion = throttles.<CongestionLevelStarts>getSingleton(CONGESTION_LEVEL_STARTS_STATE_ID);
+        final var finalizedUsage = requireNonNull(usage.get());
+        final var finalizedCongestion = requireNonNull(congestion.get());
+        rollback();
+        usage.put(finalizedUsage);
+        congestion.put(finalizedCongestion);
     }
 
     @Override

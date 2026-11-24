@@ -113,8 +113,6 @@ public final class ClprStreamingSyncMethod implements ServerCalls.BidiStreamingM
             }
             final int readSeq = ++readsCount;
             try {
-                // The marshaller uses a thread-local buffer, so the bytes must be consumed before this
-                // call returns — parsing here, inside the session, satisfies that.
                 final var response = session.onMessage(requestBuffer.getBytes(0, requestBuffer.length()));
                 if (response != null) {
                     final int writeSeq = ++writesCount;

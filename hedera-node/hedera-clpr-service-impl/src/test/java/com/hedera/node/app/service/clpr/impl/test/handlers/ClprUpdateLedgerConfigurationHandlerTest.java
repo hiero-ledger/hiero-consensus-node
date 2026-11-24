@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NOT_ENABLED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CLPR_CONFIGURATION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CLPR_SERVICE_ADDRESS;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.LEDGER_CONFIGURATION_STATE_ID;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -28,13 +29,17 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.state.test.fixtures.FunctionWritableSingletonState;
+import com.swirlds.state.test.fixtures.MapWritableStates;
 import java.time.Instant;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
@@ -401,7 +406,119 @@ class ClprUpdateLedgerConfigurationHandlerTest {
         verify(configStore).put(captor.capture());
         assertThat(captor.getValue().initialTrustAnchor()).isEqualTo(Bytes.EMPTY);
         assertThat(captor.getValue().initialTrustAnchorId()).isEqualTo(Bytes.EMPTY);
-        org.mockito.Mockito.verify(handleContext, org.mockito.Mockito.never()).ledgerId();
+        verify(handleContext, never()).ledgerId();
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        "5,2,10,false",
+        "5,5,10,true",
+        "5,6,10,true",
+        "5,10,10,true",
+        "5,11,10,false",
+        "5,5,3,true",
+        "5,6,3,false",
+        "5,3,3,false",
+        "1,1,1,true",
+        "10000,2147483647,10000,false",
+        "2147483647,2147483647,10000,true"
+    })
+    void adminQueueCreditIsExpandOnlyWithinGrowthCeiling(
+            final int current, final int requested, final int ceiling, final boolean accepted) {
+        setupHandleContext(HederaTestConfigBuilder.create()
+                .withValue("clpr.enabled", true)
+                .withValue("clpr.maxQueueDepthCeiling", ceiling)
+                .getOrCreateConfig());
+        final var oldConfig = validConfigBuilder()
+                .throttles(validThrottlesBuilder().maxQueueDepth(current))
+                .build();
+        final var configValue = new AtomicReference<>(oldConfig);
+        final var configState = new FunctionWritableSingletonState<>(
+                LEDGER_CONFIGURATION_STATE_ID, "CONFIG", configValue::get, configValue::set);
+        final var states = MapWritableStates.builder().state(configState).build();
+        final var realStore = new WritableLedgerConfigurationStore(states);
+        given(storeFactory.writableStore(WritableLedgerConfigurationStore.class))
+                .willReturn(realStore);
+        given(handleContext.body())
+                .willReturn(txnBodyWith(validConfigBuilder()
+                        .throttles(validThrottlesBuilder().maxQueueDepth(requested))
+                        .build()));
+
+        if (accepted) {
+            subject.handle(handleContext);
+            assertThat(realStore.getConfiguration().throttlesOrThrow().maxQueueDepth())
+                    .isEqualTo(requested);
+            assertThat(realStore.getConfiguration().timestampOrThrow().seconds())
+                    .isEqualTo(CONSENSUS_NOW.getEpochSecond());
+        } else {
+            assertThatThrownBy(() -> subject.handle(handleContext))
+                    .isInstanceOfSatisfying(
+                            HandleException.class,
+                            failure -> assertThat(failure.getStatus()).isEqualTo(INVALID_CLPR_CONFIGURATION));
+            // Rejection must precede changes to timestamp, anchors, or any configuration field.
+            assertThat(realStore.getConfiguration()).isEqualTo(oldConfig);
+            assertThat(configState.isModified()).isFalse();
+        }
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        "65534,1048576,100,false",
+        "65536,1048575,100,false",
+        "65536,1048576,99,false",
+        "65537,1048577,99,false",
+        "65536,1048577,101,true",
+        "65537,1048577,101,false",
+        "65536,4194305,101,false",
+        "65536,1048577,1001,false"
+    })
+    void adminProtectsPreviouslyAdvertisedDeliveryLimits(
+            final int payload, final long sync, final int count, final boolean accepted) {
+        setupHandleContext(
+                HederaTestConfigBuilder.create().withValue("clpr.enabled", true).getOrCreateConfig());
+        final var current = validConfigBuilder()
+                .throttles(validThrottlesBuilder().maxMessagePayloadBytes(65_535))
+                .build();
+        given(configStore.getConfiguration()).willReturn(current);
+        final var requested = current.throttlesOrThrow()
+                .copyBuilder()
+                .maxMessagePayloadBytes(payload)
+                .maxSyncBytes(sync)
+                .maxMessagesPerBundle(count)
+                .build();
+        given(handleContext.body())
+                .willReturn(
+                        txnBodyWith(current.copyBuilder().throttles(requested).build()));
+        if (accepted) {
+            subject.handle(handleContext);
+            final var saved = ArgumentCaptor.forClass(ClprLedgerConfiguration.class);
+            verify(configStore).put(saved.capture());
+            assertThat(saved.getValue().throttles()).isEqualTo(requested);
+        } else {
+            assertThatThrownBy(() -> subject.handle(handleContext))
+                    .isInstanceOfSatisfying(
+                            HandleException.class,
+                            e -> assertThat(e.getStatus()).isEqualTo(INVALID_CLPR_CONFIGURATION));
+            verify(configStore, never()).put(any());
+        }
+    }
+
+    @Test
+    void adminCanRetainLegacyDeliveryLimitsAboveAllThreeCeilings() {
+        setupHandleContext(
+                HederaTestConfigBuilder.create().withValue("clpr.enabled", true).getOrCreateConfig());
+        final var legacy = validThrottlesBuilder()
+                .maxMessagePayloadBytes(131_072)
+                .maxSyncBytes(8_388_608L)
+                .maxMessagesPerBundle(2000)
+                .build();
+        final var current = validConfigBuilder().throttles(legacy).build();
+        given(configStore.getConfiguration()).willReturn(current);
+        given(handleContext.body()).willReturn(txnBodyWith(current));
+        subject.handle(handleContext);
+        final var saved = ArgumentCaptor.forClass(ClprLedgerConfiguration.class);
+        verify(configStore).put(saved.capture());
+        assertThat(saved.getValue().throttles()).isEqualTo(legacy);
     }
 
     // --- Helpers ---

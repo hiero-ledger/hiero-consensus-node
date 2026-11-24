@@ -1020,7 +1020,19 @@ yahcli -n "$NETWORK_A" clpr create-channel --channel-id "$(jq -r .channelId chan
   --peer-verifier "$VERIFIER_B" --config-proof peer-config.bin --endpoint-manifest-proof peer-manifest.bin
 ```
 
-Admin may close a channel with `clpr delete-channel --channel-id <hex>`.
+`clpr delete-channel --channel-id <hex>` requests graceful closure and lets the queues drain.
+The payer must be the treasury, system admin, or local account selected by
+`accounts.clprAdmin`; see the [CLPR admin role](../docs/privileged-transactions.md#authorization-privileges-for-clpr-transactions).
+For an abandoned or wedged channel, an administrator can use `--force-close` to mark
+this side CLOSED immediately and discard queued messages without application callbacks.
+Each call examines at most 16 consecutive message IDs, including missing slots, so a
+sparse queue may require several calls. `SUCCESS` means the request was accepted; it
+may leave cleanup batches outstanding, and repeating after completion is a no-op
+`SUCCESS`. Node logs report the cleanup cursor, next message ID, and `complete=true`
+when cleanup is finished. No HAPI query currently exposes that cursor.
+
+Force-close stops local syncing and does not notify or purge the peer. Coordinate
+with the peer administrator to close and clean up the other side separately.
 
 ### Connector lifecycle
 

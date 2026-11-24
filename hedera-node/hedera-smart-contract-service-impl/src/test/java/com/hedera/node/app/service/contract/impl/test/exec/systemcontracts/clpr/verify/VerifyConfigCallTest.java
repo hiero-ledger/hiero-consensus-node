@@ -185,6 +185,9 @@ class VerifyConfigCallTest extends CallTestBase {
     @Test
     @DisplayName("manifest-aware: a valid config proof + valid manifest proof verifies and returns SUCCESS")
     void verifyManifestHappyPath() {
+        // Keep the pre-existing configuration wire shape: local queue accounting is a separate state.
+        assertThat(ClprLedgerConfiguration.PROTOBUF.toBytes(testConfig()))
+                .isEqualTo(Bytes.fromHex("12033239351a14" + "00".repeat(20) + "3a0401020304"));
         final var manifest = ClprEndpointManifest.newBuilder()
                 .version(2L)
                 .serviceAddress(SERVICE_ADDR)

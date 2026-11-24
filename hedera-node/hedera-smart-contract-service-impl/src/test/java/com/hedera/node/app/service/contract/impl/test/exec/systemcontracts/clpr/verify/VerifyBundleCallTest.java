@@ -2,25 +2,44 @@
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.clpr.verify;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_QUEUE_FULL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator.senderPayloadBudget;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.ENDPOINT_MANIFEST_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.MESSAGE_QUEUE_STATE_ID;
+import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.withSettings;
 
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.block.stream.MerklePath;
 import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.block.stream.TssSignedBlockProof;
+import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.state.clpr.ClprBundleContent;
 import com.hedera.hapi.node.state.clpr.ClprChannel;
 import com.hedera.hapi.node.state.clpr.ClprChannelStatus;
+import com.hedera.hapi.node.state.clpr.ClprEndpoint;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
+import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.clpr.ClprMessage;
 import com.hedera.hapi.node.state.clpr.ClprMessageKey;
 import com.hedera.hapi.node.state.clpr.ClprMessagePayload;
+import com.hedera.hapi.node.state.clpr.ClprMessageReply;
+import com.hedera.hapi.node.state.clpr.ClprMessageReplyStatus;
 import com.hedera.hapi.node.state.clpr.ClprMessageValue;
+import com.hedera.hapi.node.state.clpr.ClprServiceEndpoint;
+import com.hedera.hapi.node.state.clpr.ClprThrottles;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.platform.state.StateItem;
 import com.hedera.hapi.platform.state.StateKey;
@@ -29,14 +48,26 @@ import com.hedera.node.app.hapi.utils.blocks.HashUtils;
 import com.hedera.node.app.hapi.utils.blocks.NativeTssVerifier;
 import com.hedera.node.app.hapi.utils.blocks.StateProofVerifier;
 import com.hedera.node.app.hapi.utils.blocks.TssVerifier;
+import com.hedera.node.app.service.clpr.ReadableMessageQueueStore;
+import com.hedera.node.app.service.clpr.impl.ClprBundleValidator;
+import com.hedera.node.app.service.clpr.impl.ClprHashUtils;
+import com.hedera.node.app.service.clpr.impl.ClprHieroProofSupport;
+import com.hedera.node.app.service.clpr.impl.ClprStateProofManager;
 import com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierAbi;
+import com.hedera.node.app.service.clpr.impl.verifier.EvmClprVerifier;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.clpr.verify.VerifyBundleCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
+import com.hedera.node.app.spi.state.BlockProvenSnapshot;
+import com.hedera.node.app.spi.state.BlockProvenSnapshotProvider;
+import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.state.BinaryState;
+import com.swirlds.state.State;
+import com.swirlds.state.binary.MerkleProof;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -45,8 +76,11 @@ import java.math.BigInteger;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.DigestType;
 import org.hyperledger.besu.evm.frame.MessageFrame;
@@ -216,6 +250,283 @@ class VerifyBundleCallTest {
             final Tuple manifestStruct = decoded.get(4);
             assertThat(((BigInteger) manifestStruct.get(0)).longValue()).isEqualTo(2L);
             assertThat((byte[]) manifestStruct.get(1)).isEqualTo(SERVICE_ADDR.toByteArray());
+        }
+
+        private final VersionedConfigImpl configuration = new VersionedConfigImpl(
+                HederaTestConfigBuilder.create()
+                        .withValue("clpr.verifyProofsAtSender", false)
+                        .withValue("jumboTransactions.ethereumMaxCallDataSize", 64 * 1024)
+                        .getOrCreateConfig(),
+                0);
+        private final ClprThrottles limits = ClprThrottles.newBuilder()
+                .maxQueueDepth(10)
+                .maxMessagesPerBundle(10)
+                .maxMessagePayloadBytes(16 * 1024)
+                .maxSyncBytes(4 * 1024 * 1024)
+                .build();
+        private final ClprLedgerConfiguration ledgerConfig =
+                ClprLedgerConfiguration.newBuilder().throttles(limits).build();
+        private final ClprBundleValidator validator = new ClprBundleValidator();
+
+        @ParameterizedTest
+        @ValueSource(ints = {30, 34})
+        void terminalReplyDrainsDataBeforeLargerManifestInstalls(final int senderAnchorKiB) throws Exception {
+            final var a = new Peer(22);
+            final var b = new Peer(senderAnchorKiB);
+            a.enqueue(data(12));
+            b.apply(a.offerTo(b, false));
+            final var reply = reply(4);
+            b.enqueue(reply);
+            b.rotateManifest(50211);
+
+            final var standalone = validator.validate(
+                    a.channel,
+                    ClprBundleContent.newBuilder()
+                            .newEndpointManifest(b.manifest)
+                            .build(),
+                    ledgerConfig);
+            assertThatThrownBy(() -> a.apply(standalone)).has(responseCode(CLPR_QUEUE_FULL));
+
+            final var delivery = b.offerTo(a, false);
+            assertThat(delivery.shouldUpdateManifest()).isFalse();
+            assertThat(delivery.newMessages()).containsExactly(reply);
+            a.apply(delivery);
+            assertThat(a.queue).isEmpty();
+
+            a.apply(b.offerTo(a, false));
+            assertThat(a.channel.endpointManifest()).isEqualTo(b.manifest);
+        }
+
+        @ParameterizedTest
+        @ValueSource(booleans = {false, true})
+        void emptyQueueRetriesWithReceiptThenInstallsStandaloneManifest(final boolean allowPureAck) throws Exception {
+            final var a = new Peer(22);
+            final var b = new Peer(34);
+            b.enqueue(data(1));
+            a.apply(b.offerTo(a, false));
+            a.enqueue(reply(4));
+            b.apply(a.offerTo(b, false));
+            assertThat(b.queue).isEmpty();
+            assertThat(a.queue).hasSize(1);
+            b.rotateManifest(50211);
+
+            final var first = b.offerTo(a, allowPureAck);
+            assertThat(first.content().metadata()).isNull();
+            assertThat(first.shouldUpdateManifest()).isTrue();
+            assertThatThrownBy(() -> a.apply(first)).has(responseCode(CLPR_QUEUE_FULL));
+
+            final var receipt = b.offerTo(a, allowPureAck);
+            assertThat(receipt.shouldUpdateManifest()).isFalse();
+            assertThat(receipt.newMessages()).isEmpty();
+            assertThat(receipt.content().metadataOrThrow().receivedMessageId()).isOne();
+            a.apply(receipt);
+            assertThat(a.queue).isEmpty();
+            // Receiving a pure ACK did not change A's advertised receive ID or manifest version.
+            a.apply(b.offerTo(a, allowPureAck));
+            assertThat(a.channel.endpointManifest()).isEqualTo(b.manifest);
+        }
+
+        @Test
+        void simultaneousManifestRotationsDrainBothQueuesAfterTrafficStops() throws Exception {
+            final var a = new Peer(18);
+            final var b = new Peer(18);
+            final var dataA = data(10);
+            final var dataB = data(11);
+            a.enqueue(dataA);
+            b.enqueue(dataB);
+            a.rotateManifest(50211);
+            b.rotateManifest(50212);
+
+            // Both combined proofs fit the wire but would strand the receiver's own admitted DATA.
+            final var firstA = a.offerTo(b, false);
+            final var firstB = b.offerTo(a, true);
+            assertThat(firstA.newMessages()).containsExactly(dataA);
+            assertThat(firstB.newMessages()).containsExactly(dataB);
+            assertThat(firstA.shouldUpdateManifest()).isTrue();
+            assertThat(firstB.shouldUpdateManifest()).isTrue();
+            assertThatThrownBy(() -> b.apply(firstA)).has(responseCode(CLPR_QUEUE_FULL));
+            assertThatThrownBy(() -> a.apply(firstB)).has(responseCode(CLPR_QUEUE_FULL));
+
+            final var retryA = a.offerTo(b, false);
+            final var retryB = b.offerTo(a, true);
+            assertThat(retryA.shouldUpdateManifest()).isFalse();
+            assertThat(retryB.shouldUpdateManifest()).isFalse();
+            assertThat(retryA.newMessages()).containsExactly(dataA);
+            assertThat(retryB.newMessages()).containsExactly(dataB);
+            b.apply(retryA);
+            a.apply(retryB);
+            // Only the terminal replies generated by those deliveries remain to be sent.
+            a.enqueue(reply(0));
+            b.enqueue(reply(0));
+            final var replyA = a.offerTo(b, false);
+            final var replyB = b.offerTo(a, true);
+            b.apply(replyA);
+            a.apply(replyB);
+            assertThat(a.channel.endpointManifest()).isEqualTo(b.manifest);
+            assertThat(b.channel.endpointManifest()).isEqualTo(a.manifest);
+            // Each peer with an outstanding reply polls the other for its receipt.
+            a.apply(b.offerTo(a, true));
+            b.apply(a.offerTo(b, true));
+            assertThat(a.queue).isEmpty();
+            assertThat(b.queue).isEmpty();
+            assertThat(a.channel.ackedMessageId()).isEqualTo(2);
+            assertThat(b.channel.ackedMessageId()).isEqualTo(2);
+        }
+
+        private static ClprMessagePayload data(final int kib) {
+            return ClprMessagePayload.newBuilder()
+                    .message(ClprMessage.newBuilder().messageData(Bytes.wrap(new byte[kib * 1024])))
+                    .build();
+        }
+
+        private static ClprMessagePayload reply(final int kib) {
+            return ClprMessagePayload.newBuilder()
+                    .messageReply(ClprMessageReply.newBuilder()
+                            .messageId(1)
+                            .status(ClprMessageReplyStatus.SUCCESS)
+                            .messageReplyData(Bytes.wrap(new byte[kib * 1024])))
+                    .build();
+        }
+
+        /** Each peer offers proofs from its own queue and uses the other peer's committed receive ID and version. */
+        private class Peer implements ReadableMessageQueueStore {
+            private final Map<Long, ClprMessageValue> queue = new HashMap<>();
+            private final ClprStateProofManager manager;
+            private ClprEndpointManifest manifest = ClprEndpointManifest.newBuilder()
+                    .version(1)
+                    .serviceAddress(SERVICE_ADDR)
+                    .build();
+            private ClprChannel channel;
+
+            Peer(final int anchorKiB) {
+                final var zeroHash = Bytes.wrap(new byte[32]);
+                channel = ClprChannel.newBuilder()
+                        .channelId(CHANNEL_ID)
+                        .status(ClprChannelStatus.ACTIVE)
+                        .trustAnchor(Bytes.wrap(new byte[anchorKiB * 1024]))
+                        .peerThrottles(limits)
+                        .nextMessageId(1)
+                        .receivedRunningHash(zeroHash)
+                        .sentRunningHash(zeroHash)
+                        .endpointManifest(manifest)
+                        .endpointManifestVersion(manifest.version())
+                        .build();
+                final var state = mock(State.class, withSettings().extraInterfaces(BinaryState.class));
+                final var binary = (BinaryState) state;
+                given(binary.getKvPath(CHANNELS_STATE_ID, ProtoBytes.PROTOBUF.toBytes(new ProtoBytes(CHANNEL_ID))))
+                        .willReturn(1L);
+                lenient()
+                        .when(binary.getSingletonPath(ENDPOINT_MANIFEST_STATE_ID))
+                        .thenReturn(2L);
+                given(binary.getKvPath(eq(MESSAGE_QUEUE_STATE_ID), any())).willAnswer(call -> {
+                    final Bytes key = call.getArgument(1);
+                    final long id = ClprMessageKey.PROTOBUF.parse(key).messageId();
+                    return queue.containsKey(id) ? 2 + id : -1L;
+                });
+                given(binary.getMerkleProof(anyLong())).willAnswer(call -> {
+                    final long path = call.getArgument(0);
+                    final var leaf = switch (Math.toIntExact(path)) {
+                        case 1 -> BundleRange.channelLeaf(channel);
+                        case 2 -> manifestLeaf(manifest);
+                        default -> keyedMessageLeaf(CHANNEL_ID, path - 2, queue.get(path - 2));
+                    };
+                    return new MerkleProof(leaf, List.of(), List.of());
+                });
+                final var snapshot = mock(BlockProvenSnapshot.class);
+                given(snapshot.state()).willReturn(state);
+                given(snapshot.path()).willReturn(MerklePath.DEFAULT);
+                given(snapshot.tssSignature()).willReturn(Bytes.wrap(new byte[13_712]));
+                given(snapshot.blockTimestamp()).willReturn(Timestamp.DEFAULT);
+                final var snapshots = mock(BlockProvenSnapshotProvider.class);
+                given(snapshots.latestSnapshot()).willReturn(Optional.of(snapshot));
+                manager = new ClprStateProofManager(
+                        snapshots, mock(TssVerifier.class), () -> configuration, mock(ClprHieroProofSupport.class));
+            }
+
+            @Override
+            public ClprMessageValue getMessage(@NonNull final Bytes channelId, final long messageId) {
+                return CHANNEL_ID.equals(channelId) ? queue.get(messageId) : null;
+            }
+
+            @Override
+            public long sizeOfState() {
+                return queue.size();
+            }
+
+            void rotateManifest(final int port) {
+                manifest = manifest.copyBuilder()
+                        .version(manifest.version() + 1)
+                        .endpoints(ClprEndpoint.newBuilder()
+                                .serviceEndpoint(ClprServiceEndpoint.newBuilder()
+                                        .ipAddress("127.0.0.1")
+                                        .port(port))
+                                .tlsCertificate(Bytes.wrap(new byte[15 * 1024]))
+                                .build())
+                        .build();
+            }
+
+            void enqueue(final ClprMessagePayload payload) {
+                assertThat(payload.protobufSize())
+                        .isLessThanOrEqualTo((int) senderPayloadBudget(configuration, channel, limits.maxSyncBytes()));
+                final var hash = ClprHashUtils.computeRunningHash(channel.sentRunningHash(), payload);
+                queue.put(channel.nextMessageId(), new ClprMessageValue(payload, hash));
+                channel = channel.copyBuilder()
+                        .sentRunningHash(hash)
+                        .nextMessageId(channel.nextMessageId() + 1)
+                        .build();
+            }
+
+            ClprBundleValidator.ValidatedBundle offerTo(final Peer peer, final boolean allowPureAck) throws Exception {
+                final var proof = Objects.requireNonNull(manager.buildBundleProof(
+                        CHANNEL_ID,
+                        peer.channel.receivedMessageId() + 1,
+                        limits,
+                        allowPureAck,
+                        peer.channel.endpointManifestVersion() < manifest.version()));
+                return receive(proof, peer.channel, ledgerConfig);
+            }
+
+            void apply(final ClprBundleValidator.ValidatedBundle delivery) throws Exception {
+                validator.prevalidateCapacity(channel, delivery, limits, configuration, this);
+                final var updated =
+                        validator.channelAfterStateUpdates(channel, delivery, limits, configuration, this, false);
+                final var ack = (ClprBundleValidator.ReplyValidation.AckedThrough)
+                        validator.validateReplies(channel, delivery, this, limits.maxQueueDepth());
+                assertThat(ack.acceptedMessageCount())
+                        .isEqualTo(delivery.newMessages().size());
+                queue.keySet().removeIf(id -> id <= ack.lastAckedMessageId());
+                channel = updated.copyBuilder()
+                        .ackedMessageId(ack.lastAckedMessageId())
+                        .receivedMessageId(channel.receivedMessageId() + ack.acceptedMessageCount())
+                        .receivedRunningHash(delivery.receivedRunningHash())
+                        .build();
+            }
+        }
+
+        private ClprBundleValidator.ValidatedBundle receive(
+                final ClprStateProofManager.BundleProof proof,
+                final ClprChannel receiver,
+                final ClprLedgerConfiguration config)
+                throws Exception {
+            // The leaf contents are real. The synthetic Merkle paths stand in for a common signed block root.
+            try (var merkle = mockStatic(StateProofVerifier.class)) {
+                merkle.when(() -> StateProofVerifier.computeBlockRootHashFromPath(any(), any()))
+                        .thenReturn(new byte[32]);
+                merkle.when(() -> StateProofVerifier.verifyPath(any(), any(), any()))
+                        .thenReturn(true);
+                final var result = subject(proof.payload().toByteArray()).execute(frame);
+                assertThat(result.responseCode()).isEqualTo(SUCCESS);
+                final var content = new EvmClprVerifier(ContractID.DEFAULT)
+                        .verifyBundleLocally(
+                                proof.payload(),
+                                Bytes.wrap(TRUST_ANCHOR),
+                                CHANNEL_ID,
+                                call -> Bytes.wrap(result.fullResult().output().toArray()));
+                final var validator = new ClprBundleValidator();
+                validator.validatePayloadSize(proof.payload(), config.throttlesOrThrow());
+                validator.prevalidate(receiver, content, config);
+                return validator.validate(receiver, content, config);
+            }
         }
 
         @Test

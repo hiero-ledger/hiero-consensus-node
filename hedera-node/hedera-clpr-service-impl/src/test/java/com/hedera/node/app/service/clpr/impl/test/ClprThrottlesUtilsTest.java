@@ -18,7 +18,7 @@ class ClprThrottlesUtilsTest {
             .build();
 
     @ParameterizedTest
-    @ValueSource(ints = {1_024, 1_048_576})
+    @ValueSource(ints = {1_024, 65_536})
     @DisplayName("given peer throttles with a payload limit, then the peer's limit is used")
     void givenPeerPayloadLimit_thenPeerLimitIsUsed(final int peerMaxPayloadBytes) {
         final var peerThrottles = LOCAL_THROTTLES
@@ -27,6 +27,14 @@ class ClprThrottlesUtilsTest {
                 .build();
 
         assertThat(effectiveMaxPayloadBytes(peerThrottles, LOCAL_THROTTLES)).isEqualTo(peerMaxPayloadBytes);
+    }
+
+    @Test
+    void newMessagesRespectSenderCapacityEvenWithLegacyAdvertisements() {
+        final var legacy =
+                LOCAL_THROTTLES.copyBuilder().maxMessagePayloadBytes(1_048_576).build();
+        assertThat(effectiveMaxPayloadBytes(legacy, legacy)).isEqualTo(65_536);
+        assertThat(effectiveMaxPayloadBytes(null, legacy)).isEqualTo(65_536);
     }
 
     @Test

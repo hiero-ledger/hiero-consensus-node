@@ -12,9 +12,8 @@ import picocli.CommandLine.Option;
 import picocli.CommandLine.ParentCommand;
 
 /**
- * Submits a {@code ClprDeleteChannel} HAPI transaction to request deletion of a
- * cross-ledger channel. Required input is the hex-encoded {@code --channel-id}; the
- * channel drains outstanding messages before reaching {@code CLOSED}.
+ * Submits a {@code ClprDeleteChannel} HAPI transaction to initiate graceful closure
+ * or explicitly force-close a cross-ledger channel.
  */
 @Command(
         name = "delete-channel",
@@ -32,13 +31,26 @@ public class DeleteChannelCommand implements Callable<Integer> {
             description = "Hex-encoded channel id (32 bytes)")
     String channelIdHex;
 
+    @Option(
+            names = {"--force-close"},
+            description = "Close this side immediately and examine up to 16 queued message IDs per call. "
+                    + "Repeat for remaining batches; SUCCESS also covers an already-complete no-op. "
+                    + "The peer administrator must separately close and clean up its side.")
+    boolean forceClose;
+
     @Override
     public Integer call() throws Exception {
         final var config = configFrom(clprCommand.getYahcli());
-        final var op = clprDeleteChannel().channelId(ClprArgs.requiredBytes("channel-id", channelIdHex));
+        final var op = clprDeleteChannel()
+                .channelId(ClprArgs.requiredBytes("channel-id", channelIdHex))
+                .forceClose(forceClose);
         final var delegate = new ClprTxnSuite(config, "ClprDeleteChannel", op);
         delegate.runSuiteSync();
-        return ClprOutcome.reportTxn(
-                config, delegate, op, "submitted CLPR channel deletion", "could not delete CLPR channel");
+        final var successAction = forceClose
+                ? "force-close cleanup request accepted; SUCCESS does not confirm cleanup is complete. "
+                        + "Check node cleanup logs for complete=true; repeat if more batches remain. "
+                        + "The peer administrator must separately close and clean up its side"
+                : "requested graceful CLPR channel closure";
+        return ClprOutcome.reportTxn(config, delegate, op, successAction, "could not close CLPR channel");
     }
 }
