@@ -35,6 +35,19 @@ public class ReadableBlockRecordStore {
         return getLastBlockInfo().votingComplete();
     }
 
+    /**
+     * Returns whether migration root hash voting is still incomplete but its completion deadline has passed, meaning
+     * a block at or after {@code votingCompletionDeadlineBlockNumber} has already closed without being queued for
+     * replay. A vote finalizing now would build the agreed chain from a queue missing those blocks, so such votes
+     * must be ignored. A deadline of zero means no deadline was set.
+     */
+    public boolean isVotingDeadlinePassed() {
+        final var info = getLastBlockInfo();
+        return !info.votingComplete()
+                && info.votingCompletionDeadlineBlockNumber() > 0
+                && info.lastBlockNumber() >= info.votingCompletionDeadlineBlockNumber();
+    }
+
     @NonNull
     public List<NodeMigrationRootHashVote> votes() {
         return getLastBlockInfo().migrationRootHashVotes();

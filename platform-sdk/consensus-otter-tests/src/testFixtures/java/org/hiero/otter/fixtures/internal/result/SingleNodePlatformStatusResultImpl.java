@@ -6,7 +6,7 @@ import static java.util.Objects.requireNonNull;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.result.PlatformStatusSubscriber;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
@@ -20,6 +20,7 @@ public class SingleNodePlatformStatusResultImpl implements SingleNodePlatformSta
 
     // This class may be used in a multi-threaded context, so we use volatile to ensure visibility of state changes
     private volatile int startIndex = 0;
+    private volatile boolean cleared = false;
 
     /**
      * Creates a new instance of {@link SingleNodePlatformStatusResultImpl}.
@@ -70,5 +71,14 @@ public class SingleNodePlatformStatusResultImpl implements SingleNodePlatformSta
     @Override
     public void clear() {
         startIndex = collector.currentStatusProgressionCount();
+        cleared = true;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean isCleared() {
+        return cleared;
     }
 }

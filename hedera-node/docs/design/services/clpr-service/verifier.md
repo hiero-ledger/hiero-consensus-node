@@ -46,7 +46,8 @@ below) with the pinned peer `ledgerId` it was deployed for.
 
 Gas budget split:
 - `clpr.verifierGasLimit` — gas allowed for the `verifyBundle` / `verifyConfig` call
-itself.
+itself; it must cover the EIP-7623 calldata floor of the call's input (~40 gas per byte
+of proof data).
 - `ClprThrottles.maxGasPerMessage` — the per-Channel throttle (from
 `LEDGER_CONFIGURATION`, spec §1.1 / §6.0) that `ClprSubmitBundleHandler` allocates for
 *each* application-message dispatch (downstream of verification). Don't confuse the
@@ -245,10 +246,26 @@ A real proof may have many `path` entries; for example, 29 entries means 29 IAVL
 hashing steps from the storage leaf up to the EVM store root, not 29 separate proofs.
 
 For `verifyConfig`, exactly one storage proof is expected: the CLPR service-address
-configuration slot. For `verifyBundle`, exactly five storage proofs are expected in the
-same queue-metadata order used by the QBFT verifier: last-message running hash, packed
-channel status/next-message slot, packed received-message slot, sent running hash,
-and received running hash.
+configuration slot. For `verifyBundle`, the five Channel slots are required: packed
+status/next-message ID, packed received-message ID, sent running hash, received running
+hash, and endpoint-manifest version. Message-bearing bundles also prove the last-message
+running hash.
+
+All three built-in EVM bundle verifiers receive the local Channel record's
+`channelContext = channelId32 || peerServiceAddress20`. The QBFT and Sei verifiers require
+the service address to match the trusted anchor's service address. Ethereum uses the
+service address stored in the channel context. The state proof authenticates that
+service account or Sei store key. Queue slot keys must equal `keccak256(channelId32 || uint256(15))`
+plus the exact field offsets `{1,2,4,5,16}`. The optional last-message hash key must equal
+`keccak256(uint256(nextMessageId - 1) || keccak256(channelId32 || uint256(1))) + 1`,
+using the proven next-message ID, which must be at least 2 because message IDs start at 1.
+The QBFT verifier also accepts a bundle that ends before `nextMessageId - 1`: it then proves
+the running-hash slot of the bundle's last message `L`, a non-zero value, and the system
+contract binds the key to `L` in `[ackedMessageId + messageCount, nextMessageId - 1]`, trying
+at most 512 message IDs.
+Proof order is irrelevant; duplicate, missing, and unrelated keys are rejected. A valid
+state proof for another channel cannot satisfy these checks, even if its counters and
+running hashes have the same values.
 
 ### Compact Commit
 
@@ -378,7 +395,7 @@ id as the first argument. This is the canonical "Hiero-source" verifier and is w
 A verifier `ContractID` lives in two places:
 
 1. **Per-channel** (spec §5.1.5 — verifier immutability): the channel record
-   `ClprChannel.verifier_contract` is set at `completeChannel` time and never
+   `ClprChannel.verifier_contract` is set at `createChannel` time and never
    changes for the life of the channel.
 2. **Per-config**: the `ClprLedgerConfiguration` itself carries a config-verifier address
    that is used to authenticate `ClprConfigUpdate` control messages (lazy propagation).

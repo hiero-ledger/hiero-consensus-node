@@ -5,6 +5,7 @@ import static com.hedera.node.app.blocks.BlockHashSigner.Request.SUCCINCT_SIGNAT
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.state.history.HintsKeyWitness;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.hints.HintsService;
@@ -40,9 +41,9 @@ import org.apache.logging.log4j.Logger;
  *     <li><b>If both hinTS and history proofs are enabled:</b>
  *     <ul>
  *         <li>Is not ready to sign during bootstrap phase until the genesis hinTS construction has completed
- *         preprocessing and reached a consensus verification key; and until the history service has collected
- *         a sufficient set of Schnorr signatures on the genesis TSS address book hash concatenated with the
- *         genesis hinTS verification key to serve as witnesses for the genesis SNARK.</li>
+ *         preprocessing and reached a consensus verification key; and until the history service has a genesis
+ *         WRAPS proof grounding the network's chain of trust (and so its ledger id) in the genesis TSS address
+ *         book and that hinTS verification key.</li>
  *         <li>To sign, initiates async aggregation of partial hinTS signatures from the active construction,
  *         packaging this async delivery into a full TSS signature with chain-of-trust proof of the hinTS
  *         verification key used for signing.</li>
@@ -123,6 +124,19 @@ public class TssBlockHashSigner implements BlockHashSigner {
     }
 
     @Override
+    public void publishKeyWitness(@NonNull final Bytes verificationKey, @NonNull final HintsKeyWitness witness) {
+        requireNonNull(verificationKey);
+        requireNonNull(witness);
+        if (historyService != null
+                && !configProvider
+                        .getConfiguration()
+                        .getConfigData(TssConfig.class)
+                        .forceMockSignatures()) {
+            historyService.publishKeyWitness(verificationKey, witness);
+        }
+    }
+
+    @Override
     public Attempt sign(@NonNull final Bytes blockHash, @NonNull final Request request) {
         requireNonNull(blockHash);
         requireNonNull(request);
@@ -149,14 +163,20 @@ public class TssBlockHashSigner implements BlockHashSigner {
                 throw new IllegalStateException("hinTS signing required for TSS block hash " + blockHash);
             }
             if (historyService == null) {
-                return new Attempt(signing.verificationKey(), null, signing.future(), signingResult.submissionFuture());
+                return new Attempt(
+                        signing.verificationKey(),
+                        null,
+                        signing.future(),
+                        signingResult.submissionFuture(),
+                        signing.constructionId());
             } else {
                 final var chainOfTrustProof = historyService.getCurrentChainOfTrustProof(signing.verificationKey());
                 return new Attempt(
                         signing.verificationKey(),
                         chainOfTrustProof,
                         signing.future(),
-                        signingResult.submissionFuture());
+                        signingResult.submissionFuture(),
+                        signing.constructionId());
             }
         }
     }

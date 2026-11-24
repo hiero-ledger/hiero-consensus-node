@@ -7,6 +7,7 @@ import com.hedera.hapi.block.stream.MerklePath;
 import com.hedera.hapi.block.stream.SiblingNode;
 import com.hedera.hapi.block.stream.StateProof;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.MessageDigest;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -16,6 +17,7 @@ import java.util.Deque;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.DigestType;
 
 /**
  * Utility class for validating {@link StateProof} messages.
@@ -38,6 +40,54 @@ public final class StateProofVerifier {
      */
     private StateProofVerifier() {
         throw new UnsupportedOperationException("Utility class - do not instantiate");
+    }
+
+    /**
+     * Infers the digest the proof was built with by reading the byte-length of the first explicit hash it
+     * carries (an explicit base hash or a non-empty sibling hash). A cross-ledger proof is built with the
+     * proving ledger's own genesis-pinned digest, which is independent of the verifying node's configured
+     * digest; the bundle carries no explicit algorithm field, so the hash length (32 → SHA-256, 48 → SHA-384)
+     * is the authoritative signal. Callers verify with the inferred digest in preference to their own
+     * configuration, falling back to configuration only when the proof carries no usable length signal.
+     *
+     * @param stateProof the state proof to infer the digest of
+     * @return the inferred digest type, or {@code null} when the proof carries no explicit hash of a
+     *         recognized length (32 or 48 bytes) to read a digest from
+     * @throws NullPointerException if {@code stateProof} is null
+     */
+    @Nullable
+    public static DigestType inferDigestType(@NonNull final StateProof stateProof) {
+        requireNonNull(stateProof, "stateProof must not be null");
+        for (final var path : stateProof.paths()) {
+            // hash() lives in the content oneof and is null unless it is the set member.
+            if (path.hasHash() && path.hash().length() > 0) {
+                final var fromBase = digestTypeForLength((int) path.hash().length());
+                if (fromBase != null) {
+                    return fromBase;
+                }
+            }
+            for (final var sibling : path.siblings()) {
+                final var siblingHash = sibling.hash();
+                if (siblingHash != null && siblingHash.length() > 0) {
+                    final var fromSibling = digestTypeForLength((int) siblingHash.length());
+                    if (fromSibling != null) {
+                        return fromSibling;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    @Nullable
+    private static DigestType digestTypeForLength(final int length) {
+        if (length == DigestType.SHA_256.digestLength()) {
+            return DigestType.SHA_256;
+        }
+        if (length == DigestType.SHA_384.digestLength()) {
+            return DigestType.SHA_384;
+        }
+        return null;
     }
 
     /**

@@ -30,14 +30,18 @@ module com.hedera.node.app.service.clpr.impl {
     requires transitive dagger;
     requires transitive java.compiler; // javax.annotation.processing.Generated
     requires transitive javax.inject;
+    requires com.hedera.cryptography.hints;
+    requires com.hedera.cryptography.libsodium;
     requires com.hedera.node.app.service.contract;
+    requires com.swirlds.base;
+    requires org.hiero.base.concurrent;
     requires org.hiero.base.crypto;
     requires org.hiero.consensus.roster;
-    requires com.sun.jna;
+    requires com.google.common;
     requires org.apache.logging.log4j;
-    requires org.bouncycastle.provider;
-    requires org.hyperledger.besu.nativelib.secp256k1;
+    requires org.hyperledger.besu.internal.crypto;
     requires org.slf4j;
+    requires tuweni.bytes;
     requires static transitive com.github.spotbugs.annotations;
 
     provides com.hedera.node.app.service.clpr.ClprService with

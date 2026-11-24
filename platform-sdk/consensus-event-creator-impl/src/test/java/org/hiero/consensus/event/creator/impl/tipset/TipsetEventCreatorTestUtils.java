@@ -36,16 +36,16 @@ import org.hiero.base.crypto.BytesSigner;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.creator.impl.EventCreator;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
-import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.main.model.EventDescriptorWrapper;
+import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.main.model.TimestampedTransaction;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.RosterEntryWrapper;
 import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.model.test.fixtures.transaction.TestingTransactions;
 import org.hiero.consensus.model.transaction.EventTransactionSupplier;
-import org.hiero.consensus.model.transaction.TimestampedTransaction;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 import org.hiero.consensus.orphan.DefaultOrphanBuffer;
 import org.hiero.consensus.orphan.OrphanBuffer;
@@ -98,8 +98,9 @@ public class TipsetEventCreatorTestUtils {
         // Set a fixed seed for deterministic output
         secureRandom.setSeed(random.nextLong());
 
+        final DefaultTipsetTracker tipsetTracker = new DefaultTipsetTracker(time, nodeId, roster);
         return new TipsetEventCreator(
-                configuration, metrics, time, secureRandom, signer, roster, nodeId, transactionSupplier);
+                configuration, metrics, time, secureRandom, signer, roster, nodeId, transactionSupplier, tipsetTracker);
     }
 
     /**
@@ -124,7 +125,7 @@ public class TipsetEventCreatorTestUtils {
             // Set a wide event window so that no events get stuck in the Future Event Buffer
             eventCreator.setEventWindow(EventWindow.getGenesisEventWindow());
 
-            final TipsetTracker tipsetTracker = new TipsetTracker(time, selfId, roster);
+            final DefaultTipsetTracker tipsetTracker = new DefaultTipsetTracker(time, selfId, roster);
 
             final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
             final TipsetWeightCalculator tipsetWeightCalculator = new TipsetWeightCalculator(

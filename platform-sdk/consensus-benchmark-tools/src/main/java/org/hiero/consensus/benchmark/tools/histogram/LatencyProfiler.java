@@ -5,6 +5,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.StringJoiner;
 import java.util.concurrent.ConcurrentHashMap;
 import org.openjdk.jmh.infra.BenchmarkParams;
 import org.openjdk.jmh.infra.IterationParams;
@@ -13,10 +14,12 @@ import org.openjdk.jmh.results.AggregationPolicy;
 import org.openjdk.jmh.results.IterationResult;
 import org.openjdk.jmh.results.Result;
 import org.openjdk.jmh.results.ScalarResult;
+import org.openjdk.jmh.results.TextResult;
 
 /**
- * A JMH profiler that turns the measurements a benchmark records with a {@link LatencyRecorder} into results: latency
- * percentiles, the allocation per call, and the number of passes discarded because of a garbage collection.
+ * A JMH profiler that turns the measurements a benchmark records with a {@link LatencyRecorder}, or with a
+ * {@link PipelineRecorder}, into results: latency percentiles, the allocation per call, and the number of passes
+ * discarded because of a garbage collection or, in a pipeline benchmark, because the pipeline did not keep up.
  *
  * <h2>What it is for</h2>
  *
@@ -33,23 +36,34 @@ import org.openjdk.jmh.results.ScalarResult;
  * <ul>
  *   <li>{@code latency.mean}, {@code latency.min}, {@code latency.max}: exact, in ns;</li>
  *   <li>{@code latency.p50}, {@code latency.p90}, {@code latency.p99}, {@code latency.p99.9}, {@code latency.p99.99}:
- *       percentiles in ns, at most 0.1% above the exact value (see {@link LatencyHistogram});</li>
+ *       percentiles in ns, at most 0.1% above the exact value (see {@link LatencyHistogram}), each only if the
+ *       iteration recorded enough calls (see below);</li>
  *   <li>{@code latency.samples}: the number of recorded calls;</li>
- *   <li>{@code alloc.norm}: the bytes allocated per call, by the measured calls only;</li>
+ *   <li>{@code latency.skipped}: text only, one line per iteration that skipped a percentile, with the number of calls
+ *       it recorded and the number each skipped percentile needs;</li>
+ *   <li>{@code alloc.norm}: the bytes allocated per call, by the measured calls only; in a pipeline benchmark, by all
+ *       threads during the passes;</li>
  *   <li>{@code measured.gc.discardedPasses}: the number of passes discarded because a garbage collection ran during
- *       their measured calls (see {@link LatencyRecorder}).</li>
+ *       their measured calls (see {@link LatencyRecorder} and {@link PipelineRecorder});</li>
+ *   <li>{@code measured.saturation.discardedPasses}: in a pipeline benchmark only, the number of passes discarded
+ *       because the pipeline did not keep up (see {@link PipelineRecorder}).</li>
  * </ul>
  *
  * <p>The latency results and {@code alloc.norm} are computed for each iteration, from the calls of that iteration.
  * JMH reports their average over all iterations and forks, with an error margin. {@code latency.p99} is therefore the
- * average of the iterations' p99 values, not the p99 of all calls of the run. A percentile needs enough calls per
- * iteration: p99.99 rests on the slowest 0.01% of them, which are only 100 of 1,000,000 calls. The counters
- * {@code latency.samples} and {@code measured.gc.discardedPasses} are summed over the run.
+ * average of the iterations' p99 values, not the p99 of all calls of the run. The counters {@code latency.samples}
+ * and {@code measured.*.discardedPasses} are summed over the run.
  *
- * <p>The latency results cover only passes without a garbage collection. JMH's primary score also includes the
- * discarded passes, so {@code latency.mean} is the average to track. An occasional discarded pass is not an error, but
- * if passes are discarded regularly, the heap is too small. If every pass of an iteration is discarded, the iteration
- * reports only {@code measured.gc.discardedPasses}.
+ * <p>A percentile rests on the calls above it, so an iteration reports it only if at least 100 of its calls lie above
+ * it: p50 needs 200 calls, p90 1,000, p99 10,000, p99.9 100,000, and p99.99 1,000,000. JMH averages a percentile over
+ * the iterations that report it. If only some iterations report it, that average leans to the iterations with more
+ * calls, and the JSON's {@code rawData} lacks the others, so lengthen the iterations until all of them report it.
+ *
+ * <p>The latency results cover only the passes that were not discarded. JMH's primary score also includes the
+ * discarded passes, so {@code latency.mean} is the average to track. An occasional discarded pass is not an error. If
+ * passes are discarded regularly, the heap is too small, or, for saturation, the pipeline gets its inputs faster than
+ * it can process them. If every pass of an iteration is discarded, the iteration reports only its counters of
+ * discarded passes.
  *
  * <h2>How it works</h2>
  *
@@ -62,6 +76,9 @@ import org.openjdk.jmh.results.ScalarResult;
  *   <li>After the iteration, the profiler combines the recorders of all threads, computes the results, and clears
  *       the registry.</li>
  * </ol>
+ *
+ * <p>A pipeline benchmark has one {@link PipelineRecorder} per iteration instead, which {@link #pipelineRecorder()}
+ * creates on its first call.
  *
  * <h2>Running it</h2>
  *
@@ -84,11 +101,23 @@ import org.openjdk.jmh.results.ScalarResult;
  * finished, which makes their recorded values visible to it. The results then cover the calls of all threads together:
  * the percentiles are those of all their calls, and {@code alloc.norm} is their total allocation divided by their total
  * number of calls.
+ *
+ * <p>A pipeline benchmark runs on one benchmark thread, because {@link PipelineRecorder} counts the allocation and the
+ * garbage collections of the whole JVM.
  */
 public final class LatencyProfiler implements InternalProfiler {
 
+    /** The fewest recorded calls above a percentile for the percentile to be reported. */
+    private static final long MIN_CALLS_ABOVE = 100;
+
     /** A percentile to report, with its label and value. */
-    private record Percentile(String label, double percentile) {}
+    private record Percentile(String label, double percentile) {
+
+        /** Returns the fewest calls an iteration must record to report this percentile. */
+        long minCalls() {
+            return Math.round(MIN_CALLS_ABOVE * 100 / (100 - percentile));
+        }
+    }
 
     /** The reported percentiles, in the order of the results. */
     private static final List<Percentile> PERCENTILES = List.of(
@@ -98,8 +127,14 @@ public final class LatencyProfiler implements InternalProfiler {
             new Percentile("p99.9", 99.9),
             new Percentile("p99.99", 99.99));
 
+    /** The label of the text result that names the percentiles an iteration skipped and why. */
+    static final String SKIPPED = "latency.skipped";
+
     /** The recorders of the running iteration by thread, or {@code null} outside an iteration. */
     private static volatile Map<Thread, LatencyRecorder> recorders;
+
+    /** The pipeline recorder of the running iteration, or {@code null} before its first use and outside an iteration. */
+    private static volatile PipelineRecorder pipelineRecorder;
 
     /**
      * Returns the calling thread's recorder for the running iteration. Call it in a setup method that runs at least
@@ -113,10 +148,34 @@ public final class LatencyProfiler implements InternalProfiler {
     public static LatencyRecorder recorder() {
         final Map<Thread, LatencyRecorder> current = recorders;
         if (current == null) {
-            throw new IllegalStateException("This benchmark reports its latency through a profiler. Run it with -prof "
-                    + LatencyProfiler.class.getName());
+            throw missingProfilerException();
         }
         return current.computeIfAbsent(Thread.currentThread(), _ -> new LatencyRecorder());
+    }
+
+    /**
+     * Returns the pipeline recorder of the running iteration. Call it in a setup method that runs at least once per
+     * iteration ({@code Level.Iteration} or {@code Level.Invocation}). A recorder obtained in an earlier iteration is no
+     * longer reported.
+     *
+     * @return the pipeline recorder
+     * @throws IllegalStateException if the benchmark runs without this profiler
+     */
+    @NonNull
+    public static PipelineRecorder pipelineRecorder() {
+        if (recorders == null) {
+            throw missingProfilerException();
+        }
+        if (pipelineRecorder == null) {
+            pipelineRecorder = new PipelineRecorder();
+        }
+        return pipelineRecorder;
+    }
+
+    @NonNull
+    private static IllegalStateException missingProfilerException() {
+        return new IllegalStateException("This benchmark reports its latency through a profiler. Run it with -prof "
+                + LatencyProfiler.class.getName());
     }
 
     /**
@@ -133,6 +192,7 @@ public final class LatencyProfiler implements InternalProfiler {
      */
     @Override
     public void beforeIteration(final BenchmarkParams benchmarkParams, final IterationParams iterationParams) {
+        pipelineRecorder = null;
         recorders = new ConcurrentHashMap<>();
     }
 
@@ -147,15 +207,23 @@ public final class LatencyProfiler implements InternalProfiler {
             @NonNull final IterationResult result) {
         // JMH calls this after all benchmark threads have finished the iteration.
         final Map<Thread, LatencyRecorder> finished = recorders;
+        final PipelineRecorder pipeline = pipelineRecorder;
         recorders = null;
+        pipelineRecorder = null;
 
-        final LatencyHistogram histogram = LatencyRecorder.newHistogram();
+        final LatencyHistogram histogram = HistogramLayout.newHistogram();
         long allocatedBytes = 0;
-        long discardedPasses = 0;
+        long gcDiscardedPasses = 0;
         for (final LatencyRecorder recorder : finished.values()) {
             histogram.add(recorder.histogram());
             allocatedBytes += recorder.allocatedBytes();
-            discardedPasses += recorder.discardedPasses();
+            gcDiscardedPasses += recorder.discardedPasses();
+        }
+        if (pipeline != null) {
+            pipeline.endIteration();
+            histogram.add(pipeline.histogram());
+            allocatedBytes += pipeline.allocatedBytes();
+            gcDiscardedPasses += pipeline.gcDiscardedPasses();
         }
 
         final List<Result<?>> results = new ArrayList<>();
@@ -163,15 +231,32 @@ public final class LatencyProfiler implements InternalProfiler {
         if (calls > 0) {
             results.add(latency("mean", histogram.mean()));
             results.add(latency("min", histogram.min()));
+            final StringJoiner skipped = new StringJoiner(", ", calls + " calls, too few for ", System.lineSeparator());
+            skipped.setEmptyValue("");
             for (final Percentile percentile : PERCENTILES) {
-                results.add(latency(percentile.label(), histogram.valueAtPercentile(percentile.percentile())));
+                if (calls >= percentile.minCalls()) {
+                    results.add(latency(percentile.label(), histogram.valueAtPercentile(percentile.percentile())));
+                } else {
+                    skipped.add(percentile.label() + " (needs " + percentile.minCalls() + ")");
+                }
             }
             results.add(latency("max", histogram.max()));
             results.add(new ScalarResult("latency.samples", calls, "#", AggregationPolicy.SUM));
             results.add(new ScalarResult("alloc.norm", (double) allocatedBytes / calls, "B/op", AggregationPolicy.AVG));
+            if (skipped.length() > 0) {
+                // JMH joins the texts of all iterations and prints them once at the end of the benchmark
+                results.add(new TextResult(skipped.toString(), SKIPPED));
+            }
         }
         // reported even when every pass was discarded, so that such an iteration stays visible
-        results.add(new ScalarResult("measured.gc.discardedPasses", discardedPasses, "#", AggregationPolicy.SUM));
+        results.add(new ScalarResult("measured.gc.discardedPasses", gcDiscardedPasses, "#", AggregationPolicy.SUM));
+        if (pipeline != null) {
+            results.add(new ScalarResult(
+                    "measured.saturation.discardedPasses",
+                    pipeline.saturationDiscardedPasses(),
+                    "#",
+                    AggregationPolicy.SUM));
+        }
         return results;
     }
 

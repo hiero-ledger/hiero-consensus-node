@@ -3,6 +3,7 @@ module org.hiero.consensus.otter.docker.app {
     requires transitive com.hedera.node.hapi;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.platform.core;
+    requires transitive org.hiero.consensus.main.model;
     requires transitive org.hiero.consensus.metrics;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.otter.fixtures;
@@ -23,6 +24,7 @@ module org.hiero.consensus.otter.docker.app {
     requires org.hiero.consensus.platformstate;
     requires org.hiero.consensus.roster;
     requires org.hiero.consensus.state;
+    requires org.hiero.consensus.utility.test.fixtures;
     requires org.hiero.consensus.utility;
     requires org.hiero.consensus.wiring.framework;
     requires io.grpc;

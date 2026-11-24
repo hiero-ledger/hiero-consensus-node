@@ -24,11 +24,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
-import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.main.model.EventDescriptorWrapper;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.RosterEntryWrapper;
 import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
@@ -143,7 +143,7 @@ class TipsetWeightCalculatorTests {
                 ConfigurationBuilder.create().autoDiscoverExtensions().build();
         final Time time = Time.getCurrent();
 
-        final TipsetTracker tipsetTracker = new TipsetTracker(Time.getCurrent(), selfId, roster);
+        final DefaultTipsetTracker tipsetTracker = new DefaultTipsetTracker(Time.getCurrent(), selfId, roster);
         final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
         final TipsetWeightCalculator calculator =
                 new TipsetWeightCalculator(configuration, time, roster, selfId, tipsetTracker, childlessEventTracker);
@@ -282,7 +282,7 @@ class TipsetWeightCalculatorTests {
                 ConfigurationBuilder.create().autoDiscoverExtensions().build();
         final Time time = Time.getCurrent();
 
-        final TipsetTracker tipsetTracker = new TipsetTracker(Time.getCurrent(), nodeA, roster);
+        final DefaultTipsetTracker tipsetTracker = new DefaultTipsetTracker(Time.getCurrent(), nodeA, roster);
         final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
         final TipsetWeightCalculator calculator =
                 new TipsetWeightCalculator(configuration, time, roster, nodeA, tipsetTracker, childlessEventTracker);
@@ -497,7 +497,7 @@ class TipsetWeightCalculatorTests {
                 ConfigurationBuilder.create().autoDiscoverExtensions().build();
         final Time time = Time.getCurrent();
 
-        final TipsetTracker builder = new TipsetTracker(Time.getCurrent(), nodeA, roster);
+        final DefaultTipsetTracker builder = new DefaultTipsetTracker(Time.getCurrent(), nodeA, roster);
         final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
         final TipsetWeightCalculator calculator =
                 new TipsetWeightCalculator(configuration, time, roster, nodeA, builder, childlessEventTracker);
@@ -579,7 +579,7 @@ class TipsetWeightCalculatorTests {
                 ConfigurationBuilder.create().autoDiscoverExtensions().build();
         final Time time = Time.getCurrent();
 
-        final TipsetTracker tipsetTracker = new TipsetTracker(Time.getCurrent(), nodeA, roster);
+        final DefaultTipsetTracker tipsetTracker = new DefaultTipsetTracker(Time.getCurrent(), nodeA, roster);
         final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
         final TipsetWeightCalculator tipsetWeightCalculator =
                 new TipsetWeightCalculator(configuration, time, roster, nodeA, tipsetTracker, childlessEventTracker);

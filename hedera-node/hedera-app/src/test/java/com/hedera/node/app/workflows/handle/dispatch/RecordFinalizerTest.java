@@ -5,6 +5,8 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_SUBMIT_MES
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.CHILD;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.SCHEDULED;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
@@ -14,7 +16,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -30,6 +34,7 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.impl.handlers.FinalizeRecordHandler;
 import com.hedera.node.app.service.token.records.FinalizeContext;
 import com.hedera.node.app.spi.workflows.HandleContext;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.handle.Dispatch;
 import com.hedera.node.app.workflows.handle.record.RecordStreamBuilder;
@@ -39,6 +44,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -117,6 +123,59 @@ public class RecordFinalizerTest {
                 .finalizeStakingRecord(
                         eq(finalizeContext), eq(HederaFunctionality.CRYPTO_TRANSFER), eq(TX_BODY), any(), any());
         verify(finalizeRecordHandler, never()).finalizeNonStakingRecord(any(), any(), any());
+    }
+
+    @Test
+    void includesExtraRewardReceiversOfScheduleExecutedByItsTrigger() {
+        given(dispatch.stack()).willReturn(stack);
+        given(stack.permitsStakingRewards()).willReturn(true);
+        given(dispatch.txnInfo()).willReturn(txnInfoFor(HederaFunctionality.SCHEDULE_CREATE));
+        when(dispatch.handleContext().dispatchPaidRewards()).thenReturn(Map.of());
+        final var scheduled = successfulTransferBuilder(SCHEDULED);
+        final var otherChild = successfulTransferBuilder(CHILD);
+        doAnswer(invocation -> {
+                    final Consumer<StreamBuilder> consumer = invocation.getArgument(1);
+                    consumer.accept(scheduled);
+                    consumer.accept(otherChild);
+                    return null;
+                })
+                .when(stack)
+                .forEachNonBaseBuilder(eq(StreamBuilder.class), any());
+
+        subject.finalizeRecord(dispatch);
+
+        // Only the scheduled child's zero-amount account is added; a non-scheduled child's is not
+        verify(finalizeRecordHandler)
+                .finalizeStakingRecord(
+                        any(),
+                        any(),
+                        any(),
+                        eq(Set.of(AccountID.newBuilder().accountNum(1).build())),
+                        any());
+    }
+
+    @Test
+    void doesNotLookAtChildrenOfNonScheduleTransactions() {
+        given(dispatch.stack()).willReturn(stack);
+        given(stack.permitsStakingRewards()).willReturn(true);
+        when(dispatch.handleContext().dispatchPaidRewards()).thenReturn(Map.of());
+
+        subject.finalizeRecord(dispatch);
+
+        verify(stack, never()).forEachNonBaseBuilder(any(), any());
+    }
+
+    private static TransactionInfo txnInfoFor(final HederaFunctionality function) {
+        return new TransactionInfo(TXN_INFO.signedTx(), TX_BODY, SignatureMap.DEFAULT, Bytes.EMPTY, function, null);
+    }
+
+    private static StreamBuilder successfulTransferBuilder(final HandleContext.TransactionCategory category) {
+        final var builder = mock(StreamBuilder.class);
+        given(builder.category()).willReturn(category);
+        lenient().when(builder.functionality()).thenReturn(HederaFunctionality.CRYPTO_TRANSFER);
+        lenient().when(builder.transactionBody()).thenReturn(TX_BODY);
+        lenient().when(builder.status()).thenReturn(SUCCESS);
+        return builder;
     }
 
     @Test

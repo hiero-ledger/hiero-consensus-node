@@ -119,10 +119,17 @@ public class ClprGetLedgerConfigurationHandler extends FreeQueryHandler {
         }
         try {
             final var stateProof = StateProof.PROTOBUF.parseStrict(proofBytes.toReadableSequentialData());
-            final var digest = CommonUtils.digestOrThrow(configProvider
-                    .getConfiguration()
-                    .getConfigData(BlockStreamConfig.class)
-                    .digestType());
+            // Verify with the digest the proof was built with (inferred from its hash lengths), which may
+            // differ from this node's current blockStream.digestType when the proof covers a block from before
+            // the node's own digest cutover; fall back to configuration when the proof carries no length signal.
+            final var inferredDigestType = StateProofVerifier.inferDigestType(stateProof);
+            final var digest = CommonUtils.digestOrThrow(
+                    inferredDigestType != null
+                            ? inferredDigestType
+                            : configProvider
+                                    .getConfiguration()
+                                    .getConfigData(BlockStreamConfig.class)
+                                    .digestType());
             // Throws IllegalStateException if any path is structurally invalid (bad sibling
             // counts, mismatched parent pointers, etc).
             final byte[] rootHash = StateProofVerifier.computeBlockRootHash(stateProof, digest);

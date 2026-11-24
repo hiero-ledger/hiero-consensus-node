@@ -1,25 +1,32 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.history.impl;
 
+import static com.hedera.node.app.hints.HintsService.maybeWeightsFrom;
 import static com.hedera.node.app.history.HistoryService.isCompleted;
+import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.LEDGER_ID_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID;
-import static com.hedera.node.app.history.schemas.V0730HistorySchema.WRAPS_PROVING_KEY_HASH_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.history.ChainOfTrustProof;
+import com.hedera.hapi.node.state.history.HintsKeyProvenance;
+import com.hedera.hapi.node.state.history.HintsKeyWitness;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.node.app.hints.KeyProvenanceSigner;
 import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.WritableHistoryStore;
 import com.hedera.node.app.history.handlers.HistoryHandlers;
 import com.hedera.node.app.history.schemas.V071HistorySchema;
 import com.hedera.node.app.history.schemas.V0730HistorySchema;
+import com.hedera.node.app.history.schemas.V0790HistorySchema;
+import com.hedera.node.app.history.schemas.V0800HistorySchema;
 import com.hedera.node.app.info.TssStartupNetworks;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
@@ -33,8 +40,12 @@ import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.SortedMap;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
@@ -50,6 +61,17 @@ public class HistoryServiceImpl implements HistoryService {
 
     private final Supplier<Network> genesisNetworkSupplier;
 
+    private final KeyWitnessPublisher witnessPublisher;
+
+    private CompletableFuture<Void> submitKeyWitness(final HintsKeyWitness witness) {
+        return component.submissions().submitKeyWitness(witness);
+    }
+
+    private CompletableFuture<Boolean> verifyKeyWitness(final HintsKeyWitness witness, final Bytes verificationKey) {
+        return CompletableFuture.supplyAsync(
+                () -> component.witnessVerifier().verify(witness, verificationKey), component.executor());
+    }
+
     /**
      * If not null, the proof of the history ending at the current roster.
      */
@@ -58,6 +80,22 @@ public class HistoryServiceImpl implements HistoryService {
 
     @Nullable
     private OnProofFinished cb;
+
+    /**
+     * Weight maps already shown not to reproduce a legacy active proof's committed book, which they cannot
+     * reproduce later either. Remembering them only avoids repeating native hashes; it never changes an outcome.
+     */
+    private final Set<LegacyBookCandidate> rejectedLegacyBookCandidates = new HashSet<>();
+
+    /**
+     * Construction ids whose unrecoverable legacy books have already been reported.
+     */
+    private final Set<Long> reportedUnrecoverableConstructionIds = new HashSet<>();
+
+    private record LegacyBookCandidate(
+            long constructionId,
+            @NonNull Bytes addressBookHash,
+            @NonNull SortedMap<Long, Long> weights) {}
 
     public HistoryServiceImpl(
             @NonNull final Metrics metrics,
@@ -75,6 +113,8 @@ public class HistoryServiceImpl implements HistoryService {
             @NonNull final Supplier<Network> genesisNetworkSupplier) {
         this.genesisNetworkSupplier = requireNonNull(genesisNetworkSupplier);
         this.component = DaggerHistoryServiceComponent.factory().create(library, appContext, executor, metrics, this);
+        this.witnessPublisher = new KeyWitnessPublisher(
+                this::submitKeyWitness, this::verifyKeyWitness, new KeyWitnessMetrics(metrics)::update);
     }
 
     @VisibleForTesting
@@ -87,6 +127,7 @@ public class HistoryServiceImpl implements HistoryService {
             @NonNull final HistoryServiceComponent component, @NonNull final Supplier<Network> genesisNetworkSupplier) {
         this.component = requireNonNull(component);
         this.genesisNetworkSupplier = requireNonNull(genesisNetworkSupplier);
+        this.witnessPublisher = new KeyWitnessPublisher(this::submitKeyWitness, this::verifyKeyWitness);
     }
 
     @Override
@@ -95,8 +136,32 @@ public class HistoryServiceImpl implements HistoryService {
     }
 
     @Override
-    public Bytes historyProofVerificationKey() {
-        return Bytes.wrap(component.library().wrapsVerificationKey());
+    public @NonNull Bytes ledgerIdOf(@NonNull final HistoryProof proof) {
+        requireNonNull(proof);
+        return component.library().ledgerIdOf(proof.targetHistoryOrThrow());
+    }
+
+    @VisibleForTesting
+    void reconcile(
+            @NonNull final ActiveRosters activeRosters,
+            @Nullable final Bytes metadata,
+            @NonNull final WritableHistoryStore historyStore,
+            @NonNull final Instant now,
+            @NonNull final TssConfig tssConfig,
+            final boolean isActive,
+            @Nullable final HintsConstruction activeHintsConstruction,
+            final boolean freshGenesisRequested) {
+        reconcile(
+                activeRosters,
+                metadata,
+                historyStore,
+                now,
+                tssConfig,
+                isActive,
+                activeHintsConstruction,
+                freshGenesisRequested,
+                null,
+                0);
     }
 
     @Override
@@ -108,16 +173,67 @@ public class HistoryServiceImpl implements HistoryService {
             @NonNull final TssConfig tssConfig,
             final boolean isActive,
             @Nullable final HintsConstruction activeHintsConstruction,
-            final boolean freshGenesisRequested) {
+            final boolean freshGenesisRequested,
+            @Nullable final KeyProvenanceSigner sourceSigner,
+            final long targetHintsConstructionId) {
         requireNonNull(activeRosters);
         requireNonNull(historyStore);
         requireNonNull(now);
         requireNonNull(tssConfig);
+        // Recovery must also run between transitions, before a later stake-period transaction can
+        // replace the candidate that still holds this generation's complete weighted membership.
+        recoverActiveBook(activeRosters, historyStore, activeHintsConstruction);
         switch (activeRosters.phase()) {
             case BOOTSTRAP, TRANSITION -> {
-                final var construction =
-                        historyStore.getOrCreateConstruction(activeRosters, now, tssConfig, freshGenesisRequested);
-                if (!isCompleted(construction, tssConfig)) {
+                if (targetHintsConstructionId > 0) {
+                    if (activeHintsConstruction == null
+                            || (!activeHintsConstruction.hasHintsScheme()
+                                    && (targetHintsConstructionId != activeHintsConstruction.constructionId()
+                                            || sourceSigner != null))) {
+                        throw new IllegalArgumentException(
+                                "Cannot certify a successor without its persisted source scheme");
+                    }
+                    if (activeHintsConstruction.hasHintsScheme()
+                            && (sourceSigner == null
+                                    || sourceSigner.constructionId() != activeHintsConstruction.constructionId()
+                                    || !sourceSigner
+                                            .verificationKey()
+                                            .equals(activeHintsConstruction
+                                                    .hintsSchemeOrThrow()
+                                                    .preprocessedKeysOrThrow()
+                                                    .verificationKey()))) {
+                        throw new IllegalArgumentException(
+                                "Key provenance signer must match the persisted source scheme");
+                    }
+                }
+                final HintsKeyProvenance expectedBinding;
+                if (sourceSigner != null
+                        && targetHintsConstructionId > 0
+                        && targetHintsConstructionId != sourceSigner.constructionId()
+                        && metadata != null) {
+                    expectedBinding = HintsKeyProvenance.newBuilder()
+                            .sourceHintsConstructionId(sourceSigner.constructionId())
+                            .targetHintsConstructionId(targetHintsConstructionId)
+                            .sourceVerificationKey(sourceSigner.verificationKey())
+                            .targetVerificationKey(metadata)
+                            .build();
+                } else {
+                    expectedBinding = null;
+                }
+                var construction = expectedBinding == null
+                        ? historyStore.getOrCreateConstruction(
+                                activeRosters, now, tssConfig, freshGenesisRequested, metadata)
+                        : historyStore.getOrCreateConstruction(
+                                activeRosters, now, tssConfig, freshGenesisRequested, metadata, expectedBinding);
+                if (expectedBinding != null && !construction.hasKeyProvenance()) {
+                    construction = historyStore.bindKeyProvenance(
+                            construction.constructionId(),
+                            expectedBinding
+                                    .copyBuilder()
+                                    .historyConstructionId(construction.constructionId())
+                                    .build());
+                }
+                if (!isCompleted(construction)) {
                     final var controller = component
                             .controllers()
                             .getOrCreateFor(
@@ -126,7 +242,8 @@ public class HistoryServiceImpl implements HistoryService {
                                     historyStore,
                                     activeHintsConstruction,
                                     historyStore.getActiveConstruction(),
-                                    tssConfig);
+                                    tssConfig,
+                                    sourceSigner);
                     controller.advanceConstruction(now, metadata, historyStore, isActive, tssConfig);
                 }
             }
@@ -134,6 +251,139 @@ public class HistoryServiceImpl implements HistoryService {
                 // No-op
             }
         }
+        // Publication is local best-effort work and must not roll back the controller's consensus changes.
+        try {
+            if (tssConfig.forceMockSignatures()) {
+                witnessPublisher.stop();
+            } else {
+                witnessPublisher.reconcile(
+                        historyStore,
+                        now,
+                        isActive,
+                        activeHintsConstruction == null ? 0 : activeHintsConstruction.constructionId());
+            }
+        } catch (RuntimeException e) {
+            logger.warn("Failed to reconcile local hinTS witness publication", e);
+        }
+    }
+
+    /**
+     * Durably recovers the canonical membership of a pre-snapshot active generation. Keeping only a
+     * controller-local reconstruction would lose the book if a later candidate replacement pruned its roster and
+     * the node restarted before completing the successor proof.
+     *
+     * <p>A source of weights is used only if it reproduces the generation's committed address book hash, so
+     * trying sources beyond the generation's own roster can never adopt another generation's book. The active
+     * hinTS scheme stores the generation's exact weights for its parties, so it reproduces the book whenever
+     * every member took part; the platform rosters reproduce it when only transport details changed.
+     */
+    @Override
+    public void recoverActiveBook(
+            @NonNull final ActiveRosters activeRosters,
+            @NonNull final WritableHistoryStore historyStore,
+            @Nullable final HintsConstruction activeHintsConstruction) {
+        requireNonNull(activeRosters);
+        requireNonNull(historyStore);
+        final var active = historyStore.getActiveConstruction();
+        if (active == null) {
+            return;
+        }
+        final List<Supplier<SortedMap<Long, Long>>> sources = List.of(
+                () -> weightsOf(activeRosters.findRelatedRoster(active.targetRosterHash())),
+                () -> maybeWeightsFrom(activeHintsConstruction),
+                () -> weightsOf(activeRosters.currentRoster()),
+                () -> activeRosters.phase() == ActiveRosters.Phase.HANDOFF
+                        ? null
+                        : weightsOf(activeRosters.targetRoster()));
+        recoverBook("active", active, historyStore, sources);
+    }
+
+    @Override
+    public void recoverNextBook(
+            @NonNull final WritableHistoryStore historyStore,
+            @Nullable final Roster targetRoster,
+            @Nullable final HintsConstruction nextHintsConstruction) {
+        requireNonNull(historyStore);
+        final var next = historyStore.getNextConstruction();
+        if (next == null) {
+            return;
+        }
+        recoverBook(
+                "prepared next",
+                next,
+                historyStore,
+                List.of(() -> weightsOf(targetRoster), () -> matchingSchemeWeights(next, nextHintsConstruction)));
+    }
+
+    private void recoverBook(
+            @NonNull final String role,
+            @NonNull final HistoryProofConstruction construction,
+            @NonNull final WritableHistoryStore historyStore,
+            @NonNull final List<Supplier<SortedMap<Long, Long>>> sources) {
+        if (!construction.hasTargetProof()) {
+            return;
+        }
+        final var proof = construction.targetProofOrThrow();
+        if (!isWrapsExtensible(proof) || !proof.targetNodeWeights().isEmpty() || !proof.hasTargetHistory()) {
+            return;
+        }
+        final var bookHash = proof.targetHistoryOrThrow().addressBookHash();
+        final var tried = new HashSet<SortedMap<Long, Long>>();
+        for (final var source : sources) {
+            final var weights = source.get();
+            if (weights == null || !tried.add(weights)) {
+                continue;
+            }
+            final var candidate = new LegacyBookCandidate(construction.constructionId(), bookHash, weights);
+            if (rejectedLegacyBookCandidates.contains(candidate)) {
+                continue;
+            }
+            try {
+                final var enriched = HistoryProofAddressBooks.withTargetWeights(proof, weights, component.library());
+                historyStore.completeProof(construction.constructionId(), enriched);
+                rejectedLegacyBookCandidates.clear();
+                return;
+            } catch (IllegalArgumentException e) {
+                rejectedLegacyBookCandidates.add(candidate);
+            }
+        }
+        if (reportedUnrecoverableConstructionIds.add(construction.constructionId())) {
+            // Preserve the existing trust root. The prover deterministically refuses extension without a verified
+            // canonical snapshot; it must not guess another generation's book.
+            logger.error(
+                    "Cannot recover the canonical WRAPS book of {} history construction #{} (targetRosterHash={},"
+                            + " addressBookHash={}) from verified generation weights; strict signing or handoff must"
+                            + " wait for recovery or a fresh genesis WRAPS proof",
+                    role,
+                    construction.constructionId(),
+                    construction.targetRosterHash().toHex(),
+                    bookHash.toHex());
+        }
+    }
+
+    private static @Nullable SortedMap<Long, Long> matchingSchemeWeights(
+            final HistoryProofConstruction history, @Nullable final HintsConstruction hints) {
+        if (hints == null
+                || !hints.hasHintsScheme()
+                || !hints.hintsSchemeOrThrow().hasPreprocessedKeys()
+                || !hints.targetRosterHash().equals(history.targetRosterHash())
+                || !history.hasTargetProof()
+                || !history.targetProofOrThrow().hasTargetHistory()
+                || !hints.hintsSchemeOrThrow()
+                        .preprocessedKeysOrThrow()
+                        .verificationKey()
+                        .equals(history.targetProofOrThrow()
+                                .targetHistoryOrThrow()
+                                .metadata())
+                || (history.hasKeyProvenance()
+                        && history.keyProvenanceOrThrow().targetHintsConstructionId() != hints.constructionId())) {
+            return null;
+        }
+        return maybeWeightsFrom(hints);
+    }
+
+    private static @Nullable SortedMap<Long, Long> weightsOf(@Nullable final Roster roster) {
+        return roster == null ? null : ActiveRosters.weightsFrom(roster);
     }
 
     @Override
@@ -160,14 +410,23 @@ public class HistoryServiceImpl implements HistoryService {
     }
 
     @Override
+    public void publishKeyWitness(@NonNull final Bytes verificationKey, @NonNull final HintsKeyWitness witness) {
+        witnessPublisher.offer(verificationKey, witness);
+    }
+
+    @Override
     public void stop() {
+        witnessPublisher.stop();
         component.controllers().stop();
     }
 
     @Override
     public boolean isReady() {
-        // Not ready until there is a chain-of-trust proof for the genesis hinTS verification key
-        return historyProof != null && historyProof.hasChainOfTrustProof();
+        // Not ready until there is a WRAPS proof of chain of trust for the current hinTS verification key
+        return historyProof != null
+                && historyProof
+                        .chainOfTrustProofOrElse(ChainOfTrustProof.DEFAULT)
+                        .hasWrapsProof();
     }
 
     @Override
@@ -187,6 +446,8 @@ public class HistoryServiceImpl implements HistoryService {
         requireNonNull(registry);
         registry.register(new V071HistorySchema(this));
         registry.register(new V0730HistorySchema(this));
+        registry.register(new V0790HistorySchema(this));
+        registry.register(new V0800HistorySchema(this));
     }
 
     @Override
@@ -211,17 +472,6 @@ public class HistoryServiceImpl implements HistoryService {
         writableStates
                 .<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID)
                 .put(HistoryProofConstruction.DEFAULT);
-        // Persist the configured WRAPS proving key hash if present; otherwise initialize to empty.
-        // We must match what V0730HistorySchema.restart() would put on a restart of a never-yet-
-        // joined node, so that a node that joins via restart sees the same WRAPS hash state as
-        // nodes that were present at genesis. If genesis only wrote DEFAULT and restart wrote the
-        // configured hash, the restarted node's round-1 state would diverge from the network's
-        // -> SELF_ISS for round 1.
-        final var configuredHash = configuration.getConfigData(TssConfig.class).wrapsProvingKeyHash();
-        final var wrapsHash = configuredHash.isBlank()
-                ? ProtoBytes.DEFAULT
-                : ProtoBytes.newBuilder().value(Bytes.fromHex(configuredHash)).build();
-        writableStates.<ProtoBytes>getSingleton(WRAPS_PROVING_KEY_HASH_STATE_ID).put(wrapsHash);
         return true;
     }
 

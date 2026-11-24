@@ -83,7 +83,7 @@ class VerifyBundleCallTest {
      *
      * <ul>
      *   <li>{@code stateProof.bin} — the raw {@code bundlePayload} bytes (serialized {@code StateProof}).</li>
-     *   <li>{@code trustAnchor.bin} — the 32-byte peer ledger id that signed the bundle
+     *   <li>{@code trustAnchor.bin} — the 64-byte peer ledger id that signed the bundle
      *       (i.e. the {@code Channel.trust_anchor} value the verifier was invoked with).</li>
      * </ul>
      *
@@ -93,9 +93,11 @@ class VerifyBundleCallTest {
      * (b) something in the verifier / TSS chain has regressed in a way that breaks previously-valid
      * proofs.
      *
-     * <p>To refresh the fixtures, temporarily re-enable the {@code dumpBytesFailOpen} calls in
-     * {@code VerifyBundleCall.execute(...)}, run an end-to-end flow, then copy the resulting files
-     * from {@code verification-inputs/} into this test's resource package.
+     * <p>To refresh the fixtures, temporarily make {@code VerifyBundleCall.execute(...)} write its
+     * {@code bundlePayload} and {@code trustAnchor} to {@code verification-inputs/stateProof.bin} and
+     * {@code verification-inputs/trustAnchor.bin} after verifying a bundle with messages, run an
+     * end-to-end flow (e.g. {@code ClprHieroToHieroSuite.oneWayDelivery}), then copy the files from the
+     * receiving node's working directory into this test's resource package.
      */
     @Nested
     class CapturedFixtureReplay {
@@ -312,6 +314,47 @@ class VerifyBundleCallTest {
         }
 
         @Test
+        @DisplayName("given another channel's channel and message leaves, then the bundle is rejected")
+        void givenAnotherChannelsBundle_thenRejected() {
+            final var otherChannelId = Bytes.fromHex("01".repeat(32));
+            final var other = CHANNEL.copyBuilder().channelId(otherChannelId).build();
+
+            final var result = executeWithStubbedPathsForResult(
+                    channelLeaf(other),
+                    keyedMessageLeaf(otherChannelId, 1, messageValue(1)),
+                    keyedMessageLeaf(otherChannelId, 2, messageValue(2)));
+
+            assertThat(result.responseCode()).isEqualTo(CLPR_BUNDLE_VERIFICATION_FAILED);
+            assertThat(result.fullResult().result().state()).isEqualTo(MessageFrame.State.REVERT);
+        }
+
+        @Test
+        @DisplayName("given a channel leaf keyed by another channel, then the bundle is rejected")
+        void givenChannelLeafKeyedByAnotherChannel_thenRejected() {
+            final var misKeyedChannelLeaf = keyedChannelLeaf(channelKey(Bytes.fromHex("01".repeat(32))), CHANNEL);
+
+            final var result = executeWithStubbedPathsForResult(misKeyedChannelLeaf, messageLeaf(4));
+
+            assertThat(result.responseCode()).isEqualTo(CLPR_BUNDLE_VERIFICATION_FAILED);
+        }
+
+        @Test
+        @DisplayName("given a channel leaf without a key, then the bundle is rejected")
+        void givenChannelLeafWithoutKey_thenRejected() {
+            final var result = executeWithStubbedPathsForResult(keyedChannelLeaf(null, CHANNEL), messageLeaf(4));
+
+            assertThat(result.responseCode()).isEqualTo(CLPR_BUNDLE_VERIFICATION_FAILED);
+        }
+
+        @Test
+        @DisplayName("given two channel leaves, then the bundle is rejected")
+        void givenTwoChannelLeaves_thenRejected() {
+            final var result = executeWithStubbedPathsForResult(channelLeaf(CHANNEL), channelLeaf(CHANNEL));
+
+            assertThat(result.responseCode()).isEqualTo(CLPR_BUNDLE_VERIFICATION_FAILED);
+        }
+
+        @Test
         @DisplayName("given messages 4 and 5 with nothing acked, then nextMessageId is 6, one past the last key")
         void givenMessagesAboveAckedPlusOne_thenNextMessageIdIsOnePastTheLastKey() {
 
@@ -520,9 +563,23 @@ class VerifyBundleCallTest {
             return ((BigInteger) metadata.get(0)).longValue();
         }
 
+        /**
+         * A channel leaf keyed, as in real state, by the channel's own id.
+         */
         private static Bytes channelLeaf(@NonNull final ClprChannel channel) {
+            return keyedChannelLeaf(channelKey(channel.channelId()), channel);
+        }
+
+        private static Bytes keyedChannelLeaf(@Nullable final StateKey key, @NonNull final ClprChannel channel) {
             return leaf(
-                    null, StateValue.newBuilder().clprServiceIChannels(channel).build());
+                    key, StateValue.newBuilder().clprServiceIChannels(channel).build());
+        }
+
+        private static StateKey channelKey(@NonNull final Bytes channelId) {
+            return StateKey.newBuilder()
+                    .clprServiceIChannels(
+                            ProtoBytes.newBuilder().value(channelId).build())
+                    .build();
         }
 
         private static Bytes messageLeaf(final long messageId) {

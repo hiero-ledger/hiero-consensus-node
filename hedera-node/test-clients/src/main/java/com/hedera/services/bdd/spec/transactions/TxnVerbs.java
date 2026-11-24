@@ -36,11 +36,11 @@ import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.queries.crypto.ReferenceType;
-import com.hedera.services.bdd.spec.transactions.clpr.HapiClprCloseChannel;
-import com.hedera.services.bdd.spec.transactions.clpr.HapiClprCompleteChannel;
 import com.hedera.services.bdd.spec.transactions.clpr.HapiClprCompleteConnector;
+import com.hedera.services.bdd.spec.transactions.clpr.HapiClprCreateChannel;
+import com.hedera.services.bdd.spec.transactions.clpr.HapiClprDeleteChannel;
 import com.hedera.services.bdd.spec.transactions.clpr.HapiClprDeregisterConnector;
-import com.hedera.services.bdd.spec.transactions.clpr.HapiClprRegisterChannel;
+import com.hedera.services.bdd.spec.transactions.clpr.HapiClprEvictPeerEndpoint;
 import com.hedera.services.bdd.spec.transactions.clpr.HapiClprRegisterConnector;
 import com.hedera.services.bdd.spec.transactions.clpr.HapiClprSubmitBundle;
 import com.hedera.services.bdd.spec.transactions.clpr.HapiClprUpdateLedgerConfiguration;
@@ -239,16 +239,16 @@ public class TxnVerbs {
         return new HapiClprUpdateLedgerConfiguration();
     }
 
-    public static HapiClprRegisterChannel clprRegisterChannel() {
-        return new HapiClprRegisterChannel();
+    public static HapiClprCreateChannel clprCreateChannel() {
+        return new HapiClprCreateChannel();
     }
 
-    public static HapiClprCompleteChannel clprCompleteChannel() {
-        return new HapiClprCompleteChannel();
+    public static HapiClprDeleteChannel clprDeleteChannel() {
+        return new HapiClprDeleteChannel();
     }
 
-    public static HapiClprCloseChannel clprCloseChannel() {
-        return new HapiClprCloseChannel();
+    public static HapiClprEvictPeerEndpoint clprEvictPeerEndpoint() {
+        return new HapiClprEvictPeerEndpoint();
     }
 
     public static HapiClprRegisterConnector clprRegisterConnector() {

@@ -198,17 +198,11 @@ for port in "${HAPI_PORT}" "${GOSSIP_PORT}" "${METRICS_PORT}"; do
 done
 
 mkdir -p "${RUN_DIR}"
-if [[ -z "${TSS_LIB_WRAPS_ARTIFACTS_PATH:-}" && -d "${HOME}/Documents/wraps-v1.0.0" ]]; then
-    export TSS_LIB_WRAPS_ARTIFACTS_PATH="${HOME}/Documents/wraps-v1.0.0"
-fi
 
 clean_hiero_state
 ensure_genesis_network
 
 note "Starting Hiero node in background with ${HIERO_GRADLE_TASK}..."
-if [[ -n "${TSS_LIB_WRAPS_ARTIFACTS_PATH:-}" ]]; then
-    note "TSS preload: ${TSS_LIB_WRAPS_ARTIFACTS_PATH}"
-fi
 : > "${LOG_FILE}"
 if command -v screen >/dev/null 2>&1; then
     note "Screen session: ${SCREEN_SESSION}"

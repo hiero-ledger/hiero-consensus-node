@@ -41,6 +41,7 @@ class NodeIdentityTest {
         assertThat(identity.isSelf("127.0.0.1", GRPC_PORT)).isTrue();
         assertThat(identity.isSelf("::1", GRPC_PORT)).isTrue();
         assertThat(identity.isSelf("localhost", GRPC_PORT)).isTrue();
+        assertThat(identity.isSelf("LOCALHOST.", GRPC_PORT)).isTrue();
     }
 
     @Test
@@ -49,15 +50,6 @@ class NodeIdentityTest {
         final var identity = new NodeIdentity(grpcConfig, selfNodeInfo);
 
         assertThat(identity.isSelf("127.0.0.1", TLS_PORT)).isTrue();
-    }
-
-    @Test
-    @DisplayName("loopback host on the configured CLPR mTLS port is self")
-    void loopbackOnClprMtlsPortIsSelf() {
-        final int clprMtlsPort = 50214;
-        final var identity = new NodeIdentity(grpcConfig, clprMtlsPort, selfNodeInfo);
-
-        assertThat(identity.isSelf("127.0.0.1", clprMtlsPort)).isTrue();
     }
 
     @Test
@@ -141,20 +133,16 @@ class NodeIdentityTest {
     }
 
     @Test
-    @DisplayName("trailing dot in domainName is normalised on either side")
-    void trailingDotInDomainNameIsNormalised() {
+    @DisplayName("absolute and search-relative hostnames identify distinct endpoints")
+    void trailingDotInDomainNameIsSignificantOnEitherSide() {
         given(selfNodeInfo.hapiEndpoints()).willReturn(List.of(endpointWithDomain("node1.example.com.", 50211)));
         final var identity = new NodeIdentity(grpcConfig, selfNodeInfo);
 
-        // Trailing dot present on self, absent on peer.
-        assertThat(identity.isSelf("node1.example.com", 50211)).isTrue();
-        // Trailing dot present on both.
-        assertThat(identity.isSelf("node1.example.com.", 50211)).isTrue();
+        assertThat(identity.isSelf("node1.example.com", 50211)).isFalse();
+        assertThat(identity.isSelf("NODE1.EXAMPLE.COM.", 50211)).isTrue();
 
-        // Trailing dot present on peer, absent on self.
         given(selfNodeInfo.hapiEndpoints()).willReturn(List.of(endpointWithDomain("node1.example.com", 50211)));
-        final var identityNoDotInSelf = new NodeIdentity(grpcConfig, selfNodeInfo);
-        assertThat(identityNoDotInSelf.isSelf("node1.example.com.", 50211)).isTrue();
+        assertThat(identity.isSelf("node1.example.com.", 50211)).isFalse();
     }
 
     @Test

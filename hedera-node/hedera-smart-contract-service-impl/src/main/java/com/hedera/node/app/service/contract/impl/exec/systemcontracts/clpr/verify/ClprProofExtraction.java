@@ -32,6 +32,13 @@ final class ClprProofExtraction {
      */
     static final int SK_MESSAGE_KEY_TAG = 498;
 
+    /**
+     * StateKey field 60 (clpr channels key, a {@code ProtoBytes} channel id) length-delimited tag. Numerically equal
+     * to {@link #SV_CHANNEL_TAG}, since both sides of the channels state use field number 60, but it belongs to
+     * {@code StateKey}, not {@code StateValue}.
+     */
+    static final int SK_CHANNEL_KEY_TAG = 482;
+
     /** StateValue field 60 (clpr channel) length-delimited tag. */
     static final int SV_CHANNEL_TAG = 482;
 
@@ -92,7 +99,7 @@ final class ClprProofExtraction {
                 if (lenResult == null) break;
                 final int len = lenResult[0];
                 pos = lenResult[1];
-                if (pos + len > raw.length) break;
+                if (len < 0 || pos + len > raw.length) break;
                 if (tag == fieldTag) {
                     fieldBytes = Bytes.wrap(raw, pos, len);
                 }
@@ -131,7 +138,7 @@ final class ClprProofExtraction {
             if (lenResult == null) return null;
             pos = lenResult[1];
             final int len = lenResult[0];
-            if (pos + len > raw.length) return null;
+            if (len < 0 || pos + len > raw.length) return null;
             return Bytes.wrap(raw, pos, len);
         } catch (final Exception e) {
             return null;

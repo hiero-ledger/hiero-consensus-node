@@ -14,9 +14,8 @@ Transaction bodies (one body per HAPI tx):
 
 |                   File                   |                 Functionality                 |
 |------------------------------------------|-----------------------------------------------|
-| `clpr_register_channel.proto`            | `CLPR_REGISTER_CHANNEL`                       |
-| `clpr_complete_channel.proto`            | `CLPR_COMPLETE_CHANNEL`                       |
-| `clpr_close_channel.proto`               | `CLPR_CLOSE_CHANNEL`                          |
+| `clpr_create_channel.proto`              | `CLPR_CREATE_CHANNEL`                         |
+| `clpr_delete_channel.proto`              | `CLPR_DELETE_CHANNEL`                         |
 | `clpr_register_connector.proto`          | `CLPR_REGISTER_CONNECTOR`                     |
 | `clpr_complete_connector.proto`          | `CLPR_COMPLETE_CONNECTOR`                     |
 | `clpr_deregister_connector.proto`        | `CLPR_DEREGISTER_CONNECTOR`                   |
@@ -43,10 +42,10 @@ Defined alongside state types; the Java SPI is `ClprEndpointServiceDefinition` (
 service, no `Transaction` envelopes — payloads are raw `ClprSyncPayload` bytes). RPCs:
 `sync(ClprSyncPayload → ClprSyncPayload)`.
 
-## State schema (genesis): `V0650ClprSchema`
+## State schema: `V0780ClprSchema`
 
-Path: `hedera-clpr-service-impl/.../impl/schemas/V0650ClprSchema.java`. Version `0.65.0`, no
-later schemas exist (no migrations yet).
+Path: `hedera-clpr-service-impl/.../impl/schemas/V0780ClprSchema.java`. Schema version `0.78.0`
+orders the schema independently of the software version.
 
 ### States created
 
@@ -63,22 +62,33 @@ State IDs are `StateKey.KeyOneOfType.CLPRSERVICE_I_*.protoOrdinal()` (or
 `SingletonType.CLPRSERVICE_I_LEDGER_CONFIGURATION.protoOrdinal()` for the singleton). Treat
 those constants as the canonical identity — the string keys are labels.
 
-### Genesis migration (in `migrate(...)`)
+### Genesis and post-upgrade setup
+
+`ClprServiceImpl.doGenesisSetup()` initializes missing singletons in the first round. The handle
+workflow also initializes them during post-upgrade setup. Both delegate to
+`V0780ClprSchema.initializeSingletons()` using the active network configuration and preserve existing
+values; schema startup only registers the state definitions.
 
 Seeds `LEDGER_CONFIGURATION` with:
 
-- `chainId` and `protocolVersion` from `ClprConfig` (node config).
-- Default `ClprThrottles`:
+- `chainId` and `protocolVersion` from `ClprConfig` (active network config).
+- Default `ClprThrottles` from the bundled genesis configuration, unless a node-local file overrides them:
   - `maxSyncBytes = 4 MiB`
   - `maxMessagesPerBundle = 1 000`
   - `maxQueueDepth = 10 000`
   - `maxMessagePayloadBytes = 64 KiB`
   - `maxSyncsPerSec = 10`
   - `maxLocalEndpoints = 10`
-  - `maxPeerEndpoints = 10`
+  - `maxPeerEndpoints = 100`
 - `endpoints` is **not** seeded by the schema; it is populated via
   `CLPR_UPDATE_LEDGER_CONFIGURATION` (admin tx). A fresh genesis network has empty seeds
   and no channels — bootstrap must perform an admin update before any sync can run.
+
+Changing the bundled defaults does not migrate existing `LEDGER_CONFIGURATION` state. A node-local
+file or an upgrade configuration file retains its explicitly configured count limit; existing ledgers
+must apply a configuration update or upgrade file to adopt `maxPeerEndpoints = 100`. Independently,
+Hiero bounds every retained peer manifest to 16,384 serialized bytes. A zero count limit disables
+only the endpoint-count bound, not this protocol byte ceiling.
 
 > **Spec mapping:** the singleton corresponds to `ClprLedgerConfiguration` from spec
 > §1.1. Throttle defaults satisfy the §7 "TBD per platform" placeholders.

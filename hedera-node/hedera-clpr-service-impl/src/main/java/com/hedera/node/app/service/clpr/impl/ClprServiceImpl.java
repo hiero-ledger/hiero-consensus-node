@@ -40,11 +40,9 @@ public final class ClprServiceImpl implements ClprService {
                         HederaFunctionality.CLPR_UPDATE_LEDGER_CONFIGURATION,
                         TransactionBody.DataOneOfType.CLPR_UPDATE_LEDGER_CONFIGURATION),
                 new ClprFeeCalculator(
-                        HederaFunctionality.CLPR_REGISTER_CHANNEL, TransactionBody.DataOneOfType.CLPR_REGISTER_CHANNEL),
+                        HederaFunctionality.CLPR_CREATE_CHANNEL, TransactionBody.DataOneOfType.CLPR_CREATE_CHANNEL),
                 new ClprFeeCalculator(
-                        HederaFunctionality.CLPR_COMPLETE_CHANNEL, TransactionBody.DataOneOfType.CLPR_COMPLETE_CHANNEL),
-                new ClprFeeCalculator(
-                        HederaFunctionality.CLPR_CLOSE_CHANNEL, TransactionBody.DataOneOfType.CLPR_CLOSE_CHANNEL),
+                        HederaFunctionality.CLPR_DELETE_CHANNEL, TransactionBody.DataOneOfType.CLPR_DELETE_CHANNEL),
                 new ClprFeeCalculator(
                         HederaFunctionality.CLPR_REGISTER_CONNECTOR,
                         TransactionBody.DataOneOfType.CLPR_REGISTER_CONNECTOR),
@@ -56,6 +54,9 @@ public final class ClprServiceImpl implements ClprService {
                         TransactionBody.DataOneOfType.CLPR_DEREGISTER_CONNECTOR),
                 new ClprFeeCalculator(
                         HederaFunctionality.CLPR_SUBMIT_BUNDLE, TransactionBody.DataOneOfType.CLPR_SUBMIT_BUNDLE),
+                new ClprFeeCalculator(
+                        HederaFunctionality.CLPR_EVICT_PEER_ENDPOINT,
+                        TransactionBody.DataOneOfType.CLPR_EVICT_PEER_ENDPOINT),
                 new ClprFeeCalculator(
                         HederaFunctionality.CLPR_ENDPOINT_PUBLICATION,
                         TransactionBody.DataOneOfType.CLPR_ENDPOINT_PUBLICATION));

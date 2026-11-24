@@ -52,8 +52,8 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.event.Event;
-import org.hiero.consensus.model.transaction.Transaction;
+import org.hiero.consensus.main.model.Event;
+import org.hiero.consensus.main.model.Transaction;
 
 /**
  * Implementation of {@link PreHandleWorkflow}
@@ -373,8 +373,8 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
                 SO_FAR_SO_GOOD,
                 OK,
                 txInfo,
-                context.requiredNonPayerKeys(),
-                context.optionalNonPayerKeys(),
+                context.requiredKeyRequirements(),
+                context.optionalKeyRequirements(),
                 context.requiredHollowAccounts(),
                 results,
                 isAtomicBatch(txInfo) ? new ArrayList<>() : null,

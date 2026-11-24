@@ -10,18 +10,27 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifestConstruction;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
+import com.hedera.hapi.node.state.clpr.ClprThrottles;
 import com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -51,7 +60,7 @@ class V0780ClprSchemaTest {
         subject = new V0780ClprSchema();
         configuration = HederaTestConfigBuilder.create()
                 .withValue("clpr.enabled", false)
-                .withValue("clpr.chainId", "hiero:test")
+                .withValue("contracts.chainId", 299)
                 .withValue("clpr.protocolVersion", "1")
                 .getOrCreateConfig();
     }
@@ -65,7 +74,7 @@ class V0780ClprSchemaTest {
 
     @Test
     void leavesInitializationToGenesisAndPostUpgradeSetup() {
-        subject.migrate(migrationContext);
+        subject.restart(migrationContext);
 
         verify(migrationContext, never()).newStates();
         verify(migrationContext, never()).appConfig();
@@ -84,13 +93,53 @@ class V0780ClprSchemaTest {
                 .isTrue();
 
         verify(configurationState).put(org.mockito.ArgumentMatchers.assertArg(ledgerConfig -> {
-            assertThat(ledgerConfig.chainId()).isEqualTo("hiero:test");
+            assertThat(ledgerConfig.chainId()).isEqualTo("eip155:299");
             final var throttles = ledgerConfig.throttlesOrThrow();
             assertThat(throttles.maxMessagesPerBundle()).isEqualTo(1000);
             assertThat(throttles.maxGasPerMessage()).isEqualTo(15_000_000L);
+            assertThat(throttles.maxQueueDepth()).isEqualTo(10_000);
+            assertThat(throttles.maxMessagePayloadBytes()).isEqualTo(65_536);
+            assertThat(throttles.maxSyncBytes()).isEqualTo(4_194_304L);
+            assertThat(throttles.maxPeerEndpoints()).isEqualTo(100);
         }));
         verify(manifestState).put(org.mockito.ArgumentMatchers.any(ClprEndpointManifest.class));
         verify(constructionState).put(ClprEndpointManifestConstruction.DEFAULT);
+    }
+
+    @Test
+    void seedsThrottlesFromLedgerConfigurationFile(@TempDir final Path tempDir) throws IOException {
+        final var file = tempDir.resolve("clprLedgerConfiguration.json");
+        Files.writeString(file, """
+                {"throttles": {"maxMessagesPerBundle": 500, "maxMessagePayloadBytes": 65536,
+                  "maxGasPerMessage": 20000000, "maxQueueDepth": 20000, "maxSyncBytes": 4194304}}
+                """);
+        final var fileConfiguration = HederaTestConfigBuilder.create()
+                .withValue("contracts.chainId", 299)
+                .withValue("contracts.maxGasPerTransaction", 15_000_000L)
+                .withValue("clpr.ledgerConfigurationFile", file.toString())
+                .getOrCreateConfig();
+        given(writableStates.<ClprLedgerConfiguration>getSingleton(LEDGER_CONFIGURATION_STATE_ID))
+                .willReturn(configurationState);
+        given(writableStates.<ClprEndpointManifest>getSingleton(ENDPOINT_MANIFEST_STATE_ID))
+                .willReturn(manifestState);
+        given(writableStates.<ClprEndpointManifestConstruction>getSingleton(ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID))
+                .willReturn(constructionState);
+
+        assertThat(V0780ClprSchema.initializeSingletons(writableStates, fileConfiguration))
+                .isTrue();
+
+        verify(configurationState).put(org.mockito.ArgumentMatchers.assertArg(ledgerConfig -> {
+            assertThat(ledgerConfig.chainId()).isEqualTo("eip155:299");
+            assertThat(ledgerConfig.throttlesOrThrow())
+                    .isEqualTo(ClprThrottles.newBuilder()
+                            .maxMessagesPerBundle(500)
+                            .maxMessagePayloadBytes(65_536)
+                            // Capped at contracts.maxGasPerTransaction
+                            .maxGasPerMessage(15_000_000L)
+                            .maxQueueDepth(20_000)
+                            .maxSyncBytes(4_194_304L)
+                            .build());
+        }));
     }
 
     @Test
@@ -110,5 +159,49 @@ class V0780ClprSchemaTest {
 
         verify(configurationState, never()).put(org.mockito.ArgumentMatchers.any());
         verify(manifestState, never()).put(org.mockito.ArgumentMatchers.any());
+        verify(constructionState, never()).put(org.mockito.ArgumentMatchers.any());
+    }
+
+    @ParameterizedTest
+    @CsvSource({"hiero:localnet, eip155:299", "hiero:mainnet, eip155:299", "'', eip155:299"})
+    void migratesChainIdOutsideEip155Namespace(final String storedId, final String expectedId) {
+        given(writableStates.<ClprLedgerConfiguration>getSingleton(LEDGER_CONFIGURATION_STATE_ID))
+                .willReturn(configurationState);
+        final var existing = ClprLedgerConfiguration.newBuilder()
+                .chainId(storedId)
+                .protocolVersion(1)
+                .timestamp(Timestamp.newBuilder().seconds(1L).build())
+                .throttles(ClprThrottles.newBuilder().maxQueueDepth(64).build())
+                .build();
+        given(configurationState.get()).willReturn(existing);
+
+        V0780ClprSchema.migrateLegacyChainId(writableStates, configuration);
+
+        verify(configurationState)
+                .put(existing.copyBuilder().chainId(expectedId).build());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"eip155:299", "eip155:456"})
+    void keepsChainIdInEip155Namespace(final String storedId) {
+        given(writableStates.<ClprLedgerConfiguration>getSingleton(LEDGER_CONFIGURATION_STATE_ID))
+                .willReturn(configurationState);
+        given(configurationState.get())
+                .willReturn(
+                        ClprLedgerConfiguration.newBuilder().chainId(storedId).build());
+
+        V0780ClprSchema.migrateLegacyChainId(writableStates, configuration);
+
+        verify(configurationState, never()).put(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void doesNotMigrateMissingLedgerConfiguration() {
+        given(writableStates.<ClprLedgerConfiguration>getSingleton(LEDGER_CONFIGURATION_STATE_ID))
+                .willReturn(configurationState);
+
+        V0780ClprSchema.migrateLegacyChainId(writableStates, configuration);
+
+        verify(configurationState, never()).put(org.mockito.ArgumentMatchers.any());
     }
 }

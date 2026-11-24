@@ -12,10 +12,10 @@ import static org.hiero.otter.fixtures.container.utils.ContainerConstants.METRIC
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.NODE_COMMUNICATION_PORT;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.OTTER_LOG_PATH;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.SWIRLDS_LOG_PATH;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.INIT;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
+import static org.hiero.otter.fixtures.internal.AbstractMiniNode.LifeCycle.DESTROYED;
+import static org.hiero.otter.fixtures.internal.AbstractMiniNode.LifeCycle.INIT;
+import static org.hiero.otter.fixtures.internal.AbstractMiniNode.LifeCycle.RUNNING;
+import static org.hiero.otter.fixtures.internal.AbstractMiniNode.LifeCycle.SHUTDOWN;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.google.protobuf.Empty;
@@ -43,9 +43,9 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.PathsConfig;
 import org.hiero.consensus.event.stream.config.EventConfig;
-import org.hiero.consensus.model.event.EventHashFactory;
+import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.Node;
@@ -122,7 +122,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     private final ContainerControlServiceGrpc.ContainerControlServiceBlockingStub containerControlBlockingStub;
 
     /** The gRPC service used to communicate with the consensus node */
-    private NodeCommunicationServiceGrpc.NodeCommunicationServiceBlockingStub nodeCommBlockingStub;
+    protected NodeCommunicationServiceGrpc.NodeCommunicationServiceBlockingStub nodeCommBlockingStub;
 
     /** The configuration of this node */
     private final ContainerNodeConfiguration nodeConfiguration;
@@ -178,14 +178,9 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         this.localOutputDirectory = requireNonNull(outputDirectory, "outputDirectory must not be null");
         this.timeManager = requireNonNull(timeManager, "timeManager must not be null");
 
-        this.resultsCollector = new NodeResultsCollector(selfId, consensusRoundPool);
+        this.resultsCollector = new NodeResultsCollector(selfId, consensusRoundPool, false);
         this.nodeConfiguration =
                 new ContainerNodeConfiguration(() -> lifeCycle, networkConfiguration.overrideProperties());
-        if (nodeConfiguration.current().getConfigData(EventConfig.class).enableEventCutover()) {
-            EventHashFactory.initialize(1L);
-        } else {
-            EventHashFactory.initialize(Long.MAX_VALUE);
-        }
         this.random = new SecureRandom();
         this.gcLoggingEnabled = gcLoggingEnabled;
         this.jvmArgs = List.copyOf(requireNonNull(jvmArgs, "jvmArgs must not be null"));
@@ -230,8 +225,8 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
      */
     @Override
     protected void doStart(@NonNull final Duration timeout) {
-        throwIfInLifecycle(LifeCycle.RUNNING, "Node has already been started.");
-        throwIfInLifecycle(LifeCycle.DESTROYED, "Node has already been destroyed.");
+        throwIfInLifecycle(RUNNING, "Node has already been started.");
+        throwIfInLifecycle(DESTROYED, "Node has already been destroyed.");
 
         log.info("Starting node {}...", selfId);
 
@@ -363,13 +358,11 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     @Override
     protected void doSendQuiescenceCommand(@NonNull final QuiescenceCommand command, @NonNull final Duration timeout) {
         log.info("Sending quiescence command {} on node {}", command, selfId);
-        final org.hiero.otter.fixtures.container.proto.QuiescenceCommand dto =
-                switch (command) {
-                    case QUIESCE -> org.hiero.otter.fixtures.container.proto.QuiescenceCommand.QUIESCE;
-                    case BREAK_QUIESCENCE ->
-                        org.hiero.otter.fixtures.container.proto.QuiescenceCommand.BREAK_QUIESCENCE;
-                    case DONT_QUIESCE -> org.hiero.otter.fixtures.container.proto.QuiescenceCommand.DONT_QUIESCE;
-                };
+        final org.hiero.otter.fixtures.container.proto.QuiescenceCommand dto = switch (command) {
+            case QUIESCE -> org.hiero.otter.fixtures.container.proto.QuiescenceCommand.QUIESCE;
+            case BREAK_QUIESCENCE -> org.hiero.otter.fixtures.container.proto.QuiescenceCommand.BREAK_QUIESCENCE;
+            case DONT_QUIESCE -> org.hiero.otter.fixtures.container.proto.QuiescenceCommand.DONT_QUIESCE;
+        };
         nodeCommBlockingStub
                 .withDeadlineAfter(timeout)
                 .quiescenceCommandUpdate(
@@ -413,6 +406,15 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
             }
         }
         return response.getAlive();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public EventWindow latestEventWindow() {
+        return newConsensusResult().getLatestEventWindow();
     }
 
     /**
@@ -499,7 +501,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
                 new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
         try {
             final Path databaseDirectory = getDatabaseDirectory(
-                    configuration, fileSystemManager, org.hiero.consensus.model.node.NodeId.of(selfId.id()));
+                    configuration, fileSystemManager, org.hiero.consensus.main.model.NodeId.of(selfId.id()));
             final Path localPcesDirectory = localOutputDirectory.resolve(databaseDirectory);
 
             Files.createDirectories(localPcesDirectory);

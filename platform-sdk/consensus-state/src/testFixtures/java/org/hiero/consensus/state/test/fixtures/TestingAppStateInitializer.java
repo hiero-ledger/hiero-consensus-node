@@ -2,11 +2,9 @@
 package org.hiero.consensus.state.test.fixtures;
 
 import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
-import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.block.stream.output.StateChanges.Builder;
 import com.hedera.hapi.platform.state.PlatformState;
-import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.merkle.VirtualMapState;
@@ -62,9 +60,7 @@ public final class TestingAppStateInitializer {
                         throw new IllegalStateException("PlatformStateService only expected to use singleton states");
                     }
                 });
-        final var mockMigrationContext = mock(MigrationContext.class);
         final var writableStates = state.getWritableStates(PlatformStateService.NAME);
-        schema.migrate(mockMigrationContext);
         writableStates
                 .<PlatformState>getSingleton(PLATFORM_STATE_STATE_ID)
                 .put(V0540PlatformStateSchema.UNINITIALIZED_PLATFORM_STATE);
@@ -92,9 +88,7 @@ public final class TestingAppStateInitializer {
                                 "RosterService only expected to use singleton and keyValue virtual map states");
                     }
                 });
-        final var mockMigrationContext = mock(MigrationContext.class);
         final var writableStates = state.getWritableStates(RosterStateId.SERVICE_NAME);
-        schema.migrate(mockMigrationContext);
         ((CommittableWritableStates) writableStates).commit();
         return Collections.emptyList();
     }

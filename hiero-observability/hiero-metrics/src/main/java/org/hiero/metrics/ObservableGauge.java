@@ -5,10 +5,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.DoubleSupplier;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
 import org.hiero.metrics.core.DoubleMeasurementSnapshot;
 import org.hiero.metrics.core.LabelValues;
 import org.hiero.metrics.core.LongMeasurementSnapshot;
@@ -25,10 +24,16 @@ import org.hiero.metrics.core.MetricType;
  * {@link Builder#observe(LongSupplier, String...)}, {@link Builder#observe(DoubleSupplier, String...)}
  * or could be added later after metric creation using {@link #observe(LongSupplier, String...)}
  * or {@link #observe(DoubleSupplier, String...)}.
+ * <p>
+ * Value suppliers are called only by exports, never by {@code observe}, so a supplier that throws is not rejected
+ * when it is observed: it fails every export, until it is removed.
+ * <p>
+ * Observed value suppliers with dynamic labels can be removed using {@link #removeIf(Predicate)},
+ * and their label values can be observed again afterwards. An export already in progress may call a removed supplier
+ * once more, so a supplier must stay safe to call after its removal, for example it must not throw when its source
+ * is closed, because a throwing supplier fails the whole export.
  */
-public final class ObservableGauge extends Metric {
-
-    private final Set<LabelValues> labelValuesSet = ConcurrentHashMap.newKeySet();
+public final class ObservableGauge extends Metric<Object> {
 
     private ObservableGauge(ObservableGauge.Builder builder) {
         super(builder);
@@ -89,13 +94,14 @@ public final class ObservableGauge extends Metric {
     private void observeInternal(@NonNull Object valueSupplier, @NonNull String... labelNamesAndValues) {
         Objects.requireNonNull(valueSupplier, "value supplier must not be null");
 
-        LabelValues labelValues = createLabelValues(labelNamesAndValues);
-        if (!labelValuesSet.add(labelValues)) {
-            throw new IllegalArgumentException(
-                    "A measurement with the same label values already exists: " + labelValues);
+        final LabelValues labelValues = createLabelValues(labelNamesAndValues);
+        if (!measurements().putIfAbsent(labelValues, valueSupplier)) {
+            throw duplicateLabelValues(labelValues);
         }
+    }
 
-        addMeasurementSnapshot(createSnapshot(valueSupplier, labelValues));
+    private static IllegalArgumentException duplicateLabelValues(LabelValues labelValues) {
+        return new IllegalArgumentException("A measurement with the same label values already exists: " + labelValues);
     }
 
     @Override
@@ -103,7 +109,10 @@ public final class ObservableGauge extends Metric {
         // No-op for observable gauge
     }
 
-    private MeasurementSnapshot createSnapshot(Object valuesSupplier, LabelValues dynamicLabelValues) {
+    @NonNull
+    @Override
+    protected MeasurementSnapshot createMeasurementSnapshot(
+            @NonNull Object valuesSupplier, @NonNull LabelValues dynamicLabelValues) {
         if (valuesSupplier instanceof LongSupplier castedSupplier) {
             return new LongMeasurementSnapshot(dynamicLabelValues, castedSupplier);
         } else if (valuesSupplier instanceof DoubleSupplier castedSupplier) {

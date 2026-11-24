@@ -208,13 +208,13 @@ public interface HandleWorkflowModule {
                 hintsHandlers.crsPublicationHandler(),
                 migrationRootHashVoteHandler,
                 clprHandlers.clprUpdateLedgerConfigurationHandler(),
-                clprHandlers.clprRegisterChannelHandler(),
-                clprHandlers.clprCompleteChannelHandler(),
-                clprHandlers.clprCloseChannelHandler(),
+                clprHandlers.clprCreateChannelHandler(),
+                clprHandlers.clprDeleteChannelHandler(),
                 clprHandlers.clprSubmitBundleHandler(),
                 clprHandlers.clprRegisterConnectorHandler(),
                 clprHandlers.clprCompleteConnectorHandler(),
                 clprHandlers.clprDeregisterConnectorHandler(),
-                clprHandlers.clprEndpointPublicationHandler());
+                clprHandlers.clprEndpointPublicationHandler(),
+                clprHandlers.clprEvictPeerEndpointHandler());
     }
 }

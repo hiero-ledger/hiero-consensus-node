@@ -6,8 +6,22 @@ import static com.hedera.node.app.service.clpr.impl.verifier.evm.ProofBytes.chec
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
- * The 5-field SSZ {@code BeaconBlockHeader} container. Package-private so tests can build headers
- * directly and exercise {@link #hashTreeRoot()}.
+ * The 5-field SSZ {@code BeaconBlockHeader} container: a beacon block summarized by the roots of its parts. Package-private
+ * so tests can build headers directly and exercise {@link #hashTreeRoot()}.
+ *
+ * @param slot          the slot of the block; its period selects the sync committee, and it orders the finalized
+ *                      header before the attested one
+ * @param proposerIndex the index, in the beacon state's validator registry, of the validator that proposed the block;
+ *                      not used by the verifier beyond hashing
+ * @param parentRoot32  the {@code hash_tree_root} of the parent (previous) beacon block header; not used by the verifier beyond
+ *                      hashing
+ * @param stateRoot32   the {@code hash_tree_root} of the beacon state after this block; the finality and
+ *                      next-committee branches are proven against it. This is the consensus-layer state, not the EVM
+ *                      state root.
+ * @param bodyRoot32    the {@code hash_tree_root} of the block body; since Gloas (EIP-7732) the execution block hash
+ *                      branch is proven against it
+ * @see <a href="https://github.com/ethereum/consensus-specs/blob/master/specs/phase0/beacon-chain.md#beaconblockheader">
+ *     BeaconBlockHeader in the consensus specs</a>
  */
 record BeaconHeader(
         long slot,

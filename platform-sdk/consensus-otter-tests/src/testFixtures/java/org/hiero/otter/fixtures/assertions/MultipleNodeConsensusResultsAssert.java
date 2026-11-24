@@ -10,8 +10,8 @@ import java.util.Map;
 import java.util.TreeMap;
 import org.assertj.core.api.AbstractAssert;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.framework.validation.ConsensusRoundValidator;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.OtterAssertions;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
@@ -153,6 +153,76 @@ public class MultipleNodeConsensusResultsAssert
         isNotNull();
         for (final SingleNodeConsensusResult result : actual.results()) {
             OtterAssertions.assertThat(result).hasConsistentRounds();
+        }
+        return this;
+    }
+
+    /**
+     * Verifies that no node lost events: every pre-consensus event that the latest consensus round of a node made
+     * ancient has either reached consensus or become stale, but not both. See
+     * {@link SingleNodeConsensusResultAssert#hasNoLostEvents()} for details.
+     *
+     * <p>A node that restarts or reconnects while the results are collected can be left out with
+     * {@link MultipleNodeConsensusResults#suppressingNode(NodeId)}.
+     *
+     * @return this assertion object for method chaining
+     */
+    @NonNull
+    public MultipleNodeConsensusResultsAssert haveNoLostEvents() {
+        isNotNull();
+        for (final SingleNodeConsensusResult result : actual.results()) {
+            OtterAssertions.assertThat(result).hasNoLostEvents();
+        }
+        return this;
+    }
+
+    /**
+     * Verifies that every event that has reached consensus or become stale on a node was emitted as a pre-consensus
+     * event by that node first. See {@link SingleNodeConsensusResultAssert#hasNoUnannouncedEvents()} for details.
+     *
+     * @return this assertion object for method chaining
+     */
+    @NonNull
+    public MultipleNodeConsensusResultsAssert haveNoUnannouncedEvents() {
+        isNotNull();
+        for (final SingleNodeConsensusResult result : actual.results()) {
+            OtterAssertions.assertThat(result).hasNoUnannouncedEvents();
+        }
+        return this;
+    }
+
+    /**
+     * Verifies that the consensus ratio of every node is between the given bounds, inclusive. Each node's ratio is
+     * computed from its own results. See {@link SingleNodeConsensusResultAssert#hasConsensusRatioBetween(double, double)}
+     * for details.
+     *
+     * @param min the smallest allowed ratio
+     * @param max the largest allowed ratio
+     * @return this assertion object for method chaining
+     */
+    @NonNull
+    public MultipleNodeConsensusResultsAssert haveConsensusRatioBetween(final double min, final double max) {
+        isNotNull();
+        for (final SingleNodeConsensusResult result : actual.results()) {
+            OtterAssertions.assertThat(result).hasConsensusRatioBetween(min, max);
+        }
+        return this;
+    }
+
+    /**
+     * Verifies that the stale ratio of every node is between the given bounds, inclusive. Each node's ratio is computed
+     * from its own results. See {@link SingleNodeConsensusResultAssert#hasStaleRatioBetween(double, double)} for
+     * details.
+     *
+     * @param min the smallest allowed ratio
+     * @param max the largest allowed ratio
+     * @return this assertion object for method chaining
+     */
+    @NonNull
+    public MultipleNodeConsensusResultsAssert haveStaleRatioBetween(final double min, final double max) {
+        isNotNull();
+        for (final SingleNodeConsensusResult result : actual.results()) {
+            OtterAssertions.assertThat(result).hasStaleRatioBetween(min, max);
         }
         return this;
     }

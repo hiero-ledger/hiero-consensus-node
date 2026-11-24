@@ -198,7 +198,13 @@ class V0740BlockStreamSchemaTest {
                 .startOfBlockStateHash(BlockStreamManager.HASH_OF_ZERO_384)
                 .build();
 
-        givenCutoverContext(blockInfo, runningHashes, previewBsi);
+        // Pinned to SHA-384 so its empty tree hashes are HASH_OF_ZERO_384; usesSha256EmptySubtreeRootsWhenConfigured
+        // covers the SHA-256 default
+        givenCutoverContext(
+                blockInfo,
+                runningHashes,
+                previewBsi,
+                configWithDigestType(tempDir.resolve("default-blocks"), DigestType.SHA_384));
 
         subject.restart(ctx);
 
@@ -662,8 +668,16 @@ class V0740BlockStreamSchemaTest {
             final RunningHashes runningHashes,
             final BlockStreamInfo previewBsi,
             final Path blockDir) {
+        givenCutoverContext(blockInfo, runningHashes, previewBsi, configWithBlockDir(true, blockDir));
+    }
+
+    private void givenCutoverContext(
+            final BlockInfo blockInfo,
+            final RunningHashes runningHashes,
+            final BlockStreamInfo previewBsi,
+            final Configuration config) {
         given(ctx.isGenesis()).willReturn(false);
-        given(ctx.appConfig()).willReturn(configWithBlockDir(true, blockDir));
+        given(ctx.appConfig()).willReturn(config);
         given(ctx.sharedValues()).willReturn(fullSharedValues(blockInfo, runningHashes));
         given(ctx.newStates()).willReturn(writableStates);
         given(writableStates.<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID))
@@ -723,10 +737,14 @@ class V0740BlockStreamSchemaTest {
     }
 
     private Configuration configWithSha256(final Path blockDir) {
+        return configWithDigestType(blockDir, DigestType.SHA_256);
+    }
+
+    private Configuration configWithDigestType(final Path blockDir, final DigestType digestType) {
         return HederaTestConfigBuilder.create()
                 .withValue("blockStream.enableCutover", true)
                 .withValue("blockStream.blockFileDir", blockDir.toString())
-                .withValue("blockStream.digestType", "SHA_256")
+                .withValue("blockStream.digestType", digestType.name())
                 .getOrCreateConfig();
     }
 }

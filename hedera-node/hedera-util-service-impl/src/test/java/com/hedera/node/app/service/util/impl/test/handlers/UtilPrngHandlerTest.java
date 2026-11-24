@@ -251,6 +251,10 @@ class UtilPrngHandlerTest {
 
     @Test
     void nullHashFromRunningHashReturnsAllZeros() {
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("blockStream.streamMode", "BOTH")
+                .getOrCreateConfig();
+        given(handleContext.configuration()).willReturn(config);
         givenTxnWithRange(0);
         given(handleContext.blockRecordInfo()).willReturn(blockRecordInfo);
         given(blockRecordInfo.prngSeed()).willReturn(null);
@@ -263,6 +267,10 @@ class UtilPrngHandlerTest {
 
     @Test
     void emptyHashFromRunningHashReturnsAllZeros() {
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("blockStream.streamMode", "BOTH")
+                .getOrCreateConfig();
+        given(handleContext.configuration()).willReturn(config);
         givenTxnWithRange(0);
         given(handleContext.blockRecordInfo()).willReturn(blockRecordInfo);
         given(blockRecordInfo.prngSeed()).willReturn(Bytes.EMPTY);

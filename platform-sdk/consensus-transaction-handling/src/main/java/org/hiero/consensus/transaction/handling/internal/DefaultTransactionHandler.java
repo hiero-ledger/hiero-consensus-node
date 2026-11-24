@@ -44,12 +44,12 @@ import org.hiero.base.crypto.HashBuilder;
 import org.hiero.consensus.event.stream.config.EventConfig;
 import org.hiero.consensus.event.stream.config.EventStreamWiringConfig;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
+import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.main.model.Round;
 import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
-import org.hiero.consensus.model.hashgraph.Round;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.stream.RunningEventHashOverride;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.platformstate.PlatformStateModifier;
@@ -240,7 +240,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
                     consensusRound.getConsensusTimestamp());
         }
 
-        handlerMetrics.recordEventsPerRound(consensusRound.getNumEvents());
+        handlerMetrics.recordEventsPerRound(consensusRound.getConsensusEvents().size());
         handlerMetrics.recordConsensusTime(consensusRound.getConsensusTimestamp());
 
         try {

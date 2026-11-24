@@ -169,8 +169,8 @@ public class ClprStreamingSyncSession {
         logger.debug("{} new streaming message received with message len={}", this.tag, requestBytes.length());
         final ClprStreamingSyncPayload message = parseAndValidate(requestBytes);
 
-        // Independent of the current state, an inbound bundle is worth submitting whenever one arrives — including
-        // the message that trips the cap below, which is well-formed and already paid for.
+        // Consider every received bundle, including the message that trips the cap below.
+        // The submitter validates it locally before gossiping a fee-bearing transaction.
         submitInboundBundle(message);
 
         if (sessionState != SessionState.CLOSED && ++inboundMessageCount > MAX_INBOUND_MESSAGES) {
@@ -336,8 +336,9 @@ public class ClprStreamingSyncSession {
             message = ClprStreamingSyncPayload.PROTOBUF.parseStrict(requestBytes);
         } catch (final Exception e) {
             logger.warn("{}Failed to parse ClprStreamingSyncPayload", tag, e);
+            // The parser's message stays in this node's log; the caller learns only that the payload is invalid
             throw new StatusRuntimeException(
-                    Status.INVALID_ARGUMENT.withDescription("Invalid ClprStreamingSyncPayload: " + e.getMessage()));
+                    Status.INVALID_ARGUMENT.withDescription("Invalid ClprStreamingSyncPayload"));
         }
 
         final var messageChannelId = message.channelId();

@@ -31,11 +31,11 @@ import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Consumer;
-import org.hiero.consensus.model.event.ConsensusEvent;
-import org.hiero.consensus.model.hashgraph.Round;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.ConsensusEvent;
+import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.main.model.Round;
+import org.hiero.consensus.main.model.TimestampedTransaction;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
-import org.hiero.consensus.model.transaction.TimestampedTransaction;
 
 /**
  * An embedded Hedera node that handles transactions synchronously on ingest and thus
@@ -177,7 +177,7 @@ public class RepeatableEmbeddedHedera extends AbstractEmbeddedHedera implements 
     @Override
     protected void handleRoundWith(@NonNull final byte[] serializedSignedTx) {
         final var round = platform.roundWith(serializedSignedTx);
-        hedera.onPreHandle(round.iterator().next(), state, preHandleStateSignatureCallback);
+        hedera.onPreHandle(round.getConsensusEvents().getFirst(), state, preHandleStateSignatureCallback);
         bulkUpdateOf(state, v -> {
             v.setRound(round.getRoundNum());
             v.setConsensusTimestamp(round.getConsensusTimestamp());

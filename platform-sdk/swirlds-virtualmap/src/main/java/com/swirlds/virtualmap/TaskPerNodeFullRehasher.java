@@ -207,7 +207,7 @@ public final class TaskPerNodeFullRehasher {
             if (leaf == null) {
                 throw new IllegalStateException("Leaf record not found, path = " + nodePath);
             }
-            final byte[] hash = MerkleHasher.threadSafeDefault().leafNodeHashBytes(leaf);
+            final byte[] hash = MerkleHasher.leafNodeHashBytes(leaf);
             // one more check to avoid notifying the listener and setting the hash to the parent if the result is
             // already completed exceptionally
             if (result.isCompletedExceptionally()) {
@@ -244,7 +244,7 @@ public final class TaskPerNodeFullRehasher {
             if (result.isCompletedExceptionally()) {
                 return true;
             }
-            final byte[] hash = MerkleHasher.threadSafeDefault().internalNodeHashBytes(leftHash, rightHash);
+            final byte[] hash = MerkleHasher.internalNodeHashBytes(leftHash, rightHash);
             // Must be called before the hash is passed to the parent node, see class javadoc
             listener.onHashed(path, hash);
             if (parent != null) {

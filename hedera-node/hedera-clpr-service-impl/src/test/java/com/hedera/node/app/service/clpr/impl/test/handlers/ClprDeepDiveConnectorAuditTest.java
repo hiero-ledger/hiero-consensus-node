@@ -49,6 +49,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.spi.WritableStates;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
+import org.hiero.base.crypto.ECDSASecp256k1;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -121,7 +122,7 @@ class ClprDeepDiveConnectorAuditTest {
         final EntityIdFactory idFactory = new AppEntityIdFactory(config);
         subject = new ClprCompleteConnectorHandler(idFactory);
 
-        ecdsaPublicKey64 = CryptoTestHelpers.deriveEcdsaPublicKey(SECRET_KEY);
+        ecdsaPublicKey64 = ECDSASecp256k1.derivePublicKey(SECRET_KEY);
         derivedConnectorId =
                 CryptoTestHelpers.computeConnectorId(CHANNEL_ID.toByteArray(), ecdsaPublicKey64, SALT.toByteArray());
         ecdsaCommitment = CryptoTestHelpers.computeCommitment(derivedConnectorId.toByteArray(), ecdsaPublicKey64);
@@ -497,6 +498,12 @@ class ClprDeepDiveConnectorAuditTest {
     private void setupHandleContext(final TransactionBody txn, final Configuration config) {
         lenient().when(handleContext.body()).thenReturn(txn);
         lenient().when(handleContext.payer()).thenReturn(PAYER_ID);
+        lenient()
+                .when(accountStore.getAccountById(PAYER_ID))
+                .thenReturn(Account.newBuilder()
+                        .accountId(PAYER_ID)
+                        .tinybarBalance(VALID_STAKE)
+                        .build());
         lenient().when(handleContext.configuration()).thenReturn(config);
         lenient().when(handleContext.storeFactory()).thenReturn(storeFactory);
         lenient()

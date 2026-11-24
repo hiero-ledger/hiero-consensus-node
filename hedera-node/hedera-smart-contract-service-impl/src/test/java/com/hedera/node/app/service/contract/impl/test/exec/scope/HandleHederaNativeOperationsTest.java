@@ -25,6 +25,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SOMEBOD
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthAccountCreationWithKeyAndCodeDelegation;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthHollowAccountCreation;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -55,7 +56,9 @@ import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.token.records.CryptoCreateStreamBuilder;
+import com.hedera.node.app.spi.key.KeyRequirement;
 import com.hedera.node.app.spi.key.KeyVerifier;
+import com.hedera.node.app.spi.key.RequirementVerifier;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory;
@@ -66,7 +69,6 @@ import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.SortedSet;
-import java.util.function.Predicate;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -98,7 +100,7 @@ class HandleHederaNativeOperationsTest {
     private VerificationStrategy verificationStrategy;
 
     @Mock
-    private Predicate<Key> signatureTest;
+    private RequirementVerifier signatureTest;
 
     @Mock
     private ReadableAccountStore accountStore;
@@ -207,7 +209,11 @@ class HandleHederaNativeOperationsTest {
                 .cryptoCreateAccount(synthHollowAccountCreation(CANONICAL_ALIAS, true))
                 .build();
         given(context.payer()).willReturn(A_NEW_ACCOUNT_ID);
-        given(context.dispatch(assertArg(options -> assertEquals(synthLazyCreate, options.body()))))
+        given(context.dispatch(assertArg(options -> {
+                    assertEquals(synthLazyCreate, options.body());
+                    assertEquals(TransactionCategory.PRECEDING, options.category());
+                    assertEquals(REVERSIBLE, options.reversingBehavior());
+                })))
                 .willReturn(cryptoCreateRecordBuilder);
         given(cryptoCreateRecordBuilder.status()).willReturn(MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED);
         given(context.configuration()).willReturn(DEFAULT_CONFIG);
@@ -277,8 +283,11 @@ class HandleHederaNativeOperationsTest {
                 .accountNum(NON_SYSTEM_CONTRACT_ID.contractNumOrThrow())
                 .build();
         given(accountStore.getAccountById(contractAccountId)).willReturn(PARANOID_SOMEBODY);
-        given(verificationStrategy.asSignatureTestIn(context, A_SECP256K1_KEY)).willReturn(signatureTest);
-        given(signatureTest.test(PARANOID_SOMEBODY.keyOrThrow())).willReturn(true);
+        given(verificationStrategy.asRequirementTestIn(context, A_SECP256K1_KEY))
+                .willReturn(signatureTest);
+        given(signatureTest.test(KeyRequirement.forAccount(
+                        PARANOID_SOMEBODY.accountIdOrThrow(), PARANOID_SOMEBODY.keyOrThrow())))
+                .willReturn(true);
 
         final var result = subject.transferWithReceiverSigCheck(
                 1L,
@@ -299,8 +308,11 @@ class HandleHederaNativeOperationsTest {
                 .accountNum(NON_SYSTEM_CONTRACT_ID.contractNumOrThrow())
                 .build();
         given(accountStore.getAccountById(contractAccountId)).willReturn(PARANOID_SOMEBODY);
-        given(verificationStrategy.asSignatureTestIn(context, A_SECP256K1_KEY)).willReturn(signatureTest);
-        given(signatureTest.test(PARANOID_SOMEBODY.keyOrThrow())).willReturn(false);
+        given(verificationStrategy.asRequirementTestIn(context, A_SECP256K1_KEY))
+                .willReturn(signatureTest);
+        given(signatureTest.test(KeyRequirement.forAccount(
+                        PARANOID_SOMEBODY.accountIdOrThrow(), PARANOID_SOMEBODY.keyOrThrow())))
+                .willReturn(false);
 
         final var result = subject.transferWithReceiverSigCheck(
                 1L,

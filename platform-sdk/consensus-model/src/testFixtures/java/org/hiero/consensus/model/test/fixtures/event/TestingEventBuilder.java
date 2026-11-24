@@ -2,6 +2,7 @@
 package org.hiero.consensus.model.test.fixtures.event;
 
 import static org.hiero.base.crypto.Cryptography.DEFAULT_DIGEST_TYPE;
+import static org.hiero.consensus.main.model.ConsensusLayerConstants.DEFAULT_EVENT_DIGEST_TYPE;
 import static org.hiero.consensus.model.event.EventConstants.MINIMUM_ROUND_CREATED;
 
 import com.hedera.hapi.platform.event.EventConsensusData;
@@ -19,19 +20,17 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
-import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.SignatureType;
 import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
+import org.hiero.consensus.main.model.EventDescriptorWrapper;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.event.EventConstants;
-import org.hiero.consensus.model.event.EventDescriptorWrapper;
-import org.hiero.consensus.model.event.EventHashFactory;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
-import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A builder for creating event instances for testing purposes.
@@ -120,6 +119,13 @@ public class TestingEventBuilder {
      * between 0 and 2 inclusive.
      */
     private Long birthRound;
+
+    /**
+     * The coin value of the event.
+     * <p>
+     * If not set, defaults to a random value of 0 or 1.
+     */
+    private Long coin;
 
     /**
      * The consensus timestamp of the event.
@@ -365,6 +371,24 @@ public class TestingEventBuilder {
     }
 
     /**
+     * Set the coin value of an event.
+     * <p>
+     * {@code coin} is part of {@link com.hedera.hapi.platform.event.EventCore}, so it is hashed content. Left to the
+     * default it is drawn from the supplied {@link Random}, which makes an event's hash depend on the exact sequence
+     * of draws taken from that source rather than on the seed alone. A fixture that must reproduce when an unrelated
+     * event is inserted into it has to set this explicitly.
+     * <p>
+     * If not set, defaults to a random value of 0 or 1.
+     *
+     * @param coin the coin value; the protocol defines the valid range as 0 to the roster size, inclusive
+     * @return this instance
+     */
+    public @NonNull TestingEventBuilder setCoin(final long coin) {
+        this.coin = coin;
+        return this;
+    }
+
+    /**
      * Set the consensus timestamp of an event.
      * <p>
      * If consensus order is set, and consensus timestamp is not set, it will be a random timestamp.
@@ -533,13 +557,19 @@ public class TestingEventBuilder {
             transactionBytes = generateTransactions();
         }
 
+        if (coin == null) {
+            // event_core.proto documents the valid range as 0 to the roster size inclusive, and TipsetEventCreator
+            // respects it. No roster is available here, so draw from 0..1, which is valid under any roster.
+            coin = random.nextLong(0, 2);
+        }
+
         final UnsignedEvent unsignedEvent = new UnsignedEvent(
                 creatorId,
                 allParentDescriptors,
                 birthRound,
                 timeCreated,
                 transactionBytes,
-                random.nextLong(0, Long.MAX_VALUE),
+                coin,
                 timeCreated,
                 List.of());
 
@@ -548,8 +578,7 @@ public class TestingEventBuilder {
 
         final PlatformEvent platformEvent = new PlatformEvent(unsignedEvent, Bytes.wrap(signature), origin);
 
-        final DigestType digestType = EventHashFactory.getTypeForBirthRound(birthRound);
-        platformEvent.setHash(hash != null ? hash : CryptoRandomUtils.randomHash(random, digestType));
+        platformEvent.setHash(hash != null ? hash : CryptoRandomUtils.randomHash(random, DEFAULT_EVENT_DIGEST_TYPE));
 
         platformEvent.setNGen(nGen);
         if (sequenceNumberOverride > EventConstants.SEQUENCE_NUMBER_UNDEFINED) {

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.utils.sysfiles.validation;
 
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprCloseChannel;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprCompleteChannel;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprCreateChannel;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprDeleteChannel;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprDeregisterConnector;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprEvictPeerEndpoint;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprGetLedgerConfiguration;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprRegisterChannel;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprRegisterConnector;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprSubmitBundle;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprUpdateLedgerConfiguration;
@@ -26,7 +26,6 @@ import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoAppro
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoCreate;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoDelete;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoDeleteAllowance;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoGetAccountBalance;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoGetAccountRecords;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoGetInfo;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoTransfer;
@@ -115,7 +114,6 @@ public final class ExpectedCustomThrottles {
             ContractGetInfo,
             ContractGetBytecode,
             ContractGetRecords,
-            CryptoGetAccountBalance,
             CryptoGetAccountRecords,
             CryptoGetInfo,
             FileGetContents,
@@ -130,9 +128,9 @@ public final class ExpectedCustomThrottles {
             TokenUnpause,
             UtilPrng,
             ClprUpdateLedgerConfiguration,
-            ClprRegisterChannel,
-            ClprCompleteChannel,
-            ClprCloseChannel,
+            ClprCreateChannel,
+            ClprDeleteChannel,
+            ClprEvictPeerEndpoint,
             ClprGetLedgerConfiguration,
             ClprSubmitBundle,
             ClprRegisterConnector,
@@ -144,9 +142,9 @@ public final class ExpectedCustomThrottles {
      */
     public static final Set<HederaFunctionality> CLPR_OPS = Collections.unmodifiableSet(EnumSet.of(
             ClprUpdateLedgerConfiguration,
-            ClprRegisterChannel,
-            ClprCompleteChannel,
-            ClprCloseChannel,
+            ClprCreateChannel,
+            ClprDeleteChannel,
+            ClprEvictPeerEndpoint,
             ClprGetLedgerConfiguration,
             ClprSubmitBundle,
             ClprRegisterConnector,

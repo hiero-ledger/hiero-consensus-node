@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.consensus.ConsensusCreateTopicTransactionBody;
+import com.hedera.hapi.node.transaction.FixedCustomFee;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
 import com.hedera.node.app.fees.context.SimpleFeeContextImpl;
@@ -66,6 +67,23 @@ public class ConsensusCreateTopicFeeCalculatorTest {
         }
     }
 
+    @Nested
+    @DisplayName("CreateTopic With Custom Fees Tests")
+    class CreateTopicWithCustomFeesTests {
+        @Test
+        @DisplayName("charges the custom fee extra")
+        void chargesCustomFeeExtra() {
+            final var op = ConsensusCreateTopicTransactionBody.newBuilder()
+                    .customFees(FixedCustomFee.DEFAULT)
+                    .build();
+            final var body =
+                    TransactionBody.newBuilder().consensusCreateTopic(op).build();
+            final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
+
+            Assertions.assertThat(result.getServiceTotalTinycents()).isEqualTo(498500000L + 1000000L);
+        }
+    }
+
     // Helper method to create test fee schedule using real production values from simpleFeesSchedules.json
     private static FeeSchedule createTestFeeSchedule() {
         return FeeSchedule.DEFAULT
@@ -78,7 +96,8 @@ public class ConsensusCreateTopicFeeCalculatorTest {
                 .extras(
                         makeExtraDef(Extra.SIGNATURES, 1000000L),
                         makeExtraDef(Extra.KEYS, 100000000L),
-                        makeExtraDef(Extra.STATE_BYTES, 110L))
+                        makeExtraDef(Extra.STATE_BYTES, 110L),
+                        makeExtraDef(Extra.CONSENSUS_CREATE_TOPIC_WITH_CUSTOM_FEE, 1000000L))
                 .services(makeService(
                         "Consensus",
                         makeServiceFee(

@@ -16,7 +16,6 @@ import com.hedera.node.config.data.ClprConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.security.cert.CertificateEncodingException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -32,9 +31,8 @@ import org.apache.logging.log4j.Logger;
 /**
  * Reconciler for the CLPR endpoint manifest construction lifecycle (design doc §4).
  *
- * <p>Called each round from {@code HandleWorkflow}. It does not open constructions on a
- * per-round trigger; opening is driven by a self-publication (in
- * {@code ClprEndpointPublicationHandler}) or by a roster change. Its responsibilities:
+ * <p>Constructions open on self-publication, roster changes, or withdrawal of DNS publication.
+ * {@code HandleWorkflow} drives reconciliation each round:
  * <ul>
  *   <li>{@link #openConstructionIfSelfChanged} (startup-gated): when this node's own endpoint is absent
  *       from the manifest — which by full-value membership also covers the case where the
@@ -46,7 +44,7 @@ import org.apache.logging.log4j.Logger;
  *       node's own endpoint if it has not yet been gathered, so the construction is an all-hands
  *       snapshot.</li>
  *   <li>{@link #openConstructionOnRosterChange}: at the post-upgrade boundary, open a construction
- *       when the roster's endpoint-IP composition changed (node added / removed).</li>
+ *       when the roster's advertised host composition changed (node added / removed).</li>
  *   <li>{@link #reconcile}: drive an in-flight construction to close — fast-close once every
  *       target has published, timeout-close after exhausting the grace-extension budget, or
  *       extend grace once and continue. On close, build the candidate manifest (sorted by
@@ -82,7 +80,7 @@ public class ClprEndpointManifestReconciler {
     // Resolve node-local resources only when publishing, so their initialization cannot prevent
     // consensus-state reconciliation or roster-change maintenance.
     private final Provider<ClprSubmissions> submissions;
-    private final Provider<ClprCaCertManager> caCertManager;
+    private final Provider<ClprHapiTlsEndpoint> hapiTlsEndpoint;
 
     /**
      * Node-local retry backoff for {@link #contributeSelfToConstruction}. Because
@@ -124,32 +122,38 @@ public class ClprEndpointManifestReconciler {
     @Nullable
     private ClprEndpointManifest startupSettledManifest;
 
+    private boolean startupSettledPublishDns;
+
+    /** Memoizes a pure check on an immutable manifest so idle rounds skip scanning its endpoints. */
+    @Nullable
+    private ClprEndpointManifest manifestWithoutDns;
+
     @Inject
     public ClprEndpointManifestReconciler(
             @NonNull final Provider<ClprSubmissions> submissions,
-            @NonNull final Provider<ClprCaCertManager> caCertManager) {
+            @NonNull final Provider<ClprHapiTlsEndpoint> hapiTlsEndpoint) {
         this.submissions = requireNonNull(submissions);
-        this.caCertManager = requireNonNull(caCertManager);
+        this.hapiTlsEndpoint = requireNonNull(hapiTlsEndpoint);
     }
 
     /**
-     * Per-round tick: drive an in-flight construction to close. The reconciler does
-     * <b>not</b> open constructions (that is the publication handler's deterministic job) and does
-     * <b>not</b> self-check every round — self-publication is startup-gated and driven separately by
-     * {@code HandleWorkflow} via {@link #openConstructionIfSelfChanged}. So when no construction is gathering
-     * this method is effectively a single singleton read.
+     * Advances an open construction. If DNS publication has been disabled while the finalized manifest
+     * still contains hostnames, opens a construction so even domain-only nodes can be pruned.
      *
      * @param now the current consensus time
+     * @param activeRoster the nodes targeted by a new construction
      * @param manifestStore writable view of the finalized manifest singleton
      * @param constructionStore writable view of the in-progress construction singleton
      * @param config CLPR config knobs (grace period, extensions, etc.)
      */
     public void reconcile(
             @NonNull final Instant now,
+            @NonNull final Roster activeRoster,
             @NonNull final WritableEndpointManifestStore manifestStore,
             @NonNull final WritableEndpointManifestConstructionStore constructionStore,
             @NonNull final ClprConfig config) {
         requireNonNull(now);
+        requireNonNull(activeRoster);
         requireNonNull(manifestStore);
         requireNonNull(constructionStore);
         requireNonNull(config);
@@ -160,6 +164,16 @@ public class ClprEndpointManifestReconciler {
             // or the finalized manifest + cleared construction on close).
             final var manifest = manifestStore.get();
             maybeClose(construction, now, config, manifest, manifestStore, constructionStore);
+        } else if (!config.publishDnsEndpoints()) {
+            final var manifest = manifestStore.get();
+            if (manifest.equals(manifestWithoutDns)) {
+                return;
+            }
+            if (manifest.endpoints().stream().anyMatch(ClprEndpointBuilder::hasNonNumericHost)) {
+                openConstruction(now, activeRoster, constructionStore, config, manifest.version() + 1);
+            } else {
+                manifestWithoutDns = manifest;
+            }
         }
     }
 
@@ -167,14 +181,12 @@ public class ClprEndpointManifestReconciler {
      * Publish this node's own current endpoint if the manifest does not already contain it, and
      * report whether it is now "settled" (present in the manifest). {@code HandleWorkflow} re-invokes
      * this until it returns {@link SelfPublishOutcome#SETTLED}; the wrapper then keeps self-publication quiet while
-     * that manifest remains current. Because the mTLS port and CA certificate are loaded at startup and the
-     * address-book endpoint is adopted on restart, a node's endpoint can only differ across a (re)start — so this is
-     * the one moment it must re-publish.
+     * that manifest and the network's publication policy remain current. A restart can load a new HAPI TLS port,
+     * certificate, or address-book entry. A change to the publication policy can select a different entry at runtime.
      *
-     * <p>This node's full endpoint is derived from its <em>local</em> config: IP from the address
-     * book, port {@code = mtlsPort} when mTLS is on else the HAPI port, cert {@code = } the CA cert
-     * (empty in the plaintext fallback). Membership is <b>full-value</b> — a cert- or port-only change
-     * keeps the same IP-else-cert identity, so identity membership would miss it. No account_id.
+     * <p>The address book supplies the host under the network publication policy. A node with a HAPI TLS
+     * certificate publishes its local TLS port and certificate. A plaintext node uses the address-book port.
+     * Full-value membership detects changes to the port or certificate even when the host stays the same.
      *
      * <p>The publish is a gossip <b>side-effect</b>, so this may legitimately behave differently per
      * node; the resulting construction is opened deterministically by
@@ -238,9 +250,10 @@ public class ClprEndpointManifestReconciler {
             @NonNull final ReadableNodeStore nodeStore,
             @NonNull final ClprConfig config,
             @NonNull final Instant now) {
-        if (manifest.equals(startupSettledManifest)) {
+        if (manifest.equals(startupSettledManifest) && config.publishDnsEndpoints() == startupSettledPublishDns) {
             return;
         }
+        startupSettledPublishDns = config.publishDnsEndpoints();
         startupSettledManifest =
                 openConstructionIfSelfChanged(selfNodeId, manifest, construction, nodeStore, config, now)
                                 == SelfPublishOutcome.SETTLED
@@ -252,7 +265,7 @@ public class ClprEndpointManifestReconciler {
      * Publish this node's current endpoint into an <em>open</em> construction that targets it but does
      * not yet contain its publication. This makes a construction a full all-hands snapshot: when one
      * node's change opens a construction, every other target node contributes its own current endpoint
-     * — the node-local {@code mtlsPort} + CA cert that only it can supply — rather than being
+     * — the node-local HAPI TLS port + certificate that only it can supply — rather than being
      * reconstructed at close by IP-keyed carry-over, which cannot distinguish nodes that share an IP.
      * The non-restarted nodes only gossip a publication here; they do <b>not</b> restart, so their
      * in-memory peer state (e.g. observed-manifest-version) is preserved.
@@ -310,12 +323,10 @@ public class ClprEndpointManifestReconciler {
     /**
      * Roster-adoption hook — called from {@code HandleWorkflow}'s post-upgrade block (a deterministic
      * round). Opens a construction when the active roster's composition no longer matches the manifest,
-     * i.e. a node was added or removed (compared by IP identity). This is the one trigger
-     * self-publication cannot provide: a removed node can't self-report, so its stale ("orphan") entry
-     * must be pruned here. The opened construction targets the current roster; the close then rebuilds
-     * against it — orphans (absent from the target set) drop, added/changed nodes are gathered from
-     * their own post-restart publications, and unchanged nodes carry over by IP. A code-only upgrade
-     * with an unchanged roster opens nothing.
+     * for example when a node is added or removed. Removed nodes cannot self-report, so the
+     * roster check prunes their stale entries. The opened construction targets the current roster; the close then rebuilds
+     * against it — orphans (absent from the target set) drop, and every target node contributes its own
+     * publication; nothing carries over. A code-only upgrade with an unchanged roster opens nothing.
      *
      * <p>If a construction is already in flight when the composition changed, it is <b>replaced</b> — a stale
      * construction may still target a now-removed node and hold that node's old publication, so we clear the
@@ -323,7 +334,8 @@ public class ClprEndpointManifestReconciler {
      * an unchanged roster leaves any in-flight construction untouched.
      *
      * <p>Deterministic: runs on the same round on every node over consensus state (roster + manifest +
-     * address book); no node-local input.
+     * address book) and the network-wide {@code clpr.publishDnsEndpoints}, which must therefore come from the
+     * network properties file rather than a node's local properties; no node-local input.
      */
     public void openConstructionOnRosterChange(
             @NonNull final Instant now,
@@ -339,7 +351,7 @@ public class ClprEndpointManifestReconciler {
         requireNonNull(nodeStore);
         requireNonNull(config);
         final var manifest = manifestStore.get();
-        if (!compositionDiffers(manifest, activeRoster, nodeStore)) {
+        if (!compositionDiffers(manifest, activeRoster, nodeStore, config.publishDnsEndpoints())) {
             // Roster composition unchanged — nothing to prune or add. Any in-flight construction already targets
             // the current roster, so leave it alone.
             return;
@@ -350,6 +362,15 @@ public class ClprEndpointManifestReconciler {
         // grace period so the current roster nodes publish again.
         final var existing = constructionStore.get();
         final long newConstructionId = (existing != null ? existing.constructionId() : manifest.version()) + 1;
+        openConstruction(now, activeRoster, constructionStore, config, newConstructionId);
+    }
+
+    private static void openConstruction(
+            final Instant now,
+            final Roster activeRoster,
+            final WritableEndpointManifestConstructionStore constructionStore,
+            final ClprConfig config,
+            final long newConstructionId) {
         final var targetNodeIds = activeRoster.rosterEntries().stream()
                 .map(re -> re.nodeId())
                 .sorted()
@@ -363,67 +384,47 @@ public class ClprEndpointManifestReconciler {
                 .build();
         constructionStore.put(opened);
         log.info(
-                "[Clpr] {} construction #{} on roster-composition change (targetNodes={}, manifestEntries={})",
-                existing != null ? "replaced in-flight" : "opened",
-                opened.constructionId(),
-                targetNodeIds.size(),
-                manifest.endpoints().size());
+                "[Clpr] opened endpoint manifest construction #{} for {} roster nodes",
+                newConstructionId,
+                targetNodeIds.size());
     }
 
     /**
-     * True when the active roster's IP <em>multiset</em> differs from the manifest's — a node was added or
-     * removed. Uses per-IP counts rather than a set so adding or removing one of several nodes that share an IP
+     * True when the active roster's advertised host <em>multiset</em> differs from the manifest's — a node was added or
+     * removed. Uses per-host counts rather than a set so adding or removing one of several nodes that share an IP
      * (e.g. subprocess nodes on {@code 127.0.0.1}) is still detected; a set would collapse them and let a stale
      * endpoint survive. Content-only changes (cert/port, same IP) do not diff here; those are covered by
-     * self-publication. IP is the only endpoint field derivable from the shared address book for every node, so it
+     * self-publication. The host is the only endpoint field derivable from the shared address book for every node, so it
      * is the composition key (account-id-free).
      */
     private static boolean compositionDiffers(
             @NonNull final ClprEndpointManifest manifest,
             @NonNull final Roster activeRoster,
-            @NonNull final ReadableNodeStore nodeStore) {
-        final Map<String, Integer> manifestIpCounts = new HashMap<>();
+            @NonNull final ReadableNodeStore nodeStore,
+            final boolean publishDnsEndpoints) {
+        final Map<String, Integer> manifestHostCounts = new HashMap<>();
         for (final var endpoint : manifest.endpoints()) {
             final var svc = endpoint.serviceEndpoint();
             if (svc != null && svc.ipAddress() != null && !svc.ipAddress().isEmpty()) {
-                manifestIpCounts.merge(svc.ipAddress(), 1, Integer::sum);
+                manifestHostCounts.merge(svc.ipAddress(), 1, Integer::sum);
             }
         }
-        final Map<String, Integer> rosterIpCounts = new HashMap<>();
+        final Map<String, Integer> rosterHostCounts = new HashMap<>();
         for (final var entry : activeRoster.rosterEntries()) {
-            final String ip = ClprEndpointBuilder.ipAddressOf(entry.nodeId(), nodeStore);
-            if (ip != null) {
-                rosterIpCounts.merge(ip, 1, Integer::sum);
+            final String host = ClprEndpointBuilder.hostOf(entry.nodeId(), nodeStore, publishDnsEndpoints);
+            if (host != null) {
+                rosterHostCounts.merge(host, 1, Integer::sum);
             }
         }
-        return !manifestIpCounts.equals(rosterIpCounts);
+        return !manifestHostCounts.equals(rosterHostCounts);
     }
 
     @Nullable
     private ClprEndpoint selfEndpoint(
             final long selfNodeId, @NonNull final ReadableNodeStore nodeStore, @NonNull final ClprConfig config) {
-        final var credentials = caCertManager.get();
+        final var tlsEndpoint = hapiTlsEndpoint.get();
         return ClprEndpointBuilder.buildFor(
-                selfNodeId, nodeStore, credentials.isMtlsEnabled(), config.mtlsPort(), selfCaCertDer(credentials));
-    }
-
-    /**
-     * DER-encoding of this node's ECDSA CA certificate for publication, or {@link Bytes#EMPTY}
-     * when mTLS is not configured (the plaintext fallback). Throws {@link IllegalStateException}
-     * when mTLS is enabled but the configured certificate cannot be DER-encoded.
-     */
-    private static Bytes selfCaCertDer(@NonNull final ClprCaCertManager caCertManager) {
-        if (!caCertManager.isMtlsEnabled()) {
-            return Bytes.EMPTY;
-        }
-        try {
-            return Bytes.wrap(caCertManager.caCert().getEncoded());
-        } catch (final CertificateEncodingException e) {
-            // mTLS is enabled but the configured CA certificate cannot be DER-encoded — a fatal
-            // misconfiguration. Fail fast rather than silently publishing an empty tls_certificate.
-            throw new IllegalStateException(
-                    "CLPR mTLS is enabled but the configured CA certificate cannot be DER-encoded", e);
-        }
+                selfNodeId, nodeStore, tlsEndpoint.port(), tlsEndpoint.certificateDer(), config.publishDnsEndpoints());
     }
 
     /**
@@ -465,7 +466,7 @@ public class ClprEndpointManifestReconciler {
             constructionStore.put(extended);
             return false;
         }
-        closeAndFinalize(construction, currentManifest, manifestStore, constructionStore);
+        closeAndFinalize(construction, currentManifest, manifestStore, constructionStore, config.publishDnsEndpoints());
         return true;
     }
 
@@ -473,8 +474,9 @@ public class ClprEndpointManifestReconciler {
             @NonNull final ClprEndpointManifestConstruction construction,
             @NonNull final ClprEndpointManifest currentManifest,
             @NonNull final WritableEndpointManifestStore manifestStore,
-            @NonNull final WritableEndpointManifestConstructionStore constructionStore) {
-        final var candidate = buildCandidateEndpoints(construction);
+            @NonNull final WritableEndpointManifestConstructionStore constructionStore,
+            final boolean publishDnsEndpoints) {
+        final var candidate = buildCandidateEndpoints(construction, publishDnsEndpoints);
         final boolean unchanged = candidate.equals(currentManifest.endpoints());
         final long newVersion = unchanged ? currentManifest.version() : currentManifest.version() + 1;
         final var newManifest = currentManifest
@@ -500,19 +502,20 @@ public class ClprEndpointManifestReconciler {
      * time it participates (its endpoint won't be in the manifest, so its startup self-publish
      * re-announces it). This keeps the manifest a faithful snapshot of the nodes that actually
      * announced their current endpoint, and it avoids trying to reconstruct a silent node's
-     * node-local fields (mtlsPort, CA cert) — which is impossible from shared state and ambiguous when
+     * node-local fields (HAPI TLS port and certificate) — which is impossible from shared state and ambiguous when
      * nodes share an IP. Every reachable target node contributes via {@link
      * #contributeSelfToConstruction}, so a construction is a full all-hands snapshot; only a genuinely
      * down node drops out. No-change acks (publications without an endpoint) are ignored. The result
-     * is sorted by IP-else-cert identity for ledger-neutral determinism.
+     * is sorted by host-else-cert identity for ledger-neutral determinism.
      */
     private static List<ClprEndpoint> buildCandidateEndpoints(
-            @NonNull final ClprEndpointManifestConstruction construction) {
+            @NonNull final ClprEndpointManifestConstruction construction, final boolean publishDnsEndpoints) {
         final var candidate =
                 new ArrayList<ClprEndpoint>(construction.gatheredPublications().size());
         for (final var gathered : construction.gatheredPublications()) {
             final var publication = gathered.publicationOrThrow();
-            if (publication.hasEndpoint()) {
+            if (publication.hasEndpoint()
+                    && (publishDnsEndpoints || !ClprEndpointBuilder.hasNonNumericHost(publication.endpointOrThrow()))) {
                 candidate.add(publication.endpointOrThrow());
             }
         }

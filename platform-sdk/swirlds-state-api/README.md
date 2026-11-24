@@ -383,8 +383,8 @@ classDiagram
 
 This section describes how the state is initialized with services metadata in the `swirlds-state-api` module.
 Initialization involves registering services and their schemas, which define the required states
-(singleton, queue, or key-value) and handle version migrations. The process ensures states are created, migrated,
-or removed as software versions evolve, maintaining compatibility and data integrity. This is orchestrated through
+(singleton, queue, or key-value). The process ensures states are created, updated, or removed as the
+registered schemas evolve, maintaining compatibility and data integrity. This is orchestrated through
 the `com.swirlds.state.lifecycle` package, with practical application in classes like `Hedera` and
 service implementations in `com.hedera.node.app.service` (e.g., `TokenServiceImpl`, `ContractServiceImpl`).
 
@@ -417,7 +417,6 @@ classDiagram
         +V version()
         +Set~StateDefinition~ statesToCreate()
         +Set~StateDefinition~ statesToCreate(Configuration configuration)
-        +void migrate(MigrationContext ctx)
         +Set~Integer~ statesToRemove()
         +void restart(MigrationContext ctx)
         +Comparator~V~ getVersionComparator()
@@ -465,7 +464,7 @@ classDiagram
     Service --> SchemaRegistry : registers schemas via
     SchemaRegistry --> Schema : registers
     Schema --> StateDefinition : defines
-    Schema --> MigrationContext : uses for migrate/restart
+    Schema --> MigrationContext : uses for restart
     Hedera --> Service : registers instances of
     Hedera --> ServicesRegistry : creates and populates
 ```
@@ -480,10 +479,13 @@ The registration process follows these steps:
 4. **Register Schemas**: For each service, call `Service.registerSchemas(SchemaRegistry registry)` to add version-specific and service-specific schemas.
 5. **Define States**: Each Schema specifies states using StateDefinition factory methods (e.g., `singleton`, `queue`, `keyValue`). `StateDefinition` includes state ID,
    state key, key codec (for keyValue states only), and value codec. See [State Metadata in VirtualMapState](#state-metadata-in-virtualmapstate) for more details.
-6. **Handle Migration**: Use `Schema.migrate(MigrationContext ctx)` to transform the data according to the new version definition or init the app context, if necessary.
-   The migration process is also responsible for adding new states and removing obsolete ones.
-7. **Handle Restart**: Use `Schema.restart(MigrationContext ctx)` to update the state if necessary or init the app context, if necessary, when the application restarts with the same version.
-8. **Genesis Setup**: If at genesis, invoke `Service.doGenesisSetup(WritableStates writableStates, Configuration configuration)` to set defaults to singleton states.
+6. **Apply Schemas**: On every startup (genesis, restart, or reconnect), every registered schema of each service is applied in version order,
+   adding its new states and removing obsolete ones. A schema's version only orders it among its service's other schemas; it has no
+   relationship to the software version, and neither the software version nor the version of a saved state affects which schemas apply.
+7. **Handle Restart**: The latest schema of each service has its `Schema.restart(MigrationContext ctx)` called, to update the state or init the
+   app context if necessary. Since this runs on every startup, anything it writes must be a deterministic, idempotent function of the state.
+8. **Genesis Setup**: If at genesis, invoke `Service.doGenesisSetup(WritableStates writableStates, Configuration configuration)` (in the first round)
+   to set the initial values of the service's states, such as defaults for singleton states.
 9. **State Ready**: The state is now initialized and ready for use in the app.
 
 ### State Metadata in VirtualMapState
@@ -533,7 +535,7 @@ sequenceDiagram
     SchR->>VMS: initializeState(stateMetadata)
     VMS->>VMS: store metadata, refresh ReadableStates/WritableStates
   end
-  SchR->>Sch: migrate(migrationContext)
+  SchR->>Sch: restart(migrationContext) (latest schema only)
   Sch->>Sch: read previousStates, write newStates
   SchR->>SchR: commit writable states
   SchR->>Sch: statesToRemove()
@@ -546,35 +548,42 @@ sequenceDiagram
 
 ### Version Migration
 
-Version migration is the process of updating the state when the application software version changes,
-ensuring data consistency and compatibility. It is triggered during application startup if the current version differs
-from the previous state version. The `OrderedServiceMigrator` class coordinates this by sequencing migrations based on
-service order (determined by `migrationOrder()` in `Service`, default 0). Lower-order services migrate first,
-allowing dependencies (e.g., entity IDs before tokens).
+Version migration is the process of bringing the state up to date with the application's registered schemas,
+ensuring data consistency and compatibility. It runs on every application startup, whether or not the current
+software version differs from the previous state version. The `OrderedServiceMigrator` class coordinates this by
+sequencing migrations based on service order (determined by `migrationOrder()` in `Service`, default 0). Lower-order
+services migrate first, allowing dependencies (e.g., entity IDs before tokens).
 
 The migration flow involves:
 
-- **Version Detection**: Compare the previous state version (from loaded state) with the current app version (from configuration).
 - **Registry Iteration**: Loop through sorted `ServicesRegistry` registrations.
-- **Schema Retrieval**: For each service, use its `MerkleSchemaRegistry` to get schemas for previous and current versions.
+- **Schema Retrieval**: For each service, use its `MerkleSchemaRegistry` to get all of its registered schemas, in version order.
+  Neither the software version nor the previous state version affects which schemas are applied.
 - **Context Creation**: Build a `MigrationContextImpl` with round number, previous/new states, configurations, previous version, shared values, and startup networks.
 - **State Operations**:
   - Create new states defined in `Schema.statesToCreate(Configuration)`.
-  - Migrate data using `migrate(MigrationContext ctx)`, which accesses previous readable states and writes to new writable states.
-- **Commit Changes**: After migrations, commit writable states and track changes (e.g., via `MigrationStateChanges` for output).
+  - For the latest schema only, call `restart(MigrationContext ctx)`, which can access previous readable states and write to new writable states.
+- **Commit Changes**: After each schema, commit writable states and track changes (e.g., via `MigrationStateChanges` for output).
 - **State Metadata Cleanup**: Remove obsolete states defined in `Schema.statesToRemove()`. Note that it **doesn't remove the data** from the state, only the metadata.
-  If the data removal is needed, it should be done during the migration.
+  Since every schema is applied on every startup, a removed state is registered again (by the schema that created it) and then
+  unregistered on each startup. Until it is unregistered, the removing schema's `restart()`, if it is the latest schema, can read it
+  (with any data it still holds) through `previousStates()`, but cannot write it, as `newStates()` excludes the states being removed.
+  Any transfer out of a removed state must be idempotent and check its destination; old data remains readable on every startup.
+  Once a newer schema is registered, the removing schema no longer runs `restart()`, and the old state is unregistered before
+  the newer schema's hook runs. If a supported upgrade can skip the release that transfers the data, defer the removal to
+  the latest schema so its hook can still read that state.
+  If the data must be deleted, the latest schema's `restart()` should clear it, idempotently, in a release *before* the state is removed.
 
 The `MigrationContext` is providing:
 
 - `previousStates()` / `newStates()` for data transfer.
 - `appConfig()` / `platformConfig()` for version-specific logic.
 - `sharedValues()` as a scratchpad for inter-service communication.
-- `isUpgrade(currentVersion)` to detect upgrades.
+- `previousVersion()` / `isUpgrade(currentVersion)` to detect software upgrades, independently of schema ordering.
 - `getVersionComparator()` for semantic version ordering.
 
-In service implementations (e.g., `TokenServiceImpl`), schemas define version-specific migrations, such as updating token
-structures or initializing defaults. The `Hedera` class initiates this in `doMigrations`, passing the migrator, state, versions, and configs.
+In service implementations (e.g., `TokenServiceImpl`), schemas define the service's states, while `doGenesisSetup()`
+initializes their genesis values and the latest schema's `restart()` performs any startup-time state updates. The `Hedera` class initiates this in `doMigrations`, passing the migrator, state, versions, and configs.
 
 ## BinaryState
 

@@ -19,8 +19,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import org.bouncycastle.crypto.params.Ed25519PublicKeyParameters;
-import org.bouncycastle.crypto.signers.Ed25519Signer;
 
 /**
  * CometBFT hash, encoding, and signature computations the Sei verifier authenticates headers
@@ -47,9 +45,6 @@ public final class SeiHashing {
 
     /** Length in bytes of an Ed25519 public key. */
     public static final int ED25519_PUB_KEY_LENGTH = 32;
-
-    /** Length in bytes of an Ed25519 signature. */
-    private static final int SIGNATURE_LENGTH = 64;
 
     private SeiHashing() {}
 
@@ -134,28 +129,6 @@ public final class SeiHashing {
     public static byte[] validatorAddress(@NonNull final byte[] ed25519PubKey) {
         Objects.requireNonNull(ed25519PubKey, "ed25519PubKey");
         return Arrays.copyOf(SeiMerkle.sha256(ed25519PubKey), ADDRESS_LENGTH);
-    }
-
-    /**
-     * Verifies an Ed25519 signature; returns {@code false} for malformed keys or signatures so
-     * callers can treat invalid input as an unsigned vote.
-     */
-    public static boolean verifyEd25519(
-            @NonNull final byte[] publicKey32, @NonNull final byte[] message, @NonNull final byte[] signature64) {
-        Objects.requireNonNull(publicKey32, "publicKey32");
-        Objects.requireNonNull(message, "message");
-        Objects.requireNonNull(signature64, "signature64");
-        if (publicKey32.length != ED25519_PUB_KEY_LENGTH || signature64.length != SIGNATURE_LENGTH) {
-            return false;
-        }
-        try {
-            final var signer = new Ed25519Signer();
-            signer.init(false, new Ed25519PublicKeyParameters(publicKey32, 0));
-            signer.update(message, 0, message.length);
-            return signer.verifySignature(signature64);
-        } catch (final RuntimeException e) {
-            return false;
-        }
     }
 
     @NonNull

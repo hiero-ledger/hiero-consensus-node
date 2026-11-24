@@ -8,8 +8,6 @@ import com.hedera.hapi.node.transaction.TransactionResponse;
 import com.hedera.node.app.grpc.impl.netty.NettyGrpcServerManager;
 import com.hedera.node.app.services.ServicesRegistryImpl;
 import com.hedera.node.app.spi.RpcService;
-import com.hedera.node.app.workflows.clpr.ClprCaCertManager;
-import com.hedera.node.app.workflows.clpr.ClprLeafCertManager;
 import com.hedera.node.app.workflows.clpr.ClprStreamingSyncSession;
 import com.hedera.node.app.workflows.clpr.ClprSyncWorkflow;
 import com.hedera.node.app.workflows.ingest.IngestWorkflow;
@@ -56,11 +54,11 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import org.assertj.core.api.Assumptions;
 import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
 import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
 import org.hiero.consensus.metrics.platform.PlatformMetricsFactoryImpl;
-import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.AfterEach;
 
 /**
@@ -213,8 +211,6 @@ public abstract class GrpcTestBase extends TestBase {
                         throw new UnsupportedOperationException();
                     }
                 },
-                () -> new ClprLeafCertManager(new ClprCaCertManager(configProvider)),
-                () -> null,
                 metrics);
 
         grpcServer.start();

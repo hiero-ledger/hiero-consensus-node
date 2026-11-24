@@ -1,18 +1,22 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.handlers;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.AUTHORIZATION_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_DECODE_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INTERNAL_STATE_CORRUPTION;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NO_PROGRESS;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_PAYLOAD_TOO_LARGE;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_RUNNING_HASH_MISMATCH;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_SERVICE_ACCOUNT_ID;
+import static com.hedera.node.app.service.clpr.impl.ClprBundleValidator.hasNewerManifestProof;
+import static com.hedera.node.app.spi.authorization.SystemPrivilege.AUTHORIZED;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.stepDispatch;
+import static com.hedera.node.app.spi.workflows.HandleContext.ConsensusThrottling.ON;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_DISPATCH;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CONTRACT_GAS_USAGE;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.EXPLICIT_WRITE_TRACING;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
@@ -20,14 +24,15 @@ import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.TupleType;
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
+import com.hedera.hapi.node.state.clpr.ClprChannel;
 import com.hedera.hapi.node.state.clpr.ClprChannelStatus;
 import com.hedera.hapi.node.state.clpr.ClprConfigUpdate;
 import com.hedera.hapi.node.state.clpr.ClprConnectorKey;
 import com.hedera.hapi.node.state.clpr.ClprControlMessage;
 import com.hedera.hapi.node.state.clpr.ClprEndpoint;
+import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.clpr.ClprMessagePayload;
 import com.hedera.hapi.node.state.clpr.ClprMessageReply;
@@ -36,9 +41,15 @@ import com.hedera.hapi.node.state.clpr.ClprMessageValue;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.clpr.ClprChannelLifecycle;
 import com.hedera.node.app.service.clpr.ReadableLedgerConfigurationStore;
+import com.hedera.node.app.service.clpr.impl.ClprBundleValidator;
+import com.hedera.node.app.service.clpr.impl.ClprBundleValidator.ReplyValidation;
+import com.hedera.node.app.service.clpr.impl.ClprBundleValidator.ValidatedBundle;
+import com.hedera.node.app.service.clpr.impl.ClprGasAccounting;
 import com.hedera.node.app.service.clpr.impl.ClprHashUtils;
+import com.hedera.node.app.service.clpr.impl.ClprPeerManifestPolicy;
 import com.hedera.node.app.service.clpr.impl.ClprServiceApiImpl;
 import com.hedera.node.app.service.clpr.impl.ClprSlashingUtils;
+import com.hedera.node.app.service.clpr.impl.ClprThrottlesUtils;
 import com.hedera.node.app.service.clpr.impl.WritableChannelStore;
 import com.hedera.node.app.service.clpr.impl.WritableConnectorStore;
 import com.hedera.node.app.service.clpr.impl.WritableMessageQueueStore;
@@ -49,25 +60,30 @@ import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.ClprDispatchMetadata;
+import com.hedera.node.app.spi.workflows.ContractGasUsage;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
-import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.ClprConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.base.time.Time;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.ByteBuffer;
-import java.util.Iterator;
+import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Marker;
+import org.apache.logging.log4j.MarkerManager;
+import org.hiero.base.concurrent.throttle.RateLimitedLogger;
 
 /**
  * Handles {@link com.hedera.hapi.node.base.HederaFunctionality#CLPR_SUBMIT_BUNDLE} transactions.
@@ -82,6 +98,10 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
 
     private static final Logger log = LogManager.getLogger(ClprSubmitBundleHandler.class);
 
+    private static final Marker CLPR_MARKER = MarkerManager.getMarker("CLPR");
+
+    private static final Duration MESSAGE_WARN_LOG_PERIOD = Duration.ofMinutes(1);
+
     private static final Bytes ZERO_HASH = Bytes.wrap(new byte[32]);
 
     /**
@@ -92,21 +112,37 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
     /** Function selector for onClprResponse(bytes32,uint64,uint8,bytes) = 0x3b74550e */
     private static final byte[] ON_CLPR_RESPONSE_SELECTOR = new byte[] {0x3b, 0x74, 0x55, 0x0e};
 
-    private static final DispatchMetadata CLPR_DISPATCH_METADATA = new DispatchMetadata(
-            CLPR_DISPATCH, new ClprDispatchMetadata(CLPR_SERVICE_ACCOUNT_ID, CLPR_EVM_ADDRESS_BYTES));
+    private static DispatchMetadata callbackMetadata(final ContractGasUsage usage) {
+        final var metadata = new DispatchMetadata(CLPR_DISPATCH_METADATA);
+        metadata.putMetadata(CONTRACT_GAS_USAGE, usage);
+        return metadata;
+    }
+
+    // A CLPR transaction may dispatch several EVM calls in one transactional unit, so their written storage
+    // slots must be traced explicitly for the block stream to say which call wrote which value
+    private static final DispatchMetadata CLPR_DISPATCH_METADATA = new DispatchMetadata(Map.of(
+            CLPR_DISPATCH,
+            new ClprDispatchMetadata(CLPR_SERVICE_ACCOUNT_ID, CLPR_EVM_ADDRESS_BYTES),
+            EXPLICIT_WRITE_TRACING,
+            true));
 
     private final ClprVerifierFactory verifierFactory;
     private final EntityIdFactory entityIdFactory;
     private final ClprChannelLifecycle channelLifecycle;
+    private final ClprBundleValidator bundleValidator;
+    private final RateLimitedLogger oversizedReplyLog =
+            new RateLimitedLogger(log, Time.getCurrent(), MESSAGE_WARN_LOG_PERIOD);
 
     @Inject
     public ClprSubmitBundleHandler(
             @NonNull final ClprVerifierFactory verifierFactory,
             @NonNull final EntityIdFactory entityIdFactory,
-            @NonNull final ClprChannelLifecycle channelLifecycle) {
+            @NonNull final ClprChannelLifecycle channelLifecycle,
+            @NonNull final ClprBundleValidator bundleValidator) {
         this.verifierFactory = requireNonNull(verifierFactory);
         this.entityIdFactory = requireNonNull(entityIdFactory);
         this.channelLifecycle = requireNonNull(channelLifecycle);
+        this.bundleValidator = requireNonNull(bundleValidator);
     }
 
     @Override
@@ -122,16 +158,36 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
 
     @Override
     protected void doHandle(@NonNull final HandleContext context) throws HandleException {
-        // Step 1b refreshes the node-local peer endpoint cache, and with it the inbound mTLS trust set. That cache is
-        // in-memory, so the full-stack rollback of a later penalizing HandleException would not undo it; the refresh
-        // is therefore applied only once the bundle has been handled without an exception.
+        final boolean recoveringManifest =
+                context.body().clprSubmitBundleOrThrow().hasExpectedCachedManifestVersion();
+        if (recoveringManifest) {
+            // Node transactions on the allowlist can bypass the ordinary API permission check.
+            validateTrue(context.hasPrivilegedAuthorization() == AUTHORIZED, AUTHORIZATION_FAILED);
+        }
+        // Step 1b refreshes the node-local peer endpoint cache. That cache is in-memory, so the full-stack rollback
+        // of a later penalizing HandleException would not undo it; the refresh is therefore applied only once the
+        // bundle has been handled without an exception.
         final var deferredPeerEndpoints = new DeferredPeerEndpoints();
-        handleBundle(context, deferredPeerEndpoints);
-        deferredPeerEndpoints.seedInto(channelLifecycle);
+        final var gasAccounting = ClprGasAccounting.forContext(context);
+        try {
+            if (!recoveringManifest) {
+                gasAccounting.reserveRollbackFee(
+                        context.configuration().getConfigData(ClprConfig.class).endpointMisbehaviorPenaltyTinybars());
+            }
+            handleBundle(context, deferredPeerEndpoints, gasAccounting);
+            gasAccounting.refundUnusedGas();
+            deferredPeerEndpoints.seedInto(channelLifecycle);
+        } catch (final HandleException failure) {
+            throw gasAccounting.preservingChargesOnRollback(failure);
+        } catch (final RuntimeException failure) {
+            throw ClprGasAccounting.preservingChargesOnRollback(context, failure);
+        }
     }
 
     private void handleBundle(
-            @NonNull final HandleContext context, @NonNull final DeferredPeerEndpoints deferredPeerEndpoints)
+            @NonNull final HandleContext context,
+            @NonNull final DeferredPeerEndpoints deferredPeerEndpoints,
+            @NonNull final ClprGasAccounting gasAccounting)
             throws HandleException {
         final var op = context.body().clprSubmitBundleOrThrow();
         final var nodeAccountId = context.body().transactionIDOrThrow().accountIDOrThrow();
@@ -143,9 +199,6 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                 context.payer());
         final var configuration = context.configuration();
         final var clprConfig = configuration.getConfigData(ClprConfig.class);
-        // Use EntityIdFactory so shard/realm match this network
-        final var systemAdminAccountId = entityIdFactory.newAccountId(
-                configuration.getConfigData(AccountsConfig.class).systemAdmin());
         final var penaltyAmount = clprConfig.endpointMisbehaviorPenaltyTinybars();
         final var storeFactory = context.storeFactory();
 
@@ -157,6 +210,10 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         // Reject any handling if this channel is CLOSED or PENDING. In any other state, this channel will attempt
         // to handle and respond to transactions to help the remote peer also achieve a CLOSED state.
         var channel = requireNonClosedChannel(channelStore, op.channelId());
+        final var expectedManifestVersion = op.expectedCachedManifestVersion();
+        if (expectedManifestVersion != null) {
+            validateTrue(channel.endpointManifestVersion() == expectedManifestVersion, CLPR_BUNDLE_VERIFICATION_FAILED);
+        }
         final var channelId = channel.channelId();
         log.debug(
                 "[ClprSubmitBundle] loaded channel conn={} status={} nextMsgId={} ackedMsgId={} receivedMsgId={} "
@@ -185,66 +242,24 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                 clprConfig.messageExecutionCost(),
                 clprConfig.endpointMarginPercent());
 
-        // Reject an oversized wire payload before invoking a potentially expensive cryptographic
-        // verifier. The limit applies to the raw bundle payload received on the wire.
-        validateTrueOrPenalize(
-                op.bundlePayload().length() <= throttles.maxSyncBytes(),
-                CLPR_PAYLOAD_TOO_LARGE,
+        // Complete node validation before any state mutation or application dispatch. The
+        // validator is independent of handling so endpoints can reuse it with locally verified content.
+        final var validated = verifyAndValidateBundle(
+                context,
+                channel,
+                ledgerConfig,
                 nodeAccountId,
-                penaltyAmount);
-
-        // --- Step 4: Verifier call ---
-        // Delegates to the Channel's verifier contract, passing the Channel's current
-        // trust_anchor. The verifier returns verified queue metadata, ordered message payloads,
-        // and an optional successor trust anchor (non-empty only when rotation evidence was
-        // state-proven inside the bundle).
-        log.debug(
-                "[ClprSubmitBundle] invoking verifier contract={} trustAnchorBytes={}",
-                channel.verifierContractOrThrow(),
-                channel.trustAnchor().length());
-        final var verifier = verifierFactory.getVerifier(channel.verifierContractOrThrow());
-        final var bundleContent =
-                verifier.verifyBundle(op.bundlePayload(), channel.trustAnchor(), channel.channelContext(), context);
-
+                expectedManifestVersion == null ? penaltyAmount : 0L,
+                expectedManifestVersion != null);
+        final var bundleContent = validated.content();
         final var metadata = bundleContent.metadata();
-        final var messages = bundleContent.messages();
         final var newTrustAnchor = bundleContent.newTrustAnchor();
         final var newTrustAnchorId = bundleContent.newTrustAnchorId();
-        // Captured BEFORE Step 1b installs the successor anchor so the Step 1a
-        // check below can compare the verifier-returned id against
-        // the pre-bundle Channel.trust_anchor_id (spec §2.1.2).
-        final var priorTrustAnchorId = channel.trustAnchorId();
-        log.debug(
-                "[ClprSubmitBundle] post-verifier: messages={} newTrustAnchorLen={} newTrustAnchorIdLen={}"
-                        + " metadata.nextMsgId={} metadata.recvMsgId={} metadata.status={}"
-                        + " conn.recvMsgId={} conn.ackedMsgId={} conn.nextMsgId={} conn.sentRH(prefix)={}"
-                        + " bundleSentRH(prefix)={}",
-                messages.size(),
-                newTrustAnchor.length(),
-                newTrustAnchorId.length(),
-                metadata == null ? null : metadata.nextMessageId(),
-                metadata == null ? null : metadata.receivedMessageId(),
-                metadata == null ? null : metadata.status(),
-                channel.receivedMessageId(),
-                channel.ackedMessageId(),
-                channel.nextMessageId(),
-                shortHex(channel.sentRunningHash()),
-                metadata == null ? "<absent>" : shortHex(metadata.sentRunningHash()));
-
-        // Spec invariant: new_trust_anchor_id MUST be non-empty iff new_trust_anchor is non-empty.
-        validateTrueOrPenalize(
-                newTrustAnchor.length() == 0 ? newTrustAnchorId.length() == 0 : newTrustAnchorId.length() > 0,
-                CLPR_BUNDLE_VERIFICATION_FAILED,
-                nodeAccountId,
-                penaltyAmount);
-        log.debug("[ClprSubmitBundle] check passed: trust-anchor invariant");
 
         // Spec §4.2 Step 1b: apply new_endpoint_manifest, and Step 1c: install successor
         // trust anchor. Applied together in a single copyBuilder / put so a manifest update
         // and a trust-anchor rotation carried by the same bundle are atomic (they're already
-        // covered by the same verifyBundle call). Written immediately after the verifier
-        // returns — before any early-return path (EmptyBundle, maxSyncBytes, etc.). A later
-        // penalizing rejection throws, which rolls this write back with the rest of the transaction.
+        // covered by the same verifyBundle call). All node checks have passed before this write.
         //
         // Step 1b guard rules (per ADR "Propagating Updates Through Bundle Payloads"):
         // - Applied only when newEndpointManifest.version() strictly advances the current
@@ -253,8 +268,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         //   DRAINED channels (harmless, keeps the cache current for admin purposes).
         // - Entire manifest replacement; no partial merge.
         final var newEndpointManifest = bundleContent.newEndpointManifest();
-        final boolean shouldUpdateManifest =
-                newEndpointManifest != null && newEndpointManifest.version() > channel.endpointManifestVersion();
+        final boolean shouldUpdateManifest = validated.shouldUpdateManifest();
         final boolean shouldUpdateTrustAnchor = newTrustAnchor.length() > 0;
         if (shouldUpdateManifest || shouldUpdateTrustAnchor) {
             var updatedBuilder = channel.copyBuilder();
@@ -271,24 +285,26 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                     return svc == null ? "?" : svc.ipAddress() + ":" + svc.port();
                                 })
                                 .collect(Collectors.joining(", ", "[", "]")));
-                // Apply this ledger's max_peer_endpoints policy before storing, mirroring
-                // ClprCompleteChannel — the peer's declared list must not override our storage
-                // bound (spec §3.10.5). Zero means no limit; entries beyond it are dropped in order.
-                final int rawPeerLimit = throttles.maxPeerEndpoints();
-                final var incomingEndpoints = newEndpointManifest.endpoints();
-                final var truncatedEndpoints = rawPeerLimit > 0 && incomingEndpoints.size() > rawPeerLimit
-                        ? incomingEndpoints.subList(0, rawPeerLimit)
-                        : incomingEndpoints;
-                final var storedManifest = newEndpointManifest
-                        .copyBuilder()
-                        .endpoints(truncatedEndpoints)
-                        .build();
+                // Bound the same serialized manifest state as channel completion, including certificate bytes.
+                final ClprEndpointManifest storedManifest;
+                try {
+                    storedManifest =
+                            ClprPeerManifestPolicy.boundedManifest(newEndpointManifest, throttles.maxPeerEndpoints());
+                } catch (final IllegalArgumentException e) {
+                    throw new HandleException(CLPR_BUNDLE_VERIFICATION_FAILED);
+                }
+                final var truncatedEndpoints = storedManifest.endpoints();
                 updatedBuilder = updatedBuilder
                         .endpointManifest(storedManifest)
                         .endpointManifestVersion(storedManifest.version());
-                // Refresh the orchestrator's node-local peer endpoint cache, so the inbound mTLS trust set
-                // (ClprChannelManager.knownPeerCaCertificatesByIssuer) picks up any new CA certificate —
-                // deferred until the bundle is handled without an exception (see doHandle).
+                if (hasNewerManifestProof(channel, bundleContent)) {
+                    updatedBuilder.endpointManifestProofTimestamp(bundleContent.manifestProofTimestamp());
+                }
+                if (expectedManifestVersion != null) {
+                    updatedBuilder.peerManifestRecovered(true);
+                }
+                // Refresh the orchestrator's node-local peer endpoint cache — deferred until the bundle is
+                // handled without an exception (see doHandle).
                 deferredPeerEndpoints.set(channelId, truncatedEndpoints);
             }
             if (shouldUpdateTrustAnchor) {
@@ -309,11 +325,6 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         // Either is meaningful progress, so persist the successor / manifest above and stop before the
         // metadata-dependent queue checks below.
         if (metadata == null) {
-            validateTrueOrPenalize(
-                    messages.isEmpty() && (newTrustAnchor.length() > 0 || shouldUpdateManifest),
-                    CLPR_BUNDLE_VERIFICATION_FAILED,
-                    nodeAccountId,
-                    penaltyAmount);
             log.debug(
                     "[ClprSubmitBundle] state-update-only bundle accepted conn={} trustAnchorLen={} manifestUpdated={}",
                     channelId,
@@ -322,178 +333,11 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
             return;
         }
 
-        // Spec §4.5: sender's cached view of THIS ledger's endpoint manifest version. Handed to
-        // the runtime sync orchestrator, which compares it against our local
-        // ClprEndpointManifest.version() on the next outbound cycle to decide whether to embed a
-        // proof of our own manifest. Recorded via the lifecycle SPI as a node-local, in-memory
-        // signal — NOT consensus state — so it self-heals from the live metadata stream and needs
-        // no proto/state field.
-        //
-        // Recorded BEFORE the Step 4a NoProgress check, and deliberately kept even if a later check
-        // rejects the bundle: on an idle channel the only bundles carrying this value are no-progress
-        // pure acks, so recording it after the check would leave our manifest looking stale forever
-        // and every sync tick would push another (rejected) manifest-only bundle. See
-        // ClprVerifierAbi.metadataTuple for the value's provenance per verifier family.
-        final long peerEndpointManifestVersion = metadata.endpointManifestVersion();
-        log.debug(
-                "[ClprSubmitBundle] peer-reported cache of our manifest version: conn={} peerVersion={}",
-                channelId,
-                peerEndpointManifestVersion);
-        channelLifecycle.recordPeerObservedManifestVersion(channelId, peerEndpointManifestVersion);
-
-        // --- Step 4a: NoProgress check (spec §4.2 Step 1a, §2.1.2) ---
-        // Any ONE of the five Bundle Progress Criteria satisfies the check.
-        final boolean hasNewMessages = !messages.isEmpty();
-        // Criterion 3 (trust-anchor advancement). Non-empty anchor AND id distinct from the
-        // pre-bundle Channel.trust_anchor_id — bytes-non-empty alone would classify a no-op
-        // rotation (same id restated) as progress; id-different alone would classify an
-        // empty-anchor bundle with a stale id mismatch as progress.
-        final boolean hasTrustAnchorAdvancement =
-                newTrustAnchor.length() > 0 && !newTrustAnchorId.equals(priorTrustAnchorId);
-        // Only a claim here: the ack advances only as far as the bundle carries replies, so Step 8 re-checks this
-        // criterion against the ack it actually computes.
-        final boolean claimsAckProgress = metadata.receivedMessageId() > channel.ackedMessageId();
-        final boolean hasStateTransition = isStateTransitionProgress(metadata.status(), channel.status());
-        // Criterion 5 (endpoint-manifest advancement) per spec §4.2 Step 1a and ADR
-        // "Endpoint Manifest Advancement as a Bundle Progress Criterion". Reuses the Step 1b
-        // guard (non-null + strictly advancing version) computed against the
-        // pre-bundle version — a bundle that only advances the manifest is still valid.
-        final boolean hasManifestAdvancement = shouldUpdateManifest;
-        final boolean hasProgressOtherThanAck =
-                hasNewMessages || hasTrustAnchorAdvancement || hasStateTransition || hasManifestAdvancement;
-        validateTrueOrPenalize(
-                hasProgressOtherThanAck || claimsAckProgress, CLPR_NO_PROGRESS, nodeAccountId, penaltyAmount);
-        log.debug("[ClprSubmitBundle] check passed: makes progress");
-
-        validateTrueOrPenalize(
-                messages.size() <= throttles.maxMessagesPerBundle(),
-                CLPR_BUNDLE_VERIFICATION_FAILED,
-                nodeAccountId,
-                penaltyAmount);
-        log.debug(
-                "[ClprSubmitBundle] check passed: maxMessagesPerBundle (size={} max={})",
-                messages.size(),
-                throttles.maxMessagesPerBundle());
-
-        // --- Step 4b: Per-message payload size check (spec §3.5.4) ---
-        final long maxPayloadBytes = throttles.maxMessagePayloadBytes();
-        if (maxPayloadBytes > 0) {
-            for (final var payload : messages) {
-                if (payload.hasMessage()) {
-                    validateTrueOrPenalize(
-                            payload.messageOrThrow().messageData().length() <= maxPayloadBytes,
-                            CLPR_PAYLOAD_TOO_LARGE,
-                            nodeAccountId,
-                            penaltyAmount);
-                }
-            }
-        }
-
-        // --- Step 5: Replay defense (idempotent) ---
-        // The bundle covers peer's outbound message IDs [lastIdBeforeBundle+1 .. metadata.nextMessageId-1].
-        // The sender may start below our channel.receivedMessageId + 1, either because its view of our ack lags
-        // or because it used a received_message_id we reported before another bundle landed, so the bundle's
-        // leading messages may be replays we have already processed. We tolerate that: validate the bundle
-        // structurally, skip the replayed prefix, and process only the new tail. This is what makes
-        // re-delivery idempotent — without it, a strict equality check would deadlock both sides
-        // (each rejects the other's bundle because of the unavoidable replay overlap, neither side's
-        // ack ever propagates, neither side's channel.ackedMessageId ever advances).
-        final var lastIdBeforeBundle = metadata.nextMessageId() - messages.size() - 1;
-        // Sanity:
-        //  - well-formed: bundle_first_id >= 1, i.e. lastIdBeforeBundle >= 0
-        //  - no gap: bundle_first_id <= our.receivedMessageId + 1, i.e. lastIdBeforeBundle <=
-        //    our.receivedMessageId — a bundle starting past it would skip messages we never received
-        validateTrueOrPenalize(
-                lastIdBeforeBundle >= 0 && lastIdBeforeBundle <= channel.receivedMessageId(),
-                CLPR_BUNDLE_VERIFICATION_FAILED,
-                nodeAccountId,
-                penaltyAmount);
-        final int skipCount = (int) (channel.receivedMessageId() - lastIdBeforeBundle);
-        // skipCount <= messages.size() iff our.receivedMessageId <= peer.nextMessageId - 1
-        // (we can't have received more than peer has sent). Reject if violated.
-        validateTrueOrPenalize(
-                skipCount <= messages.size(), CLPR_BUNDLE_VERIFICATION_FAILED, nodeAccountId, penaltyAmount);
-        // Trim the replayed prefix; downstream steps process only the new tail.
-        final var newMessages = skipCount > 0 ? messages.subList(skipCount, messages.size()) : messages;
+        final var newMessages = validated.newMessages();
+        final var computedHash = validated.receivedRunningHash();
         final var expectedFirstId = channel.receivedMessageId() + 1;
-        log.debug(
-                "[ClprSubmitBundle] step5 check: lastIdBeforeBundle={} skipCount={} messages.size={} "
-                        + "newMessages.size={} expectedFirstId={} metadata.nextMsgId={} newKinds={}",
-                lastIdBeforeBundle,
-                skipCount,
-                messages.size(),
-                newMessages.size(),
-                expectedFirstId,
-                metadata.nextMessageId(),
-                newMessages.stream().map(ClprSubmitBundleHandler::payloadKind).toList());
-        log.debug("[ClprSubmitBundle] check passed: step5 replay-defense (idempotent)");
-
-        // --- Step 6: Running hash verification (spec §4.2 step 4, §4.4) ---
-        // Fold each slot's serialized payload into the chain.
-        //
-        // We fold only the NEW tail (newMessages); the replayed prefix has already been folded
-        // into channel.receivedRunningHash from a prior bundle, and the peer's
-        // runningHashAfterProcessing at our.receivedMessageId equals our anchor by construction,
-        // so resuming from there yields metadata.sentRunningHash for the bundle's last slot.
-        var computedHash = channel.receivedRunningHash();
-        log.debug(
-                "[ClprSubmitBundle] step6 running-hash start conn={} baseReceivedMsgId={} baseHash={} "
-                        + "expectedPeerSentHash={} newMessages={}",
-                channelId,
-                channel.receivedMessageId(),
-                shortHex(computedHash),
-                shortHex(metadata.sentRunningHash()),
-                newMessages.size());
-        // Empty hash is only valid on the very first bundle.
-        if (computedHash.length() == 0) {
-            validateTrueOrPenalize(
-                    channel.receivedMessageId() == 0, CLPR_BUNDLE_VERIFICATION_FAILED, nodeAccountId, penaltyAmount);
-            computedHash = ZERO_HASH;
-        }
-        for (final var payload : newMessages) {
-            log.debug(
-                    "[ClprSubmitBundle] step6 folding payload conn={} kind={} beforeHash={}",
-                    channelId,
-                    payloadKind(payload),
-                    shortHex(computedHash));
-            computedHash = ClprHashUtils.computeRunningHash(computedHash, payload);
-            log.debug(
-                    "[ClprSubmitBundle] step6 folded payload conn={} kind={} afterHash={}",
-                    channelId,
-                    payloadKind(payload),
-                    shortHex(computedHash));
-        }
-        validateTrueOrPenalize(
-                computedHash.equals(metadata.sentRunningHash()),
-                CLPR_RUNNING_HASH_MISMATCH,
-                nodeAccountId,
-                penaltyAmount);
-        log.debug(
-                "[ClprSubmitBundle] step6 running-hash PASS conn={} computedHash={}",
-                channelId,
-                shortHex(computedHash));
-
-        // --- Step 7: Verify acknowledgement metadata correctness ---
-        final var peerReceivedMessageId = metadata.receivedMessageId(); // Remote has now seen up to message 110
-        final var oldAckedMessageId = channel.ackedMessageId(); // Previously they have acked up to 105
-        log.debug(
-                "[ClprSubmitBundle] step7 check: peerReceivedMsgId={} oldAckedMsgId={} conn.nextMsgId={}",
-                peerReceivedMessageId,
-                oldAckedMessageId,
-                channel.nextMessageId());
-        validateTrueOrPenalize(
-                peerReceivedMessageId >= oldAckedMessageId,
-                CLPR_BUNDLE_VERIFICATION_FAILED,
-                nodeAccountId,
-                penaltyAmount);
-        // Allow peerReceivedMessageId == oldAckedMessageId (no change) even when nextMessageId=0 (initial state).
-        // The condition peerReceivedMessageId < nextMessageId would otherwise incorrectly reject the "nothing sent,
-        // nothing acked" initial state (0 < 0 = false).
-        validateTrueOrPenalize(
-                peerReceivedMessageId < channel.nextMessageId() || peerReceivedMessageId == oldAckedMessageId,
-                CLPR_BUNDLE_VERIFICATION_FAILED,
-                nodeAccountId,
-                penaltyAmount);
+        final var peerReceivedMessageId = metadata.receivedMessageId();
+        final var oldAckedMessageId = channel.ackedMessageId();
 
         var currentStatus = channel.status(); // Our current channel status
         final var peerStatus = metadata.status(); // Remote peer state (used in step 10 and step 11)
@@ -512,19 +356,33 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                 oldAckedMessageId,
                 peerReceivedMessageId,
                 newMessages.size());
-        final var remainingMessages = newMessages.listIterator();
+        final ReplyValidation replyValidation;
+        try {
+            replyValidation = bundleValidator.validateReplies(channel, validated, messageQueueStore);
+        } catch (final PreCheckException e) {
+            // Ineffective acknowledgement progress and local corruption do not incur a node penalty.
+            if (e.responseCode() == CLPR_INTERNAL_STATE_CORRUPTION) {
+                // Consensus reads consistent state, so unlike before gossip, a missing slot here is real
+                log.error(
+                        "[ClprSubmitBundle] step8 outbound queue is missing a slot the peer has received conn={} "
+                                + "ackedMsgId={} peerReceivedMsgId={}",
+                        channelId,
+                        oldAckedMessageId,
+                        peerReceivedMessageId);
+            }
+            throw new HandleException(e.responseCode());
+        }
         final long newAckedMessageId;
-        switch (scanReplies(
-                messageQueueStore, channelId, oldAckedMessageId, peerReceivedMessageId, remainingMessages)) {
-            case ReplyScan.AckedThrough(final long lastAckedMessageId) -> newAckedMessageId = lastAckedMessageId;
-            case ReplyScan.OrderingViolated(final long expectedMessageId, final long repliedMessageId) -> {
-                log.warn(
+        switch (replyValidation) {
+            case ReplyValidation.AckedThrough(final long lastAckedMessageId) -> newAckedMessageId = lastAckedMessageId;
+            case ReplyValidation.OrderingViolated(final long expectedMessageId, final long repliedMessageId) -> {
+                // A protocol violation by the submitting node, handled by pausing the channel and penalizing it
+                log.info(
                         "[ClprSubmitBundle] step8 reply out of order conn={} expectedMsgId={} repliedMsgId={} "
-                                + "newMessageIndex={} currentStatus={}",
+                                + "currentStatus={}",
                         channelId,
                         expectedMessageId,
                         repliedMessageId,
-                        remainingMessages.previousIndex(),
                         currentStatus);
                 if (currentStatus == ClprChannelStatus.ACTIVE) {
                     channelStore.put(channel.copyBuilder()
@@ -535,11 +393,6 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                 return;
             }
         }
-        // A bundle whose only progress was its claimed ack, but whose ack cannot move because it carries no reply
-        // for the next Data message, changes nothing, so it is rejected. It still meets spec §2.1.2 Condition 4 —
-        // the peer may legitimately defer its reply (§5 Application Delivery) — so the submitting endpoint pays
-        // only the transaction fee, not the misbehavior penalty.
-        validateTrue(hasProgressOtherThanAck || newAckedMessageId > oldAckedMessageId, CLPR_NO_PROGRESS);
         if (newAckedMessageId < peerReceivedMessageId) {
             log.debug(
                     "[ClprSubmitBundle] step8 bundle carries no reply for outboundMsgId={} conn={}; "
@@ -547,54 +400,6 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                     newAckedMessageId + 1,
                     channelId,
                     newAckedMessageId);
-        }
-
-        // The reply scan above consumed exactly one inbound messageReply per acked DATA
-        // outbound slot. Any messageReply entries still in the bundle were not consumed by that
-        // scan — they have no matching acked DATA slot. Two legitimate cases remain:
-        //   1. The reply targets a one-way outbound slot (control or messageReply) that still exists.
-        //      One-way slots never require a reply, but the peer may optionally acknowledge them —
-        //      e.g. when a peer acks one of our replies with its own messageReply.
-        //   2. The slot was a one-way slot acked and deleted by Pass 2 within THIS bundle, so
-        //      getMessage returns null. We identify this case by checking that the target ID falls
-        //      within the range Pass 2 just processed: (oldAckedMessageId, newAckedMessageId].
-        //      A null slot outside that range either never existed or was acked in a prior bundle —
-        //      both are violations.
-        // Any other case means the peer sent a reply targeting an un-acked DATA slot — a violation.
-        while (remainingMessages.hasNext()) {
-            final int newMessageIndex = remainingMessages.nextIndex();
-            final var trailingMsg = remainingMessages.next();
-            if (!trailingMsg.hasMessageReply()) {
-                continue;
-            }
-            final var replyTargetId = trailingMsg.messageReplyOrThrow().messageId();
-            final var targetMsg = messageQueueStore.getMessage(channelId, replyTargetId);
-            final var targetPayload = targetMsg == null ? null : targetMsg.payload();
-            final boolean cleanedByThisBundle =
-                    targetMsg == null && replyTargetId > oldAckedMessageId && replyTargetId <= newAckedMessageId;
-            if (cleanedByThisBundle
-                    || (targetPayload != null && (targetPayload.hasControl() || targetPayload.hasMessageReply()))) {
-                log.debug(
-                        "[ClprSubmitBundle] step8 reply targets one-way or already-cleaned slot conn={} "
-                                + "replyTargetId={} targetKind={}; skipping",
-                        channelId,
-                        replyTargetId,
-                        payloadKind(targetPayload));
-                continue;
-            }
-            log.warn(
-                    "[ClprSubmitBundle] step8 trailing unexpected reply conn={} newMessageIndex={} "
-                            + "replyTargetId={} currentStatus={}",
-                    channelId,
-                    newMessageIndex,
-                    replyTargetId,
-                    currentStatus);
-            if (currentStatus == ClprChannelStatus.ACTIVE) {
-                channelStore.put(
-                        channel.copyBuilder().status(ClprChannelStatus.PAUSED).build());
-                context.tryToCharge(nodeAccountId, penaltyAmount);
-            }
-            return;
         }
 
         // --- Step 9: If PAUSED, transition back to ACTIVE ---
@@ -670,8 +475,25 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         boolean bundleDecodeFailure = false;
         // Iterate the new tail only — replayed slots were dispatched in a prior bundle, so we
         // must not re-dispatch onClprMessage / re-enqueue a Reply for them.
+        long pendingCallbacks = newMessages.stream()
+                .filter(payload -> payload.hasMessage() || payload.hasMessageReply())
+                .count();
+        // Reserve before reversible connector reimbursements or slashing payouts can fund the payer.
+        // The EVM verifier already reserves this same escrow when verification executes contract code.
+        if (pendingCallbacks > 0 && !gasAccounting.reserveParentGas()) {
+            throw new HandleException(INSUFFICIENT_PAYER_BALANCE);
+        }
         for (int i = 0; i < newMessages.size(); i++) {
             final var payload = newMessages.get(i);
+            final long callbackGasLimit;
+            if (payload.hasMessage() || payload.hasMessageReply()) {
+                callbackGasLimit = Math.min(
+                        throttles.maxGasPerMessage(),
+                        gasAccounting.availableApplicationGas(Long.MAX_VALUE) / pendingCallbacks);
+                pendingCallbacks--;
+            } else {
+                callbackGasLimit = 0;
+            }
             receivedMessageId = expectedFirstId + i;
             log.debug(
                     "[ClprSubmitBundle] step10 slot ENTER conn={} newIndex={} receivedMsgId={} kind={} summary={}",
@@ -683,45 +505,19 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
 
             try {
                 if (payload.hasControl()) {
-                    // Control message — validate the enclosed ClprLedgerConfiguration (spec §1.1 / §1.3),
-                    // then update peerConfigTimestamp and peerThrottles. No response is generated.
-                    // validatePeerConfig throws HandleException(CLPR_BUNDLE_VERIFICATION_FAILED) on any
-                    // protocol-version, timestamp-range, or staleness violation; the outer HandleException
-                    // catch above the RuntimeException handler in Step 10 lets that propagate to the
-                    // bundle-level rollback + endpoint slash.
-                    final var control = payload.controlOrThrow();
-                    if (control.hasConfigUpdate()) {
-                        final var peerConfig = control.configUpdateOrThrow().configuration();
-                        log.debug(
-                                "[ClprSubmitBundle] step10 CONTROL configUpdate conn={} receivedMsgId={} "
-                                        + "peerTimestamp={}",
-                                channelId,
-                                receivedMessageId,
-                                peerConfig == null ? null : peerConfig.timestamp());
-                        if (peerConfig != null) {
-                            validatePeerConfig(
-                                    peerConfig, ledgerConfig, peerConfigTimestamp, nodeAccountId, penaltyAmount);
-                            peerConfigTimestamp = peerConfig.timestamp();
-                        }
-                        if (peerConfig != null && peerConfig.throttles() != null) {
+                    // All new control updates were validated together before mutations began.
+                    final var peerConfig =
+                            payload.controlOrThrow().configUpdateOrThrow().configuration();
+                    log.debug(
+                            "[ClprSubmitBundle] step10 CONTROL configUpdate conn={} receivedMsgId={} peerTimestamp={}",
+                            channelId,
+                            receivedMessageId,
+                            peerConfig == null ? null : peerConfig.timestamp());
+                    if (peerConfig != null) {
+                        peerConfigTimestamp = peerConfig.timestamp();
+                        if (peerConfig.throttles() != null) {
                             peerThrottles = peerConfig.throttles();
                         }
-                    } else {
-                        // Spec §1.3: a ClprControlMessage with no known oneof variant set indicates an
-                        // unknown control-message type from a newer protocol version. Silently skipping
-                        // it would cause state divergence, so the entire bundle MUST be rejected.
-                        //
-                        // Penalty rationale: spec §8.1 permits ("MAY") penalizing the submitting endpoint
-                        // for verifier-attested protocol violations. We use the same
-                        // `endpointMisbehaviorPenaltyTinybars` applied to every other §4.2 verifier-attested
-                        // violation (hash mismatch, replay, size caps, NoProgress, trust-anchor invariant),
-                        // for consistency. Repeated violations escalate via §8.1's local misbehavior
-                        // thresholds — an endpoint on a newer protocol version pays once and then upgrades.
-                        log.warn(
-                                "[ClprSubmitBundle] CONTROL unknown variant conn={} receivedMsgId={}",
-                                channelId,
-                                receivedMessageId);
-                        validateTrueOrPenalize(false, CLPR_BUNDLE_VERIFICATION_FAILED, nodeAccountId, penaltyAmount);
                     }
                 } else if (payload.hasMessage()) {
                     // We must be ACTIVE, CLOSING, or DRAINED (CLOSED channels are rejected at the top of the
@@ -747,7 +543,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                     // isn't the remote connector that lied, maybe it was the remote ledger itself, in which case
                     // we probably should take some action because this channel is faulty.
                     if (connector == null) {
-                        log.warn(
+                        log.debug(
                                 "[ClprSubmitBundle] step10 DATA connector NOT_FOUND conn={} receivedMsgId={} "
                                         + "connectorId={} -> CONNECTOR_NOT_FOUND reply",
                                 channelId,
@@ -756,10 +552,19 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                         outbound.enqueueReply(
                                 receivedMessageId, ClprMessageReplyStatus.CONNECTOR_NOT_FOUND, Bytes.EMPTY);
                     } else {
-                        // Compute worst-case charge: execution cost + endpoint margin
+                        final long gasLimit = callbackGasLimit;
+                        if (gasLimit == 0) {
+                            // The bundle has spent its transaction-wide gas budget. A later callback
+                            // must not consume more shared EVM capacity, even when its connector can pay.
+                            outbound.enqueueReply(
+                                    receivedMessageId, ClprMessageReplyStatus.APPLICATION_ERROR, Bytes.EMPTY);
+                            continue;
+                        }
+                        // Endpoint compensation remains separate from the network fee for EVM work.
                         final var executionCost = clprConfig.messageExecutionCost();
-                        final var margin = executionCost * clprConfig.endpointMarginPercent() / 100;
-                        final var worstCaseCharge = executionCost + margin;
+                        final var margin = Math.multiplyExact(executionCost, clprConfig.endpointMarginPercent()) / 100;
+                        final var endpointCharge = Math.addExact(executionCost, margin);
+                        final var worstCaseCharge = Math.addExact(endpointCharge, gasAccounting.costForGas(gasLimit));
 
                         // Validate the connector has sufficient balance before dispatching.
                         // Use getContractById to handle both contractNum and evmAddress forms.
@@ -779,7 +584,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                 worstCaseCharge);
                         if (connectorAccount == null || connectorAccount.tinybarBalance() < worstCaseCharge) {
                             // Insufficient balance — slash, enqueue CONNECTOR_UNDERFUNDED, skip dispatch
-                            log.warn(
+                            log.debug(
                                     "[ClprSubmitBundle] step10 DATA connector underfunded conn={} "
                                             + "receivedMsgId={} connectorContract={} accountPresent={} "
                                             + "balance={} required={} -> CONNECTOR_UNDERFUNDED reply",
@@ -838,7 +643,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                         // Delivery). On overrun the dispatch returns
                                         // non-SUCCESS → APPLICATION_ERROR below, with no
                                         // Connector slash (§4.6).
-                                        .gas(throttles.maxGasPerMessage())
+                                        .gas(gasLimit)
                                         .functionParameters(Bytes.wrap(callData))
                                         .build())
                                 .build();
@@ -848,13 +653,18 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                 channelId,
                                 receivedMessageId,
                                 appContractId,
-                                throttles.maxGasPerMessage(),
+                                gasLimit,
                                 callData.length,
                                 shortHex(Bytes.wrap(ON_CLPR_MESSAGE_SELECTOR)),
                                 shortHex(Bytes.wrap(callData)));
 
                         ClprMessageReplyStatus replyStatus;
                         Bytes responseData = Bytes.EMPTY;
+                        final var gasPayer = connectorAccount.accountIdOrThrow();
+                        if (!gasAccounting.prepay(gasPayer, gasLimit)) {
+                            throw new HandleException(CLPR_BUNDLE_VERIFICATION_FAILED);
+                        }
+                        final var gasUsage = new ContractGasUsage();
                         try {
                             log.debug(
                                     "[ClprSubmitBundle] step10 DATA dispatch ENTER conn={} receivedMsgId={} "
@@ -862,13 +672,14 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                     channelId,
                                     receivedMessageId,
                                     appContractId,
-                                    systemAdminAccountId);
+                                    gasPayer);
                             final var result = context.dispatch(stepDispatch(
-                                    systemAdminAccountId,
+                                    gasPayer,
                                     syntheticBody,
                                     HookDispatchStreamBuilder.class,
                                     NOOP_SIGNED_TX_CUSTOMIZER,
-                                    CLPR_DISPATCH_METADATA));
+                                    callbackMetadata(gasUsage),
+                                    ON));
                             log.debug(
                                     "[ClprSubmitBundle] step10 DATA dispatch RETURNED conn={} receivedMsgId={} "
                                             + "target={} status={}",
@@ -883,7 +694,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                 // getEvmCallResult() throws when the child dispatch did not produce
                                 // an EVM result record (e.g. the target address has no bytecode).
                                 // Treat as empty return data — the reply status is set by result.status().
-                                log.warn(
+                                log.debug(
                                         "[ClprSubmitBundle] step10 DATA dispatch produced no EVM result conn={} "
                                                 + "receivedMsgId={} target={} reason={}: {}",
                                         channelId,
@@ -949,6 +760,39 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                     e.getStatus(),
                                     e.getMessage());
                             replyStatus = ClprMessageReplyStatus.APPLICATION_ERROR;
+                        } finally {
+                            final long actualGasFee = gasAccounting.settleWithGasUsage(gasPayer, gasLimit, gasUsage);
+                            final long unusedReimbursement = gasAccounting.costForGas(gasLimit) - actualGasFee;
+                            if (unusedReimbursement > 0) {
+                                tokenServiceApi.transferFromTo(context.payer(), gasPayer, unusedReimbursement);
+                            }
+                        }
+
+                        // The data returned by the CLPR application after processing a message is untrusted,
+                        // as the response payload is completely open. This way, we need to limit the size of it.
+                        // Without it, a reply is bounded only by the EVM memory the gas allows (megabytes), grows state
+                        // far beyond the data-message limit, and can exceed the peer's max_sync_bytes, wedging the
+                        // channel. Like a data message, the whole serialized reply payload is measured.
+                        final int maxReplyBytes = ClprThrottlesUtils.effectiveMaxPayloadBytes(peerThrottles, throttles);
+                        final int replyBytes = ClprMessagePayload.PROTOBUF.measureRecord(
+                                OutboundQueue.replyPayload(receivedMessageId, replyStatus, responseData));
+                        if (replyBytes > maxReplyBytes) {
+                            oversizedReplyLog.warn(
+                                    CLPR_MARKER,
+                                    "[ClprSubmitBundle] DATA reply exceeds max_message_payload_bytes conn={} "
+                                            + "receivedMsgId={} target={} connectorId={} replyStatus={} "
+                                            + "responseDataLen={} replyBytes={} maxReplyBytes={}; replacing with "
+                                            + "APPLICATION_ERROR and empty payload",
+                                    channelId,
+                                    receivedMessageId,
+                                    appContractId,
+                                    dataMsg.connectorId(),
+                                    replyStatus,
+                                    responseData.length(),
+                                    replyBytes,
+                                    maxReplyBytes);
+                            responseData = Bytes.EMPTY;
+                            replyStatus = ClprMessageReplyStatus.APPLICATION_ERROR;
                         }
 
                         // OutboundQueue reads/writes channel state directly from the
@@ -1005,7 +849,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                             ? null
                             : originalPayload.hasMessage() ? originalPayload.message() : null;
                     if (origDataMsg == null) {
-                        log.warn(
+                        log.debug(
                                 "[ClprSubmitBundle] step10 MESSAGE_REPLY has no original DATA message "
                                         + "conn={} replyTargetId={} originalPayloadKind={}; skipping app callback",
                                 channelId,
@@ -1018,7 +862,17 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                     // CONNECTOR_NOT_FOUND or some other error, or that the remote side is CLOSED. Whatever it is,
                     // we must inform the originating application so it can do proper bookkeeping.
                     final var senderAddress = origDataMsg.sender();
-                    if (senderAddress.length() > 0) {
+                    final var callbackConnector =
+                            connectorStore.getConnector(new ClprConnectorKey(channelId, origDataMsg.connectorId()));
+                    final var callbackAccounts = storeFactory.readableStore(ReadableAccountStore.class);
+                    final var callbackAccount = callbackConnector == null
+                            ? null
+                            : callbackAccounts.getContractById(callbackConnector.connectorContractOrThrow());
+                    final long gasLimit = callbackGasLimit;
+                    if (senderAddress.length() > 0
+                            && callbackAccount != null
+                            && gasLimit > 0
+                            && callbackAccount.tinybarBalance() >= gasAccounting.costForGas(gasLimit)) {
                         final var callData = encodeOnClprResponse(
                                 channelId, replyTargetId, reply.status(), reply.messageReplyData());
                         // Use EntityIdFactory so shard/realm match this network
@@ -1029,7 +883,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                         // Response delivery is also an application dispatch (§6.0),
                                         // so it shares the same per-message gas ceiling
                                         // (spec §1.1 max_gas_per_message).
-                                        .gas(throttles.maxGasPerMessage())
+                                        .gas(gasLimit)
                                         .functionParameters(Bytes.wrap(callData))
                                         .build())
                                 .build();
@@ -1041,15 +895,26 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                 reply.status(),
                                 reply.messageReplyData().length(),
                                 callData.length,
-                                throttles.maxGasPerMessage(),
+                                gasLimit,
                                 shortHex(Bytes.wrap(callData)));
+                        final var callbackGasPayer = callbackAccount.accountIdOrThrow();
+                        final var callbackTokenApi = storeFactory.serviceApi(TokenServiceApi.class);
+                        final long callbackGasFee = gasAccounting.costForGas(gasLimit);
+                        if (callbackGasFee > 0) {
+                            callbackTokenApi.transferFromTo(callbackGasPayer, context.payer(), callbackGasFee);
+                        }
+                        if (!gasAccounting.prepay(callbackGasPayer, gasLimit)) {
+                            throw new HandleException(CLPR_BUNDLE_VERIFICATION_FAILED);
+                        }
+                        final var gasUsage = new ContractGasUsage();
                         try {
                             context.dispatch(stepDispatch(
-                                    systemAdminAccountId,
+                                    callbackAccount.accountIdOrThrow(),
                                     syntheticBody,
                                     HookDispatchStreamBuilder.class,
                                     NOOP_SIGNED_TX_CUSTOMIZER,
-                                    CLPR_DISPATCH_METADATA));
+                                    callbackMetadata(gasUsage),
+                                    ON));
                             log.debug(
                                     "[ClprSubmitBundle] onClprResponse dispatch SUCCESS to sender={} replyTargetId={}",
                                     senderAddress,
@@ -1062,6 +927,13 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                     senderAddress,
                                     replyTargetId,
                                     e.getMessage());
+                        } finally {
+                            final long actualGasFee =
+                                    gasAccounting.settleWithGasUsage(callbackGasPayer, gasLimit, gasUsage);
+                            final long unusedReimbursement = callbackGasFee - actualGasFee;
+                            if (unusedReimbursement > 0) {
+                                callbackTokenApi.transferFromTo(context.payer(), callbackGasPayer, unusedReimbursement);
+                            }
                         }
                         // OutboundQueue reads/writes channel state directly from the store,
                         // so any precompile-side bumps from the dispatched onClprResponse
@@ -1292,79 +1164,6 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
     }
 
     /**
-     * Outcome of {@link #scanReplies}: either the bundle acknowledges our outbound messages through some id, or one of
-     * its replies breaks the ordering, in which case it acknowledges nothing.
-     */
-    private sealed interface ReplyScan {
-
-        /**
-         * The replies are in order.
-         *
-         * @param lastAckedMessageId the highest outbound message id this bundle acknowledges; it stops just before the
-         *                           first Data message the bundle carries no reply for
-         */
-        record AckedThrough(long lastAckedMessageId) implements ReplyScan {}
-
-        /**
-         * A reply named a message other than the oldest unanswered Data message (spec §4.5).
-         *
-         * @param expectedMessageId the oldest unanswered Data message, which the reply had to name
-         * @param repliedMessageId  the message the reply named instead
-         */
-        record OrderingViolated(long expectedMessageId, long repliedMessageId) implements ReplyScan {}
-    }
-
-    /**
-     * Matches the bundle's replies, in order, against our outbound messages the peer has received,
-     * {@code oldAckedMessageId + 1 .. peerReceivedMessageId}. One-way slots (control messages and our own replies) need
-     * no reply. Each Data slot takes the bundle's next reply, which must name it. Running out of
-     * replies is not a violation: the ack stops just before that Data slot, and its reply arrives in a later bundle.
-     *
-     * <p>Advances {@code remainingMessages} past every reply it consumed, leaving it at the trailing messages.
-     */
-    private static ReplyScan scanReplies(
-            @NonNull final WritableMessageQueueStore messageQueueStore,
-            @NonNull final Bytes channelId,
-            final long oldAckedMessageId,
-            final long peerReceivedMessageId,
-            @NonNull final Iterator<ClprMessagePayload> remainingMessages) {
-        for (long id = oldAckedMessageId + 1; id <= peerReceivedMessageId; id++) {
-            final var msg = messageQueueStore.getMessage(channelId, id);
-            // A null here means data corruption — an outbound message ID was assigned, but the
-            // message doesn't exist. Fail fast; this ledger needs a bug fix and data migration.
-            validateTrue(msg != null, CLPR_INTERNAL_STATE_CORRUPTION);
-            final var msgPayload = msg.payload();
-            // Control and MessageReply slots are one-way — no inbound reply expected.
-            if (msgPayload != null && (msgPayload.hasControl() || msgPayload.hasMessageReply())) {
-                continue;
-            }
-            final var reply = nextReply(remainingMessages);
-            if (reply == null) {
-                return new ReplyScan.AckedThrough(id - 1);
-            }
-            if (reply.messageId() != id) {
-                return new ReplyScan.OrderingViolated(id, reply.messageId());
-            }
-        }
-        return new ReplyScan.AckedThrough(peerReceivedMessageId);
-    }
-
-    /**
-     * Advances {@code remainingMessages} to the next reply and returns it, or returns {@code null} once no reply is
-     * left.
-     */
-    @Nullable
-    private static ClprMessageReply nextReply(@NonNull final Iterator<ClprMessagePayload> remainingMessages) {
-        while (remainingMessages.hasNext()) {
-            final var payload = remainingMessages.next();
-            if (payload.hasMessageReply()) {
-                return payload.messageReplyOrThrow();
-            }
-        }
-        return null;
-    }
-
-    /**
      * ABI-encodes a call to {@code onClprMessage(bytes32,bytes,bytes)}.
      *
      * <p>Layout: 4-byte selector + ABI-encoded (bytes32, bytes, bytes).
@@ -1536,58 +1335,6 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
     }
 
     /**
-     * Validate an inbound {@link ClprLedgerConfiguration} carried by a peer {@code ConfigUpdate}
-     * before it is allowed to mutate any peer-config state on the Channel. Fails the bundle
-     * with {@link ResponseCodeEnum#CLPR_BUNDLE_VERIFICATION_FAILED} and slashes the submitting
-     * endpoint by {@code penaltyAmount} on any of:
-     *
-     * <ul>
-     *   <li>Spec §1.1 — {@code peerConfig.protocolVersion()} does not match {@code ledgerConfig}.</li>
-     *   <li>Spec §1.1 — {@code peerConfig.timestamp()} is null, has negative seconds, or nanos
-     *       outside {@code [0, 999_999_999]}.</li>
-     *   <li>Spec §1.3 — {@code peerConfig.timestamp()} is not strictly greater than the running
-     *       {@code peerConfigTimestamp} (staleness). The running local is used so a bundle
-     *       carrying multiple {@code ConfigUpdate}s enforces strict monotonicity across the whole
-     *       bundle.</li>
-     * </ul>
-     */
-    private static void validatePeerConfig(
-            @NonNull final ClprLedgerConfiguration peerConfig,
-            @NonNull final ClprLedgerConfiguration ledgerConfig,
-            @Nullable final Timestamp peerConfigTimestamp,
-            @NonNull final AccountID nodeAccountId,
-            final long penaltyAmount) {
-        requireNonNull(peerConfig);
-        requireNonNull(ledgerConfig);
-        requireNonNull(nodeAccountId);
-
-        // Spec §1.1 Protocol Version: both sides MUST agree; cross-version messaging is not supported.
-        validateTrueOrPenalize(
-                peerConfig.protocolVersion() == ledgerConfig.protocolVersion(),
-                CLPR_BUNDLE_VERIFICATION_FAILED,
-                nodeAccountId,
-                penaltyAmount);
-
-        // Spec §1.1 Timestamp: seconds MUST be non-negative and nanos MUST be in [0, 999_999_999].
-        // Also required non-null so the staleness comparison below is meaningful — a ConfigUpdate
-        // carrying no timestamp cannot be ordered against the stored peer_config_timestamp.
-        final var peerTs = peerConfig.timestamp();
-        validateTrueOrPenalize(
-                peerTs != null && peerTs.seconds() >= 0 && peerTs.nanos() >= 0 && peerTs.nanos() < 1_000_000_000,
-                CLPR_BUNDLE_VERIFICATION_FAILED,
-                nodeAccountId,
-                penaltyAmount);
-
-        // Spec §1.3: the enclosed configuration's timestamp MUST be strictly greater than the
-        // stored peer_config_timestamp.
-        validateTrueOrPenalize(
-                isTimestampBefore(peerConfigTimestamp, peerTs),
-                CLPR_BUNDLE_VERIFICATION_FAILED,
-                nodeAccountId,
-                penaltyAmount);
-    }
-
-    /**
      * Checks whether timestamp a is strictly before timestamp b.
      */
     private static boolean isTimestampBefore(final Timestamp a, final Timestamp b) {
@@ -1601,30 +1348,74 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
     }
 
     /**
-     * Validates a condition and, if false, throws a {@link HandleException} whose
-     * {@link HandleException.OnRollback} charges the submitting node's account a flat penalty.
-     * The penalty is applied via {@link com.hedera.node.app.spi.fees.FeeCharging.Context#charge}
-     * after the framework rolls back all state mutations, so it persists independently of the
-     * failed transaction.
+     * Verifies the bundle's proof and applies the node-level checks of {@link ClprBundleValidator},
+     * before any state is modified or any message is dispatched.
      *
-     * @param condition          the condition that must be true
-     * @param errorStatus        the response code to report on failure
-     * @param nodeAccountId      the submitting node's account from the transaction ID
-     * @param penaltyAmount      the penalty in tinybars
+     * <p>A failed node-level check (payload size, the trust-anchor invariant, or
+     * {@link ClprBundleValidator#validate}) fails the transaction and, after the framework rolls back
+     * its state changes, charges the submitting node {@code penaltyAmount} on a best-effort basis, so
+     * the penalty persists independently of the failed transaction. A failure to resolve or run the
+     * verifier fails the transaction without that penalty.
+     *
+     * <p>Once the proof and the trust-anchor invariant pass, the peer's proven view of this ledger's
+     * endpoint-manifest version (spec §4.5) is recorded, even if a later check rejects the bundle.
+     * An authorized recovery can replace the expected cached version with a strictly lower verified
+     * manifest without queue metadata or messages.
+     *
+     * @param context the handle context
+     * @param channel the channel before this bundle is applied
+     * @param ledgerConfig this ledger's configuration
+     * @param nodeAccountId the submitting node's account, which pays the penalty
+     * @param penaltyAmount the endpoint misbehavior penalty in tinybars; zero disables it
+     * @param recoveringManifest whether the authorized payer requested a manifest version recovery
+     * @return the validated bundle
+     * @throws HandleException if the proof cannot be verified or a node-level check fails
      */
-    private static void validateTrueOrPenalize(
-            final boolean condition,
-            @NonNull final ResponseCodeEnum errorStatus,
+    private ValidatedBundle verifyAndValidateBundle(
+            @NonNull final HandleContext context,
+            @NonNull final ClprChannel channel,
+            @NonNull final ClprLedgerConfiguration ledgerConfig,
             @NonNull final AccountID nodeAccountId,
-            final long penaltyAmount) {
-        if (!condition) {
-            throw new HandleException(errorStatus, (feeChargingContext, ignored) -> {
+            final long penaltyAmount,
+            final boolean recoveringManifest) {
+        try {
+            final var payload = context.body().clprSubmitBundleOrThrow().bundlePayload();
+            bundleValidator.validatePayloadSize(payload, ledgerConfig.throttlesOrThrow());
+            final var verifier = verifierFactory.getVerifier(channel.verifierContractOrThrow());
+            final var content =
+                    verifier.verifyBundle(payload, channel.trustAnchor(), channel.channelContext(), context);
+            bundleValidator.validateTrustAnchor(content);
+
+            if (recoveringManifest) {
+                final var manifest = content.newEndpointManifest();
+                validateTrue(
+                        content.metadata() == null
+                                && content.messages().isEmpty()
+                                && manifest != null
+                                && manifest.version() > 0
+                                && Long.compareUnsigned(manifest.version(), channel.endpointManifestVersion()) < 0
+                                && hasNewerManifestProof(channel, content),
+                        CLPR_BUNDLE_VERIFICATION_FAILED);
+                return new ValidatedBundle(content, List.of(), channel.receivedRunningHash(), true, true);
+            }
+
+            // Spec §4.5: this node-local signal must survive even a later NoProgress rejection.
+            // Idle peers send pure acks containing our manifest version, so recording this only
+            // after successful validation would keep resending the same manifest indefinitely.
+            final var metadata = content.metadata();
+            if (metadata != null) {
+                channelLifecycle.recordPeerObservedManifestVersion(
+                        channel.channelId(), metadata.endpointManifestVersion());
+            }
+            return bundleValidator.validate(channel, content, ledgerConfig);
+        } catch (final PreCheckException e) {
+            // Charge after rollback so the penalty persists independently of a rejected bundle.
+            throw new HandleException(e.responseCode(), (feeChargingContext, ignored) -> {
                 if (penaltyAmount > 0) {
                     try {
                         feeChargingContext.charge(nodeAccountId, new Fees(0, penaltyAmount, 0), null);
-                    } catch (final Exception e) {
-                        // Best effort — endpoint may be insolvent; the failed transaction
-                        // status is punishment enough
+                    } catch (final Exception ignoredChargeFailure) {
+                        // Best effort: the submitting endpoint may be insolvent.
                     }
                 }
             });
@@ -1652,31 +1443,6 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                 channelLifecycle.seedPeerEndpoints(channelId, endpoints);
             }
         }
-    }
-
-    /**
-     * Returns {@code true} if the peer's reported status relative to the local channel status
-     * represents a state-transition that constitutes meaningful progress.
-     *
-     * @param peerStatus  the peer-reported {@link ClprChannelStatus} from the bundle metadata
-     * @param localStatus the locally-stored {@link ClprChannelStatus} for this channel
-     */
-    private static boolean isStateTransitionProgress(
-            @NonNull final ClprChannelStatus peerStatus, @NonNull final ClprChannelStatus localStatus) {
-        // Peer shutting down triggers local CLOSING if still active
-        if ((peerStatus == ClprChannelStatus.CLOSING
-                        || peerStatus == ClprChannelStatus.DRAINED
-                        || peerStatus == ClprChannelStatus.CLOSED)
-                && (localStatus == ClprChannelStatus.ACTIVE || localStatus == ClprChannelStatus.PAUSED)) {
-            return true;
-        }
-        // Peer drained/closed triggers local CLOSED when this channel is DRAINED
-        if ((peerStatus == ClprChannelStatus.DRAINED || peerStatus == ClprChannelStatus.CLOSED)
-                && localStatus == ClprChannelStatus.DRAINED) {
-            return true;
-        }
-        // This channel is already CLOSING; bundle may complete the drain
-        return localStatus == ClprChannelStatus.CLOSING;
     }
 
     /**
@@ -1744,13 +1510,19 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                     status,
                     data.length(),
                     shortHex(data));
-            enqueue(ClprMessagePayload.newBuilder()
+            enqueue(replyPayload(inboundMessageId, status, data));
+        }
+
+        /** Builds the payload of a reply to the given inbound message. */
+        static ClprMessagePayload replyPayload(
+                final long inboundMessageId, @NonNull final ClprMessageReplyStatus status, @NonNull final Bytes data) {
+            return ClprMessagePayload.newBuilder()
                     .messageReply(ClprMessageReply.newBuilder()
                             .messageId(inboundMessageId)
                             .status(status)
                             .messageReplyData(data)
                             .build())
-                    .build());
+                    .build();
         }
 
         long nextMessageId() {

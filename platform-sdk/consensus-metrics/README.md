@@ -8,6 +8,11 @@ latency percentiles, and the Prometheus exposition endpoint.
 Sits above `consensus-model` in the supporting module DAG. Provides metrics infrastructure
 consumed across the layer.
 
+## Benchmarks
+
+The JMH benchmarks in `src/jmh` follow the
+[benchmark conventions](../docs/consensus-layer/benchmarks/README.md).
+
 ## Dependency Rules
 
 May depend on:

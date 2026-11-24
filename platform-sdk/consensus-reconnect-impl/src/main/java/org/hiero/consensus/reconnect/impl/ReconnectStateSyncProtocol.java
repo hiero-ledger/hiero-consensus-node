@@ -9,13 +9,14 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.StateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.base.concurrent.manager.ThreadManager;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.gossip.impl.network.protocol.Protocol;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.state.signed.ReservedSignedState;
@@ -38,6 +39,8 @@ public class ReconnectStateSyncProtocol implements Protocol {
     private final AtomicReference<PlatformStatus> platformStatus = new AtomicReference<>(PlatformStatus.STARTING_UP);
     private final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise;
     private final StateLifecycleManager stateLifecycleManager;
+    /** See {@link ReconnectStatePeerProtocol} */
+    private final AtomicLong lastReceivedFromRound = new AtomicLong(-1);
 
     public ReconnectStateSyncProtocol(
             @NonNull final Configuration configuration,
@@ -81,7 +84,8 @@ public class ReconnectStateSyncProtocol implements Protocol {
                 fallenBehindManager,
                 platformStatus::get,
                 reservedSignedStateResultPromise,
-                stateLifecycleManager);
+                stateLifecycleManager,
+                lastReceivedFromRound);
     }
 
     @Override

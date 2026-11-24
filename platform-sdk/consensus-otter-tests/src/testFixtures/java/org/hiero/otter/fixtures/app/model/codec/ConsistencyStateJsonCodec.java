@@ -18,7 +18,7 @@ import org.hiero.otter.fixtures.app.model.ConsistencyState;
 /**
  * JSON Codec for ConsistencyState model object. Generated based on protobuf schema.
  */
-public final class ConsistencyStateJsonCodec implements JsonCodec<ConsistencyState> {
+public final class ConsistencyStateJsonCodec extends JsonCodec<ConsistencyState> {
 
     /**
      * Empty constructor
@@ -35,7 +35,8 @@ public final class ConsistencyStateJsonCodec implements JsonCodec<ConsistencySta
      * @return Parsed HashObject model object or null if data input was null or empty
      * @throws ParseException If parsing fails
      */
-    public @NonNull ConsistencyState parse(
+    @Override
+    protected @NonNull ConsistencyState parseImpl(
             @Nullable final JSONParser.ObjContext root, final boolean strictMode, final int maxDepth, final int maxSize)
             throws ParseException {
         if (maxDepth < 0) {
@@ -81,7 +82,7 @@ public final class ConsistencyStateJsonCodec implements JsonCodec<ConsistencySta
      *                        it will just be the object "{...}"
      */
     @Override
-    public String toJSON(@NonNull ConsistencyState data, String indent, boolean inline) {
+    protected String toJSONImpl(@NonNull ConsistencyState data, String indent, boolean inline) {
         StringBuilder sb = new StringBuilder();
         // start
         sb.append(inline ? "{\n" : indent + "{\n");

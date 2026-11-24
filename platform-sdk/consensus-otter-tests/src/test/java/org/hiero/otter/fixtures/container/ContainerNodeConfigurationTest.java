@@ -2,6 +2,7 @@
 package org.hiero.otter.fixtures.container;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hiero.otter.fixtures.internal.AbstractMiniNode.LifeCycle.INIT;
 
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
@@ -17,7 +18,7 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 import org.hiero.consensus.event.stream.config.EventConfig_;
 import org.hiero.consensus.gossip.config.NetworkEndpoint;
-import org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle;
+import org.hiero.otter.fixtures.internal.AbstractMiniNode.LifeCycle;
 import org.hiero.otter.fixtures.internal.OverrideProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -33,7 +34,7 @@ class ContainerNodeConfigurationTest {
 
     @BeforeEach
     void setUp() {
-        lifeCycle = LifeCycle.INIT;
+        lifeCycle = INIT;
         subject = new TestNodeConfiguration(() -> lifeCycle);
     }
 

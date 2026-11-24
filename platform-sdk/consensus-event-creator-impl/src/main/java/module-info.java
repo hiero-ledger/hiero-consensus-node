@@ -4,14 +4,20 @@ import org.hiero.consensus.event.creator.impl.DefaultEventCreatorModule;
 
 // SPDX-License-Identifier: Apache-2.0
 module org.hiero.consensus.event.creator.impl {
-    exports org.hiero.consensus.event.creator.impl.tipset;
-    exports org.hiero.consensus.event.creator.impl;
+    exports org.hiero.consensus.event.creator.impl to
+            org.hiero.consensus.event.creator.instrumented.test.fixtures,
+            org.hiero.consensus.network.simulation.test.fixtures,
+            org.hiero.otter.fixtures;
+    exports org.hiero.consensus.event.creator.impl.tipset to
+            org.hiero.consensus.network.simulation.test.fixtures,
+            org.hiero.otter.fixtures;
 
     requires transitive com.swirlds.base;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.consensus.event.creator;
+    requires transitive org.hiero.consensus.main.model;
     requires transitive org.hiero.consensus.metrics;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.wiring.framework;

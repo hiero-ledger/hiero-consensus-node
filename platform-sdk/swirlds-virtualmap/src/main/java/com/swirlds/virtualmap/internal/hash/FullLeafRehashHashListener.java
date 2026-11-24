@@ -16,9 +16,10 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * underlying {@link VirtualDataSource} in batches. Leaf records are not changed during a full
  * rehash, so they are never flushed.
  *
- * <p>All flushes, including the final one, are synchronous: {@link #onHashChunkHashed(VirtualHashChunk)}
- * and {@link #onHashingCompleted()} return only after flushed hashes are written to the data source.
- * If a flush fails, or the flushing thread is interrupted, these methods throw an exception.
+ * <p>Flushes run on the flusher's dedicated thread. {@link #onHashChunkHashed(VirtualHashChunk)} may
+ * block on backpressure, while {@link #onHashingCompleted()} returns only after all hashes are written
+ * to the data source. If a flush on the flusher's thread fails, the next calls to these methods throw an
+ * exception. The final flush runs in {@link #onHashingCompleted()}, which throws, if it fails.
  */
 public class FullLeafRehashHashListener implements VirtualHashListener {
 
@@ -54,5 +55,13 @@ public class FullLeafRehashHashListener implements VirtualHashListener {
     @Override
     public void onHashingCompleted() {
         flusher.finish();
+    }
+
+    /**
+     * Cancels the underlying flusher, if hashing fails or times out. Hashing threads blocked waiting for a
+     * running flush are released, and no new flushes are started, see {@link HashLeafFlusher#cancel()}.
+     */
+    public void cancel() {
+        flusher.cancel();
     }
 }

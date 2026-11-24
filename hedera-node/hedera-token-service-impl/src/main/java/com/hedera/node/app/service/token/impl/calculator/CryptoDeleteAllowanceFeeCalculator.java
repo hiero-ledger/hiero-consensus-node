@@ -9,7 +9,10 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.EnumSet;
+import java.util.Set;
 import org.hiero.hapi.fees.FeeResult;
+import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.FeeSchedule;
 import org.hiero.hapi.support.fees.ServiceFeeDefinition;
 
@@ -27,7 +30,10 @@ public class CryptoDeleteAllowanceFeeCalculator implements ServiceFeeCalculator 
                 lookupServiceFee(feeSchedule, HederaFunctionality.CRYPTO_DELETE_ALLOWANCE);
         feeResult.setServiceBaseFeeTinycents(serviceDef.baseFee());
 
-        final int totalAllowances = op.nftAllowances().size();
+        // Each NFT serial is its own allowance
+        final int totalAllowances = op.nftAllowances().stream()
+                .mapToInt(nft -> Math.max(1, nft.serialNumbers().size()))
+                .sum();
 
         if (totalAllowances > 0) {
             addExtraFee(feeResult, serviceDef, ALLOWANCES, feeSchedule, totalAllowances);
@@ -37,5 +43,10 @@ public class CryptoDeleteAllowanceFeeCalculator implements ServiceFeeCalculator 
     @Override
     public TransactionBody.DataOneOfType getTransactionType() {
         return TransactionBody.DataOneOfType.CRYPTO_DELETE_ALLOWANCE;
+    }
+
+    @Override
+    public Set<Extra> requiredExtras() {
+        return EnumSet.of(Extra.ALLOWANCES);
     }
 }

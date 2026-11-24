@@ -21,8 +21,8 @@ jmhModuleInfo {
     requires("org.hiero.base.concurrent")
     requires("org.hiero.base.crypto")
     requires("org.hiero.base.utility")
+    requires("org.hiero.consensus.main.model")
     requires("org.hiero.consensus.metrics")
-    requires("org.hiero.consensus.model")
     requires("org.hiero.consensus.utility")
     requires("awaitility")
     requires("jmh.core")
@@ -57,6 +57,12 @@ tasks.register<JMHTask>("jmhVirtualMapEdit") {
     includes.set(listOf("VirtualMapEditBench"))
     jvmArgs.set(listOf("-Xmx16g"))
     resultsFile.convention(layout.buildDirectory.file("results/jmh/results-virtualmap-edit.txt"))
+}
+
+tasks.register<JMHTask>("jmhMerkleDbSnapshot") {
+    includes.set(listOf("MerkleDbSnapshotBenchmark"))
+    jvmArgs.set(listOf("-Xmx16g"))
+    resultsFile.convention(layout.buildDirectory.file("results/jmh/results-merkle-db-snapshot.txt"))
 }
 
 // Defaults are based on the large-state local calibration profile documented in

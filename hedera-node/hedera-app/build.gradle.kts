@@ -19,7 +19,6 @@ mainModuleInfo {
     runtimeOnly("io.helidon.webclient.http2")
     runtimeOnly("io.netty.transport.epoll.linux.aarch_64")
     runtimeOnly("io.netty.transport.epoll.linux.x86_64")
-    runtimeOnly("org.hyperledger.besu.nativelib.secp256k1")
 
     // Loaded reflectively at runtime; not referenced from compiled code
     // This is needed to pick up and include the native libraries for the netty epoll transport
@@ -56,6 +55,18 @@ testModuleInfo {
     exportsTo("org.hiero.base.utility") // access package "utils" (maybe rename to "util")
     opensTo("com.hedera.node.app.spi.test.fixtures") // log captor injection
     opensTo("com.swirlds.common") // instantiation via reflection
+}
+
+tasks.test {
+    // HtsAutoCreationIngestThrottleTest reads the network throttle files
+    inputs
+        .files(
+            listOf("mainnet", "testnet", "previewnet").map {
+                "../configuration/$it/upgrade/throttles.json"
+            },
+        )
+        .withPropertyName("networkThrottles")
+        .withPathSensitivity(PathSensitivity.RELATIVE)
 }
 
 jmhModuleInfo {
@@ -107,7 +118,7 @@ tasks.jar {
                     .filter { it.extension == "jar" }
                     .map { "../../data/lib/" + it.name }
                     .sorted()
-                    .joinToString(separator = " ")
+                    .joinToString(separator = " "),
         )
     }
 }
@@ -183,6 +194,8 @@ tasks.register<JavaExec>("run") {
 
     // Add arguments for the application to run a local node
     args = listOf("-local", "0")
+    // The local node has no block node to stream to, so it only writes block files
+    systemProperty("blockStream.writerMode", "FILE")
 }
 
 val cleanRun =

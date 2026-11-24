@@ -3,8 +3,8 @@ package org.hiero.otter.fixtures.network.simulation;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.node.NodeId;
 
 /**
  * An event window that is in transit between nodes in the network.

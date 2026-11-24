@@ -51,6 +51,7 @@ import static org.mockito.BDDMockito.given;
 
 import com.google.common.primitives.Longs;
 import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
+import com.hedera.hapi.block.stream.trace.SlotRead;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
@@ -66,6 +67,8 @@ import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
+import com.hedera.node.app.service.contract.impl.state.StorageAccess;
+import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.node.app.service.contract.impl.utils.EthereumTransactionRollbackHandler;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -449,6 +452,93 @@ class ConversionUtilsTest {
         assertEquals(
                 Objects.requireNonNull(ConversionUtils.asPbjSlotUsages(SOME_STORAGE_ACCESSES, traceExplicitWrites)),
                 combined.slotUsages());
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void readOnlySlotKeysUseMinimalBytes(final boolean traceExplicitWrites) {
+        final var accesses = new StorageAccesses(
+                CALLED_CONTRACT_ID,
+                List.of(
+                        StorageAccess.newRead(UInt256.ZERO, UInt256.ONE),
+                        StorageAccess.newRead(UInt256.valueOf(256), UInt256.ONE),
+                        StorageAccess.newRead(UInt256.MAX_VALUE, UInt256.ONE)));
+
+        final var usage = Objects.requireNonNull(
+                        ConversionUtils.asPbjSlotUsages(List.of(accesses), traceExplicitWrites))
+                .getFirst();
+
+        assertThat(usage.slotReads()).allSatisfy(read -> {
+            assertThat(read.hasKey()).isTrue();
+            assertThat(read.hasWrittenValue()).isFalse();
+        });
+        assertThat(usage.slotReads())
+                .extracting(SlotRead::keyOrThrow)
+                .containsExactly(
+                        com.hedera.pbj.runtime.io.buffer.Bytes.EMPTY,
+                        com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("0100"),
+                        com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("ff".repeat(32)));
+    }
+
+    @Test
+    void explicitWrittenSlotKeysUseMinimalBytesWithoutChangingReadIndexes() {
+        final var accesses = new StorageAccesses(
+                CALLED_CONTRACT_ID,
+                List.of(
+                        StorageAccess.newWrite(UInt256.MAX_VALUE, UInt256.ONE, UInt256.valueOf(2)),
+                        StorageAccess.newRead(UInt256.valueOf(7), UInt256.ONE),
+                        StorageAccess.newWrite(UInt256.ZERO, UInt256.ONE, UInt256.valueOf(2)),
+                        StorageAccess.newWrite(UInt256.valueOf(256), UInt256.ONE, UInt256.valueOf(2))));
+
+        final var usage = Objects.requireNonNull(ConversionUtils.asPbjSlotUsages(List.of(accesses), true))
+                .getFirst();
+
+        assertThat(usage.writtenSlotKeysOrThrow().keys())
+                .containsExactly(
+                        com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("ff".repeat(32)),
+                        com.hedera.pbj.runtime.io.buffer.Bytes.EMPTY,
+                        com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("0100"));
+        final var readValue = com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("01");
+        final var writtenValue = com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("02");
+        assertThat(usage.slotReads())
+                .containsExactly(
+                        SlotRead.newBuilder()
+                                .index(0)
+                                .readValue(readValue)
+                                .writtenValue(writtenValue)
+                                .build(),
+                        SlotRead.newBuilder()
+                                .key(com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("07"))
+                                .readValue(readValue)
+                                .build(),
+                        SlotRead.newBuilder()
+                                .index(1)
+                                .readValue(readValue)
+                                .writtenValue(writtenValue)
+                                .build(),
+                        SlotRead.newBuilder()
+                                .index(2)
+                                .readValue(readValue)
+                                .writtenValue(writtenValue)
+                                .build());
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void capturesZeroWrittenValuesWithoutConfusingThemWithReadOnlyAccesses(final boolean traceExplicitWrites) {
+        final var accesses = new StorageAccesses(
+                CALLED_CONTRACT_ID,
+                List.of(
+                        StorageAccess.newWrite(UInt256.ZERO, UInt256.ONE, UInt256.ZERO),
+                        StorageAccess.newRead(UInt256.ONE, UInt256.ZERO)));
+        final var usage = Objects.requireNonNull(
+                        ConversionUtils.asPbjSlotUsages(List.of(accesses), traceExplicitWrites))
+                .getFirst();
+
+        assertThat(usage.slotReads().getFirst().hasWrittenValue()).isTrue();
+        assertThat(usage.slotReads().getFirst().writtenValueOrThrow())
+                .isEqualTo(com.hedera.pbj.runtime.io.buffer.Bytes.EMPTY);
+        assertThat(usage.slotReads().getLast().hasWrittenValue()).isFalse();
     }
 
     @Test

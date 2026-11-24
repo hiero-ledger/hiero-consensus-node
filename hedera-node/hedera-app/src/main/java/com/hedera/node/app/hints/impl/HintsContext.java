@@ -1,23 +1,30 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hints.impl;
 
+import static com.hedera.node.app.hints.HintsLibrary.isSupportedPartySize;
+import static com.hedera.node.app.hints.HintsLibrary.isValidPartyId;
 import static java.util.Objects.requireNonNull;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static java.util.stream.Collectors.toMap;
 
+import com.hedera.hapi.node.state.hints.CRSStage;
+import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.NodePartyId;
 import com.hedera.hapi.services.auxiliary.hints.HintsPartialSignatureTransactionBody;
 import com.hedera.node.app.hints.HintsLibrary;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.math.BigInteger;
 import java.time.Duration;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -35,7 +42,7 @@ import org.apache.logging.log4j.Logger;
 
 /**
  * The hinTS context that can be used to request hinTS signatures using the latest
- * complete construction, if there is one. See {@link #setConstruction(HintsConstruction)}
+ * complete construction, if there is one. See {@link #setConstruction(HintsConstruction, CRSState, HintsGenerationWeights)}
  * for the ways the context can have a construction set.
  */
 @Singleton
@@ -50,26 +57,22 @@ public class HintsContext {
     private static final long NO_CONSTRUCTION_ID = Long.MIN_VALUE;
     private static final long NO_BLOCK_STARTED = -1L;
     private static final long MIXED_MODE_BLOCKS = 3L;
+    // Sentinel for a System.nanoTime() timestamp that has not been recorded yet
+    private static final long UNSET_NANOS = Long.MIN_VALUE;
 
     private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
 
     private final HintsLibrary library;
     private final Supplier<Configuration> configProvider;
     private final HintsSigningMetrics signingMetrics;
+    private final Supplier<NodeInfo> selfNodeInfoSupplier;
 
-    private final ReentrantReadWriteLock akCacheLock = new ReentrantReadWriteLock(true);
+    private final ReentrantReadWriteLock constructionLock = new ReentrantReadWriteLock(true);
 
     private volatile ConstructionSnapshots constructionSnapshots = ConstructionSnapshots.EMPTY;
     private volatile long lastStartedBlock = NO_BLOCK_STARTED;
     private volatile long mixedModePreviousConstructionId = NO_CONSTRUCTION_ID;
-    private volatile long mixedModeActiveConstructionId = NO_CONSTRUCTION_ID;
     private volatile long mixedModeExpiresAtBlock = NO_BLOCK_STARTED;
-
-    /**
-     * The construction id whose aggregation key was last allowed to populate the native hinTS AK cache.
-     * Guarded by {@link #akCacheLock}'s write lock.
-     */
-    private long lastAkCacheConstructionId = NO_CONSTRUCTION_ID;
 
     /**
      * The active and, during mixed mode, immediately previous construction snapshots.
@@ -90,17 +93,33 @@ public class HintsContext {
     private record ConstructionSnapshot(
             long constructionId,
             @NonNull HintsConstruction construction,
+            @NonNull CRSState crsState,
             @NonNull Bytes aggregationKey,
             @NonNull Bytes verificationKey,
             @NonNull Map<Long, Integer> nodePartyIds,
             @NonNull Map<Long, Long> nodeWeights,
-            long totalWeight) {
+            long totalWeight,
+            @NonNull HintsGenerationWeights generationWeights,
+            boolean requiresHistory) {
         private ConstructionSnapshot {
             requireNonNull(construction);
+            requireNonNull(crsState);
             requireNonNull(aggregationKey);
             requireNonNull(verificationKey);
             requireNonNull(nodePartyIds);
             requireNonNull(nodeWeights);
+            requireNonNull(generationWeights);
+        }
+
+        private boolean hasSameSigningMaterial(final ConstructionSnapshot other) {
+            return construction.crsId() == other.construction.crsId()
+                    && construction.numParties() == other.construction.numParties()
+                    && Objects.equals(
+                            construction.preprocessingRosterWeight(), other.construction.preprocessingRosterWeight())
+                    && construction.hintsSchemeOrThrow().equals(other.construction.hintsSchemeOrThrow())
+                    && crsState.crs().equals(other.crsState.crs())
+                    && (requiresHistory != other.requiresHistory
+                            || generationWeights.fullWeights().equals(other.generationWeights.fullWeights()));
         }
     }
 
@@ -108,51 +127,129 @@ public class HintsContext {
     public HintsContext(
             @NonNull final HintsLibrary library,
             @NonNull final Supplier<Configuration> configProvider,
-            @NonNull final HintsSigningMetrics signingMetrics) {
+            @NonNull final HintsSigningMetrics signingMetrics,
+            @NonNull final Supplier<NodeInfo> selfNodeInfoSupplier) {
         this.library = requireNonNull(library);
         this.configProvider = requireNonNull(configProvider);
         this.signingMetrics = requireNonNull(signingMetrics);
+        this.selfNodeInfoSupplier = requireNonNull(selfNodeInfoSupplier);
+    }
+
+    /** Whether this context requires the complete history generation for its signing denominator. */
+    public boolean requiresHistory() {
+        return HintsGenerationWeights.requiresHistory(configProvider.get().getConfigData(TssConfig.class));
+    }
+
+    /** Restores signing from the hinTS construction when the configuration permits a history-free snapshot. */
+    public void setConstruction(@NonNull final HintsConstruction construction, @NonNull final CRSState crsState) {
+        final var weights = requiresHistory()
+                ? HintsGenerationWeights.from(construction, null)
+                : HintsGenerationWeights.forScheme(construction);
+        setConstruction(construction, crsState, weights);
     }
 
     /**
-     * Sets the active hinTS construction as the signing context. Called in three places,
-     * <ol>
-     *     <li>In the startup phase, when restarting from a state whose active hinTS
-     *     construction (and possibly next construction) had complete schemes.</li>
-     *     <li>In the runtime phase, on finishing the preprocessing work for a hinTS
-     *     construction (either the bootstrap construction or for a roster with
-     *     rebalanced weights after a stake period boundary).</li>
-     *     <li>In the restart runtime phase, when swapping in a newly adopted roster's
-     *     hinTS construction and purging votes for the previous construction.</li>
-     * </ol>
+     * Activates a completed scheme bound to its CRS. Real history-backed signing requires the complete
+     * canonical generation supplied by startup recovery or a completed history handoff. History-disabled
+     * and mock-signature modes can use the weight frozen in the construction itself.
+     * Existing signing attempts keep the weights and verification fraction captured when they opened.
      *
-     * @param construction the construction to start using for signing
-     * @throws IllegalArgumentException if either construction does not have a hinTS scheme
+     * @param construction the completed construction to use for signing
+     * @param crsState the completed CRS bound to that construction
+     * @param generationWeights the validated canonical generation in real history-backed mode
+     * @throws IllegalArgumentException if the construction, CRS, or generation binding is incompatible
      */
-    public synchronized void setConstruction(@NonNull final HintsConstruction construction) {
+    public synchronized void setConstruction(
+            @NonNull final HintsConstruction construction,
+            @NonNull final CRSState crsState,
+            @NonNull final HintsGenerationWeights generationWeights) {
         requireNonNull(construction);
+        requireNonNull(crsState);
+        final boolean historyRequired = requiresHistory();
+        final var currentSnapshot = constructionSnapshots.active();
+        if (currentSnapshot != null
+                && currentSnapshot.construction().equals(construction)
+                && currentSnapshot.crsState().equals(crsState)
+                && currentSnapshot.requiresHistory() == historyRequired
+                && (!historyRequired || currentSnapshot.generationWeights().equals(generationWeights))) {
+            return;
+        }
         if (!construction.hasHintsScheme()) {
             throw new IllegalArgumentException(
                     "Given construction #" + construction.constructionId() + " has no hinTS scheme");
         }
-        final var newSnapshot = snapshotOf(construction);
-        final var writeLock = akCacheLock.writeLock();
+        requireNonNull(crsState);
+        if (crsState.stage() != CRSStage.COMPLETED
+                || crsState.crs().length() == 0
+                || crsState.ceremonyId() <= 0
+                || !isSupportedPartySize(crsState.numParties())
+                || construction.hintsSchemeOrThrow().nodePartyIds().stream()
+                        .anyMatch(p -> !isValidPartyId(p.partyId(), crsState.numParties()))
+                || construction.crsId() != crsState.ceremonyId()
+                || construction.numParties() != crsState.numParties()) {
+            throw new IllegalArgumentException("Construction must be bound to its completed CRS");
+        }
+        final var effectiveWeights =
+                historyRequired ? requireNonNull(generationWeights) : HintsGenerationWeights.forScheme(construction);
+        final var newSnapshot = snapshotOf(construction, crsState, effectiveWeights, historyRequired);
+        final var writeLock = constructionLock.writeLock();
         writeLock.lock();
         try {
             final var current = constructionSnapshots;
             final var currentActive = current.active();
+            if (currentActive != null && currentActive.constructionId() == newSnapshot.constructionId()) {
+                if (!currentActive.hasSameSigningMaterial(newSnapshot)) {
+                    throw new IllegalArgumentException(
+                            "An active hinTS construction cannot change its signing generation");
+                }
+                // A transport-only target rebinding or repeated initialization must preserve an existing window.
+                constructionSnapshots = new ConstructionSnapshots(newSnapshot, current.previous());
+                if (currentActive.requiresHistory() != historyRequired) {
+                    warnOnLowCoverage(newSnapshot);
+                }
+                return;
+            }
             final boolean activeChanged =
                     currentActive != null && currentActive.constructionId() != newSnapshot.constructionId();
             final boolean canEnterMixedMode = activeChanged && lastStartedBlock != NO_BLOCK_STARTED;
             constructionSnapshots = new ConstructionSnapshots(newSnapshot, canEnterMixedMode ? currentActive : null);
+            warnOnLowCoverage(newSnapshot);
             if (activeChanged) {
-                resetAkCache();
                 if (canEnterMixedMode) {
                     beginMixedMode(currentActive.constructionId(), newSnapshot.constructionId());
                 } else {
                     clearMixedMode();
                 }
             }
+        } finally {
+            writeLock.unlock();
+        }
+    }
+
+    private static void warnOnLowCoverage(final ConstructionSnapshot snapshot) {
+        final var weights = snapshot.generationWeights();
+        if (snapshot.requiresHistory()
+                && BigInteger.valueOf(weights.schemeWeight())
+                                .multiply(BigInteger.valueOf(6))
+                                .compareTo(BigInteger.valueOf(weights.totalWeight())
+                                        .multiply(BigInteger.valueOf(5)))
+                        <= 0) {
+            log.warn(
+                    "hinTS construction #{} has scheme coverage {}/{}; full-book majority liveness cannot tolerate an additional one third of the full generation being unavailable",
+                    snapshot.constructionId(),
+                    weights.schemeWeight(),
+                    weights.totalWeight());
+        }
+    }
+
+    /** Clears signing generations before restoring a learned state, including its mixed handoff window. */
+    public synchronized void clear() {
+        final var writeLock = constructionLock.writeLock();
+        writeLock.lock();
+        try {
+            constructionSnapshots = ConstructionSnapshots.EMPTY;
+            lastStartedBlock = NO_BLOCK_STARTED;
+            clearMixedMode();
         } finally {
             writeLock.unlock();
         }
@@ -167,18 +264,17 @@ public class HintsContext {
      * @param blockNumber the block number being started
      */
     public synchronized void onBlockStarted(final long blockNumber) {
-        lastStartedBlock = blockNumber;
-        if (isMixedModeActive() && blockNumber >= mixedModeExpiresAtBlock) {
-            final var writeLock = akCacheLock.writeLock();
-            writeLock.lock();
-            try {
-                resetAkCache();
+        final var writeLock = constructionLock.writeLock();
+        writeLock.lock();
+        try {
+            lastStartedBlock = blockNumber;
+            if (isMixedModeActive() && blockNumber >= mixedModeExpiresAtBlock) {
                 clearMixedMode();
                 final var snapshots = constructionSnapshots;
                 constructionSnapshots = new ConstructionSnapshots(snapshots.active(), null);
-            } finally {
-                writeLock.unlock();
             }
+        } finally {
+            writeLock.unlock();
         }
     }
 
@@ -197,7 +293,8 @@ public class HintsContext {
      * @return true if the context is ready
      */
     public boolean isReady() {
-        return constructionSnapshots.active() != null;
+        final var snapshot = constructionSnapshots.active();
+        return snapshot != null && snapshot.requiresHistory() == requiresHistory();
     }
 
     /**
@@ -225,6 +322,12 @@ public class HintsContext {
         return snapshot == null ? null : snapshot.construction();
     }
 
+    /** Returns the immutable CRS for an accepted signing construction, including the handoff window. */
+    public @Nullable Bytes crsForConstruction(final long constructionId) {
+        final var snapshot = acceptedSnapshot(constructionId);
+        return snapshot == null ? null : snapshot.crsState().crs();
+    }
+
     private @Nullable ConstructionSnapshot acceptedSnapshot(final long constructionId) {
         final var snapshots = constructionSnapshots;
         final var active = snapshots.activeIf(constructionId);
@@ -245,15 +348,8 @@ public class HintsContext {
         return mixedModePreviousConstructionId != NO_CONSTRUCTION_ID;
     }
 
-    private boolean requiresExclusiveAkCacheAccess(final long constructionId) {
-        return isAcceptedPreviousConstruction()
-                && (constructionId == mixedModePreviousConstructionId
-                        || constructionId == mixedModeActiveConstructionId);
-    }
-
     private void beginMixedMode(final long previousConstructionId, final long activeConstructionId) {
         mixedModePreviousConstructionId = previousConstructionId;
-        mixedModeActiveConstructionId = activeConstructionId;
         mixedModeExpiresAtBlock = lastStartedBlock + MIXED_MODE_BLOCKS;
         log.info(
                 "Entering hinTS mixed construction mode for #{} and #{} through block #{}",
@@ -267,7 +363,6 @@ public class HintsContext {
             log.info("Exiting hinTS mixed construction mode");
         }
         mixedModePreviousConstructionId = NO_CONSTRUCTION_ID;
-        mixedModeActiveConstructionId = NO_CONSTRUCTION_ID;
         mixedModeExpiresAtBlock = NO_BLOCK_STARTED;
     }
 
@@ -283,7 +378,7 @@ public class HintsContext {
         requireNonNull(crs);
         final var snapshot = acceptedSnapshot(body.constructionId());
         final var partyId = snapshot == null ? null : snapshot.nodePartyIds().get(nodeId);
-        if (snapshot == null || partyId == null) {
+        if (snapshot == null || partyId == null || !snapshot.crsState().crs().equals(crs)) {
             return false;
         }
         return verifyBls(
@@ -309,7 +404,12 @@ public class HintsContext {
             @NonNull final Bytes blockHash, @NonNull final Runnable onCompletion) {
         requireNonNull(blockHash);
         requireNonNull(onCompletion);
-        return newSigningFrom(activeSnapshotOrThrow(), blockHash, onCompletion);
+        final var config = configProvider.get().getConfigData(TssConfig.class);
+        final var snapshot = constructionSnapshots.active();
+        if (snapshot == null || snapshot.requiresHistory() != HintsGenerationWeights.requiresHistory(config)) {
+            throw new IllegalStateException("Signing context not ready for the current history-weight policy");
+        }
+        return newSigningFrom(snapshot, blockHash, onCompletion, config);
     }
 
     /**
@@ -328,46 +428,62 @@ public class HintsContext {
         requireNonNull(blockHash);
         requireNonNull(onCompletion);
         final var snapshot = acceptedSnapshot(constructionId);
-        return snapshot == null ? null : newSigningFrom(snapshot, blockHash, onCompletion);
+        final var config = configProvider.get().getConfigData(TssConfig.class);
+        return snapshot == null || snapshot.requiresHistory() != HintsGenerationWeights.requiresHistory(config)
+                ? null
+                : newSigningFrom(snapshot, blockHash, onCompletion, config);
     }
 
     private @NonNull Signing newSigningFrom(
             @NonNull final ConstructionSnapshot snapshot,
             @NonNull final Bytes blockHash,
-            @NonNull final Runnable onCompletion) {
-        final var tssConfig = configProvider.get().getConfigData(TssConfig.class);
+            @NonNull final Runnable onCompletion,
+            @NonNull final TssConfig tssConfig) {
         final int divisor = Math.max(1, tssConfig.signingThresholdDivisor());
         final long threshold = snapshot.totalWeight() / divisor;
         return new Signing(
                 snapshot.constructionId(),
+                snapshot.crsState(),
                 blockHash,
                 threshold,
-                divisor,
+                snapshot.construction().hasPreprocessingRosterWeight()
+                        ? new HintsGenerationWeights.ThresholdFraction(1, divisor)
+                        : snapshot.generationWeights().verificationFraction(divisor),
                 snapshot.aggregationKey(),
                 snapshot.nodePartyIds(),
                 snapshot.nodeWeights(),
                 snapshot.verificationKey(),
                 onCompletion,
-                tssConfig.validateBlockSignatures());
+                tssConfig.validateBlockSignatures(),
+                selfNodeInfoSupplier.get().nodeId());
     }
 
-    private @NonNull ConstructionSnapshot snapshotOf(@NonNull final HintsConstruction construction) {
+    private @NonNull ConstructionSnapshot snapshotOf(
+            @NonNull final HintsConstruction construction,
+            @NonNull final CRSState crsState,
+            @NonNull final HintsGenerationWeights generationWeights,
+            final boolean requiresHistory) {
         final var scheme = construction.hintsSchemeOrThrow();
         final var preprocessedKeys = scheme.preprocessedKeysOrThrow();
-        final Map<Long, Long> nodeWeights = new HashMap<>();
-        long totalWeight = 0L;
-        for (final var nodePartyId : scheme.nodePartyIds()) {
-            totalWeight += nodePartyId.partyWeight();
-            nodeWeights.put(nodePartyId.nodeId(), nodePartyId.partyWeight());
+        final var schemeWeights =
+                scheme.nodePartyIds().stream().collect(toMap(NodePartyId::nodeId, NodePartyId::partyWeight));
+        final long signingWeight = construction.preprocessingRosterWeightOrElse(generationWeights.totalWeight());
+        if (!generationWeights.matches(construction)
+                || !schemeWeights.equals(generationWeights.schemeWeights())
+                || (requiresHistory && signingWeight != generationWeights.totalWeight())) {
+            throw new IllegalArgumentException("Generation weights do not match the hinTS scheme");
         }
         return new ConstructionSnapshot(
                 construction.constructionId(),
                 construction,
+                crsState,
                 preprocessedKeys.aggregationKey(),
                 preprocessedKeys.verificationKey(),
                 Map.copyOf(asNodePartyIds(scheme.nodePartyIds())),
-                Map.copyOf(nodeWeights),
-                totalWeight);
+                generationWeights.schemeWeights(),
+                signingWeight,
+                generationWeights,
+                requiresHistory);
     }
 
     /**
@@ -384,8 +500,8 @@ public class HintsContext {
      */
     private @NonNull ConstructionSnapshot activeSnapshotOrThrow() {
         final var snapshot = constructionSnapshots.active();
-        if (snapshot == null) {
-            throw new IllegalStateException("Signing context not ready");
+        if (snapshot == null || snapshot.requiresHistory() != requiresHistory()) {
+            throw new IllegalStateException("Signing context not ready for the current history-weight policy");
         }
         return snapshot;
     }
@@ -401,10 +517,8 @@ public class HintsContext {
         requireNonNull(signature);
         requireNonNull(message);
         requireNonNull(aggregationKey);
-        return withAkCacheProtection(
-                constructionId,
-                () -> acceptsConstruction(constructionId)
-                        && library.verifyBls(crs, signature, message, aggregationKey, partyId));
+        return withConstructionReadLock(() -> acceptsConstruction(constructionId)
+                && library.verifyBls(crs, signature, message, aggregationKey, partyId));
     }
 
     private @Nullable Bytes aggregateSignatures(
@@ -417,52 +531,20 @@ public class HintsContext {
         requireNonNull(aggregationKey);
         requireNonNull(verificationKey);
         requireNonNull(partialSignatures);
-        return withAkCacheProtection(
-                constructionId,
-                () -> acceptsConstruction(constructionId)
-                        ? library.aggregateSignatures(crs, aggregationKey, verificationKey, partialSignatures)
-                        : null);
+        return withConstructionReadLock(() -> acceptsConstruction(constructionId)
+                ? library.aggregateSignatures(crs, aggregationKey, verificationKey, partialSignatures)
+                : null);
     }
 
-    private <T> T withAkCacheProtection(final long constructionId, @NonNull final Supplier<T> operation) {
-        requireNonNull(operation);
-        if (requiresExclusiveAkCacheAccess(constructionId)) {
-            return withExclusiveAkCacheAccess(constructionId, operation);
-        }
-        final var readLock = akCacheLock.readLock();
+    /** Keeps acceptance stable across a handoff while allowing old/new construction operations concurrently. */
+    private <T> T withConstructionReadLock(@NonNull final Supplier<T> operation) {
+        final var readLock = constructionLock.readLock();
         readLock.lock();
         try {
-            if (!requiresExclusiveAkCacheAccess(constructionId)) {
-                return operation.get();
-            }
+            return operation.get();
         } finally {
             readLock.unlock();
         }
-        return withExclusiveAkCacheAccess(constructionId, operation);
-    }
-
-    private <T> T withExclusiveAkCacheAccess(final long constructionId, @NonNull final Supplier<T> operation) {
-        requireNonNull(operation);
-        final var writeLock = akCacheLock.writeLock();
-        writeLock.lock();
-        try {
-            useAkCacheFor(constructionId);
-            return operation.get();
-        } finally {
-            writeLock.unlock();
-        }
-    }
-
-    private void useAkCacheFor(final long constructionId) {
-        if (lastAkCacheConstructionId != constructionId) {
-            resetAkCache();
-            lastAkCacheConstructionId = constructionId;
-        }
-    }
-
-    private void resetAkCache() {
-        library.resetCache();
-        lastAkCacheConstructionId = NO_CONSTRUCTION_ID;
     }
 
     /**
@@ -470,9 +552,11 @@ public class HintsContext {
      */
     public non-sealed class Signing implements BlockHashSigning {
         private final long startNanos;
+        private final long selfNodeId;
         private final long constructionId;
+        private final CRSState crsState;
         private final long thresholdWeight;
-        private final long thresholdDenominator;
+        private final HintsGenerationWeights.ThresholdFraction verificationFraction;
         private final Bytes blockHash;
         private final Bytes aggregationKey;
         private final Bytes verificationKey;
@@ -484,23 +568,35 @@ public class HintsContext {
         private final AtomicLong weightOfSignatures = new AtomicLong();
         private final AtomicBoolean completed = new AtomicBoolean();
         private final ScheduledFuture<?> timeoutFuture;
+        // Timestamps for latency metrics relative to this node's own partial signature submission; because a slow node
+        // can receive (even enough) peer partial signatures before it has produced the block and submitted its own,
+        // these may be set in any order, and each metric is recorded exactly once, when both of its timestamps are set
+        private final AtomicLong localSubmissionNanos = new AtomicLong(UNSET_NANOS);
+        private final AtomicLong firstPeerSignatureNanos = new AtomicLong(UNSET_NANOS);
+        private final AtomicLong signatureReadyNanos = new AtomicLong(UNSET_NANOS);
+        private final AtomicBoolean firstPeerLatencyRecorded = new AtomicBoolean();
+        private final AtomicBoolean signatureReadyLatencyRecorded = new AtomicBoolean();
 
         public Signing(
                 final long constructionId,
+                @NonNull final CRSState crsState,
                 @NonNull final Bytes blockHash,
                 final long thresholdWeight,
-                final long thresholdDenominator,
+                @NonNull final HintsGenerationWeights.ThresholdFraction verificationFraction,
                 @NonNull final Bytes aggregationKey,
                 @NonNull final Map<Long, Integer> partyIds,
                 @NonNull final Map<Long, Long> nodeWeights,
                 @NonNull final Bytes verificationKey,
                 @NonNull final Runnable onCompletion,
-                final boolean validateSignature) {
+                final boolean validateSignature,
+                final long selfNodeId) {
             this.startNanos = System.nanoTime();
+            this.selfNodeId = selfNodeId;
             this.constructionId = constructionId;
+            this.crsState = requireNonNull(crsState);
             this.thresholdWeight = thresholdWeight;
             this.validateSignature = validateSignature;
-            this.thresholdDenominator = thresholdDenominator;
+            this.verificationFraction = requireNonNull(verificationFraction);
             requireNonNull(onCompletion);
             this.blockHash = requireNonNull(blockHash);
             this.aggregationKey = requireNonNull(aggregationKey);
@@ -563,7 +659,8 @@ public class HintsContext {
                 final long nodeId, @NonNull final Bytes crs, @NonNull final HintsPartialSignatureTransactionBody body) {
             requireNonNull(crs);
             requireNonNull(body);
-            if (body.constructionId() != constructionId
+            if (!crsState.crs().equals(crs)
+                    || body.constructionId() != constructionId
                     || !body.message().equals(blockHash)
                     || !partyIds.containsKey(nodeId)
                     || !acceptsConstruction(constructionId)) {
@@ -571,6 +668,29 @@ public class HintsContext {
             }
             return verifyBls(
                     constructionId, crs, body.partialSignature(), body.message(), aggregationKey, partyIds.get(nodeId));
+        }
+
+        /**
+         * Whether this signing attempt can still use a partial signature from the given node; that is, the attempt
+         * is not complete, the node is a party to its scheme, and no signature from the node has been incorporated.
+         *
+         * @param nodeId the node ID
+         * @return true if a valid partial signature from the node would still be incorporated
+         */
+        public boolean needsSignatureFrom(final long nodeId) {
+            final var partyId = partyIds.get(nodeId);
+            return partyId != null && !completed.get() && !signatures.containsKey(partyId);
+        }
+
+        /**
+         * Records that this node has submitted its own partial signature for this attempt's block hash. Only the
+         * first call has any effect.
+         */
+        public void markLocalSubmission() {
+            if (localSubmissionNanos.compareAndSet(UNSET_NANOS, System.nanoTime())) {
+                maybeRecordFirstPeerLatency();
+                maybeRecordSignatureReadyLatency();
+            }
         }
 
         /**
@@ -597,7 +717,7 @@ public class HintsContext {
         public void incorporateValid(@NonNull final Bytes crs, final long nodeId, @NonNull final Bytes signature) {
             requireNonNull(crs);
             requireNonNull(signature);
-            if (completed.get() || !acceptsConstruction(constructionId)) {
+            if (completed.get() || !crsState.crs().equals(crs) || !acceptsConstruction(constructionId)) {
                 return;
             }
             final var partyId = partyIds.get(nodeId);
@@ -607,6 +727,9 @@ public class HintsContext {
             if (signatures.put(partyId, signature) != null) {
                 // Each valid signature should only accumulate weight once, so abort on duplicates
                 return;
+            }
+            if (nodeId != selfNodeId && firstPeerSignatureNanos.compareAndSet(UNSET_NANOS, System.nanoTime())) {
+                maybeRecordFirstPeerLatency();
             }
             final var weight = nodeWeights.getOrDefault(nodeId, 0L);
             final var totalWeight = weightOfSignatures.addAndGet(weight);
@@ -618,14 +741,60 @@ public class HintsContext {
                 final boolean valid = aggregatedSignature != null
                         && (!validateSignature
                                 || library.verifyAggregate(
-                                        aggregatedSignature, blockHash, verificationKey, 1L, thresholdDenominator));
+                                        aggregatedSignature,
+                                        blockHash,
+                                        verificationKey,
+                                        verificationFraction.numerator(),
+                                        verificationFraction.denominator()));
                 if (valid) {
+                    final long nowNanos = System.nanoTime();
                     future.complete(aggregatedSignature);
-                    final long elapsedNanos = System.nanoTime() - startNanos;
-                    signingMetrics.recordSignatureProduced(elapsedNanos / 1_000_000L);
+                    signingMetrics.recordSignatureProduced(NANOSECONDS.toMillis(nowNanos - startNanos));
+                    signatureReadyNanos.set(nowNanos);
+                    maybeRecordSignatureReadyLatency();
                 } else {
                     future.completeExceptionally(new IllegalStateException(INVALID_AGGREGATE_SIGNATURE_MESSAGE));
                 }
+            }
+        }
+
+        /**
+         * Once both this node's submission and the first peer partial signature are known, records either the
+         * latency between them or, if the peer signature arrived first, by how much it led this node.
+         */
+        private void maybeRecordFirstPeerLatency() {
+            final long submittedAt = localSubmissionNanos.get();
+            final long firstPeerAt = firstPeerSignatureNanos.get();
+            if (submittedAt == UNSET_NANOS
+                    || firstPeerAt == UNSET_NANOS
+                    || !firstPeerLatencyRecorded.compareAndSet(false, true)) {
+                return;
+            }
+            final long deltaNanos = firstPeerAt - submittedAt;
+            if (deltaNanos >= 0) {
+                signingMetrics.recordSubmitToFirstPeerSignature(deltaNanos);
+            } else {
+                signingMetrics.recordPeerSignatureBeforeSubmit(-deltaNanos);
+            }
+        }
+
+        /**
+         * Once both this node's submission and the aggregated signature are known, records either the latency
+         * between them or, if the signature was aggregated from peer signatures first, by how much it led this node.
+         */
+        private void maybeRecordSignatureReadyLatency() {
+            final long submittedAt = localSubmissionNanos.get();
+            final long readyAt = signatureReadyNanos.get();
+            if (submittedAt == UNSET_NANOS
+                    || readyAt == UNSET_NANOS
+                    || !signatureReadyLatencyRecorded.compareAndSet(false, true)) {
+                return;
+            }
+            final long deltaNanos = readyAt - submittedAt;
+            if (deltaNanos >= 0) {
+                signingMetrics.recordSubmitToProofReady(deltaNanos);
+            } else {
+                signingMetrics.recordThresholdBeforeSubmit(-deltaNanos);
             }
         }
     }

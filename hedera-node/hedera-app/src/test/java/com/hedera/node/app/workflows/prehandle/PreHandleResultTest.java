@@ -16,11 +16,13 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.node.app.signature.SignatureVerificationFuture;
 import com.hedera.node.app.spi.fixtures.Scenarios;
+import com.hedera.node.app.spi.key.KeyRequirement;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.TransactionScenarioBuilder;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -35,7 +37,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 final class PreHandleResultTest implements Scenarios {
 
     private static final long DEFAULT_CONFIG_VERSION = 1L;
-    private static final Set<Key> DEFAULT_REQUIRED_KEYS = Collections.emptySet();
+    private static final Set<KeyRequirement> DEFAULT_REQUIRED_REQUIREMENTS = Collections.emptySet();
     private static final Map<Key, SignatureVerificationFuture> DEFAULT_VERIFICATION_RESULTS = Collections.emptyMap();
     private final PreHandleResult DEFAULT_RESULT = new PreHandleResult(
             ALICE.accountID(),
@@ -43,8 +45,8 @@ final class PreHandleResultTest implements Scenarios {
             SO_FAR_SO_GOOD,
             OK,
             new TransactionScenarioBuilder().txInfo(),
-            Set.of(BOB.account().keyOrThrow()),
-            Set.of(CAROL.account().keyOrThrow()),
+            Set.of(KeyRequirement.forAccount(BOB.accountID(), BOB.account().keyOrThrow())),
+            Set.of(KeyRequirement.forAccount(CAROL.accountID(), CAROL.account().keyOrThrow())),
             Set.of(ERIN.account()),
             Map.of(),
             null,
@@ -102,13 +104,51 @@ final class PreHandleResultTest implements Scenarios {
                 SO_FAR_SO_GOOD,
                 OK,
                 new TransactionScenarioBuilder().txInfo(),
-                Set.of(BOB.account().keyOrThrow()),
-                Set.of(CAROL.account().keyOrThrow()),
+                Set.of(KeyRequirement.forKey(BOB.account().keyOrThrow())),
+                Set.of(KeyRequirement.forKey(CAROL.account().keyOrThrow())),
                 Set.of(ERIN.account()),
                 new HashMap<>(),
                 null,
                 1L);
         assertThatThrownBy(() -> result.getVerificationResults().clear())
+                .isInstanceOf(UnsupportedOperationException.class);
+    }
+
+    @Test
+    void payerEqualRequirementsAreRetainedButExcludedFromKeyProjection() {
+        final var key = ALICE.account().keyOrThrow();
+        final var result = new PreHandleResult(
+                ALICE.accountID(),
+                key,
+                SO_FAR_SO_GOOD,
+                OK,
+                null,
+                Set.of(KeyRequirement.forKey(key)),
+                Set.of(KeyRequirement.forKey(key)),
+                Set.of(),
+                Map.of(),
+                null,
+                1L);
+
+        assertThat(result.getRequiredKeyRequirements()).containsExactly(KeyRequirement.forKey(key));
+        assertThat(result.optionalKeyRequirements()).containsExactly(KeyRequirement.forKey(key));
+        assertThat(result.getRequiredKeys()).isEmpty();
+        assertThat(result.getOptionalKeys()).isEmpty();
+    }
+
+    @Test
+    void scopedRequirementsAreImmutableOrderedSnapshots() {
+        final var key = ALICE.account().keyOrThrow();
+        final var aliceRequirement = KeyRequirement.forAccount(ALICE.accountID(), key);
+        final var bobRequirement = KeyRequirement.forAccount(BOB.accountID(), key);
+        final var required = new LinkedHashSet<>(List.of(aliceRequirement, bobRequirement));
+        final var result = new PreHandleResult(
+                ALICE.accountID(), key, SO_FAR_SO_GOOD, OK, null, required, Set.of(), Set.of(), Map.of(), null, 1L);
+
+        required.clear();
+
+        assertThat(result.getRequiredKeyRequirements()).containsExactly(aliceRequirement, bobRequirement);
+        assertThatThrownBy(() -> result.getRequiredKeyRequirements().clear())
                 .isInstanceOf(UnsupportedOperationException.class);
     }
 
@@ -134,7 +174,7 @@ final class PreHandleResultTest implements Scenarios {
                             null,
                             OK,
                             txInfo,
-                            DEFAULT_REQUIRED_KEYS,
+                            DEFAULT_REQUIRED_REQUIREMENTS,
                             Set.of(),
                             Set.of(),
                             DEFAULT_VERIFICATION_RESULTS,
@@ -157,7 +197,7 @@ final class PreHandleResultTest implements Scenarios {
                             SO_FAR_SO_GOOD,
                             null,
                             txInfo,
-                            DEFAULT_REQUIRED_KEYS,
+                            DEFAULT_REQUIRED_REQUIREMENTS,
                             Set.of(),
                             Set.of(),
                             DEFAULT_VERIFICATION_RESULTS,
@@ -176,7 +216,7 @@ final class PreHandleResultTest implements Scenarios {
             assertThat(result.innerResults()).isNull();
             assertThat(result.payer()).isNull();
             assertThat(result.txInfo()).isNull();
-            assertThat(result.requiredKeys()).isNull();
+            assertThat(result.requiredKeyRequirements()).isNull();
             assertThat(result.verificationResults()).isNull();
             assertThat(result.getOptionalKeys()).isEmpty();
         }
@@ -195,7 +235,7 @@ final class PreHandleResultTest implements Scenarios {
             assertThat(result.innerResults()).isNull();
             assertThat(result.payer()).isEqualTo(nodeAccountId);
             assertThat(result.txInfo()).isSameAs(txInfo);
-            assertThat(result.requiredKeys()).isNull();
+            assertThat(result.requiredKeyRequirements()).isNull();
             assertThat(result.verificationResults()).isNull();
         }
 
@@ -212,7 +252,7 @@ final class PreHandleResultTest implements Scenarios {
             assertThat(result.innerResults()).isNull();
             assertThat(result.payer()).isEqualTo(payer);
             assertThat(result.txInfo()).isSameAs(txInfo);
-            assertThat(result.requiredKeys()).isNull();
+            assertThat(result.requiredKeyRequirements()).isNull();
             assertThat(result.verificationResults()).isNull();
         }
     }

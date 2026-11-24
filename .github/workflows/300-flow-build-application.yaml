@@ -29,12 +29,15 @@ jobs:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
   # Required: a failed report fails the run. Starts together with MATS: same needs, so it reports running
-  # when MATS kicks off. Neither waits on the other.
+  # when MATS kicks off. Neither waits on the other. Runs only where the repository variable
+  # CHEWIE_MATS_REPORTING_ENABLED is true, with that repository's own CHEWIE_REPO_IDENTITY_KEY and CHEWIE_HOST.
+  # Any other copy, a fork or a mirror, public or not, runs MATS without reporting it.
   report-mats-running:
     name: Report MATS Running to Chewie
     needs:
       - extract-jdk-version
-    uses: ./.github/workflows/864-call-report-suite-result.yaml
+    if: ${{ vars.CHEWIE_MATS_REPORTING_ENABLED == 'true' }}
+    uses: ./.github/workflows/864-call-report-suite-status.yaml
     with:
       suite-type: mats
       commit: ${{ github.sha }}
@@ -56,7 +59,7 @@ jobs:
       enable-integration-tests: "true"
       enable-hapi-tests: "true"
       enable-otter-tests: "true"
-      enable-snyk-scan: "true"
+      enable-falcon-tests: "true"
       enable-benchmark-smoke: "true"
       enable-gradle-determinism: "true"
       enable-docker-determinism: "true"
@@ -69,16 +72,16 @@ jobs:
       codecov-token: ${{ secrets.CODECOV_TOKEN }}
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-      snyk-token: ${{ secrets.SNYK_TOKEN }}
 
-  # Reported as soon as MATS finishes; nothing later in this workflow changes the MATS verdict.
+  # Reported as soon as MATS finishes; nothing later in this workflow changes the MATS verdict. Runs where
+  # report-mats-running does.
   report-mats-result:
     name: Report MATS Result to Chewie
     needs:
       - report-mats-running # keeps the terminal report after the running one, so it is the latest
       - mats-tests
-    if: ${{ always() }}
-    uses: ./.github/workflows/864-call-report-suite-result.yaml
+    if: ${{ always() && vars.CHEWIE_MATS_REPORTING_ENABLED == 'true' }}
+    uses: ./.github/workflows/864-call-report-suite-status.yaml
     with:
       suite-type: mats
       commit: ${{ github.sha }}
@@ -120,10 +123,10 @@ jobs:
           echo "Using workflow reference: ${RESOLVED_REF}"
           echo "workflow-ref=${RESOLVED_REF}" >> "${GITHUB_OUTPUT}"
 
-      - name: "Trigger 301: [FLOW] Deploy Prod Release"
+      - name: "Trigger 307: [DISP] Build Commit Artifact"
         uses: step-security/workflow-dispatch@024752877e2bfa07299ee4204cc5f7e7c14ff930 # v1.3.21
         with:
-          workflow: .github/workflows/301-flow-deploy-release-artifact.yaml
+          workflow: .github/workflows/307-disp-build-commit-artifact.yaml
           repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
           ref: ${{ steps.resolve-ref.outputs.workflow-ref }} # ensure we are always using the correct workflow definition. Default to main.
           token: ${{ secrets.GH_ACCESS_TOKEN }}
@@ -135,13 +138,17 @@ jobs:
 
   # Always run on the outcome (MATS failure, Deploy CI Trigger failure, or canceled)
   # so it can classify the result into a category and send the appropriate Slack notification.
+  # Public repository only, like deploy-ci-trigger: in a copy that isn't public, deploy-ci-trigger is
+  # always skipped, and the alert, the Slack channels and the log collection all belong to this repository.
   report-status:
     name: Report MATS execution status
     runs-on: hl-cn-default-lin-sm
     needs:
       - mats-tests
       - deploy-ci-trigger
-    if: ${{ (needs.mats-tests.result != 'success' || needs.deploy-ci-trigger.result != 'success') && always() }}
+    if:
+      ${{ (needs.mats-tests.result != 'success' || needs.deploy-ci-trigger.result != 'success') && always() &&
+      github.event.repository.visibility == 'public' }}
 
     steps:
       - name: Prepare Runner
@@ -367,3 +374,20 @@ jobs:
           webhook-type: incoming-webhook
           payload-templated: true
           payload-file-path: slack_payload_summary.json
+
+  # Never gates the run: nothing depends on it and a failure inside it does not fail this run. See docs/ci-metrics.md.
+  publish-run-metrics:
+    name: Publish Run Metrics
+    needs:
+      - extract-jdk-version
+      - report-mats-running
+      - mats-tests
+      - report-mats-result
+      - deploy-ci-trigger
+      - report-status
+    if: ${{ always() && github.event.repository.visibility == 'public' }}
+    uses: ./.github/workflows/865-call-publish-run-metrics.yaml
+    with:
+      context: >-
+        ${{ format('{{"ref_name":{0},"head_sha":{1},"failure_mode":{2}}}',
+        toJSON(github.ref_name), toJSON(github.sha), toJSON(needs.mats-tests.outputs.failure-mode)) }}

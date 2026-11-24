@@ -7,11 +7,19 @@ plugins {
 description = "Consensus Benchmark Tools"
 
 testModuleInfo {
+    requires("com.swirlds.base.test.fixtures")
+    requires("com.swirlds.metrics.api")
+    requires("org.hiero.consensus.fakes")
+    requires("org.hiero.consensus.model.test.fixtures")
+    requires("org.hiero.consensus.utility.test.fixtures")
     requires("org.assertj.core")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
 }
 
 jmhModuleInfo {
+    requires("com.swirlds.base")
+    requires("com.swirlds.metrics.api")
     requires("org.hiero.consensus.benchmark.tools")
+    requires("org.hiero.consensus.fakes")
 }

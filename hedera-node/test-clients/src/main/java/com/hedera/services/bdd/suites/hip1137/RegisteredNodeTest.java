@@ -21,6 +21,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.hip869.NodeCreateTest.generateX509Certificates;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_REGISTERED_ENDPOINT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_REGISTERED_ENDPOINT_ADDRESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_REGISTERED_ENDPOINT_TYPE;
@@ -39,9 +40,11 @@ import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.keys.SigControl;
 import com.hederahashgraph.api.proto.java.RegisteredServiceEndpoint;
+import com.hederahashgraph.api.proto.java.TransactionResponse;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.apache.commons.lang3.StringUtils;
@@ -756,10 +759,11 @@ public class RegisteredNodeTest {
     }
 
     @HapiTest
-    @DisplayName("atomic batch with update + create assigns correct receipt IDs")
+    @DisplayName("retried atomic batch with update + create assigns correct receipt IDs")
     final Stream<DynamicTest> atomicBatchUpdateAndCreateReceiptIds() {
         final var batchOperator = "batchOperator";
         final var createdId = new AtomicLong();
+        final var retryPending = new AtomicBoolean(true);
         return hapiTest(
                 cryptoCreate(batchOperator).balance(ONE_MILLION_HBARS),
                 newKeyNamed(ADMIN_KEY),
@@ -779,11 +783,22 @@ public class RegisteredNodeTest {
                                     registeredNodeCreate("newRegisteredNode")
                                             .adminKey(ADMIN_KEY)
                                             .serviceEndpoints(DEFAULT_ENDPOINTS)
+                                            .via("newRegisteredNodeCreate")
                                             .batchKey(batchOperator))
                             .payingWith(batchOperator)
+                            .withSubmissionStrategy((network, txn, function, target, node) -> {
+                                // Rebuilding a rejected batch must discard the first attempt's inner IDs.
+                                if (retryPending.getAndSet(false)) {
+                                    return TransactionResponse.newBuilder()
+                                            .setNodeTransactionPrecheckCode(BUSY)
+                                            .build();
+                                }
+                                return network.submit(txn, function, target, node);
+                            })
                             .hasKnownStatus(SUCCESS);
                     allRunFor(spec, batch);
-                }));
+                }),
+                getTxnRecord("newRegisteredNodeCreate").hasPriority(recordWith().hasNonZeroRegisteredNodeId()));
     }
 
     // ─── ScheduleTransactions ──────────────────────────────────────

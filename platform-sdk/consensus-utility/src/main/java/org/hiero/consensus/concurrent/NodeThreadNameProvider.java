@@ -6,7 +6,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import org.hiero.base.concurrent.framework.config.CompositeThreadNameProvider;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * Thread naming scheme made out of component: name from_node to other_node + optional thread number.

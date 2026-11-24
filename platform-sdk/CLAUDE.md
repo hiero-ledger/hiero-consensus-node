@@ -64,6 +64,8 @@ principles as `consensus-*` modules.
 - **Prohibited everywhere — legacy modules being eliminated:** `swirlds-common`, `swirlds-platform-core`
 - **Prohibited everywhere — implementation modules; depend on the API instead:** `swirlds-metrics-impl`, `swirlds-logging-log4j-appender`
 
+**Benchmarks:** the JMH benchmarks in the `src/jmh` source sets of the `swirlds-*` modules follow the [benchmark conventions](docs/consensus-layer/benchmarks/README.md).
+
 ### consensus-* Module Categories
 
 **Supporting modules** — shared data model, helpers, and metrics consumed across the layer. They form a strict DAG; no circular dependencies are permitted. See
@@ -101,5 +103,6 @@ modules, other modules are expected to depend on them; the implementation stays 
 implementations, deliberately insecure cryptographic entities, and the like. May depend on any
 supporting, functional-api, functional-impl, or self-contained functional module whose API they fake, plus
 `consensus-wiring-framework`. Must not depend on a structural-transitional module.
+- `consensus-event-creator-instrumented` — test-fixture event creator for Otter instrumented nodes; wraps `consensus-event-creator-impl`.
 - `consensus-fakes` — Transitional: also reached from production paths in
 `swirlds-platform-core` (`PlatformContext.create`, `DefaultSwirldMain`, `ConsensusNoOpModules`).

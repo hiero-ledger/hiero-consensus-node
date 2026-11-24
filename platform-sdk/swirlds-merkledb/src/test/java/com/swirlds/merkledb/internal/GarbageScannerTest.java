@@ -5,21 +5,35 @@ import static com.swirlds.merkledb.files.DataFileCommon.dataLocation;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_MERKLE_DB_CONFIG;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.swirlds.merkledb.collections.LongList;
-import com.swirlds.merkledb.collections.LongListHeap;
+import com.swirlds.merkledb.collections.LongListSegment;
 import com.swirlds.merkledb.files.DataFileCollection;
 import com.swirlds.merkledb.files.DataFileMetadata;
 import com.swirlds.merkledb.files.DataFileReader;
 import com.swirlds.merkledb.internal.GarbageScanner.IndexedGarbageFileStats;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class GarbageScannerTest {
+
+    /// Indexes created by the current test, closed after it to free their off-heap memory.
+    private final List<LongList> indexes = new ArrayList<>();
+
+    @AfterEach
+    void closeIndexes() {
+        indexes.forEach(LongList::close);
+    }
 
     @Test
     void scanTracksAliveItemsAcrossMultipleFiles() {
@@ -118,8 +132,7 @@ class GarbageScannerTest {
         final DataFileCollection fileCollection = mock(DataFileCollection.class);
         when(fileCollection.getAllCompletedFiles()).thenReturn(List.of());
 
-        final LongList index = new LongListHeap(
-                DEFAULT_MERKLE_DB_CONFIG.longListChunkSize(), 1, DEFAULT_MERKLE_DB_CONFIG.longListReservedBufferSize());
+        final LongList index = newIndex(1);
 
         final GarbageScanner scanner = new GarbageScanner(index, fileCollection);
 
@@ -149,22 +162,68 @@ class GarbageScannerTest {
         assertEquals(5, stats.garbageFileStats()[0].deadItems());
     }
 
-    private static GarbageScanner createScanner(final LongList index, final List<DataFileReader> files) {
-        final DataFileCollection fileCollection = mock(DataFileCollection.class);
-        when(fileCollection.getAllCompletedFiles()).thenReturn(files);
-        return new GarbageScanner(index, fileCollection);
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void scanChecksKeepScanningPeriodicallyAndStopsWhenToldTo(final boolean deduplicateMirroredEntries) {
+        // The scan visits indices 0 to 2 * STOP_CHECK_INTERVAL, so it checks whether to keep scanning
+        // at indices 0, STOP_CHECK_INTERVAL and 2 * STOP_CHECK_INTERVAL. In deduplication mode, the
+        // scan visits only the lower half of the index
+        final long entriesToScan = 2 * GarbageScanner.STOP_CHECK_INTERVAL + 1;
+        final long indexSize = deduplicateMirroredEntries ? 2 * entriesToScan : entriesToScan;
+        final DataFileReader file1 = mockFileReader(1, 0, 10);
+
+        // A complete scan checks three times
+        final AtomicInteger checks = new AtomicInteger();
+        final GarbageScanner scanner = createScanner(largeIndex(indexSize), List.of(file1), deduplicateMirroredEntries);
+        final IndexedGarbageFileStats stats = scanner.scan(() -> {
+            checks.incrementAndGet();
+            return true;
+        });
+        assertNotNull(stats, "A complete scan should return results");
+        assertEquals(3, checks.get(), "Unexpected number of checks in a complete scan");
+
+        // A scan told to stop at the first or the second check stops there
+        for (final int stopAtCheck : new int[] {1, 2}) {
+            final AtomicInteger checksBeforeStop = new AtomicInteger();
+            final IndexedGarbageFileStats stoppedStats =
+                    scanner.scan(() -> checksBeforeStop.incrementAndGet() < stopAtCheck);
+            assertNull(stoppedStats, "A stopped scan should return no results");
+            assertEquals(stopAtCheck, checksBeforeStop.get(), "The scan should stop at check " + stopAtCheck);
+        }
     }
 
-    private static LongList indexWithEntries(final Map<Long, Long> indexEntries) {
+    private static GarbageScanner createScanner(final LongList index, final List<DataFileReader> files) {
+        return createScanner(index, files, false);
+    }
+
+    private static GarbageScanner createScanner(
+            final LongList index, final List<DataFileReader> files, final boolean deduplicateMirroredEntries) {
+        final DataFileCollection fileCollection = mock(DataFileCollection.class);
+        when(fileCollection.getAllCompletedFiles()).thenReturn(files);
+        return new GarbageScanner(index, fileCollection, deduplicateMirroredEntries);
+    }
+
+    private LongList newIndex(final long capacity) {
+        final LongList index = new LongListSegment(capacity, DEFAULT_MERKLE_DB_CONFIG);
+        indexes.add(index);
+        return index;
+    }
+
+    /** Creates an index of the given size, with a single entry at its last index. */
+    private LongList largeIndex(final long size) {
+        final LongList index = newIndex(size);
+        index.updateValidRange(0, size - 1);
+        index.put(size - 1, dataLocation(1, 1));
+        return index;
+    }
+
+    private LongList indexWithEntries(final Map<Long, Long> indexEntries) {
         long maxKey = -1;
         for (final long key : indexEntries.keySet()) {
             maxKey = Math.max(maxKey, key);
         }
 
-        final LongList index = new LongListHeap(
-                DEFAULT_MERKLE_DB_CONFIG.longListChunkSize(),
-                Math.max(1, maxKey + 1),
-                DEFAULT_MERKLE_DB_CONFIG.longListReservedBufferSize());
+        final LongList index = newIndex(Math.max(1, maxKey + 1));
         index.updateValidRange(0, Math.max(0, maxKey));
 
         for (final Map.Entry<Long, Long> entry : indexEntries.entrySet()) {

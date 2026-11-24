@@ -81,7 +81,8 @@ public interface HederaRecordCache extends RecordCache {
      * Purging receipts works as follows:
      * <ol>
      *     <li>Find the latest {@link TransactionID#transactionValidStart()} of the all the receipts in the
-     *     {@link TransactionReceiptEntries} object at the head of the round receipt queue.</li>
+     *     {@link TransactionReceiptEntries} object at the head of the round receipt queue; or the consensus
+     *     time of that round, if earlier (no transaction with a later valid start executed in the round).</li>
      *     <li>If even the latest valid start is more than {@link HederaConfig#transactionMaxValidDuration()}
      *     seconds before consensus time now, purge the history of all receipts from that round, and remove it
      *     from the queue.</li>
@@ -104,11 +105,14 @@ public interface HederaRecordCache extends RecordCache {
             @NonNull StreamMode streamMode);
 
     /**
-     * Does the same work as {@link #commitReceipts(State, Instant, ImmediateStateChangeListener, BlockStreamManager, StreamMode)},
-     * <b>if</b> the number of receipts accumulated so far in the round exceeds the given batch size.
+     * Commits the receipts accumulated so far in the round to the transaction receipt queue, <b>if</b> there are at
+     * least the given batch size of them. Unlike
+     * {@link #commitReceipts(State, Instant, ImmediateStateChangeListener, BlockStreamManager, StreamMode)}, this
+     * does not purge expired receipts, since the rest of the round's transactions run before the round's consensus
+     * time.
      *
      * @param state                        The state to commit the transaction receipts to
-     * @param consensusNow                 The current consensus time
+     * @param consensusNow                 The consensus time of the round
      * @param immediateStateChangeListener The listener to capture the state changes
      * @param blockStreamManager           The block stream manager
      * @param receiptEntriesBatchSize      The maximum number of receipts to accumulate in a batch before committing

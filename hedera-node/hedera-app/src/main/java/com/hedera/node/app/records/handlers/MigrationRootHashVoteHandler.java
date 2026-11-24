@@ -76,6 +76,14 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
             log.info("Ignoring migration root hash vote from node{} because voting is already complete", nodeId);
             return;
         }
+        if (store.isVotingDeadlinePassed()) {
+            // Blocks closed since the deadline were not queued, so finalizing now would replay a chain with a gap
+            // while WRB streaming has already resumed from the local chain
+            log.info(
+                    "Ignoring migration root hash vote from node{} because the voting completion deadline has passed",
+                    nodeId);
+            return;
+        }
 
         final var op = context.body().migrationRootHashVoteOrThrow();
         log.info(

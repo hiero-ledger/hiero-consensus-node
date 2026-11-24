@@ -92,12 +92,14 @@ jobs:
             echo "Solo version ${REQUESTED} is below required minimum ${MIN_VERSION}; using ${MIN_VERSION}"
             RESOLVED="${MIN_VERSION}"
           fi
-          npm install -g "@hashgraph/solo@${RESOLVED}"
+          # Solo publishes as @hiero-ledger/solo; @hashgraph/solo stopped at 0.92.0, so a newer
+          # citr-solo-version is not found there.
+          npm install -g "@hiero-ledger/solo@${RESOLVED}"
 
       # Install kind without creating a cluster; the migration script invokes
       # `kind create cluster -n solo-migration` itself.
       - name: Setup Kind
-        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
+        uses: helm/kind-action@ea822c7bf1874f08e5a491df991c228edffc3376 # v1.15.2
         with:
           install_only: true
           node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30

@@ -12,8 +12,10 @@ import com.swirlds.virtualmap.VirtualMapLearner;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.config.VirtualMapLearnerSyncConfig;
 import com.swirlds.virtualmap.config.VirtualMapReconnectMode;
+import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.internal.reconnect.LearnerPullVirtualTreeReceiveTask;
 import com.swirlds.virtualmap.internal.reconnect.LearnerPullVirtualTreeSendTask;
+import com.swirlds.virtualmap.internal.reconnect.NodeTraversalOrder;
 import com.swirlds.virtualmap.internal.reconnect.ParallelSyncTraversalOrder;
 import com.swirlds.virtualmap.internal.reconnect.PullVirtualTreeRequest;
 import com.swirlds.virtualmap.internal.reconnect.PullVirtualTreeResponse;
@@ -43,12 +45,23 @@ public class LearningSynchronizer {
 
     private static final String WORK_GROUP_NAME = "learning-synchronizer";
 
+    /// The maximum number of hash chunks that hold requested dirty leaves, but can't be flushed yet, because the
+    /// hasher can't compute their hashes until more leaves arrive. At each of the two leaf ranks, that's the chunk
+    /// with the newest dirty leaf, and the chunk with the first dirty leaf, which is hashed only after the last
+    /// leaf arrives. The threshold keeps room for this many full chunks, see
+    /// [#leafBacklogThrottleThreshold(VirtualMapLearner)].
+    private static final int MAX_UNFINISHED_HASH_CHUNKS = 4;
+
     private final ThreadManager threadManager;
     private final VirtualMapLearnerSyncConfig syncConfig;
     private final Metrics metrics;
 
+    /** The number of leading hash bytes to send in requests, see {@link PullVirtualTreeRequest}. */
+    private final int hashPrefixLength;
+
     /**
-     * Constructs a new learning synchronizer.
+     * Constructs a new learning synchronizer, which sends hash prefixes of the configured length, see
+     * {@link VirtualMapLearnerSyncConfig#hashPrefixLength()}.
      *
      * @param threadManager responsible for managing thread lifecycles
      * @param config the configuration
@@ -58,37 +71,109 @@ public class LearningSynchronizer {
             @NonNull final ThreadManager threadManager,
             @NonNull final Configuration config,
             @NonNull final Metrics metrics) {
+        this(
+                threadManager,
+                config,
+                metrics,
+                config.getConfigData(VirtualMapLearnerSyncConfig.class).hashPrefixLength());
+    }
+
+    /**
+     * Constructs a new learning synchronizer.
+     *
+     * @param threadManager responsible for managing thread lifecycles
+     * @param config the configuration
+     * @param metrics the metrics system for recording synchronization metrics
+     * @param hashPrefixLength the number of leading hash bytes to send in requests, at least
+     *     {@link VirtualMapLearnerSyncConfig#MIN_HASH_PREFIX_LENGTH}. If it isn't less than the hash
+     *     length, full hashes are sent
+     */
+    public LearningSynchronizer(
+            @NonNull final ThreadManager threadManager,
+            @NonNull final Configuration config,
+            @NonNull final Metrics metrics,
+            final int hashPrefixLength) {
 
         this.threadManager = Objects.requireNonNull(threadManager, "threadManager cannot be null");
         this.syncConfig = Objects.requireNonNull(config, "config cannot be null")
                 .getConfigData(VirtualMapLearnerSyncConfig.class);
         this.metrics = Objects.requireNonNull(metrics, "metrics cannot be null");
+        if (hashPrefixLength < VirtualMapLearnerSyncConfig.MIN_HASH_PREFIX_LENGTH) {
+            throw new IllegalArgumentException("hashPrefixLength must be at least "
+                    + VirtualMapLearnerSyncConfig.MIN_HASH_PREFIX_LENGTH + ": " + hashPrefixLength);
+        }
+        this.hashPrefixLength = hashPrefixLength;
     }
 
+    /**
+     * Creates the learner for a reconnect of the given map. This hashes the map, stops its background
+     * compaction, and copies its data source, which takes long for large maps. Since it depends only on the
+     * learner's own map, it can be done before the teacher starts sending.
+     *
+     * @param originalMap original learner virtual map
+     * @return the learner to pass to {@link #synchronize(VirtualMapLearner, DataInputStream, DataOutputStream,
+     *     Runnable)}. If it's never passed, the caller must close it with {@link VirtualMapLearner#abortOnException()}
+     */
     @NonNull
-    private LearnerTreeExchanger buildLearnerExchanger(VirtualMap originalVirtualMap, LearnerSyncMetrics syncMetrics) {
+    public VirtualMapLearner createLearner(@NonNull final VirtualMap originalMap) {
+        Objects.requireNonNull(originalMap, "originalMap cannot be null");
         logger.info(
                 RECONNECT.getMarker(),
                 "Building learner exchanger for map with path range [{}, {}]",
-                originalVirtualMap.getMetadata().getFirstLeafPath(),
-                originalVirtualMap.getMetadata().getLastLeafPath());
+                originalMap.getMetadata().getFirstLeafPath(),
+                originalMap.getMetadata().getLastLeafPath());
+        return new VirtualMapLearner(originalMap, syncConfig.flushInterval());
+    }
 
-        final VirtualMapConfig virtualMapConfig = originalVirtualMap.getVirtualMapConfig();
-        final VirtualMapLearner vmapLearner = new VirtualMapLearner(originalVirtualMap, syncConfig.flushInterval());
-
-        return switch (virtualMapConfig.reconnectMode()) {
-            case VirtualMapReconnectMode.PULL_TOP_TO_BOTTOM ->
-                new LearnerTreeExchanger(vmapLearner, new TopToBottomTraversalOrder(), syncMetrics);
-            case VirtualMapReconnectMode.PULL_TWO_PHASE_PESSIMISTIC ->
-                new LearnerTreeExchanger(vmapLearner, new TwoPhasePessimisticTraversalOrder(), syncMetrics);
-            case VirtualMapReconnectMode.PULL_PARALLEL_SYNC ->
-                new LearnerTreeExchanger(vmapLearner, new ParallelSyncTraversalOrder(), syncMetrics);
+    @NonNull
+    private LearnerTreeExchanger buildLearnerExchanger(
+            final VirtualMapLearner vmapLearner, final LearnerSyncMetrics syncMetrics) {
+        final VirtualMapConfig virtualMapConfig = vmapLearner.getVirtualMapConfig();
+        final NodeTraversalOrder traversalOrder = switch (virtualMapConfig.reconnectMode()) {
+            case VirtualMapReconnectMode.PULL_TOP_TO_BOTTOM -> new TopToBottomTraversalOrder();
+            case VirtualMapReconnectMode.PULL_TWO_PHASE_PESSIMISTIC -> new TwoPhasePessimisticTraversalOrder();
+            case VirtualMapReconnectMode.PULL_PARALLEL_SYNC -> new ParallelSyncTraversalOrder();
             default ->
                 throw new UnsupportedOperationException("Unknown reconnect mode: "
                         + virtualMapConfig.reconnectMode()
                         + ". Supported modes: PULL_TOP_TO_BOTTOM,"
                         + " PULL_TWO_PHASE_PESSIMISTIC, PULL_PARALLEL_SYNC");
         };
+        return new LearnerTreeExchanger(
+                vmapLearner, traversalOrder, syncMetrics, leafBacklogThrottleThreshold(vmapLearner));
+    }
+
+    /// Returns the leaf backlog threshold for the given learner: the configured one, or a larger one, if the
+    /// configured one could stop the reconnect for good.
+    ///
+    /// Dirty leaves leave the backlog only when their hash chunk is flushed. The hasher finishes a chunk only when
+    /// it knows every slot of it, and it learns that a slot is clean only when a later dirty leaf at the same rank
+    /// skips it. So at each leaf rank, up to two chunks with dirty leaves can stay unfinished for long: the one
+    /// with the first dirty leaf, whose earlier slots are known to be clean only after the last leaf, and the one
+    /// with the newest dirty leaf. The chunk with leaves at both leaf ranks is one of these whenever it holds
+    /// backlog leaves. A chunk holds at most as many leaves as it has hashes, so these 4 chunks hold at most
+    /// `4 * 2^chunkHeight` backlog leaves. With `flushInterval` more, the backlog always holds enough finished
+    /// chunks to fill a batch, so a flush always starts, and the learner never stops for good.
+    ///
+    /// @param vmapLearner the learner
+    /// @return the threshold to use
+    private int leafBacklogThrottleThreshold(@NonNull final VirtualMapLearner vmapLearner) {
+        final int configured = syncConfig.leafBacklogThrottleThreshold();
+        final long minimum = (long) syncConfig.flushInterval()
+                + MAX_UNFINISHED_HASH_CHUNKS * VirtualHashChunk.getChunkSize(vmapLearner.getHashChunkHeight());
+        if (configured >= minimum) {
+            return configured;
+        }
+        final int threshold = (int) Math.min(minimum, Integer.MAX_VALUE);
+        logger.warn(
+                RECONNECT.getMarker(),
+                "reconnect.learner.leafBacklogThrottleThreshold {} is too small for flushInterval {} and hash chunk"
+                        + " height {}, using {} instead",
+                configured,
+                syncConfig.flushInterval(),
+                vmapLearner.getHashChunkHeight(),
+                threshold);
+        return threshold;
     }
 
     /**
@@ -109,17 +194,48 @@ public class LearningSynchronizer {
             @NonNull final DataOutputStream out,
             @NonNull final Runnable breakConnection)
             throws InterruptedException {
+        // Checked before the learner is created, so that invalid arguments don't cost a data source copy
+        requireConnection(in, out, breakConnection);
+        return synchronize(createLearner(originalMap), in, out, breakConnection);
+    }
 
-        Objects.requireNonNull(originalMap, "originalMap cannot be null");
-        Objects.requireNonNull(in, "input stream cannot be null");
-        Objects.requireNonNull(out, "output stream cannot be null");
-        Objects.requireNonNull(breakConnection, "break connection action cannot be null");
+    /**
+     * Perform reconnect in the role of the learner blocking until it's finished, with a learner created by
+     * {@link #createLearner(VirtualMap)}. This method takes ownership of the learner: if the synchronization
+     * fails, it aborts the learner.
+     *
+     * @param vmapLearner the learner created for the original learner virtual map
+     * @param in data input stream for reading requests from the teacher
+     * @param out data output stream for sending responses to the teacher
+     * @param breakConnection action to break the connection, which should be called if a reconnect-related exception is encountered and the connection should be closed.
+     *
+     * @return the synchronized virtual map
+     * @throws InterruptedException if the synchronization is interrupted
+     * @throws MerkleSynchronizationException if the synchronization fails due to an exception
+     */
+    public VirtualMap synchronize(
+            @NonNull final VirtualMapLearner vmapLearner,
+            @NonNull final DataInputStream in,
+            @NonNull final DataOutputStream out,
+            @NonNull final Runnable breakConnection)
+            throws InterruptedException {
 
-        final LearnerSyncMetrics syncMetrics = new LearnerSyncMetrics(metrics);
-        final LearnerTreeExchanger exchanger = buildLearnerExchanger(originalMap, syncMetrics);
+        Objects.requireNonNull(vmapLearner, "vmapLearner cannot be null");
+        requireConnection(in, out, breakConnection);
+
+        final LearnerSyncMetrics syncMetrics;
+        final LearnerTreeExchanger exchanger;
+        try {
+            syncMetrics = new LearnerSyncMetrics(metrics);
+            exchanger = buildLearnerExchanger(vmapLearner, syncMetrics);
+        } catch (final Throwable t) {
+            // E.g. an unsupported reconnect mode. Close the learner's data source copy, or every attempt leaks one
+            vmapLearner.abortOnException();
+            throw t;
+        }
 
         try (final StandardWorkGroup workGroup = createStandardWorkGroup(threadManager, breakConnection)) {
-            logger.info(RECONNECT.getMarker(), "learner start synchronizing");
+            logger.info(RECONNECT.getMarker(), "learner start synchronizing, hashPrefixLength={}", hashPrefixLength);
 
             final AsyncInputStream input = new AsyncInputStream(
                     in,
@@ -157,7 +273,7 @@ public class LearningSynchronizer {
             for (int i = 0; i < learnerSendTasks; i++) {
                 workGroup.fork(
                         "reconnect-learner-sender",
-                        new LearnerPullVirtualTreeSendTask(output, exchanger, sendTasksDone));
+                        new LearnerPullVirtualTreeSendTask(output, exchanger, hashPrefixLength, sendTasksDone));
             }
 
             // when all send tasks done, output can be closed, which signals the teacher that no more requests will be
@@ -196,6 +312,13 @@ public class LearningSynchronizer {
             exchanger.abortOnException();
             throw new MerkleSynchronizationException("Failed to finish synchronization", t);
         }
+    }
+
+    private static void requireConnection(
+            final DataInputStream in, final DataOutputStream out, final Runnable breakConnection) {
+        Objects.requireNonNull(in, "input stream cannot be null");
+        Objects.requireNonNull(out, "output stream cannot be null");
+        Objects.requireNonNull(breakConnection, "break connection action cannot be null");
     }
 
     private void throwCause(Throwable ex) throws MerkleSynchronizationException {
@@ -238,8 +361,8 @@ public class LearningSynchronizer {
     private void exchangeRootNode(
             LearnerTreeExchanger exchanger, final AsyncInputStream in, final AsyncOutputStream out) {
         logger.info(RECONNECT.getMarker(), "Learner sending root node request to teacher");
-        final PullVirtualTreeRequest rootRequest =
-                new PullVirtualTreeRequest(MerklePathUtils.ROOT_PATH, new Hash(Cryptography.DEFAULT_DIGEST_TYPE));
+        final PullVirtualTreeRequest rootRequest = new PullVirtualTreeRequest(
+                MerklePathUtils.ROOT_PATH, new Hash(Cryptography.DEFAULT_DIGEST_TYPE), hashPrefixLength);
         final byte[] rootRequestBytes = new byte[rootRequest.getSizeInBytes()];
         rootRequest.writeTo(BufferedData.wrap(rootRequestBytes));
         try {

@@ -17,7 +17,7 @@ signing keys.
 
 Hiero uses an efficient exact-weight TSS where signing works via the **hinTS** scheme published in [1], and the
 ledger's identity is the hash of the ids, weights, and Schnorr public keys of the permissioned nodes in the network
-at the time the TSS was adopted.
+at the time the TSS was adopted, concatenated with the hash of the hinTS verification key those nodes first used.
 
 This document provides the high-level design of how Hiero TSS is implemented.
 
@@ -61,8 +61,8 @@ verification key; in particular, 1/3 of the total weight in the roster, which is
 50B HBAR---unless all HBAR were staked to nodes in the roster.
 
 (Note the full message that nodes sign with their Schnorr keys in each `HistoryService` proof is the concatenation of
-the above metadata with the hash of a canonical serialization of the list of `(node id, weight, Schnorr key)` triples
-defining the next roster.)
+the hash of a canonical serialization of the list of `(node id, weight, Schnorr key)` triples defining the next roster
+with the hash of the above metadata.)
 
 Despite their separate responsibilities, both the `HintsService` and `HistoryService` share a high-level design that
 we call the `RosterCompanionService`. This abstraction is a service whose goal is to derive some **primary state** for
@@ -201,6 +201,121 @@ The **roster-scoped work** of the `HistoryService` is to accept a byte string wh
 current roster, and return the proof that this `(roster, metadata)` pair belongs to the chain of trust starting with
 the ledger id.
 
+Since computing a WRAPS proof is expensive, nodes stagger that work: each node waits `tss.wrapsVoteJitterPerRank` per
+rank it has before computing its own proof (nodes that published first-round signing messages for the construction rank
+first, so an offline node never holds up the proof), and votes congruent with any valid proof it sees in the meantime.
+The 3.23.0 library supports a hinTS domain of at most 64 slots, with its final slot reserved, and a WRAPS address
+book of at most 63 nodes. Our party allocation also leaves slot zero unused, so `nodes.maxNumber` defaults to 62.
+TSS refuses larger candidate rosters even if configuration permits more node records. A retained CRS with a domain
+larger than 64 is unsupported and must never be truncated to fit; startup rejects such state.
+
+WRAPS proving parameters and its fixed compressed verification key remain bundled in the library. Prover and
+verifier initialization are separate and are warmed before use. Existing supported CRS values and full WRAPS proofs
+remain usable; the library no longer accepts the legacy Schnorr-only address book proof through its TSS API.
+The 3.23.0 library caches CRS and aggregation keys by their serialized bytes, with at most four entries
+in each native cache. CN uses one shared native library for preparation and signing. Cache misses deserialize
+outside the map lock, and in-flight operations retain their values across eviction or reset. Construction
+handoffs retain their lifecycle synchronization, but no longer switch/reset the native cache or serialize
+old/new construction verification.
+
+The published 3.23.0 hinTS and WRAPS JARs include native binaries for macOS and Linux on AMD64 and ARM64,
+and Windows on AMD64. CN uses the full WRAPS JAR, including proving parameters, because it generates proofs.
+
+### Upgrading pre-Nova TSS state
+
+This release supports an empty TSS state at a non-genesis upgrade: the latest schema restart hooks
+initialize missing singletons to their empty defaults. They do not invent a construction or roster identity.
+These hooks also run on restart and reconnect, so initialization is idempotent and completed, compatible
+signing material is restored from state.
+
+Populated legacy hinTS state without CRS generation bindings, and history state with a pre-Nova
+32-byte ledger ID, are rejected at startup with a diagnostic requiring a coordinated hinTS/history reset
+and rebootstrap. Even a correctly sized old CRS is not evidence that its keys and proofs are compatible.
+The checks also apply when TSS is disabled; disabling TSS or using mock block signatures does not erase
+previously populated state. This PR does not reset that state or replace an established ledger trust root.
+Operators must coordinate the reset separately, including the downstream verifier trust configuration,
+before upgrading such a network. The `tss.needsFreshGenesisWrapsProof` flag below is not a bypass for
+incompatible persisted state.
+
+History constructions persist the consensus-time proof-key cutoff independently of the WRAPS phase.
+Rebuilds use that same cutoff through signing and retries. An older unfinished signing attempt without
+this cutoff is replaced with a fresh construction ID before replay, discarding its obsolete votes and
+messages while preserving any completed active proof.
+
+### Canonical WRAPS books
+
+WRAPS signs and proves against the canonical book of a committed TSS generation. That book lists every member in
+node-id order with its listed weight and its frozen selected Schnorr key, or the sentinel identity key for a member
+without one. It does not depend on which members took part in the generation's hinTS scheme.
+1. A grounding construction (genesis, or a fresh genesis) signs with its own target book.
+2. An incremental construction signs with its predecessor's book. It rebuilds that book from the predecessor's
+`HistoryProof.target_node_weights` and `target_proof_keys`, and checks it against the predecessor's address book
+hash before any signing work.
+3. R1 freezes only when the frozen set has strictly more than half of the book's effective weight, where identity
+keys count for nothing. A rotation that certifies hinTS key provenance also needs strictly more than one third of
+the source hinTS weight. Excluding a node never reduces either total, and only nodes with positive weight under
+both may sign.
+4. Only the source nodes' proof votes count, whether handled live or replayed from state.
+
+Reconciliation enriches a proof written before `target_node_weights` existed in place. It uses the first weights,
+from the following sources, that reproduce the proof's committed address book hash:
+1. the generation's own target roster;
+2. the active hinTS scheme's party weights, which equal the generation's listed weights when every member took part;
+3. the current or candidate platform roster.
+
+Weights that do not reproduce the hash are never used. If no source does, the node logs an ERROR, and every
+incremental construction fails with `Invalid canonical WRAPS source book`. Recovery requires restoring a complete snapshot that reproduces the committed hash or a
+coordinated reset. A fresh genesis WRAPS proof is permitted only before block proofs carry the chain of trust
+(see below), and is not by itself a recovery path when new hinTS preprocessing votes still need the missing source
+generation denominator. Before upgrading a network whose active generation came from a weight rotation the platform never
+adopted, check that one of these sources still exists.
+
+Signing attempts in flight at the upgrade replay under these rules. If an R1 set was frozen under the earlier sparse
+threshold, or exclusions were persisted under the earlier feasibility rule, the attempt fails recoverably, and its
+retry starts with no exclusions.
+
+### Implemented full-generation thresholds
+
+Real hinTS signing with history enabled uses a complete generation snapshot. Preprocessing vote eligibility and
+vote weight come from the adopted hinTS scheme, but the vote threshold is at least one third of that generation's
+complete listed weight, recovered from the matching completed history proof's `target_node_weights` snapshot.
+Platform roster weights are not substituted for missing parties: a daily weight rotation may already be active in
+TSS while the platform still uses the previous weights.
+
+Block-signature aggregation uses the same complete generation total. With the production signing divisor of two,
+a signature must have strictly more than half that total. Starting with TSS 3.29.1, history-backed preprocessing
+passes the full target roster to the library. A member without a valid hint contributes only to the verification
+key's total. The native fraction for these keys is `1/2`. For keys from older preprocessing, the consensus node
+uses the equivalent per-key fraction `fullWeight / (2 * schemeWeight)`. Each signing attempt retains its own
+generation's threshold through handoff.
+Runtime signing is installed only after a matching completed history book is available, including on restart.
+
+This tightens the previous main-branch thresholds when the scheme is sparse: the preprocessing denominator changes
+from scheme weight to complete generation weight, and the block-signing denominator changes in the same way.
+For full weight 7 and scheme weight 5, preprocessing now needs weight 3 instead of 2, and block signing needs weight
+4 instead of 3. These stricter thresholds can reduce liveness. If full weight is `F`, scheme weight is `S`, and up to
+`F/3` additional weight among scheme parties is unavailable, guaranteeing a strict full-book majority requires
+`S - F/3 > F/2`, or `S > 5F/6`. The existing scheme-availability requirement `S > 2F/3` does not guarantee that bound.
+Activation logs a warning when participating scheme weight is at or below `5F/6`; repeated reconciliation of the
+same generation does not repeat that warning.
+See the [rollout note](full-generation-threshold-rollout.md) for compatibility and recovery requirements.
+
+Preprocessing started with history disabled continues to produce participant-weight keys. Fresh `GENESIS`
+does not restore signing from uninitialized TSS singletons; the first handled round initializes those states.
+In real history mode, missing legacy snapshots defer signing only until hash-verified consensus recovery supplies
+the matching complete book. A different generation's roster or an unverifiable snapshot is never a fallback.
+An incomplete history defers activation regardless of its transition shape. A completed legacy non-WRAPS proof
+without a recoverable membership snapshot fails with a recovery/reset diagnostic instead of deferring indefinitely.
+
+Incremental WRAPS proof-adoption votes require at least one third of source hinTS participant weight. Native
+WRAPS signing requires a strict majority of the book's effective Schnorr weight. A rotation with key provenance
+also requires strictly more than one third of the weight committed in the source hinTS key.
+
+The composite signature carries the hinTS verification key as authenticated WRAPS metadata. The standard
+`TSS.verifyTSS` verifier checks a strict majority of the total inside that key. For a new history-backed key,
+this authenticates the full listed roster weight. An older sparse key continues to certify participant weight
+to external verifiers for as long as they accept that key.
+
 ### Integration with protocol components
 
 The TSS system is then just the combination of the `HintsService` and `HistoryService` with the `RosterService`; with
@@ -266,6 +381,37 @@ are satisfied.)
 **Important:** Given the current set of Hiero admin transactions, and the requirement that staking elections be
 done to only active nodes, it is not possible to satisfy the above inequalities on $SB$ and $\mathbb{B}$
 while changing more than 1/3 of the weight in the network in a single transition.
+
+### Building the genesis WRAPS proof again
+
+Every WRAPS proof after the first folds onto the previous one, which is only sound while both are built with the
+same library. After a TSS library change that cannot extend proofs made by its predecessor, the network has to build
+a fresh genesis proof for its current roster and continue from there. To have it do so in the first round after an
+upgrade, ship the upgrade with:
+
+```
+tss.needsFreshGenesisWrapsProof=true
+```
+
+This presumes the active hinTS generation still has a recoverable complete history snapshot for any preprocessing
+votes needed before proving. The setting does not bypass generation-weight validation or restore a pruned source book.
+
+The network then builds a new genesis proof over its current roster, holding any candidate roster back until it is
+done, and resumes roster transitions from the new proof. When it completes, a `LedgerIdPublication` transaction
+externalizes the ledger id together with the proof keys and weights of the nodes in the new chain of trust. Since the
+ledger id is the hash of the genesis address book concatenated with the hash of the genesis hinTS verification key,
+**the ledger id changes** unless both are the same as in the previous genesis proof; and the new value is what HAPI
+query responses report from then on. (Otherwise it is republished unchanged.)
+
+The property applies to every upgrade while it is set, so set it back to `false` in the following release (or with a
+`0.0.121` update once the proof has completed).
+
+> Only supported before the block stream cutover; that is, while `blockStream.enableCutover=false` and block proofs
+> still carry mock signatures (`tss.forceMockSignatures=true`, or `blockStream.streamMode=RECORDS`, or either of
+> `tss.hintsEnabled`/`tss.historyEnabled` off). In that window the chain of trust is built and stored but nothing
+> verifies against it, so rebuilding it costs nothing. Once block proofs carry the chain of trust, the ledger id is
+> what downstream verifiers anchor on and there is no protocol yet for moving them to a new one; the property has no
+> effect in that state.
 
 ## References
 

@@ -10,6 +10,7 @@ open module org.hiero.consensus.hashgraph.impl.test.fixtures {
     requires transitive org.hiero.consensus.hashgraph;
     requires transitive org.hiero.consensus.model.test.fixtures;
     requires transitive org.hiero.consensus.model;
+    requires transitive org.hiero.consensus.main.model;
     requires transitive org.hiero.consensus.utility.test.fixtures;
     requires transitive org.hiero.consensus.utility;
     requires transitive org.assertj.core;
@@ -31,6 +32,10 @@ open module org.hiero.consensus.hashgraph.impl.test.fixtures {
     exports org.hiero.consensus.hashgraph.impl.test.fixtures.event.emitter;
     exports org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator;
     exports org.hiero.consensus.hashgraph.impl.test.fixtures.event.source;
+    // The test fixtures in this module expose internal classes
+    // and can therefore not be used by other modules.
+    exports org.hiero.consensus.hashgraph.impl.test.fixtures.flicker to
+            org.hiero.consensus.hashgraph.impl;
     exports org.hiero.consensus.hashgraph.impl.test.fixtures.graph;
     exports org.hiero.consensus.hashgraph.impl.test.fixtures.graph.internal to
             org.hiero.consensus.hashgraph.impl;

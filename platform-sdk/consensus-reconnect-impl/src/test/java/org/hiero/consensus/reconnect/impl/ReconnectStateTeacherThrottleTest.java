@@ -9,7 +9,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import java.time.Instant;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 import org.hiero.consensus.reconnect.config.ReconnectConfig_;
 import org.junit.jupiter.api.DisplayName;

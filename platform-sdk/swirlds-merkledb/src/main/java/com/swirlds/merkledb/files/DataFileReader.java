@@ -61,6 +61,10 @@ public final class DataFileReader implements Comparable<DataFileReader>, Indexed
     private static final ThreadLocal<ByteBuffer> BUFFER_CACHE = new ThreadLocal<>();
     private static final ThreadLocal<BufferedData> BUFFEREDDATA_CACHE = new ThreadLocal<>();
 
+    // Unfortunately, there is no public API to get the page size on the current system,
+    // so let's assume it's 4K
+    private static final int PAGE_SIZE = 4096;
+
     private final MerkleDbConfig dbConfig;
 
     /** Max number of file channels to use for reading */
@@ -402,31 +406,35 @@ public final class DataFileReader implements Comparable<DataFileReader>, Indexed
         fileChannelsInUse.decrementAndGet();
     }
 
+    private ByteBuffer getLocalReadBuffer(final int minSize) {
+        ByteBuffer buffer = BUFFER_CACHE.get();
+        if ((buffer == null) || (buffer.capacity() < minSize)) {
+            buffer = ByteBuffer.allocate(Math.max(minSize, PAGE_SIZE));
+            BUFFER_CACHE.set(buffer);
+            BUFFEREDDATA_CACHE.set(BufferedData.wrap(buffer));
+        }
+        buffer.position(0);
+        buffer.limit(minSize);
+        return buffer;
+    }
+
     /**
-     * Read bytesToRead bytes of data from the file starting at byteOffsetInFile unless we reach the
-     * end of file. If we reach the end of file then returned buffer's limit will be set to the
-     * number of bytes read and be less than bytesToRead.
+     * Reads a data item from the file starting at byteOffsetInFile.
      *
      * @param byteOffsetInFile Offset to start reading at
      * @param includeTag Indicates whether the returned data should include FIELD_DATAFILE_ITEMS tag
      *                   and data item length, or it should be just data item data
-     * @return ByteBuffer containing read data. This is a reused per thread buffer, so you can use
+     * @return a buffer containing read data. This is a reused per thread buffer, so you can use
      *     it till your thread calls read again.
      * @throws IOException if there was a problem reading
      * @throws ClosedChannelException if the file was closed
      */
     private BufferedData read(final long byteOffsetInFile, final boolean includeTag) throws IOException {
-        // Buffer size to read data item tag and size. If the whole item is small and
-        // fits into this buffer, there is no need to make an extra file read
-        final int PRE_READ_BUF_SIZE = 4096;
-        ByteBuffer readBB = BUFFER_CACHE.get();
-        BufferedData readBuf = BUFFEREDDATA_CACHE.get();
-        if (readBuf == null) {
-            readBB = ByteBuffer.allocate(PRE_READ_BUF_SIZE);
-            BUFFER_CACHE.set(readBB);
-            readBuf = BufferedData.wrap(readBB);
-            BUFFEREDDATA_CACHE.set(readBuf);
-        }
+        final int pageRemainder = PAGE_SIZE - (int) (byteOffsetInFile % PAGE_SIZE);
+        // Read bytes from the specified offset till the end of the page to make sure only
+        // one page is read, but only if it's large enough to contain data item header
+        final int headerBytesToRead = (pageRemainder < 16) ? PAGE_SIZE : pageRemainder;
+        ByteBuffer readBB = getLocalReadBuffer(headerBytesToRead);
         // Try a few times. It's very unlikely (other than in tests) that a thread is
         // interrupted more than once in short period of time, so 3 retries should be enough
         for (int retries = 3; retries > 0; retries--) {
@@ -439,15 +447,17 @@ public final class DataFileReader implements Comparable<DataFileReader>, Indexed
             }
             try {
                 // Fill the byte buffer from the channel
-                readBB.clear();
-                readBB.limit(PRE_READ_BUF_SIZE); // No need to read more than that for a header
+                readBB.position(0);
+                readBB.limit(headerBytesToRead);
                 int bytesRead = MerkleDbFileUtils.completelyRead(fileChannel, readBB, byteOffsetInFile);
-                if (isFileCompleted() && (bytesRead != Math.min(PRE_READ_BUF_SIZE, getSize() - byteOffsetInFile))) {
+                if (isFileCompleted() && (bytesRead != Math.min(headerBytesToRead, getSize() - byteOffsetInFile))) {
                     throw new IOException("Failed to read all bytes: toread="
-                            + Math.min(PRE_READ_BUF_SIZE, getSize() - byteOffsetInFile) + " read=" + bytesRead
+                            + Math.min(headerBytesToRead, getSize() - byteOffsetInFile) + " read=" + bytesRead
                             + " file=" + getIndex() + " off=" + byteOffsetInFile);
                 }
-                // Then read the tag and size from the read buffer, since it's wrapped over the byte buffer
+                // Get the buffered data object wrapped over the byte buffer
+                BufferedData readBuf = BUFFEREDDATA_CACHE.get();
+                // Then read the tag and size from the buffer
                 readBuf.reset();
                 final int tag = readBuf.getVarInt(0, false); // tag
                 if (tag
@@ -468,18 +478,26 @@ public final class DataFileReader implements Comparable<DataFileReader>, Indexed
                 }
                 // Otherwise read it separately
                 if (readBB.capacity() < totalSize) {
-                    readBB = ByteBuffer.allocate(totalSize);
-                    BUFFER_CACHE.set(readBB);
-                    readBuf = BufferedData.wrap(readBB);
-                    BUFFEREDDATA_CACHE.set(readBuf);
+                    readBB = getLocalReadBuffer(totalSize);
+                    readBuf = BUFFEREDDATA_CACHE.get();
+                    // Re-read everything starting from the original byte offset
+                    bytesRead = MerkleDbFileUtils.completelyRead(fileChannel, readBB, byteOffsetInFile);
+                    if (bytesRead != totalSize) {
+                        throw new IOException("Failed to read all bytes: toread=" + totalSize + " read=" + bytesRead
+                                + " file=" + getIndex() + " off=" + byteOffsetInFile);
+                    }
                 } else {
-                    readBB.position(0);
+                    // Read only the remainder, skipping bytes already read previously
+                    final int previouslyRead = bytesRead;
+                    readBB.position(previouslyRead);
                     readBB.limit(totalSize);
-                }
-                bytesRead = MerkleDbFileUtils.completelyRead(fileChannel, readBB, byteOffsetInFile);
-                if (bytesRead != totalSize) {
-                    throw new IOException("Failed to read all bytes: toread=" + totalSize + " read=" + bytesRead
-                            + " file=" + getIndex() + " off=" + byteOffsetInFile);
+                    final int bytesToRead = totalSize - previouslyRead;
+                    bytesRead =
+                            MerkleDbFileUtils.completelyRead(fileChannel, readBB, byteOffsetInFile + previouslyRead);
+                    if (bytesRead != bytesToRead) {
+                        throw new IOException("Failed to read all bytes: toread=" + bytesToRead + " read=" + bytesRead
+                                + " file=" + getIndex() + " off=" + (byteOffsetInFile + previouslyRead));
+                    }
                 }
                 readBuf.position(includeTag ? 0 : sizeOfTag + sizeOfSize);
                 readBuf.limit(totalSize);

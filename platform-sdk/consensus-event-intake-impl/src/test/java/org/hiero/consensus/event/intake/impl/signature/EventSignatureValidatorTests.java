@@ -21,11 +21,12 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import org.hiero.base.crypto.SignatureVerifier;
+import org.hiero.base.crypto.test.fixtures.TestCertificates;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.roster.RosterWrapperHistory;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
@@ -157,10 +158,32 @@ class EventSignatureValidatorTests {
         final EventSignatureValidator validator =
                 new DefaultEventSignatureValidator(metrics, time, trueVerifier, rh, intakeEventCounter);
 
-        final NodeId nodeId = NodeId.of(88);
+        final PlatformEvent event = new TestingEventBuilder(random)
+                .setCreatorId(ACTIVE_ROSTER_NODE_ID)
+                .setBirthRound(ACTIVE_ROSTER_ROUND)
+                .build();
 
-        final PlatformEvent event =
-                new TestingEventBuilder(random).setCreatorId(nodeId).build();
+        assertNull(validator.validateSignature(event));
+        assertEquals(1, exitedIntakePipelineCount.get());
+    }
+
+    @Test
+    @DisplayName("Node has a certificate with an unsupported key type")
+    void unsupportedKeyType() throws CertificateEncodingException {
+        final Bytes certificate =
+                Bytes.wrap(TestCertificates.createCertificate("EC").getEncoded());
+        final Function<NodeId, RosterEntry> generateMockRosterEntry =
+                id -> new RosterEntry(id.id(), 10, certificate, List.of());
+        final RosterWrapperHistory rh =
+                buildRosterHistory(PREVIOUS_ROSTER_ROUND, ACTIVE_ROSTER_ROUND, generateMockRosterEntry);
+
+        final EventSignatureValidator validator =
+                new DefaultEventSignatureValidator(metrics, time, trueVerifier, rh, intakeEventCounter);
+
+        final PlatformEvent event = new TestingEventBuilder(random)
+                .setCreatorId(ACTIVE_ROSTER_NODE_ID)
+                .setBirthRound(ACTIVE_ROSTER_ROUND)
+                .build();
 
         assertNull(validator.validateSignature(event));
         assertEquals(1, exitedIntakePipelineCount.get());

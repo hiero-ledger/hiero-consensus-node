@@ -339,6 +339,10 @@ public final class RequestBuilder {
                 .build();
     }
 
+    /**
+     * @deprecated Obtain account balances from a mirror node instead.
+     */
+    @Deprecated(forRemoval = true)
     public static Query getCryptoGetBalanceQuery(
             AccountID accountID, Transaction transaction, ResponseType responseType) {
         QueryHeader queryHeader = QueryHeader.newBuilder()

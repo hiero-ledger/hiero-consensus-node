@@ -140,7 +140,7 @@ jobs:
       instances-aux-qty: ${{ fromJSON(needs.get-sdlt-config.outputs.aux-qty) }}
       instances-aux-cpu: ${{ fromJSON(needs.get-sdlt-config.outputs.aux-cpu-request) }}
       instances-aux-memory-mb: ${{ fromJSON(needs.get-sdlt-config.outputs.aux-mem-request-mb) }}
-      duration-minutes: 1080 # 16 hours + 2 for post-mortem
+      duration-minutes: 1440 # to match adhoc SDLT
       request-timeout: ${{ fromJSON(needs.verify-citr-vars.outputs.request-timeout) }}
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -159,7 +159,7 @@ jobs:
       - verify-citr-vars
       - acquire-kubernetes-resources
     if: ${{ needs.verify-tag.outputs.build-number != '' }}
-    uses: ./.github/workflows/864-call-report-suite-result.yaml
+    uses: ./.github/workflows/864-call-report-suite-status.yaml
     with:
       suite-type: sdlt
       build-number: ${{ needs.verify-tag.outputs.build-number }}
@@ -237,7 +237,7 @@ jobs:
       - run-single-day-longevity-test
       - release-chewie-allocation # the result is reported after cleanup
     if: ${{ always() && needs.verify-tag.outputs.build-number != '' }}
-    uses: ./.github/workflows/864-call-report-suite-result.yaml
+    uses: ./.github/workflows/864-call-report-suite-status.yaml
     with:
       suite-type: sdlt
       build-number: ${{ needs.verify-tag.outputs.build-number }}

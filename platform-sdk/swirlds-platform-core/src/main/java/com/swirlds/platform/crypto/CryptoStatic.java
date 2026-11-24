@@ -16,7 +16,6 @@ import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
-import java.security.Security;
 import java.security.cert.CertificateException;
 import java.util.Arrays;
 import java.util.List;
@@ -26,15 +25,14 @@ import java.util.Set;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.CryptographyException;
 import org.hiero.base.crypto.KeyGeneratingException;
 import org.hiero.base.utility.CommonUtils;
 import org.hiero.consensus.PathsConfig;
 import org.hiero.consensus.exceptions.ThrowableUtilities;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.system.SystemExitCode;
 import org.hiero.consensus.system.SystemExitUtils;
 
@@ -44,11 +42,6 @@ import org.hiero.consensus.system.SystemExitUtils;
 public final class CryptoStatic {
     private static final Logger logger = LogManager.getLogger(CryptoStatic.class);
     private static final String LOCAL_NODES_MUST_NOT_BE_NULL = "the local nodes must not be null";
-
-    static {
-        // used to generate certificates
-        Security.addProvider(new BouncyCastleProvider());
-    }
 
     private CryptoStatic() {}
 

@@ -1,0 +1,301 @@
+{
+  "what": "Proof material that a contract exists on Canton and that the transaction creating it is final",
+  "contract": {
+    "contractId": "00f2bb64efe71a8ec2f36699ff4580dda0c20f539b703fb5ad71d1bedf65b8786fca121220ed9e68d6b2e4959bf6abfd502c7945f69c2602601cbabcf0c024530de8f4c630",
+    "templateId": "916f16ea9413ba72d9ae660c9d0741f1078fc27b82b61e4b9db6a991dc47a848:Splice.Wallet.Install:WalletAppInstall",
+    "signatories": [
+      "app_provider_localnet-localparty-1::1220cbdc734be9d5b356756ebb43db2c889935c87b309b2f2bd830d14a577a731ebd"
+    ],
+    "observers": [],
+    "createdAt": "2026-10-07T08:52:45.646458Z",
+    "createArgument": {
+      "dsoParty": "DSO::1220c6dcb0cb7cd1e6438a11ee70f7aa63d4b3c2f353a1ea7254c471d105e3ed33d4",
+      "validatorParty": "app_provider_localnet-localparty-1::1220cbdc734be9d5b356756ebb43db2c889935c87b309b2f2bd830d14a577a731ebd",
+      "endUserName": "app-provider",
+      "endUserParty": "app_provider_localnet-localparty-1::1220cbdc734be9d5b356756ebb43db2c889935c87b309b2f2bd830d14a577a731ebd"
+    },
+    "createdEventBlob_base64": "CgMyLjESpwUKRQDyu2Tv5xqOwvNmmf9FgN2gwg9Tm3A/ta1x0b7fZbh4b8oSEiDtnmjWsuSVm/ar/VAseUX2nCYCYBy6vPDAJFMN6PTGMBINc3BsaWNlLXdhbGxldBptCkA5MTZmMTZlYTk0MTNiYTcyZDlhZTY2MGM5ZDA3NDFmMTA3OGZjMjdiODJiNjFlNGI5ZGI2YTk5MWRjNDdhODQ4EgZTcGxpY2USBldhbGxldBIHSW5zdGFsbBoQV2FsbGV0QXBwSW5zdGFsbCLAAmq9AgpNCks6SURTTzo6MTIyMGM2ZGNiMGNiN2NkMWU2NDM4YTExZWU3MGY3YWE2M2Q0YjNjMmYzNTNhMWVhNzI1NGM0NzFkMTA1ZTNlZDMzZDQKbApqOmhhcHBfcHJvdmlkZXJfbG9jYWxuZXQtbG9jYWxwYXJ0eS0xOjoxMjIwY2JkYzczNGJlOWQ1YjM1Njc1NmViYjQzZGIyYzg4OTkzNWM4N2IzMDliMmYyYmQ4MzBkMTRhNTc3YTczMWViZAoQCg5CDGFwcC1wcm92aWRlcgpsCmo6aGFwcF9wcm92aWRlcl9sb2NhbG5ldC1sb2NhbHBhcnR5LTE6OjEyMjBjYmRjNzM0YmU5ZDViMzU2NzU2ZWJiNDNkYjJjODg5OTM1Yzg3YjMwOWIyZjJiZDgzMGQxNGE1NzdhNzMxZWJkKmhhcHBfcHJvdmlkZXJfbG9jYWxuZXQtbG9jYWxwYXJ0eS0xOjoxMjIwY2JkYzczNGJlOWQ1YjM1Njc1NmViYjQzZGIyYzg4OTkzNWM4N2IzMDliMmYyYmQ4MzBkMTRhNTc3YTczMWViZDl67iY9PF0GAEIqCiYKJAgBEiAIvTmhtD/DSCo9XVRD2AZnfDhfRWq5l+P8NWhSozHr4hAe"
+  },
+  "transaction": {
+    "updateId": "1220aec33071bc09ceaa6e4994806d6a0f8410788709e1cc8fd08049ff97b28fd2fe",
+    "root_hash_hex": "aec33071bc09ceaa6e4994806d6a0f8410788709e1cc8fd08049ff97b28fd2fe",
+    "recordTime": "2026-10-07T08:52:47.585288Z",
+    "synchronizerId": "global-domain::1220c6dcb0cb7cd1e6438a11ee70f7aa63d4b3c2f353a1ea7254c471d105e3ed33d4",
+    "offset_on_this_participant": 13,
+    "events": [
+      {
+        "CreatedEvent": {
+          "offset": 13,
+          "nodeId": 0,
+          "contractId": "00f2bb64efe71a8ec2f36699ff4580dda0c20f539b703fb5ad71d1bedf65b8786fca121220ed9e68d6b2e4959bf6abfd502c7945f69c2602601cbabcf0c024530de8f4c630",
+          "templateId": "916f16ea9413ba72d9ae660c9d0741f1078fc27b82b61e4b9db6a991dc47a848:Splice.Wallet.Install:WalletAppInstall",
+          "contractKey": null,
+          "contractKeyHash": "",
+          "createArgument": {
+            "dsoParty": "DSO::1220c6dcb0cb7cd1e6438a11ee70f7aa63d4b3c2f353a1ea7254c471d105e3ed33d4",
+            "validatorParty": "app_provider_localnet-localparty-1::1220cbdc734be9d5b356756ebb43db2c889935c87b309b2f2bd830d14a577a731ebd",
+            "endUserName": "app-provider",
+            "endUserParty": "app_provider_localnet-localparty-1::1220cbdc734be9d5b356756ebb43db2c889935c87b309b2f2bd830d14a577a731ebd"
+          },
+          "createdEventBlob": "CgMyLjESpwUKRQDyu2Tv5xqOwvNmmf9FgN2gwg9Tm3A/ta1x0b7fZbh4b8oSEiDtnmjWsuSVm/ar/VAseUX2nCYCYBy6vPDAJFMN6PTGMBINc3BsaWNlLXdhbGxldBptCkA5MTZmMTZlYTk0MTNiYTcyZDlhZTY2MGM5ZDA3NDFmMTA3OGZjMjdiODJiNjFlNGI5ZGI2YTk5MWRjNDdhODQ4EgZTcGxpY2USBldhbGxldBIHSW5zdGFsbBoQV2FsbGV0QXBwSW5zdGFsbCLAAmq9AgpNCks6SURTTzo6MTIyMGM2ZGNiMGNiN2NkMWU2NDM4YTExZWU3MGY3YWE2M2Q0YjNjMmYzNTNhMWVhNzI1NGM0NzFkMTA1ZTNlZDMzZDQKbApqOmhhcHBfcHJvdmlkZXJfbG9jYWxuZXQtbG9jYWxwYXJ0eS0xOjoxMjIwY2JkYzczNGJlOWQ1YjM1Njc1NmViYjQzZGIyYzg4OTkzNWM4N2IzMDliMmYyYmQ4MzBkMTRhNTc3YTczMWViZAoQCg5CDGFwcC1wcm92aWRlcgpsCmo6aGFwcF9wcm92aWRlcl9sb2NhbG5ldC1sb2NhbHBhcnR5LTE6OjEyMjBjYmRjNzM0YmU5ZDViMzU2NzU2ZWJiNDNkYjJjODg5OTM1Yzg3YjMwOWIyZjJiZDgzMGQxNGE1NzdhNzMxZWJkKmhhcHBfcHJvdmlkZXJfbG9jYWxuZXQtbG9jYWxwYXJ0eS0xOjoxMjIwY2JkYzczNGJlOWQ1YjM1Njc1NmViYjQzZGIyYzg4OTkzNWM4N2IzMDliMmYyYmQ4MzBkMTRhNTc3YTczMWViZDl67iY9PF0GAEIqCiYKJAgBEiAIvTmhtD/DSCo9XVRD2AZnfDhfRWq5l+P8NWhSozHr4hAe",
+          "interfaceViews": [],
+          "witnessParties": [
+            "app_provider_localnet-localparty-1::1220cbdc734be9d5b356756ebb43db2c889935c87b309b2f2bd830d14a577a731ebd"
+          ],
+          "signatories": [
+            "app_provider_localnet-localparty-1::1220cbdc734be9d5b356756ebb43db2c889935c87b309b2f2bd830d14a577a731ebd"
+          ],
+          "observers": [],
+          "createdAt": "2026-10-07T08:52:45.646458Z",
+          "packageName": "splice-wallet",
+          "representativePackageId": "916f16ea9413ba72d9ae660c9d0741f1078fc27b82b61e4b9db6a991dc47a848",
+          "acsDelta": true
+        }
+      }
+    ]
+  },
+  "sequenced_events_around_record_time": [
+    {
+      "ts_micros": 1791363167585288,
+      "previous_ts_micros": 1791363164455429,
+      "bytes": 2308,
+      "sequencer_signature": {
+        "signature_hex": "3e3b8ddb4efd980a99ba8f3d118ab4289652c9e365efb70395daff9cbe63b1b33a91b7b19e181ca140d9e917eeb6e1ebf17aacf4ea6d70bd61a2099471106405",
+        "signed_by": "1220c56271491d6e988de30bd256e3c1229551930312ba697c57d66e3cf4a03c8696",
+        "signature_bytes": 64
+      },
+      "envelopes": [
+        {
+          "gzipped_bytes": 120,
+          "bytes": 192,
+          "contains_root_hash": false
+        },
+        {
+          "gzipped_bytes": 170,
+          "bytes": 149,
+          "contains_root_hash": true
+        },
+        {
+          "gzipped_bytes": 1693,
+          "bytes": 1670,
+          "contains_root_hash": false
+        }
+      ]
+    },
+    {
+      "ts_micros": 1791363167585289,
+      "previous_ts_micros": 1791363167585288,
+      "bytes": 2369,
+      "sequencer_signature": {
+        "signature_hex": "d657ff185d4b5d7a98c0630603ba5039bbf401c9ed448b7a3d5c1feeeb27ae04981691f30d3dea091dab81eaa1091fa80e97cb29e9c4ad4ddef6d9fdd0d6a50a",
+        "signed_by": "1220c56271491d6e988de30bd256e3c1229551930312ba697c57d66e3cf4a03c8696",
+        "signature_bytes": 64
+      },
+      "envelopes": [
+        {
+          "gzipped_bytes": 120,
+          "bytes": 192,
+          "contains_root_hash": false
+        },
+        {
+          "gzipped_bytes": 172,
+          "bytes": 149,
+          "contains_root_hash": false
+        },
+        {
+          "gzipped_bytes": 1752,
+          "bytes": 1729,
+          "contains_root_hash": false
+        }
+      ]
+    },
+    {
+      "ts_micros": 1791363167726317,
+      "previous_ts_micros": 1791363167585289,
+      "bytes": 329,
+      "sequencer_signature": {
+        "signature_hex": "73d3f7a05371e58d68749dcb1168a032401c94fc43700fc718db942c84da9105dcbde92770921fa03287614357671dbfe6d4bc7656bc0ac5615cad9b539a4b0a",
+        "signed_by": "1220c56271491d6e988de30bd256e3c1229551930312ba697c57d66e3cf4a03c8696",
+        "signature_bytes": 64
+      },
+      "envelopes": [
+        {
+          "gzipped_bytes": 20,
+          "bytes": 0,
+          "contains_root_hash": false
+        }
+      ]
+    },
+    {
+      "ts_micros": 1791363167726318,
+      "previous_ts_micros": 1791363167726317,
+      "bytes": 329,
+      "sequencer_signature": {
+        "signature_hex": "27310f5a0d62217c1391a18c204d2dc238f49cbea9dff124d0867b0d57e9480b0479d168dee66fb7a4d216090c75eb11bdae2262b62bdebf759c048da422810c",
+        "signed_by": "1220c56271491d6e988de30bd256e3c1229551930312ba697c57d66e3cf4a03c8696",
+        "signature_bytes": 64
+      },
+      "envelopes": [
+        {
+          "gzipped_bytes": 20,
+          "bytes": 0,
+          "contains_root_hash": false
+        }
+      ]
+    },
+    {
+      "ts_micros": 1791363167827701,
+      "previous_ts_micros": 1791363167726318,
+      "bytes": 697,
+      "sequencer_signature": {
+        "signature_hex": "426915a7a9e496909b24135ba9f034d7030851447db5f7a1af9cc9f8b36c25023e8922512b7b968d1ca23fbd104c2914a5a33db3174c63b478de85033bc1df0d",
+        "signed_by": "1220c56271491d6e988de30bd256e3c1229551930312ba697c57d66e3cf4a03c8696",
+        "signature_bytes": 64
+      },
+      "envelopes": [
+        {
+          "gzipped_bytes": 102,
+          "bytes": 92,
+          "contains_root_hash": false
+        },
+        {
+          "gzipped_bytes": 320,
+          "bytes": 301,
+          "contains_root_hash": true,
+          "inner_signature": {
+            "signature_hex": "9467217c2fa6fcac042c0d681cb1862e9ef246f325042cd68d139e9bda4f497e5b9811e4d5f8d57f2dec912e21e48f3fabe2550bb8b96e3e5a10b6dde5618506",
+            "signed_by": "1220ecba8c78747fee1fee8c6aecc450d2c8ae6196efde1ed38b8a41c374a9dddd3a",
+            "signature_bytes": 64
+          },
+          "kind": "ConfirmationResultMessage, mediator verdict"
+        }
+      ]
+    },
+    {
+      "ts_micros": 1791363167827702,
+      "previous_ts_micros": 1791363167827701,
+      "bytes": 698,
+      "sequencer_signature": {
+        "signature_hex": "d59033715d27ef38b79a98a2cb5b021c4acce064a38aa31d0b3a11b1bd32d9a34dcabb3361c22a1a56f8e3979262c28ceeea15446b930c7aa0f3956db2476b0f",
+        "signed_by": "1220c56271491d6e988de30bd256e3c1229551930312ba697c57d66e3cf4a03c8696",
+        "signature_bytes": 64
+      },
+      "envelopes": [
+        {
+          "gzipped_bytes": 102,
+          "bytes": 92,
+          "contains_root_hash": false
+        },
+        {
+          "gzipped_bytes": 321,
+          "bytes": 301,
+          "contains_root_hash": false,
+          "inner_signature": {
+            "signature_hex": "b0936bacbead2b609f007bfaf87b46034ca1e3542b809f9dbedc266b9058759c852fa9986decb0118a4e7bcf8c828bdecda9de099272c16fb220e2fc08f4e903",
+            "signed_by": "1220ecba8c78747fee1fee8c6aecc450d2c8ae6196efde1ed38b8a41c374a9dddd3a",
+            "signature_bytes": 64
+          },
+          "kind": "signed protocol message"
+        }
+      ]
+    },
+    {
+      "ts_micros": 1791363168164186,
+      "previous_ts_micros": 1791363167827702,
+      "bytes": 2284,
+      "sequencer_signature": {
+        "signature_hex": "9229209b552218f1b387dd2f0a62bbd898440757207d3bba35a77c10c2d32181df15a1fced634fbe72ebb1019eb380aad9631240020be1d7d85622b58bfeaa0a",
+        "signed_by": "1220c56271491d6e988de30bd256e3c1229551930312ba697c57d66e3cf4a03c8696",
+        "signature_bytes": 64
+      },
+      "envelopes": [
+        {
+          "gzipped_bytes": 120,
+          "bytes": 192,
+          "contains_root_hash": false
+        },
+        {
+          "gzipped_bytes": 172,
+          "bytes": 149,
+          "contains_root_hash": false
+        },
+        {
+          "gzipped_bytes": 1667,
+          "bytes": 1644,
+          "contains_root_hash": false
+        }
+      ]
+    },
+    {
+      "ts_micros": 1791363168310356,
+      "previous_ts_micros": 1791363168164186,
+      "bytes": 329,
+      "sequencer_signature": {
+        "signature_hex": "25f2619b68c87995a4cbb9f2428752395dc62f5a7137dad83f8a97e560e24ca840ad75055a765a6bf7342c52befbdd519985da2e5fd361432a92c583a727fd04",
+        "signed_by": "1220c56271491d6e988de30bd256e3c1229551930312ba697c57d66e3cf4a03c8696",
+        "signature_bytes": 64
+      },
+      "envelopes": [
+        {
+          "gzipped_bytes": 20,
+          "bytes": 0,
+          "contains_root_hash": false
+        }
+      ]
+    },
+    {
+      "ts_micros": 1791363168446025,
+      "previous_ts_micros": 1791363168310356,
+      "bytes": 698,
+      "sequencer_signature": {
+        "signature_hex": "7a7955357199b6a25312e928f6545b6c70c8476e51d74c80bb7a9da0aa750ba7e837df1e427592dc6cd7ff4c815c7ab475212a315acd64f41b4428d3a3be250d",
+        "signed_by": "1220c56271491d6e988de30bd256e3c1229551930312ba697c57d66e3cf4a03c8696",
+        "signature_bytes": 64
+      },
+      "envelopes": [
+        {
+          "gzipped_bytes": 102,
+          "bytes": 92,
+          "contains_root_hash": false
+        },
+        {
+          "gzipped_bytes": 321,
+          "bytes": 301,
+          "contains_root_hash": false,
+          "inner_signature": {
+            "signature_hex": "239270d2084a075f7afb6add3d067b4abe5431588d1b6e15f5aae1278e1c4eaf60b8b8d8a34f900b0344e3647db8a28699c6c8b9d80782de14d1b84fdf4da701",
+            "signed_by": "1220ecba8c78747fee1fee8c6aecc450d2c8ae6196efde1ed38b8a41c374a9dddd3a",
+            "signature_bytes": 64
+          },
+          "kind": "signed protocol message"
+        }
+      ]
+    }
+  ],
+  "keys": {
+    "sequencer_signing_key": "1220c56271491d6e988de30bd256e3c1229551930312ba697c57d66e3cf4a03c8696",
+    "mediator_signing_key": "1220ecba8c78747fee1fee8c6aecc450d2c8ae6196efde1ed38b8a41c374a9dddd3a",
+    "authorized_by": "OwnerToKeyMapping topology transactions signed by the SV namespace 1220d53988d99a1fbb32462857e351b3825a8a4cbc9f8b3ee83f5e36a5815a966ca2"
+  },
+  "verification": [
+    "1. updateId == 0x1220 || root_hash: the Ledger API transaction and the signed verdict refer to the same Merkle root",
+    "2. the verdict event's outer signature verifies under the sequencer signing key, its inner signature under the mediator signing key",
+    "3. both keys are current in the synchronizer topology (OwnerToKeyMapping), itself signed by the namespace root",
+    "4. the verdict is Approve for requestId == recordTime of the request, so the transaction with this root hash is final",
+    "5. contractId recomputes from createdEventBlob (salt + arguments + signatories + observers), binding the payload to the id",
+    "6. the create node sits under root_hash in the transaction tree (the Merkle path is inside the encrypted view; not re-derivable outside Canton yet)"
+  ],
+  "submission_for_verifier": {
+    "1_verdict_event_hex": "0ab4050aa2040a9d0408eed59aeac3a7970310f5eda0eac3a797031a59676c6f62616c2d646f6d61696e3a3a31323230633664636230636237636431653634333861313165653730663761613633643462336332663335336131656137323534633437316431303565336564333364343a3a33352d302aad03080112661f8b08000000000000ff05c1310a80300c05d0bda76993c6b4ddbc813888b8f527155c44c4fbe37be1087bd896796dede9ef77d9f5f4fb6b2d1145839b72c6a82e609954a60164769095522b8b1505c70a3a095e387aca5d54bb721af01fc63d70255c0000001ac0021f8b08000000000000ffe39acdc8358d516a3223571f2357647a4e7e52628e6e4a7e6e62669e9595a1919141b2594a729241729279728a61aa9989b145a2a1616aaab9419a7962a299718a499271b2519ab1a971a2616aa2b991a949b289b9618aa18169aa716a8a3150decacad854d7408051a2a363d2abc3cba7332b290929ac3b6c50b887f3dcaa3ccf290db959fc2d0215ed9c0fcff45f68f0fc3f7d53ffa57f5a4c5c0c02720272423d8c1ccc420e53d2156bf497fd59c3a2c39b21b3b14d6fde27b7cfaa2c3ad77a85e7cdbee5ef59173d43f0c9d51f57eb75df4cd4537cd26fbffa5128f78e9d79765102dbee3e4d6c65937201f924353929d122d9dcc2dcc43c2d35d510882d92cd125393934d4c0d528c922d1253cd0c2dcd52d352520d814eb748b24834314c36363749b44c0102e344054600946b46de2d010000101f128c0108031240426915a7a9e496909b24135ba9f034d7030851447db5f7a1af9cc9f8b36c25023e8922512b7b968d1ca23fbd104c2914a5a33db3174c63b478de85033bc1df0d1a4431323230633536323731343931643665393838646533306264323536653363313232393535313933303331326261363937633537643636653363663461303363383639362001101e",
+    "1_verdict_event_bytes": 697,
+    "2_request_event_hex": "0aff110aed100ae810088584d3e8c3a7970310888892eac3a797031a59676c6f62616c2d646f6d61696e3a3a31323230633664636230636237636431653634333861313165653730663761613633643462336332663335336131656137323534633437316431303565336564333364343a3a33352d30222463356265366334362d623562352d346264372d383632372d3366613264636466346161342ac90f080112781f8b08000000000000ffb5ccb10a02310c06e0cd214fd326cda5ede6e42488838893fd930ab7c821f7fee84b387ddb47a0271dcea76bef896e97e3cf6d7cf6d5d76dbcf7de337372849b14cc160ad1c574994091007badad897a35486ae01723aaa4c865a8d930c913410fbaffebfe02e2a9501ec00000001aaa011f8b08000000000000ffe39ac4c8d5cba8d5c5c8a524a4b0eeb041e11ece73abf23ca734e466f1b70854b4733e3cd37fa1c1f3fff44dfd97fe0945a6e7e42725e6e8a6e4e72666e65959191a1919249ba524271924279927a718a69a99185b241a1aa6a69a1ba49927269a19a7982419271ba5199b1a271aa6269a1b999a249b981ba6181a98a61aa7a61803e5adac8c4d750d241815da5a2ebf38bc7c3ab3803c00b6b0eefa950000001a9d0d1f8b08000000000000ff01860679f90a830d0afe0c12fb0c0a8709243395d5afb1d06bc99fcce1793e8f69472e01c6c1f14c269e53be2ba5c0fea0769b575c9cd6bed5f73d862cb1c4fecaec515e82f9dc0357a12a36804b3223cc9b05938a394ac3b03b1dbd08a27b18808ca74a3af06471f96b0ca8bf34b0e8add39d5e2aa9c0c9c057598f508f7f45a3e736aa90623742421062a29f5d2d67a8c6c6e91983909cfff3af471fc1a00b5e54eede2653a6660c335ebc2f7c4642ddd856e67bfa4c0a6eea961ff703f6f6c486e58f8a57a8072ffc1ef3c6f09a954dcb9ea587286aa8d29f15b3f57de8626295290338f0c1ba7e2b06b4c102f73d99c116ebc732743b87cee2045fa740eef1a3bdc607bc81d0a482d44661ba0808f9b47b1fa15e4c82a7d5fa83bdba04a64211785a4bdb08b5228626e367005b38811c47fbe832e0bf10a0e55c691fb2dff896f754357e406f4c95565e3c2b8c268ee6c8c8e8a53930a7dd7c2d1fbd056aa20de253b6bff9513bd9026685c2306845d3ba8c3808894a8155da024b78328282ae6ca9c0690bf8c4e068b8cb5c1ea5f3d6b4a57a90251d241e565815f51b6059c3739e7b2256d7662a536c0857af75a2a6582df7d138100ae395ff12e068760fc993c49c708c293a833c7d980714bdda844b523be9f053bbb2dc74a4c54e74e03bd7da6cce9cbd125f6888551208a164fb97c4faf923b527eb8253bfe59580eab1d5533767ba5ba0954751832fbd532b8e2872aec0392493596b6a69bbd7fce7c910ca7275a64655a46db78821b72caaa944a0cfadf4936ca2c105337a334ff79d2f52d821c67cc273f3f9e891f97e46b9bbbdc3989ae37e8bc7117b7948a474fdccc9f73c15352a5c84429378853add4fbd21ebef1217cc06029eacd05d4ab8f8a639aef576ea741cb55e5a09fa8f0332a3c478ac79f7e3304d983e61367aa0e31f8513d498ab1775bacb19c0e3cdfaa64c1986f15db6584cca054d13af793624fadd40382bf48d03e5ef9511ecea2708bcc8f689b524e60d263a5c4cdecaa4ecd54a26815616f6a44f9d4c657058fb8e3a1ec42dbd845805cfd0c580db094a5b6edde4a6e6c8564c0cf6b27448e92ad8163dd94b9903aee167421b2c8a67fdb956a6d3145d32f7d4d0a59447b0e1832b4b9004a867a159d8fbebdc7dff48774321b9a21c35855a52aa9752e4bd92c29941fd11cf81b8518a9be4f5b1ccc3ced14a10467be6174cf4a03fca05406bdeaa7da5254eeaac223ea37db45d33d0c833d992f4fc8751217855d2705727e8d3f4f07922282bd9abf543707d6b9e846564cbfb5ee0508b5f997040a3aa8aa33c70aaa2583800b7a08e9d96bb886fac1e6aaf6e1f5829cc1a91ca00d837d194b0848fa99088e787e7f42907c49f08c6c0be4753ce19adb05517b18c1af7b461d9a4058bd98687e971a8e1731bc9aa3e622355dfd03012d8762c7b4a9e662defee9b930aa142bf10419f7ad66772b429e44d1ca5bae1d84875f7282e43b4f63b1cc46f43047f0fa48beec1384f23c9dd86fc0e3e1c414774465ad9c280647db4c2601d46e1da698b2a49315e1c4b6aa35ef2ea0a4c3953bf295a4a67e17fc24ffd31cdffcd18aa88485e99e1484db7c53b32ec80b48adb5ea9f7843d7f22f5e16e92b6cda1939f6a122212207624f921273fd26c89ea63a5c8c28b30799459d2307b6c35a3bc24fbcb399aea1801228c0108031240aa106e573e9ff3e3bf570a646dc085ba01dad8ed2678b013c65ac47fed9c645d7701f21a9c206ebcbded5c3ee730e786ba3537172f6f79aec7b799c91a3e8c031a44313232303362343264623639633565333863303033326530386639313739366338646332373264343139643563333764333331306530333033316337366235393330326220012adc010a91011615362cf5447e2f85e3d3cdb78b9e5204f2f01085ac48e29c6fe3fad854c99f7ffb9b763c748d6454c0756bb598488e92a34a2c324df4b42662e75a97a71e1de38794b64b166217ebb07df33474bbd6b1d0eee2b705c15e0b6007ae0346a347a350ccd24aede5bcbd4f226d38d11104ad2b2bd64584b113c9361dbc71c7d886d81e116e928f24e8ccf969ebe6f25a0c6710011a4431323230313262633461613033343733383837636235653537323063343964373461613933383036613330346635653262373634333462336635346337613764623362663259676c6f62616c2d646f6d61696e3a3a31323230633664636230636237636431653634333861313165653730663761613633643462336332663335336131656137323534633437316431303565336564333364343a3a33352d303801101fbaca04e086060000420708fa1618ad8318101f128c01080312403e3b8ddb4efd980a99ba8f3d118ab4289652c9e365efb70395daff9cbe63b1b33a91b7b19e181ca140d9e917eeb6e1ebf17aacf4ea6d70bd61a20994711064051a4431323230633536323731343931643665393838646533306264323536653363313232393535313933303331326261363937633537643636653363663461303363383639362001101e",
+    "2_request_event_bytes": 2308,
+    "3_merkle_path_from_root_to_create_node": "NOT YET EXTRACTABLE: inside the 1,693-byte encrypted view envelope of the request event; needs the participant's view-decryption key",
+    "4_createdEventBlob_base64": "CgMyLjESpwUKRQDyu2Tv5xqOwvNmmf9FgN2gwg9Tm3A/ta1x0b7fZbh4b8oSEiDtnmjWsuSVm/ar/VAseUX2nCYCYBy6vPDAJFMN6PTGMBINc3BsaWNlLXdhbGxldBptCkA5MTZmMTZlYTk0MTNiYTcyZDlhZTY2MGM5ZDA3NDFmMTA3OGZjMjdiODJiNjFlNGI5ZGI2YTk5MWRjNDdhODQ4EgZTcGxpY2USBldhbGxldBIHSW5zdGFsbBoQV2FsbGV0QXBwSW5zdGFsbCLAAmq9AgpNCks6SURTTzo6MTIyMGM2ZGNiMGNiN2NkMWU2NDM4YTExZWU3MGY3YWE2M2Q0YjNjMmYzNTNhMWVhNzI1NGM0NzFkMTA1ZTNlZDMzZDQKbApqOmhhcHBfcHJvdmlkZXJfbG9jYWxuZXQtbG9jYWxwYXJ0eS0xOjoxMjIwY2JkYzczNGJlOWQ1YjM1Njc1NmViYjQzZGIyYzg4OTkzNWM4N2IzMDliMmYyYmQ4MzBkMTRhNTc3YTczMWViZAoQCg5CDGFwcC1wcm92aWRlcgpsCmo6aGFwcF9wcm92aWRlcl9sb2NhbG5ldC1sb2NhbHBhcnR5LTE6OjEyMjBjYmRjNzM0YmU5ZDViMzU2NzU2ZWJiNDNkYjJjODg5OTM1Yzg3YjMwOWIyZjJiZDgzMGQxNGE1NzdhNzMxZWJkKmhhcHBfcHJvdmlkZXJfbG9jYWxuZXQtbG9jYWxwYXJ0eS0xOjoxMjIwY2JkYzczNGJlOWQ1YjM1Njc1NmViYjQzZGIyYzg4OTkzNWM4N2IzMDliMmYyYmQ4MzBkMTRhNTc3YTczMWViZDl67iY9PF0GAEIqCiYKJAgBEiAIvTmhtD/DSCo9XVRD2AZnfDhfRWq5l+P8NWhSozHr4hAe",
+    "5_signing_keys_the_verifier_must_already_trust": {
+      "sequencer_signing_key": "1220c56271491d6e988de30bd256e3c1229551930312ba697c57d66e3cf4a03c8696",
+      "mediator_signing_key": "1220ecba8c78747fee1fee8c6aecc450d2c8ae6196efde1ed38b8a41c374a9dddd3a",
+      "authorized_by": "OwnerToKeyMapping topology transactions signed by the SV namespace 1220d53988d99a1fbb32462857e351b3825a8a4cbc9f8b3ee83f5e36a5815a966ca2"
+    }
+  }
+}

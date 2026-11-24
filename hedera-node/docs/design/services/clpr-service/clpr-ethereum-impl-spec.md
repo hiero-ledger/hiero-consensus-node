@@ -1,12 +1,13 @@
 # CLPR Ethereum Implementation Specification
 
 This document is the Ethereum-specific implementation specification for the CLPR (Cross Ledger Protocol). It maps every
-construct from the [CLPR Protocol Specification](clpr-service-spec.md) to concrete Solidity contracts, storage layouts,
-function signatures, events, and gas analyses. Engineers should use this document to break the work into epics and
-issues.
+construct from the canonical
+[CLPR Protocol Specification](https://github.com/LFDT-CLPR/clpr-spec/blob/945082d69e65dd0fd9e9bdf8d59cb8121579f6fd/clpr-service-spec.md)
+to concrete Solidity contracts, storage layouts, function signatures, events, and gas analyses. Engineers should use
+this document to break the work into epics and issues.
 
-For architectural rationale and design decisions, see the [CLPR Design Document](clpr-service.md). For the
-cross-platform protocol specification, see the [CLPR Protocol Specification](clpr-service-spec.md).
+For architectural rationale and design decisions, see the canonical
+[CLPR Design Document](https://github.com/LFDT-CLPR/clpr-spec/blob/945082d69e65dd0fd9e9bdf8d59cb8121579f6fd/clpr-service.md).
 
 ---
 
@@ -137,46 +138,29 @@ interface IClprService {
     // Channel Management (Spec section 6.2)
     // =========================================================================
 
-    /// @notice Phase 1 (Commit): Register an ownership commitment on this ledger. Permissionless.
-    /// @dev Stores the commitment. No Channel state is created yet — neither the channelId
-    ///      nor the public key is revealed at this stage. The commitment prevents cross-ledger
-    ///      front-running (see cross-platform spec §5.1).
-    /// @param commitment The ownership commitment: keccak256(channelId || publicKey).
-    /// @param verifierContract Address of the locally deployed verifier contract.
-    ///        The verifier is immutable — it cannot be changed after registration.
-    /// @param configProofBytes Opaque proof from the peer ledger, passed to verifyConfig()
-    ///        to obtain the verified peer configuration (chain_id, service_address, throttles).
-    function registerChannel(
-        bytes32 commitment,
-        address verifierContract,
-        bytes calldata configProofBytes
-    ) external;
-
-    /// @notice Phase 2 (Reveal): Complete registration by revealing the Channel ID and
-    ///         public key. Permissionless.
-    /// @dev Validates keccak256(channelId || ecdsaPublicKey) matches a stored commitment,
-    ///      verifies the ECDSA signature, and creates the Channel in ACTIVE state.
-    /// @param channelId The Channel ID (arbitrary 32-byte value, same on both ledgers).
-    ///        Must not already exist as a Channel.
-    /// @param ecdsaPublicKey The uncompressed secp256k1 public key (64 bytes, x||y without
-    ///        0x04 prefix). Used to verify the ownership commitment.
-    /// @param ecdsaSignature ECDSA secp256k1 signature over keccak256(channelId),
-    ///        proving the caller controls the keypair.
-    function completeChannel(
+    /// @notice Open a channel after the verifier authenticates the peer configuration.
+    function openChannel(
         bytes32 channelId,
-        bytes calldata ecdsaPublicKey,
-        bytes calldata ecdsaSignature
+        bytes32 salt,
+        address verifier,
+        bytes calldata peerVerifier,
+        bytes calldata configProof,
+        bytes calldata endpointManifestProof
     ) external;
-
 
     /// @notice Initiate graceful close of a Channel. ADMIN_ROLE only.
     /// @dev When called on a PENDING Channel, deletes it immediately (no drain needed).
-    ///      For ACTIVE or PAUSED → transitions to CLOSING. In-flight messages receive
-    ///      CHANNEL_CLOSED responses without dispatch. The Channel transitions
-    ///      through DRAINED to CLOSED automatically when all queues are fully drained.
+    ///      For ACTIVE or PAUSED → transitions to CLOSING and rejects new local
+    ///      sendMessage calls. Inbound Data Messages are dispatched normally, charged
+    ///      to the Connector, and answered with normal responses while queues drain.
+    ///      CLOSING → DRAINED once all outbound Data Messages are acknowledged;
+    ///      DRAINED → CLOSED once peer status is DRAINED or CLOSED and the entire
+    ///      outbound queue, including generated responses, is acknowledged.
     ///      If closed from PAUSED, the Channel cannot drain until the peer fixes
-    ///      the response ordering; once fixed, bundles process with CHANNEL_CLOSED
-    ///      responses and queues drain normally.
+    ///      response ordering; once fixed, bundles process normally while CLOSING.
+    ///      From DRAINED → transitions directly to CLOSED (admin recovery when the
+    ///      peer's close-notification cannot be delivered); does not wait for
+    ///      outstanding acknowledgements.
     /// @param channelId The Channel ID.
     function closeChannel(bytes32 channelId) external;
 
@@ -817,9 +801,10 @@ submitBundle(channelId, proofBytes, remoteEndpointSignature, remoteEndpointPubli
   16. Retain acknowledged Data Messages (needed for response ordering).
 
   // --- Step 5a: Closing State Propagation ---
-  16a. If metadata.state is CLOSING or DRAINED, and channel.status == ACTIVE or PAUSED:
-       - Set channel.status = CLOSING.
+  16a. If metadata.status is CLOSING, DRAINED, or CLOSED, and channel.status == ACTIVE or PAUSED:
+       - Set channel.status = CLOSING before dispatch, so nested sendMessage calls are rejected.
        - Emit ChannelStatusChanged(channelId, previousStatus, 3 /* CLOSING */).
+       - Propagate the new status to the peer in the next proven queue metadata.
 
   // --- Step 5b: Lazy Config Propagation ---
   // Placed after ack update to ensure the ConfigUpdate appears at the correct
@@ -832,19 +817,19 @@ submitBundle(channelId, proofBytes, remoteEndpointSignature, remoteEndpointPubli
   // --- Step 6: Message Dispatch (see section 8 for details) ---
   17. For each message in order:
       - If Control: apply directly (update peer roster or config).
-      - If Data AND (channel.status == CLOSING || channel.status == DRAINED):
-          Generate CHANNEL_CLOSED response without dispatching to application.
-          Connector is not charged, not slashed.
-      - If Data (not CLOSING/DRAINED): resolve connector, charge, dispatch to application, enqueue response.
+      - If Data (including CLOSING/DRAINED): resolve connector, charge under the normal execution rules,
+          dispatch to application, and enqueue the normal response.
+          CLOSING/DRAINED reject new local sendMessage calls, not inbound Data Messages.
       - If Response: deliver to application, verify ordering.
   18. Update channel.receivedMessageId and channel.receivedRunningHash.
 
   // --- Step 6a: Drain Check (two-phase) ---
   18a. If channel.status == CLOSING || channel.status == DRAINED:
-       - If channel.status == CLOSING AND peer has acknowledged all our outbound messages:
-           Set channel.status = DRAINED.
+       - If channel.status == CLOSING AND no outbound Data Messages with ID > ackedMessageId remain:
+           Set channel.status = DRAINED; generated responses may still be unacknowledged.
            Emit ChannelStatusChanged(channelId, 3 /* CLOSING */, 4 /* DRAINED */).
-       - If channel.status == DRAINED AND peer's state == DRAINED:
+       - If channel.status == DRAINED AND metadata.status is DRAINED or CLOSED
+         AND ackedMessageId >= nextMessageId - 1 (all outbound messages, including generated responses, acked):
            Set channel.status = CLOSED.
            Emit ChannelStatusChanged(channelId, 4 /* DRAINED */, 5 /* CLOSED */).
 
@@ -950,7 +935,7 @@ EIP-2537 is activated on mainnet.
 
 ## 6.3 EXTCODEHASH Fingerprint Recording
 
-During `registerChannel`, the verifier contract's `EXTCODEHASH` is computed and stored on the Channel as
+During `openChannel`, the verifier contract's `EXTCODEHASH` is computed and stored on the Channel as
 `verifierFingerprint` (informational). The verifier is immutable — it cannot be changed after registration.
 This is a single opcode costing 2,600 gas (cold) or 100 gas (warm).
 
@@ -1077,7 +1062,7 @@ if (response.messageId != channel.nextResponseExpectedId) {
 
 // --- Auto-resume if PAUSED and ordering is now correct ---
 // If admin closed the Channel while PAUSED (status is CLOSING), this block is skipped —
-// the Channel stays CLOSING and processes bundles with CHANNEL_CLOSED responses.
+// the Channel stays CLOSING and dispatches inbound Data Messages normally.
 if (channel.status == 2 /* PAUSED */) {
     channel.status = 1; // ACTIVE
     emit ChannelStatusChanged(channelId, 2 /* PAUSED */, 1 /* ACTIVE */);
@@ -1128,7 +1113,7 @@ modifier nonReentrant() {
 }
 ```
 
-Applied to: `setLedgerConfiguration`, `registerChannel`, `completeChannel`,
+Applied to: `setLedgerConfiguration`, `openChannel`,
 `closeChannel`, `registerConnector`,
 `topUpConnector`, `withdrawConnectorBalance`, `deregisterConnector`, `sendMessage`, `submitBundle`,
 `redactMessage`, `registerEndpoint`, `deregisterEndpoint`.
@@ -1142,8 +1127,8 @@ ClprService function. If an application attempts this, the transaction reverts f
 **PAUSED recovery.** PAUSED is auto-recoverable: the Channel resumes automatically when the next
 bundle contains correctly ordered responses (see section 8.2), provided the admin hasn't closed it.
 Admin may close a PAUSED Channel (`closeChannel` transitions it to CLOSING). While CLOSING,
-bundles with out-of-order responses are still rejected; once the peer fixes the ordering, bundles
-process with CHANNEL_CLOSED responses and queues drain normally through DRAINED to CLOSED.
+bundles with out-of-order responses are still rejected; once the peer fixes the ordering, inbound
+Data Messages are dispatched normally and queues drain through DRAINED to CLOSED.
 
 If PAUSED persists (the peer never fixes its response ordering), the EIP-1967 proxy provides a recovery
 path as a last resort:
@@ -1162,9 +1147,14 @@ path as a last resort:
 This is a concrete motivation for the upgradeability strategy described in section 1.2.
 
 **CLOSING recovery.** CLOSING is irreversible. Once an admin calls `closeChannel`, the Channel
-transitions to CLOSING. In-flight Data Messages receive CHANNEL_CLOSED responses without dispatch.
-Acks continue flowing, queues drain, and the Channel transitions through DRAINED to CLOSED automatically
-when both sides are fully drained. There is no admin resume from CLOSING or DRAINED.
+transitions to CLOSING and rejects new local `sendMessage` calls. Inbound Data Messages continue to be
+dispatched normally, charged to the Connector, and answered with normal responses. Queue metadata carries
+CLOSING to the peer so it also stops accepting new local Data Messages. The Channel transitions to DRAINED
+once all outbound Data Messages are acknowledged; generated responses may still be in flight. It transitions
+to CLOSED only after the peer's proven status is DRAINED or CLOSED and the entire local outbound queue,
+including generated responses, is acknowledged. There is no admin resume from CLOSING or DRAINED.
+See the canonical [Channel status transitions](https://github.com/LFDT-CLPR/clpr-spec/blob/945082d69e65dd0fd9e9bdf8d59cb8121579f6fd/clpr-service-spec.md#211-channel-status-transitions)
+and [bundle drain checks](https://github.com/LFDT-CLPR/clpr-spec/blob/945082d69e65dd0fd9e9bdf8d59cb8121579f6fd/clpr-service-spec.md#42-bundle-verification-algorithm).
 
 ---
 
@@ -1205,15 +1195,14 @@ protected by the reentrancy guard, so they cannot be called in the same transact
 
 ## 10.1 Operation Gas Costs
 
-|          Operation           |     Estimated Gas      |              Who Pays               |                           Notes                           |
-|------------------------------|------------------------|-------------------------------------|-----------------------------------------------------------|
-| `registerChannel`            | 100,000 - 200,000      | Caller (permissionless)             | Commit phase only; no ECDSA verify. EXTCODEHASH recorded. |
-| `completeChannel`            | 80,000 - 120,000       | Caller (permissionless)             | Reveal phase; ECDSA verify + state transition.            |
-| `registerConnector`          | 150,000                | Connector admin                     |                                                           |
-| `registerEndpoint`           | 80,000                 | Endpoint operator                   |                                                           |
-| `sendMessage` (enqueue)      | 80,000 - 175,000       | Message sender                      | +~25K if lazy ConfigUpdate is enqueued                    |
-| `submitBundle` (10 messages) | 2,000,000 - 25,000,000 | Endpoint (reimbursed by Connectors) | +~25K if lazy ConfigUpdate is enqueued                    |
-| `redactMessage`              | 30,000                 | CLPR admin                          |                                                           |
+|          Operation           |           Estimated Gas           |              Who Pays               |                          Notes                          |
+|------------------------------|-----------------------------------|-------------------------------------|---------------------------------------------------------|
+| `openChannel`                | Depends on the verifier and proof | Caller (permissionless)             | Verifies the peer configuration and stores the channel. |
+| `registerConnector`          | 150,000                           | Connector admin                     |                                                         |
+| `registerEndpoint`           | 80,000                            | Endpoint operator                   |                                                         |
+| `sendMessage` (enqueue)      | 80,000 - 175,000                  | Message sender                      | +~25K if lazy ConfigUpdate is enqueued                  |
+| `submitBundle` (10 messages) | 2,000,000 - 25,000,000            | Endpoint (reimbursed by Connectors) | +~25K if lazy ConfigUpdate is enqueued                  |
+| `redactMessage`              | 30,000                            | CLPR admin                          |                                                         |
 
 ## 10.2 Fee Model
 
@@ -1319,29 +1308,9 @@ contract. No bond delegation or liquid staking is supported in the initial imple
 **Ethereum decision:** Escalating percentage-based slashing (section 7.3). Four-strike policy leading to
 permanent ban. Slash proceeds go to the submitting endpoint that was harmed.
 
-## 12.3 Signature Format
+## 12.3 Channel identity
 
-**Spec says:** The signature scheme and exact signed payload format are platform-specific. The cross-platform
-protocol requires that `keccak256(channel_id || public_key)` matches the stored ownership commitment.
-The channel_id is an arbitrary 32-byte value chosen by the registrant, not derived from any key.
-
-**Ethereum decision:** Use ECDSA secp256k1 (native `ecrecover` support). The signed payload for
-`completeChannel` (the reveal phase) is:
-
-```
-signedPayload = keccak256(channelId)    // bytes32
-```
-
-The channel ID alone is sufficient — there is no replay risk since the channel ID is unique,
-and simplifying the payload allows the same signature to work on both ledgers without
-platform-specific payload construction.
-
-Note: `registerChannel` (the commit phase) does NOT require a signature. The signature is only
-verified during `completeChannel`.
-
-Signature recovery uses `ecrecover` to derive the signer's address, then verifies
-`keccak256(channelId || uncompressedPubkey)` matches the stored ownership commitment. This
-requires the caller to provide the uncompressed public key alongside the signature for verification.
+During channel opening the service checks the caller’s expected channel ID against the ID derived from both ledgers’ chain IDs, services, verifiers, and shared salt.
 
 ## 12.4 Application Callback Interface
 
@@ -1423,7 +1392,7 @@ The following contradictions existed in earlier revisions and have been correcte
 
 4. **Incomplete `clprEnabled` coverage.** The cross-platform spec §7 states "When disabled, all pseudo-API
    calls MUST return an error." All state-modifying non-admin functions MUST check `require(clprEnabled)` as
-   their first step. This includes: `registerChannel`, `registerConnector`,
+   their first step. This includes: `openChannel`, `registerConnector`,
    `topUpConnector`, `withdrawConnectorBalance`, `deregisterConnector`,
    `registerEndpoint`, `deregisterEndpoint`, `redactMessage`, and `sendMessage`.
    Read-only query functions (`getLedgerConfiguration`, `getConnector`) are exempt. Admin operations
@@ -1472,13 +1441,9 @@ liveness dependency -- if the committee is not updated in time, bundle verificat
 function callable by anyone. The proof demonstrates that the new committee was attested by the current committee.
 A bounty mechanism should incentivize timely updates.
 
-### 13.2.4 Signature Scheme for Channel Registration
+### 13.2.4 Channel identity
 
-**Finding:** The cross-platform spec requires that `keccak256(channel_id || public_key)` matches the
-stored ownership commitment. The channel_id is an arbitrary 32-byte value, allowing different key types
-on different ledgers. Ethereum uses ECDSA secp256k1, which maps naturally to the `ecrecover` precompile.
-If post-quantum signature schemes are needed in the future, Ethereum would need precompile support for
-the chosen scheme. No issues for current implementation.
+The service verifies the peer configuration and checks the derived channel ID before activation. See section 12.3.
 
 ### 13.2.5 SHA-256 for Running Hash
 

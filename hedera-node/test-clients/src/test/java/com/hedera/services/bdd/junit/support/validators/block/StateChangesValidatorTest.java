@@ -138,7 +138,7 @@ class StateChangesValidatorTest {
                 .items(List.of(
                         headerItem(437L),
                         footerItem(PREV_BLOCK_ROOT_HASH),
-                        signedProofItem(437L, HintsLibraryImpl.VK_LENGTH + 1632 + 704)))
+                        signedProofItem(437L, HintsLibraryImpl.VK_LENGTH + HintsLibraryImpl.SIGNATURE_LENGTH + 11368)))
                 .build();
 
         assertTrue(carriesCompressedWrapsProof(block));

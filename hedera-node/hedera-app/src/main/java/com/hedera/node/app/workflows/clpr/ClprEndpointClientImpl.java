@@ -4,22 +4,21 @@ package com.hedera.node.app.workflows.clpr;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.service.clpr.ClprEndpointServiceDefinition;
-import com.hedera.node.app.workflows.clpr.mtls.ClprMtlsContexts;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import io.grpc.CallOptions;
 import io.grpc.Channel;
+import io.grpc.Deadline;
 import io.grpc.ManagedChannel;
 import io.grpc.MethodDescriptor;
+import io.grpc.netty.GrpcSslContexts;
 import io.grpc.netty.NettyChannelBuilder;
 import io.grpc.stub.ClientCalls;
 import io.netty.handler.ssl.SslContext;
+import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
-import java.security.cert.CertificateFactory;
-import java.security.cert.X509Certificate;
-import java.time.Duration;
+import java.net.InetSocketAddress;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import javax.net.ssl.SSLException;
 import org.apache.logging.log4j.LogManager;
@@ -84,107 +83,101 @@ class ClprEndpointClientImpl implements ClprEndpointClient {
 
     /**
      * Constructor for a non-TLS (plain-text) client.
-     * All the TLS related fields are set to null.
      *
      * @param host the peer's IP address
      * @param port the peer's gRPC port
      */
-    ClprEndpointClientImpl(@NonNull final String host, @NonNull final int port) {
-        this(host, port, null, null);
+    ClprEndpointClientImpl(@NonNull final String host, final int port) {
+        this(host, port, false);
     }
 
     /**
      * Creates a client targeting the given peer address.
      *
-     * <p>When {@code clientCredentials} is non-null, the channel uses mutually-authenticated TLS:
-     * the peer's ECDSA P-384 CA cert is pinned from {@code peerTlsCertificate} and the chain is
-     * validated against it; this node presents its leaf identity from {@code clientCredentials}. When
-     * {@code clientCredentials} is {@code null} (no CA cert configured), the channel falls back to
-     * plaintext — expected during local development.
+     * <p>When {@code useTls} is {@code true}, the channel is encrypted with TLS against the peer's TLS
+     * port. The peer's server certificate is <b>not</b> verified: TLS here provides confidentiality only, and
+     * the authenticity of everything exchanged over {@code sync} comes from the state proofs carried in the
+     * payload, which the receiving ledger verifies. When {@code useTls} is {@code false}, the channel is
+     * plaintext — expected during local development and in test networks without a TLS certificate.
      *
      * @param host the peer's IP address
-     * @param port the peer's gRPC port
-     * @param peerTlsCertificate the peer's DER-encoded ECDSA P-384 CA cert (trust anchor); required only when
-     *     {@code clientCredentials != null} (mTLS), and may be {@code null} on the plaintext path (ignored)
-     * @param clientCredentials this node's ephemeral leaf identity to present at handshake, or {@code null} for plaintext
+     * @param port the peer's gRPC port (the TLS port when {@code useTls}, the plaintext port otherwise)
+     * @param useTls whether to encrypt the channel with TLS
      */
-    ClprEndpointClientImpl(
-            @NonNull final String host,
-            final int port,
-            @Nullable final Bytes peerTlsCertificate,
-            @Nullable final ClprLeafCredentials clientCredentials) {
-        this.channel = newChannel(host, port, peerTlsCertificate, clientCredentials);
+    ClprEndpointClientImpl(@NonNull final String host, final int port, final boolean useTls) {
+        this(ClprEndpointAddressPolicy.addressFor(host, port, Set.of()), useTls);
+    }
+
+    /** Creates a client for a destination already checked against the node's endpoint policy. */
+    ClprEndpointClientImpl(@NonNull final InetSocketAddress address, final boolean useTls) {
+        this.channel = newChannel(address, useTls);
     }
 
     /**
-     * Builds the {@link ManagedChannel} backing this client, using the same mTLS/plaintext rules as the
+     * Builds the {@link ManagedChannel} backing this client, using the same TLS/plaintext rules as the
      * constructors.
      *
-     * @param host the peer's IP address
-     * @param port the peer's gRPC port
-     * @param peerTlsCertificate the peer's DER-encoded CA cert; required only for mTLS, ignored for plaintext
-     * @param clientCredentials this node's leaf identity for mTLS, or {@code null} for plaintext
+     * @param address the peer's resolved IP address and gRPC port
+     * @param useTls whether to encrypt the channel with TLS
      * @return a new managed channel owned by this client instance
      */
     @NonNull
-    static ManagedChannel newChannel(
-            @NonNull final String host,
-            final int port,
-            @Nullable final Bytes peerTlsCertificate,
-            @Nullable final ClprLeafCredentials clientCredentials) {
-        requireNonNull(host);
+    static ManagedChannel newChannel(@NonNull final InetSocketAddress address, final boolean useTls) {
+        requireNonNull(address);
+        if (address.isUnresolved() || address.getPort() == 0) {
+            throw new ClientException("CLPR peer endpoint must have a resolved address and nonzero port", null);
+        }
+        if (!useTls) {
+            return NettyChannelBuilder.forAddress(address).usePlaintext().build();
+        }
         try {
-            if (clientCredentials != null) {
-                requireNonNull(peerTlsCertificate, "peerTlsCertificate is required for mTLS");
-                final var sslContext = buildClientSslContext(peerTlsCertificate, clientCredentials);
-                return NettyChannelBuilder.forAddress(host, port)
-                        .sslContext(sslContext)
-                        .build();
-            } else {
-                return NettyChannelBuilder.forAddress(host, port).usePlaintext().build();
-            }
+            return NettyChannelBuilder.forAddress(address)
+                    .sslContext(buildClientSslContext())
+                    .build();
         } catch (final SSLException e) {
             throw new ClientException(
-                    "Failed to build mTLS channel for CLPR peer " + host + ":" + port + ": " + e.getMessage(), e);
+                    "Failed to build TLS channel for CLPR peer " + address + ": " + e.getMessage(), e);
         }
     }
 
     /**
-     * Builds the client-side {@link SslContext} for the mTLS sync channel.
-     *
-     * <p>The peer's ECDSA P-384 CA cert is parsed from {@code peerTlsCertificate} (on-chain bytes)
-     * and used as the sole trust anchor: the peer's leaf is accepted only if it was signed by that CA
-     * and is not itself a CA cert. This node presents its own leaf identity from
-     * {@code clientCredentials}.
+     * Builds the client-side {@link SslContext} for the TLS sync channel. It trusts any server certificate and
+     * skips hostname verification: peers are dialed by IP address and their TLS certificates are
+     * operator-provisioned, so there is no trust anchor to validate them against (see the constructor for why
+     * this is acceptable).
      */
     @NonNull
-    static SslContext buildClientSslContext(
-            @NonNull final Bytes peerTlsCertificate, @NonNull final ClprLeafCredentials clientCredentials)
-            throws SSLException {
-        final X509Certificate peerCaCert;
-        try (final var in = new ByteArrayInputStream(peerTlsCertificate.toByteArray())) {
-            peerCaCert =
-                    (X509Certificate) CertificateFactory.getInstance("X.509").generateCertificate(in);
-        } catch (final Exception e) {
-            throw new SSLException("Failed to parse peer TLS certificate", e);
-        }
-        return ClprMtlsContexts.clientContext(clientCredentials, peerCaCert);
+    static SslContext buildClientSslContext() throws SSLException {
+        return GrpcSslContexts.forClient()
+                .trustManager(InsecureTrustManagerFactory.INSTANCE)
+                .endpointIdentificationAlgorithm(null)
+                .build();
     }
 
     @Override
     @NonNull
-    public ClprStreamingSyncCall sync(@NonNull final Duration timeout) {
-        requireNonNull(timeout);
-        final var callOptions = CallOptions.DEFAULT.withDeadlineAfter(timeout.toMillis(), TimeUnit.MILLISECONDS);
+    public ClprStreamingSyncCall sync(@NonNull final Deadline deadline) {
+        final var callOptions = CallOptions.DEFAULT.withDeadline(requireNonNull(deadline));
         final var call = ClientCalls.blockingBidiStreamingCall(channel, SYNC_METHOD_DESCRIPTOR, callOptions);
         logger.debug("Streaming sync initiated with peer {}", channel.authority());
         return new ClprStreamingSyncCall(call, channel.authority());
     }
 
     /**
+     * Starts a graceful shutdown without waiting: calls already running finish within their own deadline,
+     * and no new call starts. The cache uses this when a newer client replaces this one, so another thread's
+     * sync on this channel is not cut short and the cache lock is not held while the channel drains.
+     */
+    void retireChannel() {
+        if (channel != null) {
+            ((ManagedChannel) channel).shutdown();
+        }
+    }
+
+    /**
      * Shuts down the channel this client owns. Package-private and absent from the
      * {@link ClprEndpointClient} interface: only {@link ClprEndpointClientCache} — the sole holder of a
-     * reference typed to this concrete class — may tear a client down, on cert rotation or node stop.
+     * reference typed to this concrete class — may tear a client down, on a destination-policy change or node stop.
      */
     void shutdownChannel() {
         if (channel == null) {
@@ -197,8 +190,8 @@ class ClprEndpointClientImpl implements ClprEndpointClient {
                 managedChannel.shutdownNow();
             }
         } catch (final InterruptedException e) {
-            Thread.currentThread().interrupt();
             managedChannel.shutdownNow();
+            Thread.currentThread().interrupt();
         }
     }
 }

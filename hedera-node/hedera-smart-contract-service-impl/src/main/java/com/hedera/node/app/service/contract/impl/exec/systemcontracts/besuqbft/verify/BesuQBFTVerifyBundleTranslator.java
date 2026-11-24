@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.besuqbft.verify;
 
+import com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierAbi;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.besuqbft.BesuQBFTVerifierCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCallTranslator;
@@ -28,8 +29,10 @@ public class BesuQBFTVerifyBundleTranslator extends AbstractCallTranslator<BesuQ
 
     static final int TRUST_ANCHOR_INDEX = 1;
 
+    static final int CHANNEL_CONTEXT_INDEX = 2;
+
     public static final SystemContractMethod VERIFY_BUNDLE = SystemContractMethod.declare(
-                    "verifyBundle(bytes,bytes,bytes)", "((uint64,bytes32,uint64,bytes32,uint8),bytes[],bytes,bytes)")
+                    "verifyBundle(bytes,bytes,bytes)", ClprVerifierAbi.VERIFY_BUNDLE_OUTPUTS)
             .withCategories(Category.BESU_QBFT);
 
     @Inject
@@ -52,9 +55,13 @@ public class BesuQBFTVerifyBundleTranslator extends AbstractCallTranslator<BesuQ
             final var call = VERIFY_BUNDLE.decodeCall(attempt.inputBytes());
             final var bundlePayload = (byte[]) call.get(BUNDLE_PAYLOAD_INDEX);
             final var trustAnchor = (byte[]) call.get(TRUST_ANCHOR_INDEX);
-            final var channelContext = (byte[]) call.get(2);
+            final var channelContext = (byte[]) call.get(CHANNEL_CONTEXT_INDEX);
             return new BesuQBFTVerifyBundleCall(
-                    attempt.enhancement(), attempt.systemContractGasCalculator(), bundlePayload, trustAnchor);
+                    attempt.enhancement(),
+                    attempt.systemContractGasCalculator(),
+                    bundlePayload,
+                    trustAnchor,
+                    channelContext);
         } catch (final RuntimeException e) {
             log.warn(
                     "BesuQBFTVerifyBundleTranslator failed to decode verifyBundle calldata: input={} bytes ({})",

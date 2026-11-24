@@ -77,6 +77,7 @@ class TokenUnpauseHandlerTest extends TokenHandlerTestBase {
     void setUp() throws PreCheckException {
         given(accountStore.getAccountById(payerId)).willReturn(account);
         given(account.key()).willReturn(payerKey);
+        given(account.accountIdOrThrow()).willReturn(payerId);
         subject = new TokenUnpauseHandler();
         givenValidTxn();
         refreshStoresWithCurrentTokenInWritable();

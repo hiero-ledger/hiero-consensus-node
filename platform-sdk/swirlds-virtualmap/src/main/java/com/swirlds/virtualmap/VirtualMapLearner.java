@@ -11,6 +11,7 @@ import com.swirlds.virtualmap.config.VirtualMapLearnerSyncConfig;
 import com.swirlds.virtualmap.datasource.DataSourceHashChunkPreloader;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
+import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.HashLeafFlusher;
 import com.swirlds.virtualmap.internal.VirtualMapStatistics;
@@ -21,11 +22,16 @@ import com.swirlds.virtualmap.sync.LearnerTreeExchanger;
 import com.swirlds.virtualmap.sync.MerkleSynchronizationException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.time.Duration;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.LongConsumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.framework.config.CompositeThreadNameProvider;
@@ -38,7 +44,7 @@ import org.hiero.base.crypto.Hash;
  * <p>Lifecycle:
  * <ul>
  *     <li>Constructor {@link #VirtualMapLearner(VirtualMap, int)}</li>
- *     <li>When synchronization starts, the teacher first sends its current leaf path range and triggers {@link #init(long, long)}.</li>
+ *     <li>When synchronization starts, the teacher first sends its current leaf path range and triggers {@link #init(long, long, LongConsumer)}.</li>
  *     <li>On successful reconnect completion, the reconnect framework calls {@link #finish()} to finalize synchronization and return new {@link VirtualMap}.</li>
  *     <li>If reconnect fails before successful completion, the caller/reconnect orchestration code is responsible for aborting the reconnect attempt and cleaning up resources associated with the failed attempt via {@link #abortOnException()}.</li>
  * </ul>
@@ -64,7 +70,13 @@ public final class VirtualMapLearner {
 
     private static final Logger logger = LogManager.getLogger(VirtualMapLearner.class);
 
-    private static final int MAX_RECONNECT_HASHING_BUFFER_SIZE = 10_000_000;
+    // Dirty leaves waiting for the hasher. The buffer is a preallocated ring buffer: 2^20 slots take 8 MiB
+    // with uncompressed references.
+    private static final int MAX_RECONNECT_HASHING_BUFFER_SIZE = 1 << 20;
+
+    // How long abortOnException() waits for a running flush before closing the data source. A single flush
+    // normally takes a few seconds, but an abort may be caused by a slow disk
+    private static final Duration FLUSHER_TERMINATION_TIMEOUT = Duration.ofMinutes(1);
 
     // ---- State captured from the original map at creation time ----
 
@@ -82,6 +94,13 @@ public final class VirtualMapLearner {
 
     private final ConcurrentBlockingIterator<VirtualLeafBytes> reconnectIterator =
             new ConcurrentBlockingIterator<>(MAX_RECONNECT_HASHING_BUFFER_SIZE);
+
+    /// Number of dirty leaves supplied to the hasher, per ID of the hash chunk that holds their hashes. An entry
+    /// is removed once its chunk is flushed, see [#hashChunksFlushed(List)].
+    private final Map<Long, Integer> dirtyLeavesPerHashChunk = new ConcurrentHashMap<>();
+
+    /// Called with the number of dirty leaves that are stored to disk, with their hashes. Set in [#init]
+    private volatile LongConsumer onLeavesStored;
 
     private volatile CompletableFuture<Hash> reconnectHashingFuture;
     private volatile FutureTask<Void> leafDeletionTask;
@@ -113,6 +132,10 @@ public final class VirtualMapLearner {
      * The original map's data source is shut down and an independent copy is created for the reconnect process,
      * which will be updated with new leaves and hashes as they are received from the teacher.
      *
+     * <p> Creating the copy takes long for large maps, and it depends only on the original map, so a learner
+     * may be created before the reconnect starts. If the reconnect never starts, {@link #abortOnException()}
+     * must be called to close the copy.
+     *
      * @param originalMap the learner's current virtual map; must not be {@code null}
      * @param flushInterval the number of hashed items to collect before they are flushed to disk, see
      *                      {@link VirtualMapLearnerSyncConfig#flushInterval()}
@@ -140,7 +163,8 @@ public final class VirtualMapLearner {
         this.dataSource = originalMap.detachAsDataSourceCopy();
         this.dataSource.copyStatisticsFrom(originalMap.getDataSource());
 
-        reconnectFlusher = new HashLeafFlusher(dataSource, flushInterval, statistics, RECONNECT.getMarker());
+        reconnectFlusher = new HashLeafFlusher(
+                dataSource, flushInterval, statistics, RECONNECT.getMarker(), true, this::hashChunksFlushed);
     }
 
     /**
@@ -149,6 +173,14 @@ public final class VirtualMapLearner {
     @NonNull
     public VirtualMap.Metadata getOriginalMetadata() {
         return originalMetadata;
+    }
+
+    /**
+     * @return the configuration of the original map on the learner.
+     */
+    @NonNull
+    public VirtualMapConfig getVirtualMapConfig() {
+        return virtualMapConfig;
     }
 
     @Nullable
@@ -180,8 +212,12 @@ public final class VirtualMapLearner {
      *
      * @param firstLeafPath first leaf path in the teacher tree
      * @param lastLeafPath  last leaf path in the teacher tree
+     * @param onLeavesStored called with the number of dirty leaves that are stored to disk together with their
+     *                       hashes, on the thread that runs the flush. Every leaf passed to
+     *                       {@link #dirtyLeafReceived(VirtualLeafBytes)} is reported once
      */
-    public void init(final long firstLeafPath, final long lastLeafPath) {
+    public void init(final long firstLeafPath, final long lastLeafPath, @NonNull final LongConsumer onLeavesStored) {
+        this.onLeavesStored = requireNonNull(onLeavesStored, "onLeavesStored must not be null");
         updateStage(Stage.NEW, Stage.INITIALIZING);
 
         logger.info(
@@ -225,6 +261,9 @@ public final class VirtualMapLearner {
      * @param leaf the leaf record received from the teacher; must not be null
      */
     public void dirtyLeafReceived(@NonNull final VirtualLeafBytes<?> leaf) {
+        // Counted before it's supplied, so its hash chunk can't be flushed before it's counted
+        dirtyLeavesPerHashChunk.merge(
+                VirtualHashChunk.pathToChunkId(leaf.path(), dataSource.getHashChunkHeight()), 1, Integer::sum);
         try {
             reconnectIterator.supply(leaf);
         } catch (final MerkleSynchronizationException e) {
@@ -236,6 +275,48 @@ public final class VirtualMapLearner {
         } catch (final Exception e) {
             throw new MerkleSynchronizationException("Failed to handle a leaf during reconnect on the learner", e);
         }
+    }
+
+    // Called by the flusher, once the given hash chunks are written. The dirty leaves in these chunks are usually
+    // written too: a receiver gives a leaf to the flusher right after it publishes the response, so the leaf
+    // usually reaches the flusher before its hash chunk does. If the receiver is slower than the applier and the
+    // hasher, for example when it's blocked on the flusher's backpressure, the leaf goes to a later flush, and it's
+    // reported as stored a flush early. The leaf is still bounded by the flusher's backpressure then
+    private void hashChunksFlushed(@NonNull final List<VirtualHashChunk> chunks) {
+        long storedLeaves = 0;
+        for (final VirtualHashChunk chunk : chunks) {
+            final Integer leaves = dirtyLeavesPerHashChunk.remove(chunk.getChunkId());
+            if (leaves != null) {
+                storedLeaves += leaves;
+            }
+        }
+        final LongConsumer callback = onLeavesStored;
+        if ((storedLeaves > 0) && (callback != null)) {
+            callback.accept(storedLeaves);
+        }
+    }
+
+    /// Returns the height of the hash chunks of the reconnected tree. A hash chunk of height `h` holds the hashes
+    /// of at most `2^h` leaves.
+    ///
+    /// @return the hash chunk height
+    public int getHashChunkHeight() {
+        return dataSource.getHashChunkHeight();
+    }
+
+    /**
+     * @return the number of dirty leaves supplied to the hashing pipeline but not yet consumed by the hasher
+     */
+    public int getHashingBufferSize() {
+        return reconnectIterator.size();
+    }
+
+    /**
+     * @return a short human-readable summary of the reconnect flusher state, for reconnect status logs
+     */
+    @NonNull
+    public String getFlusherStatus() {
+        return reconnectFlusher.getStatus();
     }
 
     /**
@@ -472,12 +553,28 @@ public final class VirtualMapLearner {
     public void abortOnException() {
         logger.info(RECONNECT.getMarker(), "Aborting reconnect and cleaning up resources");
 
+        // Release threads blocked on flusher backpressure, and stop the flusher thread. The hashing thread isn't
+        // interrupted by cancelling its future, so without this it would wait till the running flush completes
+        reconnectFlusher.cancel();
         reconnectIterator.close();
         if (leafDeletionTask != null) {
             leafDeletionTask.cancel(true);
         }
         if (reconnectHashingFuture != null) {
             reconnectHashingFuture.cancel(true);
+        }
+        // A flush that is already running isn't stopped by cancel(), and it must not write to the data source
+        // while it's being closed below. The wait is bounded by a single flush
+        try {
+            if (!reconnectFlusher.awaitTermination(FLUSHER_TERMINATION_TIMEOUT)) {
+                logger.warn(
+                        RECONNECT.getMarker(),
+                        "Reconnect flush didn't complete in {}, closing the data source anyway",
+                        FLUSHER_TERMINATION_TIMEOUT);
+            }
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            logger.warn(RECONNECT.getMarker(), "Interrupted while waiting for reconnect flush to complete", e);
         }
         try {
             dataSource.close();

@@ -11,7 +11,7 @@ import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.ConsensusLayerBuildingBlocks;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * The {@code ReconnectModule} contains the logic for handling reconnects. It is responsible for managing the

@@ -44,8 +44,15 @@ class SeiCometBftProofVerifierTest {
 
     private static final List<SyntheticSeiChain.Validator> VALIDATORS = SyntheticSeiChain.validators(40, 30, 20, 10);
     private static final byte[] SERVICE = SyntheticSeiChain.SERVICE_ADDRESS;
-    private static final BigInteger CHANNEL_BASE_SLOT = BigInteger.valueOf(1000);
-    private static final byte[] LAST_MESSAGE_RUNNING_HASH_SLOT = slot(BigInteger.valueOf(900));
+    /** The channel the fixture's queue slots belong to. */
+    private static final byte[] CHANNEL_ID =
+            SyntheticSeiChain.hash32("sei-channel").toByteArray();
+
+    private static final byte[] CHANNEL_CONTEXT = channelContext(CHANNEL_ID, SERVICE);
+    /** {@code keccak256(CHANNEL_ID || uint256(11))}: base of the {@code _channels[CHANNEL_ID]} struct. */
+    private static final BigInteger CHANNEL_BASE_SLOT = new BigInteger(1, mappingSlot(CHANNEL_ID, 11));
+    /** Running-hash slot of message 41, the last message when {@code nextMessageId = 42} (see queueSlotValues). */
+    private static final byte[] LAST_MESSAGE_RUNNING_HASH_SLOT = lastMessageRunningHashSlot(CHANNEL_ID, 42L);
 
     // ── slot fixtures ──
 
@@ -70,6 +77,35 @@ class SeiCometBftProofVerifierTest {
         return s;
     }
 
+    /** Solidity storage slot of {@code mapping[key32]} for a mapping declared at {@code slot}. */
+    private static byte[] mappingSlot(final byte[] key32, final int slot) {
+        final byte[] preimage = new byte[64];
+        System.arraycopy(key32, 0, preimage, 0, 32);
+        preimage[63] = (byte) slot;
+        return MiscCryptoUtils.keccak256DigestOf(preimage);
+    }
+
+    /** {@code keccak256(uint256(nextMessageId - 1) || keccak256(channelId || uint256(1))) + 1}. */
+    private static byte[] lastMessageRunningHashSlot(final byte[] channelId, final long nextMessageId) {
+        final byte[] preimage = new byte[64];
+        System.arraycopy(slot(BigInteger.valueOf(nextMessageId - 1)), 0, preimage, 0, 32);
+        System.arraycopy(mappingSlot(channelId, 1), 0, preimage, 32, 32);
+        return slot(new BigInteger(1, MiscCryptoUtils.keccak256DigestOf(preimage)).add(BigInteger.ONE));
+    }
+
+    /** {@code channelId(32) || serviceAddress(20)}, as the CLPR service stores it on the Channel record. */
+    private static byte[] channelContext(final byte[] channelId, final byte[] serviceAddress) {
+        final byte[] context = new byte[52];
+        System.arraycopy(channelId, 0, context, 0, 32);
+        System.arraycopy(serviceAddress, 0, context, 32, 20);
+        return context;
+    }
+
+    /** Verifies {@code payload} bound to {@link #CHANNEL_CONTEXT}, the channel the fixture's slots belong to. */
+    private static SeiCometBftProofVerifier.VerifiedBundle verifyForChannel(final byte[] payload, final byte[] anchor) {
+        return SeiCometBftProofVerifier.verifyBundle(payload, anchor, CHANNEL_CONTEXT);
+    }
+
     private static byte[][] queueStorageSlotsInVerifierOrder() {
         return new byte[][] {
             LAST_MESSAGE_RUNNING_HASH_SLOT,
@@ -77,7 +113,7 @@ class SeiCometBftProofVerifierTest {
             slot(CHANNEL_BASE_SLOT.add(BigInteger.TWO)),
             slot(CHANNEL_BASE_SLOT.add(BigInteger.valueOf(4))),
             slot(CHANNEL_BASE_SLOT.add(BigInteger.valueOf(5))),
-            slot(CHANNEL_BASE_SLOT.add(BigInteger.valueOf(16)))
+            slot(CHANNEL_BASE_SLOT.add(BigInteger.valueOf(15)))
         };
     }
 
@@ -91,7 +127,7 @@ class SeiCometBftProofVerifierTest {
         ByteBuffer.wrap(receivedSlot, 16, 8).putLong(17L); // receivedMessageId
         ByteBuffer.wrap(receivedSlot, 24, 8).putLong(16L); // ackedMessageId
         final byte[] manifestVersionSlot = new byte[32];
-        ByteBuffer.wrap(manifestVersionSlot, 24, 8).putLong(5L); // endpointManifestVersion (offset 16, LSB)
+        ByteBuffer.wrap(manifestVersionSlot, 24, 8).putLong(5L); // endpointManifestVersion (offset 15, LSB)
         return new byte[][] {
             lastMsgHash,
             statusSlot,
@@ -362,9 +398,35 @@ class SeiCometBftProofVerifierTest {
     @Nested
     class BundleVerification {
         @Test
+        void contextualProofRejectsAnotherChannelsGenuineStorageKeys() {
+            final var chain = bundleChain(VALIDATORS, VALIDATORS);
+            final byte[] payload = bundlePayload(chain, null);
+            // The signed state proof covers CHANNEL_ID's canonical slots, so it verifies under CHANNEL_CONTEXT.
+            assertThat(verifyForChannel(payload, anchorBytes()).queueMetadata().nextMessageId())
+                    .isEqualTo(42L);
+            // Same proof, same service address, another channel ID: none of its keys belong to that channel.
+            final byte[] otherChannel =
+                    SyntheticSeiChain.hash32("other-sei-channel").toByteArray();
+            assertThatThrownBy(() -> SeiCometBftProofVerifier.verifyBundle(
+                            payload, anchorBytes(), channelContext(otherChannel, SERVICE)))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("storage slot");
+        }
+
+        @Test
+        void contextNamingAnotherServiceRejected() {
+            final byte[] payload = bundlePayload(bundleChain(VALIDATORS, VALIDATORS), null);
+            final byte[] otherService = SyntheticSeiChain.sha20("other-contract");
+            assertThatThrownBy(() -> SeiCometBftProofVerifier.verifyBundle(
+                            payload, anchorBytes(), channelContext(CHANNEL_ID, otherService)))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("does not match the trusted service");
+        }
+
+        @Test
         void happyPathProvesQueueMetadataAndContent() {
             final var chain = bundleChain(VALIDATORS, VALIDATORS);
-            final var verified = SeiCometBftProofVerifier.verifyBundle(bundlePayload(chain, null), anchorBytes());
+            final var verified = verifyForChannel(bundlePayload(chain, null), anchorBytes());
 
             assertThat(verified.blockHash32()).isEqualTo(chain.headerHash());
             assertThat(verified.bundleContentBytes()).isEqualTo(new byte[] {1, 2, 3, 4});
@@ -379,7 +441,7 @@ class SeiCometBftProofVerifierTest {
                     .isEqualTo(SyntheticSeiChain.hash32("sent-running").toByteArray());
             assertThat(metadata.receivedRunningHash())
                     .isEqualTo(SyntheticSeiChain.hash32("received-running").toByteArray());
-            // endpointManifestVersion comes from the PROVEN offset-16 slot, not relayed content
+            // endpointManifestVersion comes from the PROVEN offset-15 slot, not relayed content
             assertThat(metadata.endpointManifestVersion()).isEqualTo(5L);
         }
 
@@ -416,7 +478,7 @@ class SeiCometBftProofVerifierTest {
                     Arrays.copyOfRange(slots, 1, slots.length),
                     Arrays.copyOfRange(values, 1, values.length));
 
-            final var verified = SeiCometBftProofVerifier.verifyBundle(bundlePayload(chain, null), anchorBytes());
+            final var verified = verifyForChannel(bundlePayload(chain, null), anchorBytes());
 
             assertThat(verified.queueMetadata().nextMessageId()).isEqualTo(42L);
             assertThat(verified.queueMetadata().receivedMessageId()).isEqualTo(17L);
@@ -429,7 +491,7 @@ class SeiCometBftProofVerifierTest {
             final var slots = queueStorageSlotsInVerifierOrder();
             final var values = queueSlotValues();
             // Prove the last-message hash + the four queue fields {1,2,4,5}; the endpointManifestVersion
-            // slot (offset 16) is proven non-existent, so it maps to the zero word (canonical index 4).
+            // slot (offset 15) is proven non-existent, so it maps to the zero word (canonical index 4).
             final var chain = SyntheticSeiChain.stateProof(
                     VALIDATORS, VALIDATORS, VALIDATORS, Arrays.copyOf(slots, 5), Arrays.copyOf(values, 5));
             final var entries = new ArrayList<>(chain.stateProof().storageProofs());
@@ -454,7 +516,7 @@ class SeiCometBftProofVerifierTest {
         void quorumJustAboveTwoThirdsAccepted() {
             // signers 40 + 30 = 70 of 100: 210 > 200
             final var chain = bundleChain(VALIDATORS.subList(0, 2), VALIDATORS);
-            final var verified = SeiCometBftProofVerifier.verifyBundle(bundlePayload(chain, null), anchorBytes());
+            final var verified = verifyForChannel(bundlePayload(chain, null), anchorBytes());
             assertThat(verified.queueMetadata().nextMessageId()).isEqualTo(42L);
         }
 
@@ -464,7 +526,7 @@ class SeiCometBftProofVerifierTest {
             final var chain = bundleChain(List.of(VALIDATORS.get(0), VALIDATORS.get(2)), VALIDATORS);
             final byte[] payload = bundlePayload(chain, null);
             final byte[] anchor = anchorBytes();
-            assertThatThrownBy(() -> SeiCometBftProofVerifier.verifyBundle(payload, anchor))
+            assertThatThrownBy(() -> verifyForChannel(payload, anchor))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("2/3");
         }
@@ -480,7 +542,7 @@ class SeiCometBftProofVerifierTest {
                     queueSlotValues());
             final byte[] payload = bundlePayload(chain, null);
             final byte[] anchor = anchorBytes();
-            assertThatThrownBy(() -> SeiCometBftProofVerifier.verifyBundle(payload, anchor))
+            assertThatThrownBy(() -> verifyForChannel(payload, anchor))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("validators_hash");
         }
@@ -497,7 +559,7 @@ class SeiCometBftProofVerifierTest {
                             .build())
                     .toByteArray();
             final byte[] payload = bundlePayload(chain, null);
-            assertThatThrownBy(() -> SeiCometBftProofVerifier.verifyBundle(payload, anchor))
+            assertThatThrownBy(() -> verifyForChannel(payload, anchor))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("chain_id");
         }
@@ -514,7 +576,7 @@ class SeiCometBftProofVerifierTest {
                             .build())
                     .toByteArray();
             final byte[] payload = bundlePayload(chain, null);
-            assertThatThrownBy(() -> SeiCometBftProofVerifier.verifyBundle(payload, anchor))
+            assertThatThrownBy(() -> verifyForChannel(payload, anchor))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("older than trust anchor");
         }
@@ -532,7 +594,9 @@ class SeiCometBftProofVerifierTest {
                             .build())
                     .toByteArray();
             final byte[] payload = bundlePayload(chain, null);
-            assertThatThrownBy(() -> SeiCometBftProofVerifier.verifyBundle(payload, anchor))
+            // The context agrees with the anchor, so the failure comes from the proven keys' service address.
+            final byte[] context = channelContext(CHANNEL_ID, SyntheticSeiChain.sha20("other-contract"));
+            assertThatThrownBy(() -> SeiCometBftProofVerifier.verifyBundle(payload, anchor, context))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("does not target the CLPR service contract");
         }
@@ -545,9 +609,9 @@ class SeiCometBftProofVerifierTest {
                     });
             final byte[] payload = bundlePayload(chain, null);
             final byte[] anchor = anchorBytes();
-            assertThatThrownBy(() -> SeiCometBftProofVerifier.verifyBundle(payload, anchor))
+            assertThatThrownBy(() -> verifyForChannel(payload, anchor))
                     .isInstanceOf(ProofException.class)
-                    .hasMessageContaining("expected 5 or 6 proven slot values");
+                    .hasMessageContaining("invalid channel queue storage proof shape");
         }
 
         @Test
@@ -555,7 +619,7 @@ class SeiCometBftProofVerifierTest {
             final var chain = bundleChain(VALIDATORS, VALIDATORS);
             final byte[] payload = bundlePayload(chain, null);
 
-            assertThatThrownBy(() -> SeiCometBftProofVerifier.verifyBundle(payload, new byte[] {0x08}))
+            assertThatThrownBy(() -> verifyForChannel(payload, new byte[] {0x08}))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("trustAnchor is not a valid");
         }
@@ -566,7 +630,7 @@ class SeiCometBftProofVerifierTest {
             final byte[] payload = bundlePayload(chain, null);
             final byte[] anchorWithUnknown = appendUnknownField(anchorBytes());
 
-            assertThatThrownBy(() -> SeiCometBftProofVerifier.verifyBundle(payload, anchorWithUnknown))
+            assertThatThrownBy(() -> verifyForChannel(payload, anchorWithUnknown))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("trustAnchor is not a valid SeiTrustAnchor");
         }
@@ -583,7 +647,7 @@ class SeiCometBftProofVerifierTest {
                             .build())
                     .toByteArray();
 
-            assertThatThrownBy(() -> SeiCometBftProofVerifier.verifyBundle(bundlePayload(chain, null), anchor))
+            assertThatThrownBy(() -> verifyForChannel(bundlePayload(chain, null), anchor))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("service_address must be 20 bytes");
         }
@@ -599,14 +663,14 @@ class SeiCometBftProofVerifierTest {
                             .build())
                     .toByteArray();
 
-            assertThatThrownBy(() -> SeiCometBftProofVerifier.verifyBundle(bundlePayload(chain, null), anchor))
+            assertThatThrownBy(() -> verifyForChannel(bundlePayload(chain, null), anchor))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("chain_id is empty");
         }
 
         @Test
         void malformedBundlePayloadRejected() {
-            assertThatThrownBy(() -> SeiCometBftProofVerifier.verifyBundle(new byte[] {0x08}, anchorBytes()))
+            assertThatThrownBy(() -> verifyForChannel(new byte[] {0x08}, anchorBytes()))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("bundlePayload is not a valid");
         }
@@ -619,7 +683,7 @@ class SeiCometBftProofVerifierTest {
             final var chain = bundleChain(VALIDATORS, VALIDATORS);
             final byte[] payloadWithUnknown = appendUnknownField(bundlePayload(chain, null));
 
-            assertThatThrownBy(() -> SeiCometBftProofVerifier.verifyBundle(payloadWithUnknown, anchorBytes()))
+            assertThatThrownBy(() -> verifyForChannel(payloadWithUnknown, anchorBytes()))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("bundlePayload is not a valid ClprSeiBundlePayload");
         }
@@ -920,8 +984,8 @@ class SeiCometBftProofVerifierTest {
         void verifiedRotationEmitsSuccessorAnchor() throws Exception {
             final var successors = SyntheticSeiChain.validators(25, 25, 25, 25, 25);
             final var chain = bundleChain(VALIDATORS, successors);
-            final var verified = SeiCometBftProofVerifier.verifyBundle(
-                    bundlePayload(chain, SyntheticSeiChain.toProtoSet(successors)), anchorBytes());
+            final var verified =
+                    verifyForChannel(bundlePayload(chain, SyntheticSeiChain.toProtoSet(successors)), anchorBytes());
 
             assertThat(verified.newTrustAnchor()).isNotNull();
             final var successor = SeiTrustAnchor.PROTOBUF.parse(
@@ -940,7 +1004,7 @@ class SeiCometBftProofVerifierTest {
             final var chain = bundleChain(VALIDATORS, successors);
             final byte[] payload = bundlePayload(chain, SyntheticSeiChain.toProtoSet(impostors));
             final byte[] anchor = anchorBytes();
-            assertThatThrownBy(() -> SeiCometBftProofVerifier.verifyBundle(payload, anchor))
+            assertThatThrownBy(() -> verifyForChannel(payload, anchor))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("next_validators_hash");
         }
@@ -952,7 +1016,7 @@ class SeiCometBftProofVerifierTest {
             final byte[] payload = bundlePayload(chain, null);
             final byte[] anchor = anchorBytes();
 
-            assertThatThrownBy(() -> SeiCometBftProofVerifier.verifyBundle(payload, anchor))
+            assertThatThrownBy(() -> verifyForChannel(payload, anchor))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("next_validator_set is missing");
         }
@@ -963,7 +1027,7 @@ class SeiCometBftProofVerifierTest {
             final byte[] payload = bundlePayload(chain, SyntheticSeiChain.toProtoSet(VALIDATORS));
             final byte[] anchor = anchorBytes();
 
-            assertThatThrownBy(() -> SeiCometBftProofVerifier.verifyBundle(payload, anchor))
+            assertThatThrownBy(() -> verifyForChannel(payload, anchor))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("does not change the validator set");
         }
@@ -980,7 +1044,7 @@ class SeiCometBftProofVerifierTest {
             final var contentChain = SyntheticSeiChain.stateProof(
                     setB, setB, setB, queueStorageSlotsInVerifierOrder(), queueSlotValues());
 
-            final var verified = SeiCometBftProofVerifier.verifyBundle(
+            final var verified = verifyForChannel(
                     bundlePayloadWithPriorUpdates(contentChain, List.of(update)), anchorBytes(VALIDATORS, 990));
 
             assertThat(verified.queueMetadata().nextMessageId()).isEqualTo(42L);
@@ -997,7 +1061,7 @@ class SeiCometBftProofVerifierTest {
             final var contentChain = SyntheticSeiChain.stateProof(
                     setC, setC, setC, queueStorageSlotsInVerifierOrder(), queueSlotValues());
 
-            final var verified = SeiCometBftProofVerifier.verifyBundle(
+            final var verified = verifyForChannel(
                     bundlePayloadWithPriorUpdates(contentChain, List.of(update1, update2)),
                     anchorBytes(VALIDATORS, 990));
 
@@ -1011,8 +1075,8 @@ class SeiCometBftProofVerifierTest {
         void trustUpdateOnlyBundleReturnsAnchorWithoutContent() {
             final var update = SyntheticSeiChain.validatorSetUpdate(995, VALIDATORS, VALIDATORS, setB);
 
-            final var verified = SeiCometBftProofVerifier.verifyBundle(
-                    trustUpdateOnlyPayload(List.of(update)), anchorBytes(VALIDATORS, 990));
+            final var verified =
+                    verifyForChannel(trustUpdateOnlyPayload(List.of(update)), anchorBytes(VALIDATORS, 990));
 
             assertThat(verified.blockHash32()).isNull();
             assertThat(verified.bundleContentBytes()).isNull();
@@ -1026,7 +1090,7 @@ class SeiCometBftProofVerifierTest {
         void emptyTrustUpdateOnlyBundleRejected() {
             final byte[] payload = trustUpdateOnlyPayload(List.of());
             final byte[] anchor = anchorBytes(VALIDATORS, 990);
-            assertThatThrownBy(() -> SeiCometBftProofVerifier.verifyBundle(payload, anchor))
+            assertThatThrownBy(() -> verifyForChannel(payload, anchor))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("neither state_proof nor prior_validator_set_updates");
         }
@@ -1038,7 +1102,7 @@ class SeiCometBftProofVerifierTest {
                     java.util.Collections.nCopies(SeiCometBftProofVerifier.MAX_PRIOR_VALIDATOR_SET_UPDATES + 1, update);
             final byte[] payload = trustUpdateOnlyPayload(updates);
 
-            assertThatThrownBy(() -> SeiCometBftProofVerifier.verifyBundle(payload, anchorBytes(VALIDATORS, 990)))
+            assertThatThrownBy(() -> verifyForChannel(payload, anchorBytes(VALIDATORS, 990)))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining(
                             "must contain at most " + SeiCometBftProofVerifier.MAX_PRIOR_VALIDATOR_SET_UPDATES);
@@ -1054,7 +1118,7 @@ class SeiCometBftProofVerifierTest {
                     .build();
             final byte[] payload = trustUpdateOnlyPayload(List.of(badUpdate));
             final byte[] anchor = anchorBytes(VALIDATORS, 990);
-            assertThatThrownBy(() -> SeiCometBftProofVerifier.verifyBundle(payload, anchor))
+            assertThatThrownBy(() -> verifyForChannel(payload, anchor))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("next_validators_hash");
         }
@@ -1066,7 +1130,7 @@ class SeiCometBftProofVerifierTest {
                     995, VALIDATORS, List.of(VALIDATORS.get(0), VALIDATORS.get(2)), setB);
             final byte[] payload = trustUpdateOnlyPayload(List.of(update));
             final byte[] anchor = anchorBytes(VALIDATORS, 990);
-            assertThatThrownBy(() -> SeiCometBftProofVerifier.verifyBundle(payload, anchor))
+            assertThatThrownBy(() -> verifyForChannel(payload, anchor))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("2/3");
         }
@@ -1077,7 +1141,7 @@ class SeiCometBftProofVerifierTest {
             final var update = SyntheticSeiChain.validatorSetUpdate(995, setB, setB, setC);
             final byte[] payload = trustUpdateOnlyPayload(List.of(update));
             final byte[] anchor = anchorBytes(VALIDATORS, 990);
-            assertThatThrownBy(() -> SeiCometBftProofVerifier.verifyBundle(payload, anchor))
+            assertThatThrownBy(() -> verifyForChannel(payload, anchor))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("validators_hash");
         }
@@ -1088,7 +1152,7 @@ class SeiCometBftProofVerifierTest {
             final var update = SyntheticSeiChain.validatorSetUpdate(989, VALIDATORS, VALIDATORS, setB);
             final byte[] payload = trustUpdateOnlyPayload(List.of(update));
             final byte[] anchor = anchorBytes(VALIDATORS, 990);
-            assertThatThrownBy(() -> SeiCometBftProofVerifier.verifyBundle(payload, anchor))
+            assertThatThrownBy(() -> verifyForChannel(payload, anchor))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("older than trust anchor");
         }
@@ -1099,7 +1163,7 @@ class SeiCometBftProofVerifierTest {
             final byte[] payload = trustUpdateOnlyPayload(List.of(update));
             final byte[] anchor = anchorBytes(VALIDATORS, 990);
 
-            assertThatThrownBy(() -> SeiCometBftProofVerifier.verifyBundle(payload, anchor))
+            assertThatThrownBy(() -> verifyForChannel(payload, anchor))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("does not change the validator set");
         }
@@ -1110,7 +1174,7 @@ class SeiCometBftProofVerifierTest {
             final byte[] payload = trustUpdateOnlyPayload(List.of(update));
             final byte[] anchor = anchorBytes(VALIDATORS, 990);
 
-            assertThatThrownBy(() -> SeiCometBftProofVerifier.verifyBundle(payload, anchor))
+            assertThatThrownBy(() -> verifyForChannel(payload, anchor))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("height cannot be incremented");
         }
@@ -1129,7 +1193,7 @@ class SeiCometBftProofVerifierTest {
      * Exercises the optional endpoint-manifest advance (spec §4.2 Step 1b) verified by
      * {@link SeiCometBftProofVerifier}'s private {@code verifyEndpointManifestProof}, reached through
      * {@code verifyBundle} by carrying {@code manifest_storage_proof} + {@code endpoint_manifest}. The
-     * fixture proves the slot-18 commitment against the same store root as the queue slots.
+     * fixture proves the slot-14 commitment against the same store root as the queue slots.
      */
     @Nested
     class EndpointManifestProof {
@@ -1193,7 +1257,7 @@ class SeiCometBftProofVerifierTest {
                     .toByteArray();
         }
 
-        /** A fully valid manifest bundle: slot-18 commitment == keccak256(preimage), preimage strict-parses. */
+        /** A fully valid manifest bundle: slot-14 commitment == keccak256(preimage), preimage strict-parses. */
         private static byte[] validBundle(final ClprEndpointManifest manifest) {
             final byte[] preimage = preimageOf(manifest);
             final var chain = chainWithManifestSlot(
@@ -1204,7 +1268,7 @@ class SeiCometBftProofVerifierTest {
         @Test
         void verifiesManifestAndReturnsPreimage() throws Exception {
             final var manifest = manifest(7L, SERVICE);
-            final var verified = SeiCometBftProofVerifier.verifyBundle(validBundle(manifest), anchorBytes());
+            final var verified = verifyForChannel(validBundle(manifest), anchorBytes());
 
             assertThat(verified.newEndpointManifestBytes()).isEqualTo(preimageOf(manifest));
             final var proven = ClprEndpointManifest.PROTOBUF.parse(
@@ -1229,7 +1293,7 @@ class SeiCometBftProofVerifierTest {
             final byte[] payload = manifestBundle(bundleStateProof(chain), tampered, preimage);
             final byte[] anchor = anchorBytes();
 
-            assertThatThrownBy(() -> SeiCometBftProofVerifier.verifyBundle(payload, anchor))
+            assertThatThrownBy(() -> verifyForChannel(payload, anchor))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("does not target the CLPR service contract");
         }
@@ -1237,14 +1301,14 @@ class SeiCometBftProofVerifierTest {
         @Test
         void rejectsWrongCommitmentSlot() {
             final byte[] preimage = preimageOf(manifest(1L, SERVICE));
-            // slot 19 targets the service contract but is not the endpoint-manifest commitment slot (18)
+            // slot 19 targets the service contract but is not the endpoint-manifest commitment slot (14)
             final var chain = chainWithManifestSlot(slot(19), MiscCryptoUtils.keccak256DigestOf(preimage));
             final byte[] payload = manifestBundle(bundleStateProof(chain), manifestEntry(chain), preimage);
             final byte[] anchor = anchorBytes();
 
-            assertThatThrownBy(() -> SeiCometBftProofVerifier.verifyBundle(payload, anchor))
+            assertThatThrownBy(() -> verifyForChannel(payload, anchor))
                     .isInstanceOf(ProofException.class)
-                    .hasMessageContaining("endpoint-manifest commitment slot (18)");
+                    .hasMessageContaining("endpoint-manifest commitment slot (14)");
         }
 
         @Test
@@ -1259,7 +1323,7 @@ class SeiCometBftProofVerifierTest {
             final byte[] payload = manifestBundle(bundleStateProof(chain), tampered, preimage);
             final byte[] anchor = anchorBytes();
 
-            assertThatThrownBy(() -> SeiCometBftProofVerifier.verifyBundle(payload, anchor))
+            assertThatThrownBy(() -> verifyForChannel(payload, anchor))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("value must be 32 bytes");
         }
@@ -1279,7 +1343,7 @@ class SeiCometBftProofVerifierTest {
             final byte[] payload = manifestBundle(bundleStateProof(chain), tampered, preimage);
             final byte[] anchor = anchorBytes();
 
-            assertThatThrownBy(() -> SeiCometBftProofVerifier.verifyBundle(payload, anchor))
+            assertThatThrownBy(() -> verifyForChannel(payload, anchor))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("different value");
         }
@@ -1294,7 +1358,7 @@ class SeiCometBftProofVerifierTest {
             final byte[] payload = manifestBundle(bundleStateProof(chain), manifestEntry(chain), preimage);
             final byte[] anchor = anchorBytes();
 
-            assertThatThrownBy(() -> SeiCometBftProofVerifier.verifyBundle(payload, anchor))
+            assertThatThrownBy(() -> verifyForChannel(payload, anchor))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("does not match the proven commitment");
         }
@@ -1309,7 +1373,7 @@ class SeiCometBftProofVerifierTest {
             final byte[] payload = manifestBundle(bundleStateProof(chain), manifestEntry(chain), preimage);
             final byte[] anchor = anchorBytes();
 
-            assertThatThrownBy(() -> SeiCometBftProofVerifier.verifyBundle(payload, anchor))
+            assertThatThrownBy(() -> verifyForChannel(payload, anchor))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("not a valid ClprEndpointManifest");
         }
@@ -1319,7 +1383,7 @@ class SeiCometBftProofVerifierTest {
             final byte[] payload = validBundle(manifest(0L, SERVICE));
             final byte[] anchor = anchorBytes();
 
-            assertThatThrownBy(() -> SeiCometBftProofVerifier.verifyBundle(payload, anchor))
+            assertThatThrownBy(() -> verifyForChannel(payload, anchor))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("version is 0");
         }
@@ -1329,7 +1393,7 @@ class SeiCometBftProofVerifierTest {
             final byte[] payload = validBundle(manifest(1L, OTHER_SERVICE));
             final byte[] anchor = anchorBytes();
 
-            assertThatThrownBy(() -> SeiCometBftProofVerifier.verifyBundle(payload, anchor))
+            assertThatThrownBy(() -> verifyForChannel(payload, anchor))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("service_address does not match");
         }
@@ -1340,7 +1404,7 @@ class SeiCometBftProofVerifierTest {
             final byte[] preimage = preimageOf(manifest);
             final byte[] payload = manifestOnlyBundle(MiscCryptoUtils.keccak256DigestOf(preimage), preimage);
 
-            final var verified = SeiCometBftProofVerifier.verifyBundle(payload, anchorBytes());
+            final var verified = verifyForChannel(payload, anchorBytes());
 
             // No queue slots, no content — only the manifest is surfaced.
             assertThat(verified.bundleContentBytes()).isNull();
@@ -1363,14 +1427,14 @@ class SeiCometBftProofVerifierTest {
             final byte[] payload = manifestOnlyBundle(wrongCommitment, preimage);
             final byte[] anchor = anchorBytes();
 
-            assertThatThrownBy(() -> SeiCometBftProofVerifier.verifyBundle(payload, anchor))
+            assertThatThrownBy(() -> verifyForChannel(payload, anchor))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("does not match the proven commitment");
         }
 
         /**
          * Manifest-only recovery bundle (spec §8.1.4): a state proof over just the manifest slot (enough
-         * to establish the store root), EMPTY bundle_content, and the slot-18 manifest proof — but NO
+         * to establish the store root), EMPTY bundle_content, and the slot-14 manifest proof — but NO
          * queue storage slots. Builds a chain carrying only the manifest slot, then strips it from
          * {@code state_proof.storage_proofs} (leaving them empty) while proving it via the top-level
          * {@code manifest_storage_proof}. This wire shape is not yet produced by the clpr-evm-endpoint

@@ -5,22 +5,29 @@ import com.hedera.node.config.NetworkProperty;
 import com.hedera.node.config.NodeProperty;
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
-import com.swirlds.config.api.validation.annotation.Max;
-import com.swirlds.config.api.validation.annotation.Min;
 import java.time.Duration;
+import java.util.Set;
 
 /**
  * Configuration for the CLPR (Cross Ledger Protocol) service.
  */
 @ConfigData("clpr")
 public record ClprConfig(
-        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        @ConfigProperty(defaultValue = "true") @NetworkProperty
         boolean enabled,
 
-        @ConfigProperty(defaultValue = "hiero:mainnet") @NetworkProperty
-        String chainId,
-
         @ConfigProperty(defaultValue = "1") @NetworkProperty int protocolVersion,
+
+        // --- Ledger configuration throttles (loaded like throttles.json) ---
+        // Node-local ClprLedgerConfiguration file (protobuf JSON, throttles only) that seeds the throttles at
+        // genesis; falls back to the bundled clpr/clprLedgerConfiguration.json resource if absent or invalid.
+        // Every node must have an identical file.
+        @ConfigProperty(defaultValue = "data/config/clprLedgerConfiguration.json") @NodeProperty
+        String ledgerConfigurationFile,
+        // Name of the file in networkAdmin.upgradeSysFilesLoc whose throttles are applied at each upgrade
+        // with a synthetic ClprUpdateLedgerConfiguration, when they differ from the current ones.
+        @ConfigProperty(defaultValue = "clprLedgerConfiguration.json")
+        String upgradeLedgerConfigurationFile,
 
         @ConfigProperty(defaultValue = "100000000") @NetworkProperty
         long minLockedStake,
@@ -53,6 +60,16 @@ public record ClprConfig(
         @ConfigProperty(defaultValue = "30000") long retryMaxDelayMs,
         @ConfigProperty(defaultValue = "5") @NetworkProperty int retryMaxAttempts,
         @ConfigProperty(defaultValue = "120") int circuitBreakerCooldownSeconds,
+        // Publish address-book domain names in this ledger's endpoint manifest, as Solo needs. It drives deterministic
+        // roster reconciliation, so set it through the network properties file (0.0.121), never per node.
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        boolean publishDnsEndpoints,
+        // Let this node resolve and dial DNS names that peers publish. The resolved IP must pass the same checks.
+        @ConfigProperty(defaultValue = "false") @NodeProperty
+        boolean allowDnsPeerEndpoints,
+        // Additional numeric IP ranges this node may dial for CLPR sync, such as a local test network.
+        // Ordinary public unicast addresses need no entry; other unicast ranges require an IPv4 or IPv6 CIDR.
+        @ConfigProperty(defaultValue = "") @NodeProperty Set<String> additionalPeerEndpointCidrs,
         // --- Local peer exclusion heuristics ---
         // When false, CLPR does not reject inbound requests or remove outbound candidates
         // due to local shunning or open circuit-breaker state.
@@ -62,12 +79,15 @@ public record ClprConfig(
         int connectorQueueQuotaPct,
 
         // --- Verifier contract dispatch (CLPR-5.3) ---
-        @ConfigProperty(defaultValue = "300000") @NetworkProperty
+        // The dispatched call's gas must cover the EIP-7623 calldata floor (~40 gas per proof byte); a Hiero
+        // state proof carrying a WRAPS proof is ~15 KB, so even a single-message bundle needs ~640K gas
+        @ConfigProperty(defaultValue = "2000000") @NetworkProperty
         long verifierGasLimit,
 
         // --- Node-submitted ClprSubmitBundle fee cap (tinybars) ---
         // Maximum fee the node will pay when submitting an inbound bundle for consensus.
-        @ConfigProperty(defaultValue = "1000000000") @NetworkProperty
+        // Must cover the shared verifier/callback gas reservation as well as base and byte fees.
+        @ConfigProperty(defaultValue = "100000000000") @NetworkProperty
         long nodeSubmitBundleMaxFee,
 
         // --- Sender-side state-proof verification (bring-up sanity check) ---
@@ -85,19 +105,6 @@ public record ClprConfig(
         // directory; serialized as JSON. This is NOT consensus state.
         @ConfigProperty(defaultValue = "data/clpr/peer-endpoints.json")
         String peerEndpointsFile,
-
-        // --- mTLS (CLPR-4.4) ---
-        // Path to the ECDSA P-384 CA certificate (PEM) published in ClprEndpoint.tls_certificate to peers.
-        // Empty = mTLS not configured; node falls back to plaintext and logs a warning.
-        @ConfigProperty(defaultValue = "") String caCrtPath,
-        // Path to the ECDSA P-384 CA private key, unencrypted: PEM (PKCS#8 or SEC1/PKCS#1) or binary DER
-        // PKCS#8. See docs/design/services/clpr-service/mtls.md ("CA key and cert encodings") for details.
-        // Must be set alongside caCrtPath; ignored if caCrtPath is empty.
-        @ConfigProperty(defaultValue = "") String caKeyPath,
-        // Port on which this node serves the mTLS-protected CLPR endpoints (currently the sync endpoint)
-        // when mTLS is enabled (caCrtPath/caKeyPath set).
-        @ConfigProperty(defaultValue = "50214") @NodeProperty @Min(0) @Max(65535)
-        int mtlsPort,
 
         // --- Endpoint manifest construction lifecycle (design doc §8.1) ---
         // Grace period, extension size, and extension budget for the manifest construction that

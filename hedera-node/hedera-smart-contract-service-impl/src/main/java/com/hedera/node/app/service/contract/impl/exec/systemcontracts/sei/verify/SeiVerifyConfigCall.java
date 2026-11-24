@@ -36,7 +36,7 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
  * <p>Payload validation is delegated to
  * {@link SeiCometBftProofVerifier#verifyConfigPayload(byte[])}. On success the decoded
  * {@link ClprLedgerConfiguration} fields (with the derived {@code initial_trust_anchor}) are
- * returned in an ABI tuple so {@code ClprCompleteChannelHandler} can seed Channel state from them directly.
+ * returned in an ABI tuple so {@code ClprCreateChannelHandler} can seed Channel state from them directly.
  */
 public class SeiVerifyConfigCall extends AbstractCall {
     private static final Logger log = LogManager.getLogger(SeiVerifyConfigCall.class);
@@ -75,7 +75,7 @@ public class SeiVerifyConfigCall extends AbstractCall {
         try {
             verified = SeiCometBftProofVerifier.verifyConfigPayload(configPayload);
         } catch (final ProofException e) {
-            log.warn("verifyConfig (Sei): payload rejected: {}", e.getMessage());
+            log.debug("verifyConfig (Sei): payload rejected: {}", e.getMessage());
             return fail();
         } catch (final Exception e) {
             log.warn("verifyConfig (Sei): unexpected error", e);

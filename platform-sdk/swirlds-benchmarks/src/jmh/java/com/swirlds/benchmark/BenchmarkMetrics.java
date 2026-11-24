@@ -35,11 +35,11 @@ import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.config.BasicCommonConfig;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.metrics.FunctionGauge;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.metrics.platform.DefaultMetricsProvider;
 import org.hiero.consensus.metrics.platform.prometheus.PrometheusConfig;
-import org.hiero.consensus.model.node.NodeId;
 
 public final class BenchmarkMetrics {
 
@@ -73,7 +73,10 @@ public final class BenchmarkMetrics {
      */
 
     private static final FunctionGauge.Config<String> TIMESTAMP_CONFIG = new FunctionGauge.Config<>(
-                    "AAA", "time", String.class, () -> DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss z")
+                    "AAA",
+                    "time",
+                    String.class,
+                    () -> DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss z")
                             .format(Instant.now().atZone(ZoneId.of("UTC"))))
             .withDescription("the current time")
             .withFormat("%24s");

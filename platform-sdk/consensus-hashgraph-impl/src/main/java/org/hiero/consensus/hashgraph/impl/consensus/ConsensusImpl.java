@@ -6,6 +6,7 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toSet;
+import static org.hiero.consensus.main.model.ConsensusLayerConstants.DEFAULT_EVENT_DIGEST_TYPE;
 import static org.hiero.consensus.model.PbjConverters.fromPbjTimestamp;
 import static org.hiero.consensus.model.PbjConverters.toPbjTimestamp;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.FIRST_CONSENSUS_NUMBER;
@@ -35,7 +36,6 @@ import org.hiero.base.utility.Threshold;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
 import org.hiero.consensus.hashgraph.impl.metrics.ConsensusMetrics;
-import org.hiero.consensus.model.event.EventHashFactory;
 import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
@@ -129,6 +129,7 @@ import org.hiero.consensus.model.roster.RosterWrapper;
  * adds up to more than 2/3 of the total stake", and "witnesses created by members whose stake is
  * more than 2/3 of the total".
  */
+@SuppressWarnings("ForLoopReplaceableByForEach")
 public class ConsensusImpl implements Consensus {
 
     private static final Logger logger = LogManager.getLogger(ConsensusImpl.class);
@@ -227,7 +228,7 @@ public class ConsensusImpl implements Consensus {
         // See ticket #26603 to rework this
         if (!GenesisSnapshotFactory.newGenesisSnapshot().equals(snapshot)) {
             final Set<Hash> judgeHashes = snapshot.judgeIds().stream()
-                    .map(judge -> EventHashFactory.hash(judge.judgeHash()))
+                    .map(judge -> new Hash(judge.judgeHash(), DEFAULT_EVENT_DIGEST_TYPE))
                     .collect(toSet());
 
             initJudges = new InitJudges(snapshot.round(), judgeHashes);
@@ -946,7 +947,10 @@ public class ConsensusImpl implements Consensus {
         }
 
         long maxRound = ConsensusConstants.ROUND_NEGATIVE_INFINITY;
-        for (final EventImpl parent : x.getAllParents()) {
+        final List<EventImpl> allParents = x.getAllParents();
+        // an index loop, so that no iterator is allocated on this hot path
+        for (int i = 0, allParentsSize = allParents.size(); i < allParentsSize; i++) {
+            final EventImpl parent = allParents.get(i);
             if (ancient(parent)) {
                 continue;
             }
@@ -986,13 +990,14 @@ public class ConsensusImpl implements Consensus {
     private void calculateLastSee(@NonNull final EventImpl x) {
         x.initLastSee(roster.size());
 
-        for (int mm = 0; mm < roster.size(); mm++) {
+        final List<EventImpl> allParents = x.getAllParents();
+        for (int mm = 0, rosterSize = roster.size(); mm < rosterSize; mm++) {
             if (roster.isIdAtIndex(x.getCreatorId(), mm)) {
                 // mm created x, so x is considered to see itself
                 x.setLastSee(mm, x);
                 continue;
             }
-            if (x.getAllParents().isEmpty()) {
+            if (allParents.isEmpty()) {
                 // no parents, so cannot see anything
                 x.setLastSee(mm, null);
                 continue;
@@ -1000,7 +1005,9 @@ public class ConsensusImpl implements Consensus {
             // the latest event the parent can lastSee()
             EventImpl latestEventSeen = null;
             EventImpl parentWhichSeesLatestEvent = null;
-            for (final EventImpl parent : x.getAllParents()) {
+            // an index loop, so that no iterator is allocated on this hot path
+            for (int i = 0, allParentsSize = allParents.size(); i < allParentsSize; i++) {
+                final EventImpl parent = allParents.get(i);
                 if (ancient(parent)) {
                     // we can ignore ancient parents
                     continue;
@@ -1084,9 +1091,13 @@ public class ConsensusImpl implements Consensus {
         final long prx = parentRound(x); // parent round of x
 
         x.initStronglySeeP(roster.size());
+        final List<EventImpl> allParents = x.getAllParents();
+        final int rosterSize = roster.size();
         perMemberLoop:
-        for (int mm = 0; mm < roster.size(); mm++) {
-            for (final EventImpl parent : x.getAllParents()) {
+        for (int mm = 0; mm < rosterSize; mm++) {
+            // an index loop, so that no iterator is allocated on this hot path
+            for (int i = 0, allParentsSize = allParents.size(); i < allParentsSize; i++) {
+                final EventImpl parent = allParents.get(i);
                 if (ancient(parent)) {
                     continue;
                 }
@@ -1104,7 +1115,7 @@ public class ConsensusImpl implements Consensus {
                 x.setStronglySeeP(mm, null);
             } else {
                 long weight = 0;
-                for (int m3 = 0; m3 < roster.size(); m3++) {
+                for (int m3 = 0; m3 < rosterSize; m3++) {
                     if (seeThru(x, mm, m3) == st) { // only count intermediates that see the canonical witness
                         weight += roster.weightAtIndex(m3);
                     }
@@ -1166,7 +1177,8 @@ public class ConsensusImpl implements Consensus {
         // and we are deciding a later round, then it is not a descendant of any judge
         // in the latest decided round and have a round of -infinity.
         //
-        if (x.getAllParents().isEmpty()) {
+        final List<EventImpl> allParents = x.getAllParents();
+        if (allParents.isEmpty()) {
             if (getFameDecidedBelow() == ConsensusConstants.ROUND_FIRST) {
                 x.setRoundCreated(ConsensusConstants.ROUND_FIRST);
                 return x.getRoundCreated();
@@ -1178,7 +1190,9 @@ public class ConsensusImpl implements Consensus {
 
         long greatestParentRound = ConsensusConstants.ROUND_NEGATIVE_INFINITY;
         boolean singleParentHasTheGreatestParentRound = true;
-        for (final EventImpl parent : x.getAllParents()) {
+        // an index loop, so that no iterator is allocated on this hot path
+        for (int i = 0, allParentsSize = allParents.size(); i < allParentsSize; i++) {
+            final EventImpl parent = allParents.get(i);
             if (ancient(parent)) {
                 continue;
             }
@@ -1293,7 +1307,10 @@ public class ConsensusImpl implements Consensus {
         // Find the first parent that is in the same round as x. The first witness of that parent
         // is the first witness of x. If there are no parents with the same round as x, then the
         // first witness of x is x.
-        for (final EventImpl parent : x.getAllParents()) {
+        final List<EventImpl> allParents = x.getAllParents();
+        // an index loop, so that no iterator is allocated on this hot path
+        for (int i = 0, allParentsSize = allParents.size(); i < allParentsSize; i++) {
+            final EventImpl parent = allParents.get(i);
             if (round(parent) == round(x)) {
                 x.setFirstWitnessS(firstWitnessS(parent));
                 return x.getFirstWitnessS();

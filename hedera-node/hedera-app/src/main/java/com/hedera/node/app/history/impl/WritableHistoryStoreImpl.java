@@ -2,6 +2,7 @@
 package com.hedera.node.app.history.impl;
 
 import static com.hedera.hapi.node.state.history.WrapsPhase.R1;
+import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.history.HistoryService.isCompleted;
 import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
@@ -11,13 +12,18 @@ import static com.hedera.node.app.history.schemas.V071HistorySchema.NEXT_PROOF_C
 import static com.hedera.node.app.history.schemas.V071HistorySchema.PROOF_KEY_SETS_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.PROOF_VOTES_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.WRAPS_MESSAGE_HISTORIES_STATE_ID;
-import static com.hedera.node.app.history.schemas.V0730HistorySchema.WRAPS_PROVING_KEY_HASH_STATE_ID;
+import static com.hedera.node.app.history.schemas.V0790HistorySchema.HINTS_KEY_PROVENANCE_STATE_ID;
+import static com.hedera.node.app.history.schemas.V0800HistorySchema.HINTS_KEY_WITNESSES_STATE_ID;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.BOOTSTRAP;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.HANDOFF;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.roster.RosterUtils.isWeightRotation;
 
 import com.hedera.hapi.node.state.history.ConstructionNodeId;
+import com.hedera.hapi.node.state.history.HintsKeyProvenance;
+import com.hedera.hapi.node.state.history.HintsKeyWitness;
+import com.hedera.hapi.node.state.history.HintsKeyWitnessRecord;
+import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
@@ -25,6 +31,7 @@ import com.hedera.hapi.node.state.history.ProofKeySet;
 import com.hedera.hapi.node.state.history.WrapsMessageHistory;
 import com.hedera.hapi.node.state.history.WrapsSigningState;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
+import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.NodeId;
@@ -33,14 +40,20 @@ import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.WritableKVState;
+import com.swirlds.state.spi.WritableQueueState;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.time.DateTimeException;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -53,11 +66,14 @@ import org.apache.logging.log4j.Logger;
  * Default implementation of {@link WritableHistoryStore}.
  */
 public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implements WritableHistoryStore {
+    /** The protocol for attempts with canonical WRAPS books and separate source hinTS authority. */
+    public static final int CURRENT_WRAPS_PROTOCOL_VERSION = 1;
 
     private static final Logger log = LogManager.getLogger(WritableHistoryStoreImpl.class);
 
+    private final WritableQueueState<HintsKeyProvenance> keyProvenance;
+    private final WritableKVState<ProtoLong, HintsKeyWitnessRecord> keyWitnesses;
     private final WritableSingletonState<ProtoBytes> ledgerId;
-    private final WritableSingletonState<ProtoBytes> wrapsProvingKeyHash;
     private final WritableSingletonState<HistoryProofConstruction> nextConstruction;
     private final WritableSingletonState<HistoryProofConstruction> activeConstruction;
     private final WritableKVState<NodeId, ProofKeySet> proofKeySets;
@@ -66,8 +82,9 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
 
     public WritableHistoryStoreImpl(@NonNull final WritableStates states) {
         super(states);
+        this.keyProvenance = states.getQueue(HINTS_KEY_PROVENANCE_STATE_ID);
+        this.keyWitnesses = states.get(HINTS_KEY_WITNESSES_STATE_ID);
         this.ledgerId = states.getSingleton(LEDGER_ID_STATE_ID);
-        this.wrapsProvingKeyHash = states.getSingleton(WRAPS_PROVING_KEY_HASH_STATE_ID);
         this.nextConstruction = states.getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID);
         this.activeConstruction = states.getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID);
         this.proofKeySets = states.get(PROOF_KEY_SETS_STATE_ID);
@@ -81,6 +98,27 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
             @NonNull final Instant now,
             @NonNull final TssConfig tssConfig,
             final boolean freshGenesisRequested) {
+        return getOrCreateConstruction(activeRosters, now, tssConfig, freshGenesisRequested, null);
+    }
+
+    @Override
+    public @NonNull HistoryProofConstruction getOrCreateConstruction(
+            @NonNull final ActiveRosters activeRosters,
+            @NonNull final Instant now,
+            @NonNull final TssConfig tssConfig,
+            final boolean freshGenesisRequested,
+            @Nullable final Bytes metadata) {
+        return getOrCreateConstruction(activeRosters, now, tssConfig, freshGenesisRequested, metadata, null);
+    }
+
+    @Override
+    public @NonNull HistoryProofConstruction getOrCreateConstruction(
+            @NonNull final ActiveRosters activeRosters,
+            @NonNull final Instant now,
+            @NonNull final TssConfig tssConfig,
+            final boolean freshGenesisRequested,
+            @Nullable final Bytes metadata,
+            @Nullable final HintsKeyProvenance expectedBinding) {
         requireNonNull(activeRosters);
         requireNonNull(now);
         requireNonNull(tssConfig);
@@ -89,10 +127,22 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
             throw new IllegalArgumentException("Handoff phase has no construction");
         }
         var construction = getConstructionFor(activeRosters);
+        final boolean requiresReplacement = construction != null
+                && ((!isCompleted(construction)
+                                && construction.wrapsProtocolVersion() != CURRENT_WRAPS_PROTOCOL_VERSION)
+                        || (metadata != null && requiresNewMetadataBinding(construction, metadata))
+                        || (expectedBinding != null && requiresNewKeyProvenanceBinding(construction, expectedBinding))
+                        || ((construction.hasWrapsSigningState() || construction.hasFailureReason())
+                                && !construction.hasProofKeyCutoffTime()));
+        // An unfinished bootstrap construction has no active proof to preserve. Replace it in place,
+        // allocating its successor's ID before overwriting the old state.
+        final boolean replaceActive = requiresReplacement
+                && !isCompleted(construction)
+                && construction.constructionId() == getActiveConstruction().constructionId();
         // Constructions are matched by roster hashes alone, so when a fresh genesis proof is requested the
         // completed construction that already grounds the chain of trust for this roster is matched again;
         // it holds the very proof to be replaced, so a new construction is needed
-        if (construction != null && freshGenesisRequested && isCompleted(construction, tssConfig)) {
+        if (requiresReplacement || (construction != null && freshGenesisRequested && isCompleted(construction))) {
             construction = null;
         }
         if (construction == null) {
@@ -104,9 +154,56 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
                     activeRosters.targetRosterHash(),
                     activeRosters::findRelatedRoster,
                     now,
-                    gracePeriod);
+                    gracePeriod,
+                    metadata,
+                    replaceActive);
+        } else if (metadata != null && !metadata.equals(construction.targetMetadata())) {
+            // Legacy completed constructions bind metadata in their proof; constructions that are still
+            // collecting keys have not started signing it. Persist either binding without changing IDs.
+            construction = updateOrThrow(construction.constructionId(), (c, b) -> b.targetMetadata(metadata));
         }
         return construction;
+    }
+
+    private static boolean requiresNewKeyProvenanceBinding(
+            @NonNull final HistoryProofConstruction construction, @NonNull final HintsKeyProvenance expected) {
+        if (construction.hasKeyProvenance()) {
+            return !construction
+                    .keyProvenanceOrThrow()
+                    .copyBuilder()
+                    .historyConstructionId(0L)
+                    .signature(Bytes.EMPTY)
+                    .build()
+                    .equals(expected.copyBuilder()
+                            .historyConstructionId(0L)
+                            .signature(Bytes.EMPTY)
+                            .build());
+        }
+        // Before the feature there was no immutable previous-key binding. Replaying
+        // an already started attempt would admit WRAPS participants without companions.
+        return construction.hasAssemblyStartTime()
+                || construction.hasWrapsSigningState()
+                || construction.hasFailureReason()
+                || construction.hasTargetProof();
+    }
+
+    private static boolean requiresNewMetadataBinding(
+            @NonNull final HistoryProofConstruction construction, @NonNull final Bytes metadata) {
+        if (construction.hasTargetProof()) {
+            return !construction
+                    .targetProofOrThrow()
+                    .targetHistoryOrElse(History.DEFAULT)
+                    .metadata()
+                    .equals(metadata);
+        }
+        if (construction.hasTargetMetadata()) {
+            return !metadata.equals(construction.targetMetadata());
+        }
+        // A pre-upgrade signing attempt did not persist its metadata. It is unsafe to replay its
+        // messages under an assumed binding, so restart it once the target key becomes available.
+        return construction.hasAssemblyStartTime()
+                || construction.hasWrapsSigningState()
+                || construction.hasFailureReason();
     }
 
     @Override
@@ -132,19 +229,14 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
     @Override
     public HistoryProofConstruction setAssemblyTime(final long constructionId, @NonNull final Instant now) {
         requireNonNull(now);
-        return updateOrThrow(constructionId, (c, b) -> b.assemblyStartTime(asTimestamp(now)));
+        return updateOrThrow(
+                constructionId, (c, b) -> b.assemblyStartTime(asTimestamp(now)).proofKeyCutoffTime(asTimestamp(now)));
     }
 
     @Override
     public void addProofVote(final long nodeId, final long constructionId, @NonNull final HistoryProofVote vote) {
         requireNonNull(vote);
         votes.put(new ConstructionNodeId(constructionId, nodeId), vote);
-    }
-
-    @Override
-    public void clearProofVotes(final long constructionId, @NonNull final SortedSet<Long> nodeIds) {
-        requireNonNull(nodeIds);
-        nodeIds.forEach(nodeId -> votes.remove(new ConstructionNodeId(constructionId, nodeId)));
     }
 
     @Override
@@ -170,6 +262,9 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
         updateOrThrow(constructionId, (c, b) -> {
             final var sb = c.wrapsSigningStateOrElse(WrapsSigningState.DEFAULT).copyBuilder();
             spec.accept(sb);
+            if (!c.hasProofKeyCutoffTime() && c.hasAssemblyStartTime()) {
+                b.proofKeyCutoffTime(c.assemblyStartTimeOrThrow());
+            }
             return b.wrapsSigningState(sb.build());
         });
     }
@@ -181,6 +276,58 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
     }
 
     @Override
+    public HistoryProofConstruction bindKeyProvenance(
+            final long constructionId, @NonNull final HintsKeyProvenance provenance) {
+        requireNonNull(provenance);
+        if (provenance.signature().length() != 0) {
+            throw new IllegalArgumentException("An initial hinTS key provenance binding must be unsigned");
+        }
+        return updateKeyProvenance(constructionId, provenance);
+    }
+
+    @Override
+    public HistoryProofConstruction setKeyProvenance(
+            final long constructionId, @NonNull final HintsKeyProvenance provenance) {
+        requireNonNull(provenance);
+        if (provenance.signature().length() == 0) {
+            throw new IllegalArgumentException("Completed hinTS key provenance must include a signature");
+        }
+        return updateKeyProvenance(constructionId, provenance);
+    }
+
+    private HistoryProofConstruction updateKeyProvenance(
+            final long constructionId, @NonNull final HintsKeyProvenance provenance) {
+        if (provenance.historyConstructionId() != constructionId
+                || provenance.sourceHintsConstructionId() <= 0
+                || provenance.targetHintsConstructionId() <= provenance.sourceHintsConstructionId()
+                || provenance.sourceVerificationKey().length() == 0
+                || provenance.targetVerificationKey().length() == 0) {
+            throw new IllegalArgumentException("Incomplete hinTS key provenance binding");
+        }
+        return updateOrThrow(constructionId, (c, b) -> {
+            if (!c.hasTargetMetadata() || !c.targetMetadataOrThrow().equals(provenance.targetVerificationKey())) {
+                throw new IllegalArgumentException("hinTS key provenance does not match construction metadata");
+            }
+            if (c.hasKeyProvenance()) {
+                final var existing = c.keyProvenanceOrThrow();
+                if (!existing.copyBuilder()
+                        .signature(Bytes.EMPTY)
+                        .build()
+                        .equals(provenance.copyBuilder().signature(Bytes.EMPTY).build())) {
+                    throw new IllegalArgumentException("hinTS key provenance is already bound");
+                }
+                if (existing.signature().length() != 0) {
+                    if (provenance.signature().length() != 0 && !existing.equals(provenance)) {
+                        throw new IllegalArgumentException("hinTS key provenance is already complete");
+                    }
+                    return b;
+                }
+            }
+            return b.keyProvenance(provenance);
+        });
+    }
+
+    @Override
     public HistoryProofConstruction failForReason(final long constructionId, @NonNull final String reason) {
         requireNonNull(reason);
         return updateOrThrow(constructionId, (c, b) -> b.failureReason(reason));
@@ -188,12 +335,35 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
 
     @Override
     public HistoryProofConstruction restartWrapsSigning(
-            final long constructionId, @NonNull final SortedSet<Long> sourceNodeIds) {
+            final long constructionId,
+            @NonNull final SortedSet<Long> sourceNodeIds,
+            @NonNull final SortedSet<Long> excludedNodeIds,
+            @Nullable final Instant gracePeriodEndTime) {
         requireNonNull(sourceNodeIds);
+        requireNonNull(excludedNodeIds);
         sourceNodeIds.forEach(nodeId -> wrapsMessageHistories.remove(new ConstructionNodeId(constructionId, nodeId)));
-        return updateOrThrow(constructionId, (c, b) -> b.wrapsSigningState(
-                        WrapsSigningState.newBuilder().phase(R1).build())
-                .wrapsRetryCount(c.wrapsRetryCount() + 1));
+        final var signingState = WrapsSigningState.newBuilder().phase(R1);
+        if (gracePeriodEndTime != null) {
+            signingState.gracePeriodEndTime(asTimestamp(gracePeriodEndTime));
+        }
+        return updateOrThrow(
+                constructionId,
+                (c, b) -> b.wrapsSigningState(signingState.build())
+                        .wrapsRetryCount(c.wrapsRetryCount() + 1)
+                        .wrapsExcludedNodeIds(List.copyOf(excludedNodeIds)));
+    }
+
+    @Override
+    public HistoryProofConstruction excludeFromWrapsSigning(
+            final long constructionId, @NonNull final Set<Long> nodeIds) {
+        requireNonNull(nodeIds);
+        final var construction = getConstructionOrThrow(constructionId);
+        if (construction.wrapsExcludedNodeIds().containsAll(nodeIds)) {
+            return construction;
+        }
+        final var excludedNodeIds = new TreeSet<>(construction.wrapsExcludedNodeIds());
+        excludedNodeIds.addAll(nodeIds);
+        return updateOrThrow(constructionId, (c, b) -> b.wrapsExcludedNodeIds(List.copyOf(excludedNodeIds)));
     }
 
     @Override
@@ -203,40 +373,44 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
     }
 
     @Override
-    public void setWrapsProvingKeyHash(@NonNull final Bytes hash) {
-        requireNonNull(hash);
-        wrapsProvingKeyHash.put(new ProtoBytes(hash));
-    }
-
-    @Override
-    public boolean handoff(
-            @NonNull final Roster fromRoster, @Nullable final Roster toRoster, @Nullable final Bytes toRosterHash) {
-        return handoff(fromRoster, toRoster, toRosterHash, false);
-    }
-
-    @Override
     public boolean handoff(
             @NonNull final Roster fromRoster,
             @Nullable final Roster toRoster,
             @Nullable final Bytes toRosterHash,
-            final boolean forceHandoff) {
+            @Nullable final Instant activationTime) {
         requireNonNull(fromRoster);
         final var upcomingConstruction = requireNonNull(nextConstruction.get());
-        final boolean handoffMatches =
-                toRosterHash == null || upcomingConstruction.targetRosterHash().equals(toRosterHash);
-        if (!handoffMatches) {
-            if (!forceHandoff) {
-                return false;
+        // A WRAPS proof binds the hash of its target address book; so a handoff can only adopt
+        // a construction whose target roster is the roster being adopted
+        if (toRosterHash != null && !upcomingConstruction.targetRosterHash().equals(toRosterHash)) {
+            return false;
+        }
+        if (upcomingConstruction.constructionId() == 0
+                || (upcomingConstruction.hasKeyProvenance()
+                        && upcomingConstruction
+                                        .keyProvenanceOrThrow()
+                                        .signature()
+                                        .length()
+                                == 0)) {
+            return false;
+        }
+        // The queue and paired constructions use the same writable savepoint. A failed
+        // transaction rolls them back together; retries cannot enqueue the cleared next slot.
+        if (upcomingConstruction.hasKeyProvenance()) {
+            requireNonNull(activationTime, "A newly adopted signing generation requires its activation time");
+            final var provenance = upcomingConstruction.keyProvenanceOrThrow();
+            final var key = new ProtoLong(provenance.targetHintsConstructionId());
+            final var existing = keyWitnesses.get(key);
+            if (existing != null) {
+                throw new IllegalStateException("A signing generation cannot be adopted more than once");
             }
-            if (!upcomingConstruction.hasTargetProof()) {
-                log.warn(
-                        "Ignoring forced handoff to incomplete history construction #{}",
-                        upcomingConstruction.constructionId());
-                return false;
-            }
-            log.warn(
-                    "Forcing handoff to history construction #{} with different target roster",
-                    upcomingConstruction.constructionId());
+            keyProvenance.add(provenance);
+            keyWitnesses.put(
+                    key,
+                    HintsKeyWitnessRecord.newBuilder()
+                            .provenance(provenance)
+                            .activationTime(asTimestamp(activationTime))
+                            .build());
         }
         // The next construction is becoming the active one; so purge obsolete votes now
         final var obsoleteConstruction = requireNonNull(activeConstruction.get());
@@ -255,6 +429,73 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
         // And finally, make the next construction the active one
         activeConstruction.put(upcomingConstruction);
         nextConstruction.put(HistoryProofConstruction.DEFAULT);
+        return true;
+    }
+
+    @Override
+    public boolean setKeyWitness(@NonNull final HintsKeyWitness witness) {
+        requireNonNull(witness);
+        if (witness.targetHintsConstructionId() <= 0
+                || !witness.hasTimestamp()
+                || witness.timestampOrThrow().nanos() < 0
+                || witness.timestampOrThrow().nanos() >= 1_000_000_000
+                || witness.signature().length() == 0) {
+            return false;
+        }
+        final int hashLength = switch (witness.hashAlgorithm()) {
+            case SHA2_256 -> 32;
+            case SHA2_384 -> 48;
+            default -> 0;
+        };
+        if (hashLength == 0 || witness.siblingHash().length() != hashLength) {
+            return false;
+        }
+        final Instant witnessTime;
+        try {
+            witnessTime = asInstant(witness.timestampOrThrow());
+        } catch (DateTimeException e) {
+            return false;
+        }
+        final var key = new ProtoLong(witness.targetHintsConstructionId());
+        final var existing = keyWitnesses.get(key);
+        if (existing == null
+                || existing.hasWitness()
+                || !existing.hasProvenance()
+                || existing.provenanceOrThrow().targetHintsConstructionId() != witness.targetHintsConstructionId()) {
+            return false;
+        }
+        if (existing.hasActivationTime() && !witnessTime.isAfter(asInstant(existing.activationTimeOrThrow()))) {
+            return false;
+        }
+        keyWitnesses.put(key, existing.copyBuilder().witness(witness).build());
+        return true;
+    }
+
+    @Override
+    public boolean markWitnessRejected(final long targetHintsConstructionId, final long nodeId) {
+        final var key = new ProtoLong(targetHintsConstructionId);
+        final var existing = keyWitnesses.get(key);
+        if (existing == null
+                || existing.hasWitness()
+                || !existing.hasProvenance()
+                || existing.rejectedNodeIds().contains(nodeId)) {
+            return false;
+        }
+        final var rejected = new ArrayList<>(existing.rejectedNodeIds());
+        rejected.add(nodeId);
+        keyWitnesses.put(key, existing.copyBuilder().rejectedNodeIds(rejected).build());
+        return true;
+    }
+
+    @Override
+    public boolean rebindActiveTargetRosterHash(@NonNull final Bytes expectedOldHash, @NonNull final Bytes newHash) {
+        requireNonNull(expectedOldHash);
+        requireNonNull(newHash);
+        final var active = getActiveConstruction();
+        if (newHash.length() == 0 || !active.targetRosterHash().equals(expectedOldHash) || !isCompleted(active)) {
+            return false;
+        }
+        activeConstruction.put(active.copyBuilder().targetRosterHash(newHash).build());
         return true;
     }
 
@@ -301,22 +542,29 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
             @NonNull final Bytes targetRosterHash,
             @NonNull final Function<Bytes, Roster> lookup,
             @NonNull final Instant now,
-            @NonNull final Duration gracePeriod) {
+            @NonNull final Duration gracePeriod,
+            @Nullable final Bytes metadata,
+            final boolean replaceActive) {
         var construction = HistoryProofConstruction.newBuilder()
                 .constructionId(newConstructionId())
+                .wrapsProtocolVersion(CURRENT_WRAPS_PROTOCOL_VERSION)
                 .sourceRosterHash(sourceRosterHash)
                 .targetRosterHash(targetRosterHash)
+                .targetMetadata(metadata)
                 .gracePeriodEndTime(asTimestamp(now.plus(gracePeriod)))
                 .build();
-        if (requireNonNull(activeConstruction.get()).equals(HistoryProofConstruction.DEFAULT)) {
+        if (replaceActive || requireNonNull(activeConstruction.get()).equals(HistoryProofConstruction.DEFAULT)) {
+            if (replaceActive) {
+                final var obsolete = requireNonNull(activeConstruction.get());
+                purgeObsoletePublications(obsolete, sourceRosterHash, targetRosterHash, lookup);
+            }
             activeConstruction.put(construction);
             logNewConstruction(construction, InSlot.ACTIVE, sourceRosterHash, targetRosterHash);
         } else {
             if (!requireNonNull(nextConstruction.get()).equals(HistoryProofConstruction.DEFAULT)) {
                 // Before switching to the new construction, purge the existing one's votes and signatures
                 final var extantConstruction = requireNonNull(nextConstruction.get());
-                final var sourceRoster = requireNonNull(lookup.apply(extantConstruction.sourceRosterHash()));
-                purgePublications(extantConstruction.constructionId(), sourceRoster);
+                purgeObsoletePublications(extantConstruction, sourceRosterHash, targetRosterHash, lookup);
             }
             nextConstruction.put(construction);
             logNewConstruction(construction, InSlot.NEXT, sourceRosterHash, targetRosterHash);
@@ -369,6 +617,41 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
     private void purgePublications(final long constructionId, @NonNull final Roster sourceRoster) {
         sourceRoster.rosterEntries().forEach(entry -> {
             final var key = new ConstructionNodeId(constructionId, entry.nodeId());
+            votes.remove(key);
+            wrapsMessageHistories.remove(key);
+        });
+    }
+
+    /**
+     * Removes known publications of an obsolete attempt without requiring its old roster hash to remain
+     * resolvable after candidate pruning or digest re-keying. The fresh construction id is the isolation
+     * boundary: even a legacy row whose sender is no longer in any retained membership cannot be replayed.
+     */
+    private void purgeObsoletePublications(
+            @NonNull final HistoryProofConstruction obsolete,
+            @NonNull final Bytes sourceRosterHash,
+            @NonNull final Bytes targetRosterHash,
+            @NonNull final Function<Bytes, Roster> lookup) {
+        final var nodeIds = new TreeSet<Long>(obsolete.wrapsExcludedNodeIds());
+        Stream.of(obsolete.sourceRosterHash(), obsolete.targetRosterHash(), sourceRosterHash, targetRosterHash)
+                .filter(hash -> hash.length() > 0)
+                .distinct()
+                .map(lookup)
+                .filter(Objects::nonNull)
+                .forEach(roster -> roster.rosterEntries().forEach(entry -> nodeIds.add(entry.nodeId())));
+        final var active = getActiveConstruction();
+        if (active.hasTargetProof()) {
+            final var proof = active.targetProofOrThrow();
+            proof.targetNodeWeights().forEach(entry -> nodeIds.add(entry.nodeId()));
+            proof.targetProofKeys().forEach(key -> nodeIds.add(key.nodeId()));
+        }
+        if (obsolete.hasTargetProof()) {
+            final var proof = obsolete.targetProofOrThrow();
+            proof.targetNodeWeights().forEach(entry -> nodeIds.add(entry.nodeId()));
+            proof.targetProofKeys().forEach(key -> nodeIds.add(key.nodeId()));
+        }
+        nodeIds.forEach(nodeId -> {
+            final var key = new ConstructionNodeId(obsolete.constructionId(), nodeId);
             votes.remove(key);
             wrapsMessageHistories.remove(key);
         });

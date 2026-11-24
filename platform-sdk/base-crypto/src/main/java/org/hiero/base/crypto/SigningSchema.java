@@ -2,7 +2,10 @@
 package org.hiero.base.crypto;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.Key;
+import java.security.interfaces.EdECKey;
+import java.security.spec.NamedParameterSpec;
 
 /**
  * Enumeration of supported signing schemas.
@@ -63,14 +66,53 @@ public enum SigningSchema {
         return keySizeBits;
     }
 
+    /**
+     * Get the signing schema of the given key.
+     *
+     * @param key the public or private key
+     * @return the signing schema of the key
+     * @throws IllegalArgumentException if the key does not belong to a supported signing schema
+     */
+    @NonNull
     public static SigningSchema fromKeyType(@NonNull final Key key) {
-        final String algorithm = key.getAlgorithm();
-        return switch (algorithm) {
+        final SigningSchema schema = schemaOf(key);
+        if (schema == null) {
+            throw new IllegalArgumentException("Unsupported key: " + describe(key));
+        }
+        return schema;
+    }
+
+    /**
+     * Check whether the given key belongs to a supported signing schema.
+     *
+     * @param key the public or private key
+     * @return {@code true} if {@link #fromKeyType(Key)} accepts the key, otherwise {@code false}
+     */
+    public static boolean isSupported(@NonNull final Key key) {
+        return schemaOf(key) != null;
+    }
+
+    @Nullable
+    private static SigningSchema schemaOf(@NonNull final Key key) {
+        return switch (key.getAlgorithm()) {
             case "RSA" -> RSA;
-            // An EdDSA can be either Ed25519 or Ed448, but there is no simple way to distinguish them from the Key
-            // interface.
-            case "Ed25519", "EdDSA" -> ED25519;
-            default -> throw new IllegalArgumentException("Unsupported key algorithm: " + algorithm);
+            case "Ed25519" -> ED25519;
+            // The JDK reports both Ed25519 and Ed448 keys as "EdDSA", so the curve is taken from the key parameters.
+            case "EdDSA" ->
+                key instanceof final EdECKey edKey
+                                && NamedParameterSpec.ED25519
+                                        .getName()
+                                        .equals(edKey.getParams().getName())
+                        ? ED25519
+                        : null;
+            default -> null;
         };
+    }
+
+    @NonNull
+    private static String describe(@NonNull final Key key) {
+        return key instanceof final EdECKey edKey
+                ? key.getAlgorithm() + " (" + edKey.getParams().getName() + ")"
+                : key.getAlgorithm();
     }
 }

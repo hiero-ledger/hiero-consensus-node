@@ -22,6 +22,7 @@ import com.hedera.hapi.node.state.clpr.ClprMessageKey;
 import com.hedera.hapi.node.state.clpr.ClprMessagePayload;
 import com.hedera.hapi.node.state.clpr.ClprMessageValue;
 import com.hedera.hapi.node.state.clpr.ClprQueueMetadata;
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.hapi.utils.blocks.StateProofVerifier;
 import com.hedera.node.app.hapi.utils.blocks.TssVerifier;
@@ -109,10 +110,6 @@ public class VerifyBundleCall extends AbstractCall {
                 bundlePayload.length,
                 GAS_REQUIREMENT);
 
-        final DigestType digestType =
-                configOf(frame).getConfigData(BlockStreamConfig.class).digestType();
-        final MessageDigest digest = CommonUtils.digestOrThrow(digestType);
-
         final StateProof proof;
         try {
             proof = StateProof.PROTOBUF.parseStrict(Bytes.wrap(bundlePayload).toReadableSequentialData());
@@ -120,6 +117,16 @@ public class VerifyBundleCall extends AbstractCall {
             log.error("verifyBundle: failed to parse StateProof for trustAnchor {}", trustAnchorBytes, e);
             return fail();
         }
+
+        // The proving ledger built this proof with its own genesis-pinned digest, which is independent of
+        // this node's configured blockStream.digestType; infer it from the proof's hash lengths so a SHA-384
+        // ledger's proof verifies on a SHA-256 node and vice versa. Fall back to configuration only when the
+        // proof carries no usable length signal.
+        final DigestType inferred = StateProofVerifier.inferDigestType(proof);
+        final DigestType digestType = inferred != null
+                ? inferred
+                : configOf(frame).getConfigData(BlockStreamConfig.class).digestType();
+        final MessageDigest digest = CommonUtils.digestOrThrow(digestType);
 
         // 1. The bundle paths are independent leaf-to-block-root paths, so we cannot use
         //    computeBlockRootHash (which assumes a single connected proof tree). Each path
@@ -187,6 +194,17 @@ public class VerifyBundleCall extends AbstractCall {
             final int svTag = ClprProofExtraction.readFirstVarintTag(valueBytes);
             try {
                 if (svTag == ClprProofExtraction.SV_CHANNEL_TAG) {
+                    // A bundle proves exactly one channel; a second channel leaf would silently replace the first.
+                    if (channel != null) {
+                        log.warn("verifyBundle: more than one channel leaf for trustAnchor {}", trustAnchorBytes);
+                        return fail();
+                    }
+                    // Bind the leaf to the requested channel by its proven key, not only by the id in its value.
+                    final var channelKey = extractChannelKey(path.stateItemLeafOrThrow());
+                    if (channelKey == null || !channelKey.equals(expectedChannelId)) {
+                        log.warn("verifyBundle: channel leaf key does not match the requested channel context");
+                        return fail();
+                    }
                     final var inner = ClprProofExtraction.unwrapStateValueField(valueBytes);
                     if (inner != null) {
                         channel = ClprChannel.PROTOBUF.parseStrict(inner.toReadableSequentialData());
@@ -332,6 +350,25 @@ public class VerifyBundleCall extends AbstractCall {
         }
         final var inner = ClprProofExtraction.unwrapStateValueField(keyBytes);
         return inner == null ? null : ClprMessageKey.PROTOBUF.parseStrict(inner.toReadableSequentialData());
+    }
+
+    /**
+     * Reads the channel id from a channel leaf's {@code StateItem.key}, or returns {@code null} when the key is absent
+     * or is not a channels-state key.
+     */
+    @Nullable
+    private static Bytes extractChannelKey(@NonNull final Bytes stateItemLeaf) throws ParseException {
+        final var keyBytes = ClprProofExtraction.extractStateItemKey(stateItemLeaf);
+        if (keyBytes == null
+                || ClprProofExtraction.readFirstVarintTag(keyBytes) != ClprProofExtraction.SK_CHANNEL_KEY_TAG) {
+            return null;
+        }
+        final var inner = ClprProofExtraction.unwrapStateValueField(keyBytes);
+        return inner == null
+                ? null
+                : ProtoBytes.PROTOBUF
+                        .parseStrict(inner.toReadableSequentialData())
+                        .value();
     }
 
     /**

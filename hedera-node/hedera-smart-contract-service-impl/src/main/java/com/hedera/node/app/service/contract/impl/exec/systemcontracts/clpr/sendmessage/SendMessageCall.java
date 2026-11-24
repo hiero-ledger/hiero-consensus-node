@@ -177,7 +177,7 @@ public class SendMessageCall extends AbstractCall {
                     SUCCESS,
                     false);
         } catch (final HandleException e) {
-            logger.warn(
+            logger.debug(
                     "[CLPR-DEBUG] SendMessageCall: HandleException from ClprServiceApi.sendMessage status={}",
                     e.getStatus(),
                     e);

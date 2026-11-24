@@ -14,6 +14,7 @@ import java.util.List;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.test.fixtures.TestCertificates;
 import org.hiero.consensus.test.fixtures.crypto.PreGeneratedX509Certs;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -170,5 +171,12 @@ public class RosterUtilsTest {
                 .gossipCaCertificate(
                         Bytes.wrap(PreGeneratedX509Certs.createBadCertificate().getEncoded()))
                 .build()));
+        // well-formed certificates whose keys have no supported signing schema
+        for (final String keyAlgorithm : List.of("EC", "Ed448")) {
+            assertNull(RosterUtils.fetchGossipCaCertificate(RosterEntry.newBuilder()
+                    .gossipCaCertificate(Bytes.wrap(
+                            TestCertificates.createCertificate(keyAlgorithm).getEncoded()))
+                    .build()));
+        }
     }
 }

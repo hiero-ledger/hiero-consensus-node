@@ -27,34 +27,28 @@ import "services/transaction.proto";
  * independent ledger networks using the Cross Ledger Protocol.
  */
 service ClprService {
-    /**
-     * Register a new cross-ledger channel (Phase 1: Commit).
-     * <p>
-     * Reserves a channel by committing an ownership hash.
-     * Permissionless - any payer can register.<br/>
-     * The request body MUST be a
-     * [ClprRegisterChannelTransactionBody](#com.hedera.hapi.node.clpr.ClprRegisterChannelTransactionBody)
-     */
-    rpc registerChannel (Transaction) returns (TransactionResponse);
+    /** Create a channel using a ClprCreateChannelTransactionBody. */
+    rpc createChannel (Transaction) returns (TransactionResponse);
 
     /**
-     * Complete a pending channel commitment (Phase 2: Reveal).
-     * <p>
-     * Reveals the preimage and proves key ownership to activate the channel.<br/>
-     * The request body MUST be a
-     * [ClprCompleteChannelTransactionBody](#com.hedera.hapi.node.clpr.ClprCompleteChannelTransactionBody)
-     */
-    rpc completeChannel (Transaction) returns (TransactionResponse);
-
-    /**
-     * Close a cross-ledger channel.
+     * Request deletion of a cross-ledger channel.
      * <p>
      * Initiates graceful closure of a CLPR channel.
      * Requires the CLPR admin key.<br/>
      * The request body MUST be a
-     * [ClprCloseChannelTransactionBody](#com.hedera.hapi.node.clpr.ClprCloseChannelTransactionBody)
+     * [ClprDeleteChannelTransactionBody](#com.hedera.hapi.node.clpr.ClprDeleteChannelTransactionBody)
      */
-    rpc closeChannel (Transaction) returns (TransactionResponse);
+    rpc deleteChannel (Transaction) returns (TransactionResponse);
+
+    /**
+     * Remove a peer endpoint from a channel's cached endpoint manifest.
+     * <p>
+     * Stops every node dialing an endpoint a channel's verifier supplied.
+     * Requires the CLPR admin key.<br/>
+     * The request body MUST be a
+     * [ClprEvictPeerEndpointTransactionBody](#com.hedera.hapi.node.clpr.ClprEvictPeerEndpointTransactionBody)
+     */
+    rpc evictPeerEndpoint (Transaction) returns (TransactionResponse);
 
     /**
      * Submit a bundle of cross-ledger messages.
@@ -119,7 +113,7 @@ service ClprService {
      * <p>
      * Public read (no admin authorization). The response carries the manifest singleton and
      * a StateProof suitable as {@code endpoint_manifest_proof_bytes} for a peer's
-     * {@code ClprCompleteChannel} (spec PR #332).<br/>
+     * {@code ClprCreateChannel} (spec PR #332).<br/>
      * The request body MUST be a
      * [ClprGetEndpointManifestQuery](#com.hedera.hapi.node.clpr.ClprGetEndpointManifestQuery)<br/>
      * The response body SHALL be a

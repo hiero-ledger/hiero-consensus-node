@@ -70,7 +70,7 @@ import java.util.List;
 import java.util.Map;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-import org.hiero.consensus.model.transaction.ConsensusTransaction;
+import org.hiero.consensus.main.model.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 
 /**
@@ -226,7 +226,6 @@ public class StandaloneDispatchFactory {
                 NO_OP_KEY_VERIFIER,
                 creatorInfo,
                 consensusNow,
-                preHandleResult.getRequiredKeys(),
                 preHandleResult.getHollowAccounts(),
                 dispatchHandleContext,
                 stack,

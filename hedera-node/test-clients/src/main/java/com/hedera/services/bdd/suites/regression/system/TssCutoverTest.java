@@ -7,24 +7,28 @@ import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.noOp;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.untilHgcaaLogContainsPattern;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.untilHgcaaLogContainsText;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withExternalizedLedgerIdFromHgcaaLog;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
+import com.hedera.services.bdd.junit.hedera.BlockNodeReader;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.junit.support.validators.block.StateChangesValidator;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
+import com.hedera.services.bdd.spec.utilops.streams.StreamValidationOp;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -40,10 +44,17 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 @OrderedInIsolation
 public class TssCutoverTest implements LifecycleTest {
-    private static final String GENESIS_WRAPS_PROOF_STARTED = "Constructing genesis WRAPS proof";
-    private static final String GENESIS_WRAPS_PROOF_CONSTRUCTED = "FINISHED constructing genesis WRAPS proof";
-    private static final Duration LEDGER_ID_TIMEOUT = Duration.ofMinutes(1);
-    private static final Duration WRAPS_PROOF_TIMEOUT = Duration.ofMinutes(22);
+    /**
+     * Every node logs this when the network finalizes a WRAPS proof; though in general only one node computes it.
+     */
+    private static final String WRAPS_PROOF_FINALIZED_PATTERN =
+            "History proof constructed \\(#\\d+, WRAPS-extensible\\? true\\)";
+    /**
+     * The ledger id is only established by the genesis WRAPS proof grounding the chain of trust.
+     */
+    private static final Duration LEDGER_ID_TIMEOUT = Duration.ofMinutes(5);
+
+    private static final Duration BLOCK_NODE_TIMEOUT = Duration.ofMinutes(1);
     private static final Duration LOG_POLL_INTERVAL = Duration.ofSeconds(1);
     private static final long TRANSFER_PACING_MS = 250L;
     private static final Random RANDOM = new Random(2_721_828L);
@@ -64,54 +75,51 @@ public class TssCutoverTest implements LifecycleTest {
 
     @HapiTest
     final Stream<DynamicTest> upgradeToEnabledTssExternalizesLedgerIdAndCreatesGenesisWraps() {
-        return hapiTest(sourcingContextual(spec -> {
-            if (hasWrapsArtifactsPath()) {
-                StateChangesValidator.ADAPTIVE_SIGNATURE_CHECKS_ENABLED.set(true);
-                StateChangesValidator.AT_LEAST_ONE_WRAPS_ASSERTION_ENABLED.set(true);
-                return blockingOrder(
-                        untilHgcaaLogContainsText(
-                                        byNodeId(0),
-                                        "tss.hintsEnabled = false",
-                                        Duration.ofMinutes(1),
-                                        LOG_POLL_INTERVAL,
-                                        () -> new SpecOperation[] {randomStakerTransfer(), sleepFor(TRANSFER_PACING_MS)
-                                        })
-                                .loggingOff(),
-                        prepareFakeUpgrade(),
-                        upgradeToNextConfigVersion(Map.of(
-                                "tss.hintsEnabled", "true", "tss.historyEnabled", "true", "tss.wrapsEnabled", "true")),
-                        withExternalizedLedgerIdFromHgcaaLog(
-                                byNodeId(0),
-                                LEDGER_ID_TIMEOUT,
+        return hapiTest(
+                doingContextual(spec -> {
+                    StateChangesValidator.ADAPTIVE_SIGNATURE_CHECKS_ENABLED.set(true);
+                    StateChangesValidator.AT_LEAST_ONE_WRAPS_ASSERTION_ENABLED.set(true);
+                }),
+                untilHgcaaLogContainsText(
+                                byNodeId(0), "tss.hintsEnabled = false", Duration.ofMinutes(1), LOG_POLL_INTERVAL, () ->
+                                        new SpecOperation[] {randomStakerTransfer(), sleepFor(TRANSFER_PACING_MS)})
+                        .loggingOff(),
+                untilBlockNodeHoldsFirstBlock(),
+                prepareFakeUpgrade(),
+                upgradeToNextConfigVersion(Map.of(
+                        "tss.hintsEnabled", "true", "tss.historyEnabled", "true", "tss.forceMockSignatures", "false")),
+                withExternalizedLedgerIdFromHgcaaLog(
+                        byNodeId(0),
+                        LEDGER_ID_TIMEOUT,
+                        LOG_POLL_INTERVAL,
+                        () -> new SpecOperation[] {randomStakerTransfer(), sleepFor(TRANSFER_PACING_MS)},
+                        this::assertAllGetInfoResponsesIncludeExternalizedLedgerId),
+                untilHgcaaLogContainsPattern(
+                                allNodes(),
+                                WRAPS_PROOF_FINALIZED_PATTERN,
+                                Duration.ofMinutes(1),
                                 LOG_POLL_INTERVAL,
-                                () -> new SpecOperation[] {randomStakerTransfer(), sleepFor(TRANSFER_PACING_MS)},
-                                this::assertAllGetInfoResponsesIncludeExternalizedLedgerId),
-                        untilHgcaaLogContainsText(
-                                        allNodes(),
-                                        GENESIS_WRAPS_PROOF_STARTED,
-                                        Duration.ofMinutes(1),
-                                        LOG_POLL_INTERVAL,
-                                        () -> new SpecOperation[] {randomStakerTransfer(), sleepFor(TRANSFER_PACING_MS)
-                                        })
-                                .loggingOff(),
-                        untilHgcaaLogContainsText(
-                                        allNodes(),
-                                        GENESIS_WRAPS_PROOF_CONSTRUCTED,
-                                        WRAPS_PROOF_TIMEOUT,
-                                        LOG_POLL_INTERVAL,
-                                        () -> new SpecOperation[] {randomStakerTransfer(), sleepFor(TRANSFER_PACING_MS)
-                                        })
-                                .loggingOff());
-            } else {
-                StateChangesValidator.AT_LEAST_ONE_WRAPS_ASSERTION_ENABLED.set(false);
-                return noOp();
-            }
-        }));
+                                () -> new SpecOperation[] {randomStakerTransfer(), sleepFor(TRANSFER_PACING_MS)})
+                        .loggingOff());
     }
 
-    private static boolean hasWrapsArtifactsPath() {
-        final var wrapsArtifactsPath = System.getProperty("hapi.spec.tssLibWrapsArtifactsPath");
-        return wrapsArtifactsPath != null && !wrapsArtifactsPath.isBlank();
+    // The upgrade restarts the network, and with no buffer persistence a block not yet on the block node is lost for
+    // good; a node's first status call can time out and back off past that restart, so first wait for block 0 there
+    private static SpecOperation untilBlockNodeHoldsFirstBlock() {
+        return doingContextual(spec -> {
+            final var network = StreamValidationOp.checkableBlockNodeNetwork();
+            if (network == null) {
+                return;
+            }
+            final var reader = BlockNodeReader.of(network);
+            final var deadline = Instant.now().plus(BLOCK_NODE_TIMEOUT);
+            while (!(reader.isReal() ? reader.lastStoredBlock() >= 0 : reader.hasBlock(0))) {
+                if (Instant.now().isAfter(deadline)) {
+                    fail("Block node held no block " + BLOCK_NODE_TIMEOUT.toSeconds() + "s before the upgrade");
+                }
+                allRunFor(spec, randomStakerTransfer(), sleepFor(TRANSFER_PACING_MS));
+            }
+        });
     }
 
     private static SpecOperation randomStakerTransfer() {

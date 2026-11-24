@@ -30,6 +30,7 @@ import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.RollbackAwareException;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
@@ -130,11 +131,22 @@ public class DispatchProcessor {
      */
     public void processDispatch(
             @NonNull final Dispatch dispatch, @Nullable final Details hollowAccountCompletionsDetails) {
+        processDispatch(dispatch, hollowAccountCompletionsDetails, false);
+    }
+
+    /**
+     * Processes a submitted or scheduled transaction using normal fee charging, with an optional block-capacity
+     * rejection.
+     */
+    public void processDispatch(
+            @NonNull final Dispatch dispatch,
+            @Nullable final Details hollowAccountCompletionsDetails,
+            final boolean blockFull) {
         requireNonNull(dispatch);
         final var validation = validator.validateFeeChargingScenario(dispatch);
         if (!validation.creatorDidDueDiligence()) {
             if (isClprSubmitBundle(dispatch)) {
-                logger.warn(
+                logger.debug(
                         "[CLPR-DISPATCH] creator due diligence failed; charging creator txId={} status={}",
                         dispatch.txnInfo().transactionID(),
                         validation.errorStatusOrThrow());
@@ -143,7 +155,7 @@ public class DispatchProcessor {
         } else {
             final var fees = chargePayer(dispatch, validation, false);
             if (!alreadyFailed(dispatch, validation)) {
-                tryHandle(dispatch, validation, fees, hollowAccountCompletionsDetails);
+                tryHandle(dispatch, validation, fees, hollowAccountCompletionsDetails, blockFull);
             }
         }
         dispatchUsageManager.finalizeAndSaveUsage(dispatch);
@@ -166,10 +178,14 @@ public class DispatchProcessor {
             @NonNull final Dispatch dispatch,
             @NonNull final FeeCharging.Validation validation,
             @NonNull final Fees fees,
-            @Nullable final HollowAccountCompletions.Details details) {
+            @Nullable final HollowAccountCompletions.Details details,
+            final boolean blockFull) {
         final var functionality = dispatch.txnInfo().functionality();
         boolean success = false;
         try {
+            if (blockFull) {
+                throw ThrottleException.newNativeThrottleException();
+            }
             dispatchUsageManager.screenForCapacity(dispatch);
             dispatcher.dispatchHandle(dispatch.handleContext());
             dispatch.streamBuilder().status(SUCCESS);
@@ -184,7 +200,7 @@ public class DispatchProcessor {
             success = true;
         } catch (HandleException e) {
             if (isClprSubmitBundle(dispatch)) {
-                logger.warn(
+                logger.debug(
                         "[CLPR-DISPATCH] HandleException txId={} status={} message={}",
                         dispatch.txnInfo().transactionID(),
                         e.getStatus(),
@@ -197,7 +213,7 @@ public class DispatchProcessor {
             e.maybeReplay(feeCharging.customized(dispatch), dispatch.handleContext());
         } catch (ThrottleException e) {
             if (isClprSubmitBundle(dispatch)) {
-                logger.warn(
+                logger.debug(
                         "[CLPR-DISPATCH] throttled txId={} status={} message={}",
                         dispatch.txnInfo().transactionID(),
                         e.getStatus(),
@@ -219,6 +235,10 @@ public class DispatchProcessor {
             }
             logger.error("{} - exception thrown while handling dispatch", ALERT_MESSAGE, e);
             rollbackAndRechargeFee(dispatch, validation, FAIL_INVALID);
+            if (e instanceof RollbackAwareException replayable) {
+                replayable.maybeReplay(
+                        dispatch.feeChargingOrElse(appFeeCharging).customized(dispatch), dispatch.handleContext());
+            }
         }
         if (!success && details != null) {
             details.replay(dispatch.handleContext()::dispatch);
@@ -277,7 +297,7 @@ public class DispatchProcessor {
     private void chargeCreator(@NonNull final Dispatch dispatch, @NonNull final FeeCharging.Validation validation) {
         dispatch.streamBuilder().status(validation.errorStatusOrThrow());
         if (isClprSubmitBundle(dispatch)) {
-            logger.warn(
+            logger.debug(
                     "[CLPR-DISPATCH] charge creator txId={} creator={} networkFee={} status={}",
                     dispatch.txnInfo().transactionID(),
                     dispatch.creatorInfo().accountId(),
@@ -354,7 +374,7 @@ public class DispatchProcessor {
     private boolean alreadyFailed(@NonNull final Dispatch dispatch, @NonNull final FeeCharging.Validation validation) {
         if (validation.maybeErrorStatus() != null) {
             if (isClprSubmitBundle(dispatch)) {
-                logger.warn(
+                logger.debug(
                         "[CLPR-DISPATCH] skipping handler due to validation error txId={} status={}",
                         dispatch.txnInfo().transactionID(),
                         validation.errorStatusOrThrow());
@@ -365,7 +385,7 @@ public class DispatchProcessor {
         final var authorizationFailure = maybeAuthorizationFailure(dispatch);
         if (authorizationFailure != null) {
             if (isClprSubmitBundle(dispatch)) {
-                logger.warn(
+                logger.debug(
                         "[CLPR-DISPATCH] skipping handler due to authorization failure txId={} status={} "
                                 + "category={} payer={}",
                         dispatch.txnInfo().transactionID(),
@@ -378,11 +398,11 @@ public class DispatchProcessor {
         }
         if (failsSignatureVerification(dispatch)) {
             if (isClprSubmitBundle(dispatch)) {
-                logger.warn(
+                logger.debug(
                         "[CLPR-DISPATCH] skipping handler due to signature verification failure txId={} "
-                                + "requiredKeys={} hollowAccounts={}",
+                                + "requiredKeyRequirements={} hollowAccounts={}",
                         dispatch.txnInfo().transactionID(),
-                        dispatch.requiredKeys().size(),
+                        dispatch.requiredKeyRequirements().size(),
                         dispatch.hollowAccounts().size());
             }
             dispatch.streamBuilder().status(INVALID_SIGNATURE);
@@ -436,8 +456,8 @@ public class DispatchProcessor {
      * @param dispatch the dispatch to be processed
      */
     private boolean failsSignatureVerification(@NonNull final Dispatch dispatch) {
-        for (final var key : dispatch.requiredKeys()) {
-            final var verification = dispatch.keyVerifier().verificationFor(key);
+        for (final var requirement : dispatch.requiredKeyRequirements()) {
+            final var verification = dispatch.keyVerifier().verificationFor(requirement);
             if (verification.failed()) {
                 return true;
             }

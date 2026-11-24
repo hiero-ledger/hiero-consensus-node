@@ -61,8 +61,8 @@ message ClprLedgerConfiguration {
      * Opaque starting trust anchor for the Channel. For Hiero TSS this is the
      * ledger_id of the ledger that produced this configuration (its own ledger_id
      * when this is the local-ledger config singleton, the peer's ledger_id when
-     * received via state proof at completeChannel). Stored as
-     * Channel.trust_anchor at completeChannel.
+     * received via state proof at createChannel). Stored as
+     * Channel.trust_anchor at createChannel.
      *
      * Populated by the source ledger as part of ClprUpdateLedgerConfiguration once
      * its genesis-rooted ledger_id is available.
@@ -86,7 +86,12 @@ message ClprThrottles {
     uint32 max_messages_per_bundle = 1;
 
     /**
-     * Maximum payload size in bytes for a single message.
+     * Maximum serialized size in bytes of a Data ClprMessagePayload, including
+     * connector_id, target_application, sender, message_data, and protobuf framing.
+     * The same limit applies to the serialized Response ClprMessagePayload a ledger
+     * enqueues for a Data message; a Response that would exceed it SHALL be replaced
+     * with an APPLICATION_ERROR Response without data. Control payloads are exempt
+     * from this limit.
      */
     uint32 max_message_payload_bytes = 2;
 
@@ -113,7 +118,10 @@ message ClprThrottles {
 
     /**
      * Maximum number of peer endpoints this ledger will cache per Channel
-     * from the remote ClprEndpointManifest. Zero means no limit.
+     * from the remote ClprEndpointManifest. Zero means no endpoint-count limit.
+     * Independent storage-byte limits still apply: Hiero retains a declared-order
+     * endpoint prefix whose complete serialized manifest is at most 16,384 bytes,
+     * including certificates, account identifiers, addresses, and protobuf framing.
      */
     uint32 max_peer_endpoints = 7;
 }
@@ -130,13 +138,14 @@ message ClprEndpoint {
     ClprServiceEndpoint service_endpoint = 1;
 
     /**
-     * DER-encoded RSA public certificate for mTLS transport.
-     * Minimum RSA key size: 2048 bits.
+     * DER-encoded public certificate of the endpoint's TLS listener. Endpoints use ordinary TLS
+     * for confidentiality only: peers do not validate this certificate, so it does not authenticate
+     * the endpoint. Slated for deprecation.
      */
     bytes tls_certificate = 2;
 
     /**
-     * On-ledger account associated with this endpoint node.
+     * On-ledger account associated with this endpoint node. Not used by the network.
      */
     bytes account_id = 3;
 }
@@ -146,7 +155,10 @@ message ClprEndpoint {
  */
 message ClprServiceEndpoint {
     /**
-     * IPv4 or IPv6 numeric address (no DNS hostnames).
+     * The canonical CLPR protocol requires a numeric IPv4 or IPv6 address.
+     * Hiero test networks such as Solo may opt into a Hiero-local extension that carries a DNS hostname.
+     * The publisher enables `clpr.publishDnsEndpoints` in file 0.0.121. Each dialing node must enable
+     * `clpr.allowDnsPeerEndpoints`. Peers implementing only the canonical protocol require numeric addresses.
      */
     string ip_address = 1;
 

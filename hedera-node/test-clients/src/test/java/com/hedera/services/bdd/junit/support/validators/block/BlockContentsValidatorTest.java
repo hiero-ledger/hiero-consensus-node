@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.validators.block;
 
+import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO_384;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -25,6 +26,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import java.util.ArrayList;
 import java.util.List;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 class BlockContentsValidatorTest {
@@ -56,7 +58,7 @@ class BlockContentsValidatorTest {
 
     private static BlockItem footerItem() {
         return new BlockItem(
-                new OneOf<>(ItemOneOfType.BLOCK_FOOTER, new BlockFooter(EMPTY_HASH, EMPTY_HASH, EMPTY_HASH)));
+                new OneOf<>(ItemOneOfType.BLOCK_FOOTER, new BlockFooter(EMPTY_HASH, EMPTY_HASH, HASH_OF_ZERO_384)));
     }
 
     private static BlockItem wrbProofItem(long blockNumber, int version) {
@@ -94,9 +96,18 @@ class BlockContentsValidatorTest {
 
     @Test
     void validWrbGenesis() {
+        final var block = new Block(List.of(headerItem(0), recordFileItem(), footerItem(), wrbProofItem(0, 2)));
+        assertDoesNotThrow(() -> new BlockContentsValidator().validateBlocks(List.of(block)));
+    }
+
+    @Test
+    @DisplayName("given a genesis wrapped record block with state changes, then validation rejects it")
+    void givenGenesisWrbWithStateChanges_thenValidationRejectsIt() {
         final var block = new Block(
                 List.of(headerItem(0), stateChangesItem(), recordFileItem(), footerItem(), wrbProofItem(0, 2)));
-        assertDoesNotThrow(() -> new BlockContentsValidator().validateBlocks(List.of(block)));
+        final var err =
+                assertThrows(AssertionError.class, () -> new BlockContentsValidator().validateBlocks(List.of(block)));
+        assertTrue(err.getMessage().contains("WRB StateChanges found"));
     }
 
     @Test
@@ -152,7 +163,7 @@ class BlockContentsValidatorTest {
                 List.of(headerItem(5), stateChangesItem(), recordFileItem(), footerItem(), wrbProofItem(5, 6)));
         final var err =
                 assertThrows(AssertionError.class, () -> new BlockContentsValidator().validateBlocks(List.of(block)));
-        assertTrue(err.getMessage().contains("non-genesis block"));
+        assertTrue(err.getMessage().contains("WRB StateChanges found"));
     }
 
     @Test
@@ -161,7 +172,7 @@ class BlockContentsValidatorTest {
                 List.of(headerItem(1), recordFileItem(), stateChangesItem(), footerItem(), wrbProofItem(1, 6)));
         final var err =
                 assertThrows(AssertionError.class, () -> new BlockContentsValidator().validateBlocks(List.of(block)));
-        assertTrue(err.getMessage().contains("StateChanges found after RecordFileItem"));
+        assertTrue(err.getMessage().contains("WRB StateChanges found"));
     }
 
     @Test

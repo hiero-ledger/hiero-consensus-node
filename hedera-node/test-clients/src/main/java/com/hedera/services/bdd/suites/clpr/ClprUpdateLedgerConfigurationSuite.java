@@ -4,16 +4,23 @@ package com.hedera.services.bdd.suites.clpr;
 import static com.hedera.services.bdd.junit.ContextRequirement.PROPERTY_OVERRIDES;
 import static com.hedera.services.bdd.junit.TestTags.CLPR;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.clprGetLedgerConfiguration;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprDeleteChannel;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprEvictPeerEndpoint;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprUpdateLedgerConfiguration;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
+import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.CLPR_SERVICE_ADDRESS_20;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AUTHORIZATION_FAILED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_CHANNEL_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_NOT_ENABLED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CLPR_CONFIGURATION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.transactions.clpr.HapiClprUpdateLedgerConfiguration;
@@ -35,6 +42,35 @@ public class ClprUpdateLedgerConfigurationSuite {
                 .serviceAddress(CLPR_SERVICE_ADDRESS_20)
                 .throttles(HapiClprUpdateLedgerConfiguration.defaultThrottles())
                 .payingWith(GENESIS));
+    }
+
+    @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
+    final Stream<DynamicTest> configuredClprAdminCanSubmitAdminTransactions() {
+        // The CLPR test tasks set accounts.clprAdmin=601, so the local network creates it with the genesis key.
+        final var admin = "601";
+        final var missingChannelId = new byte[32];
+        final var throttles = HapiClprUpdateLedgerConfiguration.defaultThrottles();
+        return hapiTest(
+                cryptoTransfer(tinyBarsFromTo(GENESIS, admin, ONE_HUNDRED_HBARS))
+                        .payingWith(GENESIS),
+                clprUpdateLedgerConfiguration()
+                        .serviceAddress(CLPR_SERVICE_ADDRESS_20)
+                        .throttles(throttles)
+                        .payingWith(admin)
+                        .signedBy(GENESIS),
+                clprGetLedgerConfiguration().exposingConfigTo(config -> assertEquals(throttles, config.getThrottles())),
+                // Both operations must pass authorization to check whether the channel exists.
+                clprDeleteChannel()
+                        .channelId(missingChannelId)
+                        .payingWith(admin)
+                        .signedBy(GENESIS)
+                        .hasKnownStatus(CLPR_CHANNEL_NOT_FOUND),
+                clprEvictPeerEndpoint()
+                        .channelId(missingChannelId)
+                        .endpoint("203.0.113.1", 50211)
+                        .payingWith(admin)
+                        .signedBy(GENESIS)
+                        .hasKnownStatus(CLPR_CHANNEL_NOT_FOUND));
     }
 
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
@@ -72,6 +108,32 @@ public class ClprUpdateLedgerConfigurationSuite {
                         .build())
                 .payingWith(GENESIS)
                 .hasPrecheck(INVALID_CLPR_CONFIGURATION));
+    }
+
+    @LeakyHapiTest(
+            requirement = PROPERTY_OVERRIDES,
+            overrides = {"contracts.maxGasPerTransaction"})
+    final Stream<DynamicTest> rejectsMaxGasPerMessageAboveMaxGasPerTransaction() {
+        // Inbound messages are dispatched with max_gas_per_message gas, and a contract call above
+        // contracts.maxGasPerTransaction is refused, so such a value would fail every inbound message.
+        final var maxGasPerTransaction = 15_000_000L;
+        final var atCap = HapiClprUpdateLedgerConfiguration.defaultThrottles().toBuilder()
+                .setMaxGasPerMessage(maxGasPerTransaction)
+                .build();
+        final var aboveCap =
+                atCap.toBuilder().setMaxGasPerMessage(maxGasPerTransaction + 1).build();
+        return hapiTest(
+                overriding("contracts.maxGasPerTransaction", String.valueOf(maxGasPerTransaction)),
+                clprUpdateLedgerConfiguration()
+                        .serviceAddress(CLPR_SERVICE_ADDRESS_20)
+                        .throttles(atCap)
+                        .payingWith(GENESIS),
+                clprUpdateLedgerConfiguration()
+                        .serviceAddress(CLPR_SERVICE_ADDRESS_20)
+                        .throttles(aboveCap)
+                        .payingWith(GENESIS)
+                        .hasKnownStatus(INVALID_CLPR_CONFIGURATION),
+                clprGetLedgerConfiguration().exposingConfigTo(config -> assertEquals(atCap, config.getThrottles())));
     }
 
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)

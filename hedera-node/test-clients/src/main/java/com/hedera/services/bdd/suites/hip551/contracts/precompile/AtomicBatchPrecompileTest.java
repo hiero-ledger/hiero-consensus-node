@@ -1927,7 +1927,11 @@ class AtomicBatchPrecompileTest {
                                                 .hasKnownStatusFrom(CONTRACT_REVERT_EXECUTED))
                                 .hasKnownStatus(INNER_TRANSACTION_FAILED))),
                 childRecordsCheck(
-                        creationAttempt, CONTRACT_REVERT_EXECUTED, recordWith().status(MAX_CHILD_RECORDS_EXCEEDED)));
+                        creationAttempt,
+                        CONTRACT_REVERT_EXECUTED,
+                        // the rolled back hollow creation that fit under the limit is kept as a reverted child
+                        recordWith().revertedAccountCreation(),
+                        recordWith().status(MAX_CHILD_RECORDS_EXCEEDED)));
     }
 
     /**
@@ -2228,6 +2232,7 @@ class AtomicBatchPrecompileTest {
                                     MINIMUM_TO_COLLECT,
                                     OptionalLong.of(MAXIMUM_TO_COLLECT),
                                     TOKEN_TREASURY)),
+                    exposeTargetLedgerIdTo(targetLedgerId::set),
                     withOpContext((spec, opLog) -> allRunFor(
                             spec,
                             atomicBatchDefaultOperator(contractCall(
@@ -2242,7 +2247,6 @@ class AtomicBatchPrecompileTest {
                                     GET_INFORMATION_FOR_TOKEN,
                                     HapiParserUtil.asHeadlongAddress(
                                             asAddress(spec.registry().getTokenID(FUNGIBLE_TOKEN)))))),
-                    exposeTargetLedgerIdTo(targetLedgerId::set),
                     withOpContext((spec, opLog) -> {
                         final var getTokenInfoQuery = getTokenInfo(FUNGIBLE_TOKEN);
                         allRunFor(spec, getTokenInfoQuery);
@@ -2266,21 +2270,19 @@ class AtomicBatchPrecompileTest {
                                                                         ParsingConstants.FunctionType
                                                                                 .HAPI_GET_TOKEN_INFO)
                                                                 .withStatus(SUCCESS)
-                                                                .withTokenInfo(
-                                                                        buildBaseTokenInfo(
-                                                                                        spec,
-                                                                                        FUNGIBLE_TOKEN,
-                                                                                        SYMBOL,
-                                                                                        MEMO,
-                                                                                        spec.registry()
-                                                                                                .getAccountID(
-                                                                                                        TOKEN_TREASURY),
-                                                                                        spec.registry()
-                                                                                                .getKey(ADMIN_KEY),
-                                                                                        expirySecond,
-                                                                                        targetLedgerId.get(),
-                                                                                        TokenKycStatus.Revoked)
-                                                                                .build())))));
+                                                                .withTokenInfo(buildBaseTokenInfo(
+                                                                                spec,
+                                                                                FUNGIBLE_TOKEN,
+                                                                                SYMBOL,
+                                                                                MEMO,
+                                                                                spec.registry()
+                                                                                        .getAccountID(TOKEN_TREASURY),
+                                                                                spec.registry()
+                                                                                        .getKey(ADMIN_KEY),
+                                                                                expirySecond,
+                                                                                targetLedgerId.get(),
+                                                                                TokenKycStatus.Revoked)
+                                                                        .build())))));
                     }));
         }
 

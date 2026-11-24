@@ -12,7 +12,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 import org.apache.logging.log4j.Marker;
 import org.hiero.consensus.iss.detection.internal.DefaultIssDetector;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.otter.fixtures.logging.StructuredLog;
 import org.hiero.otter.fixtures.result.LogSubscriber;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
@@ -29,6 +29,7 @@ public class SingleNodeLogResultImpl implements SingleNodeLogResult {
 
     // This class may be used in a multithreaded context, so we use volatile to ensure visibility of state changes
     private volatile long startIndex = 0;
+    private volatile boolean cleared = false;
 
     /**
      * Creates a new instance of {@link SingleNodeLogResultImpl}.
@@ -154,5 +155,14 @@ public class SingleNodeLogResultImpl implements SingleNodeLogResult {
     @Override
     public void clear() {
         startIndex = collector.currentLogEntriesCount();
+        cleared = true;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean isCleared() {
+        return cleared;
     }
 }

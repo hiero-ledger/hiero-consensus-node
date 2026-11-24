@@ -7,7 +7,7 @@ import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.se
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthAccountCreationWithKeyAndCodeDelegation;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthHollowAccountCreation;
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.DISPATCH_ONLY_NOOP_FEE_CHARGING;
-import static com.hedera.node.app.spi.workflows.DispatchOptions.setupDispatch;
+import static com.hedera.node.app.spi.workflows.DispatchOptions.reversibleSetupDispatch;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.stepDispatch;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 import static java.util.Objects.requireNonNull;
@@ -32,6 +32,7 @@ import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.token.records.CryptoCreateStreamBuilder;
+import com.hedera.node.app.spi.key.KeyRequirement;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -153,7 +154,7 @@ public class HandleHederaNativeOperations implements HederaNativeOperations {
      */
     @Override
     public @NonNull ResponseCodeEnum createHollowAccount(@NonNull final Bytes evmAddress) {
-        final var dispatchOpts = setupDispatch(
+        final var dispatchOpts = reversibleSetupDispatch(
                 context.payer(),
                 TransactionBody.newBuilder()
                         .cryptoCreateAccount(synthHollowAccountCreation(evmAddress, unlimitedAutoAssociationsEnabled()))
@@ -236,8 +237,9 @@ public class HandleHederaNativeOperations implements HederaNativeOperations {
             final AccountID toEntityId,
             @NonNull final VerificationStrategy strategy) {
         final var to = requireNonNull(getAccount(toEntityId));
-        final var signatureTest = strategy.asSignatureTestIn(context, maybeEthSenderKey);
-        if (to.receiverSigRequired() && !signatureTest.test(to.keyOrThrow())) {
+        final var signatureTest = strategy.asRequirementTestIn(context, maybeEthSenderKey);
+        if (to.receiverSigRequired()
+                && !signatureTest.test(KeyRequirement.forAccount(to.accountIdOrThrow(), to.keyOrThrow()))) {
             return INVALID_SIGNATURE;
         }
         final var tokenServiceApi = context.storeFactory().serviceApi(TokenServiceApi.class);

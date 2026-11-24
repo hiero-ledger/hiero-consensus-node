@@ -61,6 +61,7 @@ import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractUpdateSuite.ADMIN_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_BYTECODE_EMPTY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_EXECUTION_EXCEPTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ERROR_DECODING_BYTESTRING;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
@@ -545,7 +546,7 @@ class AtomicContractCreateSuite {
                 atomicBatch(contractCreate("contract")
                                 .bytecode("bytecode")
                                 .payingWith(ACCOUNT)
-                                .hasKnownStatus(INSUFFICIENT_GAS)
+                                .hasKnownStatus(CONTRACT_EXECUTION_EXCEPTION)
                                 // refuse eth conversion because we can't set invalid bytecode to callData in ethereum
                                 // transaction
                                 .refusingEthConversion()

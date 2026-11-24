@@ -21,6 +21,7 @@ open module com.hedera.node.app.test.fixtures {
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.metrics;
+    requires transitive org.hiero.consensus.main.model;
     requires transitive org.hiero.consensus.model;
     requires com.hedera.node.app.hapi.utils;
     requires com.hedera.node.app.service.entityid.impl;

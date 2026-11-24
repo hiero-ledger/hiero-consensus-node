@@ -3,7 +3,7 @@ package org.hiero.otter.fixtures.network;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
-import org.hiero.otter.fixtures.Node;
+import org.hiero.otter.fixtures.MiniNode;
 
 /**
  * Represents a network partition containing a group of nodes.
@@ -19,7 +19,7 @@ public interface Partition {
      * @return an unmodifiable set of nodes in this partition
      */
     @NonNull
-    Set<Node> nodes();
+    Set<MiniNode> nodes();
 
     /**
      * Checks if the partition contains the specified node.
@@ -27,7 +27,7 @@ public interface Partition {
      * @param node the node to check
      * @return true if the node is in this partition
      */
-    boolean contains(@NonNull final Node node);
+    boolean contains(@NonNull final MiniNode node);
 
     /**
      * Gets the number of nodes in this partition.

@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.roster;
 
+import static com.hedera.hapi.util.HapiUtils.asReadableIp;
 import static java.util.Objects.requireNonNull;
 
+import com.google.common.base.CharMatcher;
+import com.google.common.net.InetAddresses;
+import com.google.common.net.InternetDomainName;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.addressbook.Node;
@@ -16,28 +20,28 @@ import java.nio.charset.StandardCharsets;
 
 /**
  * Builds a single node's {@link ClprEndpoint} from a mix of the platform's authoritative
- * address book (the node's IP) and this node's <em>local</em> CLPR mTLS configuration (the
- * sync port and CA certificate). Used by the reconciler's self-publication path
+ * address book (the node's IP address or, when {@code clpr.publishDnsEndpoints} is set, its domain name) and
+ * this node's <em>local</em> HAPI TLS configuration (the
+ * HAPI TLS port and certificate). Used by the reconciler's self-publication path
  * ({@code openConstructionIfSelfChanged} / {@code contributeSelfToConstruction}): each node derives
  * <b>its own</b> CLPR endpoint and publishes it via {@code ClprEndpointPublication}.
  *
- * <p><b>Self-only.</b> Because the mTLS port ({@code clpr.mtlsPort}) and the CA certificate
- * ({@code clpr.caCrtPath}) are node-local — not carried in the consensus address book — this
- * builder can only produce a faithful endpoint for the running node, whose {@code mtlsPort}
- * and {@code selfCaCertDer} the caller supplies. Peers' endpoints arrive via their own
+ * <p><b>Self-only.</b> Because the HAPI TLS port ({@code grpc.tlsPort}) and certificate
+ * ({@code netty.tlsCrtPath}) are node-local — not carried in the consensus address book — this
+ * builder can only produce a faithful endpoint for the running node, whose {@code tlsPort}
+ * and {@code tlsCertificateDer} the caller supplies. Peers' endpoints arrive via their own
  * publications, not through this builder.
  *
- * <p>Fields (aligned with the mTLS two-tier cert model, spec §4.4 / PR #316):
+ * <p>CLPR {@code sync} is served on the HAPI ports. Fields:
  * <ul>
- *   <li>{@code service_endpoint.ip_address} = the node's first address-book service endpoint
- *       (IPv4 literal or domain name).</li>
- *   <li>{@code service_endpoint.port} — when mTLS is enabled, {@code clpr.mtlsPort} (the
- *       dedicated mutual-auth CLPR sync listener); when mTLS is <b>not</b> configured, the node
- *       falls back to its address-book HAPI gRPC port, on which plaintext {@code sync} still
- *       runs (mtls.md "Listener topology").</li>
- *   <li>{@code tls_certificate} = the DER-encoded ECDSA P-384 <b>CA</b> certificate peers pin as
- *       the trust anchor when mTLS is enabled, or empty when mTLS is not configured (dev/test) —
- *       an empty cert is a valid endpoint and signals the plaintext path.</li>
+ *   <li>{@code service_endpoint.ip_address} holds the host: the first eligible HAPI endpoint in address-book
+ *       order. A domain name is eligible only when {@code clpr.publishDnsEndpoints} is set.</li>
+ *   <li>{@code service_endpoint.port} — when the node has a HAPI TLS certificate, {@code grpc.tlsPort}
+ *       (the HAPI TLS listener); otherwise the node falls back to its address-book HAPI gRPC port, on
+ *       which plaintext {@code sync} runs.</li>
+ *   <li>{@code tls_certificate} = the DER-encoded HAPI TLS certificate, or empty when the node has none
+ *       (dev/test). Peers use it only as the signal to dial over TLS; they do not verify it. An empty
+ *       cert is a valid endpoint and signals the plaintext path.</li>
  *   <li>{@code account_id} = the node operator account, serialized via
  *       {@link AccountID#PROTOBUF}.</li>
  * </ul>
@@ -48,78 +52,96 @@ public final class ClprEndpointBuilder {
 
     /**
      * Build the {@link ClprEndpoint} for the given (self) node, or return {@code null} if the
-     * node is missing / deleted / lacks an address-book service endpoint. A {@code null} result
+     * node is missing / deleted / lacks an eligible HAPI service endpoint. A {@code null} result
      * means the reconciler should not attempt to publish for this node.
      *
      * @param nodeId the node whose endpoint to build (expected to be the running node)
-     * @param nodeStore address book (source of the node's IP and HAPI-port fallback)
-     * @param mtlsEnabled whether this node has CLPR mTLS configured ({@code clpr.caCrtPath} set).
-     *     When {@code false} the endpoint falls back to plaintext: the HAPI gRPC port and an empty
-     *     certificate.
-     * @param mtlsPort the {@code clpr.mtlsPort} to advertise as the CLPR sync port when
-     *     {@code mtlsEnabled}
-     * @param selfCaCertDer the DER-encoded ECDSA CA certificate to advertise when
-     *     {@code mtlsEnabled}; ignored (empty is published) otherwise
+     * @param nodeStore address book (source of the node's host and HAPI-port fallback)
+     * @param tlsPort the {@code grpc.tlsPort} to advertise as the CLPR sync port when
+     *     {@code tlsCertificateDer} is non-empty
+     * @param tlsCertificateDer the DER-encoded HAPI TLS certificate to advertise, or empty when this
+     *     node has none; the endpoint then falls back to plaintext on the address-book HAPI gRPC port
+     * @param publishDnsEndpoints whether a domain-name endpoint is eligible
      */
     @Nullable
     public static ClprEndpoint buildFor(
             final long nodeId,
             @NonNull final ReadableNodeStore nodeStore,
-            final boolean mtlsEnabled,
-            final int mtlsPort,
-            @NonNull final Bytes selfCaCertDer) {
+            final int tlsPort,
+            @NonNull final Bytes tlsCertificateDer,
+            final boolean publishDnsEndpoints) {
         requireNonNull(nodeStore);
-        requireNonNull(selfCaCertDer);
+        requireNonNull(tlsCertificateDer);
         final var node = nodeStore.get(nodeId);
-        if (node == null || node.deleted() || node.serviceEndpoint().isEmpty()) {
+        if (node == null || node.deleted()) {
             return null;
         }
-        return buildEndpoint(node, mtlsEnabled, mtlsPort, selfCaCertDer);
-    }
-
-    private static ClprEndpoint buildEndpoint(
-            @NonNull final Node node,
-            final boolean mtlsEnabled,
-            final int mtlsPort,
-            @NonNull final Bytes selfCaCertDer) {
-        final ServiceEndpoint hapiEndpoint = node.serviceEndpoint().getFirst();
-        // mTLS on: advertise the dedicated mutual-auth sync port + CA cert. mTLS off: plaintext
-        // sync stays on the HAPI gRPC port and no certificate is advertised.
-        final int port = mtlsEnabled ? mtlsPort : hapiEndpoint.port();
-        final Bytes tlsCertificate = mtlsEnabled ? selfCaCertDer : Bytes.EMPTY;
+        final var hapiEndpoint = firstEndpoint(node, publishDnsEndpoints);
+        if (hapiEndpoint == null) {
+            return null;
+        }
+        // HAPI TLS certificate present: advertise the HAPI TLS port. Absent: plaintext sync on the
+        // address-book HAPI gRPC port.
+        final int port = tlsCertificateDer.length() > 0 ? tlsPort : hapiEndpoint.port();
         return ClprEndpoint.newBuilder()
                 .serviceEndpoint(ClprServiceEndpoint.newBuilder()
-                        .ipAddress(ipOf(hapiEndpoint))
+                        .ipAddress(hostOf(hapiEndpoint))
                         .port(port)
                         .build())
-                .tlsCertificate(tlsCertificate)
+                .tlsCertificate(tlsCertificateDer)
                 .accountId(AccountID.PROTOBUF.toBytes(node.accountIdOrElse(AccountID.DEFAULT)))
                 .build();
     }
 
     /**
-     * The IP address string this builder would advertise for {@code nodeId}, derived from the
+     * The host string this builder would advertise for {@code nodeId}, derived from the
      * address book exactly as {@link #buildFor} does, or {@code null} if the node is missing /
-     * deleted / has no service endpoint. This is the only part of a peer's endpoint that is
-     * derivable from the shared address book (the mTLS port and CA cert are node-local), so the
+     * deleted / has no eligible HAPI service endpoint. This is the only part of a peer's endpoint that is
+     * derivable from the shared address book (the HAPI TLS port and certificate are node-local), so the
      * reconciler uses it as the address-book-derivable identity for its open-construction trigger.
      */
     @Nullable
-    public static String ipAddressOf(final long nodeId, @NonNull final ReadableNodeStore nodeStore) {
+    public static String hostOf(
+            final long nodeId, @NonNull final ReadableNodeStore nodeStore, final boolean publishDnsEndpoints) {
         requireNonNull(nodeStore);
         final var node = nodeStore.get(nodeId);
-        if (node == null || node.deleted() || node.serviceEndpoint().isEmpty()) {
+        if (node == null || node.deleted()) {
             return null;
         }
-        return ipOf(node.serviceEndpoint().getFirst());
+        final var hapiEndpoint = firstEndpoint(node, publishDnsEndpoints);
+        return hapiEndpoint == null ? null : hostOf(hapiEndpoint);
     }
 
-    private static String ipOf(@NonNull final ServiceEndpoint hapi) {
-        return hapi.ipAddressV4().length() == 4 ? formatIpv4(hapi.ipAddressV4()) : hapi.domainName();
+    @Nullable
+    private static ServiceEndpoint firstEndpoint(@NonNull final Node node, final boolean publishDnsEndpoints) {
+        for (final var endpoint : node.serviceEndpoint()) {
+            if (endpoint.ipAddressV4().length() == 4 || (publishDnsEndpoints && isDnsHostname(endpoint.domainName()))) {
+                return endpoint;
+            }
+        }
+        return null;
+    }
+
+    /** Whether the publication carries a host that the numeric-only manifest policy excludes. */
+    public static boolean hasNonNumericHost(@NonNull final ClprEndpoint endpoint) {
+        final var svc = endpoint.serviceEndpoint();
+        return svc != null && !svc.ipAddress().isEmpty() && !InetAddresses.isInetAddress(svc.ipAddress());
+    }
+
+    /** Shared syntax check for address-book publication and outbound DNS lookup. */
+    public static boolean isDnsHostname(@NonNull final String host) {
+        return host.length() <= 253
+                && CharMatcher.ascii().matchesAllOf(host)
+                && host.indexOf('_') < 0
+                && InternetDomainName.isValid(host);
+    }
+
+    private static String hostOf(final ServiceEndpoint endpoint) {
+        return endpoint.ipAddressV4().length() == 4 ? asReadableIp(endpoint.ipAddressV4()) : endpoint.domainName();
     }
 
     /**
-     * Ledger-neutral identity of an endpoint: the IP address when present, otherwise the TLS
+     * Ledger-neutral identity of an endpoint: the host (IP address or domain name) when present, otherwise the TLS
      * certificate. Used for deterministic sorting of manifest entries — <b>not</b> for change
      * detection (that must compare the full endpoint, since a cert- or port-only change keeps the
      * same identity). Account-id-free.
@@ -131,10 +153,5 @@ public final class ClprEndpointBuilder {
             return Bytes.wrap(svc.ipAddress().getBytes(StandardCharsets.UTF_8));
         }
         return endpoint.tlsCertificate();
-    }
-
-    private static String formatIpv4(@NonNull final Bytes ipv4) {
-        final byte[] bytes = ipv4.toByteArray();
-        return (bytes[0] & 0xff) + "." + (bytes[1] & 0xff) + "." + (bytes[2] & 0xff) + "." + (bytes[3] & 0xff);
     }
 }

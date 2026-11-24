@@ -95,7 +95,9 @@ jobs:
         with:
           check_name: "Node: Unit Test Results"
           json_thousands_separator: ","
-          junit_files: "**/build/test-results/test/TEST-*.xml"
+          junit_files: |
+            **/build/test-results/test/TEST-*.xml
+            **/build/test-results/unitTest/TEST-*.xml
           comment_mode: errors # only comment if we could not find or parse the JUnit XML files
 
       - name: Upload Unit Test Report Artifacts
@@ -103,7 +105,9 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: Unit Test Report
-          path: "**/build/test-results/test/TEST-*.xml"
+          path: |
+            **/build/test-results/test/TEST-*.xml
+            **/build/test-results/unitTest/TEST-*.xml
           retention-days: 7
 
       - name: Publish To Codecov
@@ -113,11 +117,13 @@ jobs:
           token: ${{ secrets.codecov-token }}
           directory: ./gradle/aggregation/build/reports/jacoco-xml
 
+      # Public repository only: a copy that isn't public has no Codacy project token, and the reporter fails
+      # without one.
       - name: Publish to Codacy
         id: publish-codacy
         env:
           CODACY_PROJECT_TOKEN: ${{ secrets.codacy-project-token }}
-        if: ${{ !github.event.pull_request.head.repo.fork }}
+        if: ${{ !github.event.pull_request.head.repo.fork && github.event.repository.visibility == 'public' }}
         run: bash <(curl -Ls https://coverage.codacy.com/get.sh) report -l Java $(find gradle/aggregation/build/reports/jacoco-xml/*.xml -printf '-r %p ')
 
       - name: Upload Test Reports

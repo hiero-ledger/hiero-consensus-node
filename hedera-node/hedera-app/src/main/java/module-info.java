@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 module com.hedera.node.app {
     exports com.hedera.node.app.authorization;
+    exports com.hedera.node.app.blocks.failure;
     exports com.hedera.node.app.blocks.impl.streaming.config;
     exports com.hedera.node.app.blocks.impl.streaming.obs;
     exports com.hedera.node.app.blocks.impl.streaming;
@@ -79,6 +80,7 @@ module com.hedera.node.app {
     requires transitive com.hedera.node.app.service.contract.impl;
     requires transitive com.hedera.node.app.service.entityid;
     requires transitive com.hedera.node.app.service.file.impl;
+    requires transitive com.hedera.node.app.service.file;
     requires transitive com.hedera.node.app.service.network.admin.impl;
     requires transitive com.hedera.node.app.service.roster.impl;
     requires transitive com.hedera.node.app.service.schedule.impl;
@@ -99,6 +101,7 @@ module com.hedera.node.app {
     requires transitive com.swirlds.virtualmap;
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
+    requires transitive org.hiero.consensus.main.model;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.platformstate;
     requires transitive org.hiero.consensus.utility;
@@ -108,7 +111,6 @@ module com.hedera.node.app {
     requires transitive io.helidon.common.tls;
     requires transitive io.helidon.webclient.grpc;
     requires transitive io.helidon.webclient.http2;
-    requires transitive java.net.http;
     requires transitive javax.inject;
     requires transitive org.apache.logging.log4j;
     requires transitive org.hyperledger.besu.datatypes;
@@ -116,7 +118,6 @@ module com.hedera.node.app {
     requires com.hedera.node.app.service.consensus;
     requires com.hedera.node.app.service.contract;
     requires com.hedera.node.app.service.entityid.impl;
-    requires com.hedera.node.app.service.file;
     requires com.hedera.node.app.service.network.admin;
     requires com.hedera.node.app.service.roster;
     requires com.hedera.node.app.service.util;
@@ -139,8 +140,6 @@ module com.hedera.node.app {
     requires io.netty.transport.classes.epoll;
     requires io.netty.transport;
     requires org.apache.commons.lang3;
-    requires org.bouncycastle.pkix;
-    requires org.bouncycastle.provider;
     requires static transitive com.github.spotbugs.annotations;
     requires static java.compiler;
 

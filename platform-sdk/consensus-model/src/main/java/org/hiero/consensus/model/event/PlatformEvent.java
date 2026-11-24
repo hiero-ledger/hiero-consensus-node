@@ -13,17 +13,15 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Hashable;
-import org.hiero.base.iterator.TypedIterator;
+import org.hiero.consensus.main.model.ConsensusEvent;
+import org.hiero.consensus.main.model.EventDescriptorWrapper;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
-import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.transaction.ConsensusTransaction;
-import org.hiero.consensus.model.transaction.Transaction;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 
 /**
@@ -146,8 +144,8 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     }
 
     /**
-     * Create a copy of this event while populating only the data received via gossip. Consensus data will not be
-     * copied.
+     * Create a copy of this event while populating only the data received via gossip, the hash, and the origin.
+     * Consensus data will not be copied.
      *
      * @return a copy of this event
      */
@@ -174,12 +172,20 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     }
 
     /**
-     * {{ @inheritDoc }}
+     * {@inheritDoc}
      */
     @Override
     @NonNull
     public Bytes getSignature() {
         return gossipEvent.signature();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean isPcesEvent() {
+        return EventOrigin.STORAGE == origin;
     }
 
     /**
@@ -189,18 +195,17 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
         return metadata.getDescriptor();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    public Iterator<Transaction> transactionIterator() {
-        return new TypedIterator<>(metadata.getTransactions().iterator());
-    }
-
-    @Override
+    @NonNull
     public Instant getTimeCreated() {
         return metadata.getTimeCreated();
     }
 
     /**
-     * {{@inheritDoc}}
+     * {@inheritDoc}
      */
     @NonNull
     @Override
@@ -208,6 +213,9 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
         return gossipEvent.eventCoreOrThrow();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @NonNull
     @Override
     public NodeId getCreatorId() {
@@ -290,7 +298,8 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
      *
      * @return the time this event was received
      */
-    public @NonNull Instant getTimeReceived() {
+    @NonNull
+    public Instant getTimeReceived() {
         return timeReceived;
     }
 
@@ -309,7 +318,8 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
      *
      * @return the time this event left the last measured stage
      */
-    public @NonNull Instant getLastStageTime() {
+    @NonNull
+    public Instant getLastStageTime() {
         return lastStageTime;
     }
 
@@ -330,7 +340,8 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
      *
      * @return the times the transactions without priority were received
      */
-    public @NonNull List<Instant> getTransactionReceivedTimes() {
+    @NonNull
+    public List<Instant> getTransactionReceivedTimes() {
         return transactionReceivedTimes;
     }
 
@@ -367,11 +378,6 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     @Nullable
     public Instant getConsensusTimestamp() {
         return consensusTimestamp;
-    }
-
-    @Override
-    public @NonNull Iterator<ConsensusTransaction> consensusTransactionIterator() {
-        return new TypedIterator<>(metadata.getTransactions().iterator());
     }
 
     /**
@@ -414,6 +420,8 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
         }
     }
 
+    @Override
+    @NonNull
     public List<TransactionWrapper> getTransactions() {
         return metadata.getTransactions();
     }
@@ -479,7 +487,7 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
         return metadata.hasOtherParents();
     }
 
-    /** @return a list of all parents, self parent (if any), + all other parents */
+    /** @return an immutable list of all parents, self parent (if any), + all other parents */
     @NonNull
     public List<EventDescriptorWrapper> getAllParents() {
         return metadata.getAllParents();
@@ -558,12 +566,6 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     @Override
     public Hash getHash() {
         return metadata.getHash();
-    }
-
-    @NonNull
-    @Override
-    public Iterator<EventDescriptorWrapper> allParentsIterator() {
-        return new TypedIterator<>(metadata.getAllParents().iterator());
     }
 
     @Override

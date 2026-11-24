@@ -129,6 +129,8 @@ public abstract class BlockNodeCommunicationTestBase {
                 blockNumber, BlockItem.PROTOBUF.toBytes(item), item.item().kind());
     }
 
+    protected static int MAX_OBSERVER_IDLE_SECONDS = 5;
+
     protected TestConfigBuilder createDefaultConfigProvider() {
         final var configPath = Objects.requireNonNull(
                         BlockNodeCommunicationTestBase.class.getClassLoader().getResource("bootstrap/"))
@@ -136,11 +138,14 @@ public abstract class BlockNodeCommunicationTestBase {
         assertThat(Files.exists(Path.of(configPath))).isTrue();
 
         return HederaTestConfigBuilder.create()
+                .withValue("blockStream.blockPeriod", "2s")
+                .withValue("blockStream.buffer.minAcksRequiredPerBlock", 1)
                 .withValue("blockStream.writerMode", "FILE_AND_GRPC")
                 .withValue("blockNode.blockNodeConnectionFileDir", configPath)
                 .withValue("blockNode.highLatencyEventsBeforeSwitching", 3)
                 .withValue("blockNode.highLatencyThresholdMs", 500)
-                .withValue("blockNode.streamResetPeriodJitter", "0s");
+                .withValue("blockNode.streamResetPeriodJitter", "0s")
+                .withValue("blockNode.maxObserverIdleSeconds", MAX_OBSERVER_IDLE_SECONDS);
     }
 
     protected ConfigProvider createConfigProvider(final TestConfigBuilder configBuilder) {

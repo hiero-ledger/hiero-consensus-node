@@ -64,8 +64,8 @@ class CryptoDeleteAllowanceFeeCalculatorTest {
             // When
             final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
 
-            // Then: Base fee (500000000) with 1 allowance included (includedCount=1)
-            assertThat(result.getServiceTotalTinycents()).isEqualTo(500000000L);
+            // Then: 3 serials count as 3 allowances, so base fee (500000000) + 2 extras (1000000000)
+            assertThat(result.getServiceTotalTinycents()).isEqualTo(1500000000L);
             assertThat(result.getNodeTotalTinycents()).isEqualTo(100000L);
             assertThat(result.getNetworkTotalTinycents()).isEqualTo(900000L);
         }
@@ -99,8 +99,8 @@ class CryptoDeleteAllowanceFeeCalculatorTest {
             // When
             final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
 
-            // Then: Base fee (500000000) + 2 extra allowances (2 * 500000000 = 1000000000)
-            assertThat(result.getServiceTotalTinycents()).isEqualTo(1500000000L);
+            // Then: 6 serials in total, so base fee (500000000) + 5 extras (5 * 500000000 = 2500000000)
+            assertThat(result.getServiceTotalTinycents()).isEqualTo(3000000000L);
         }
 
         @Test

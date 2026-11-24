@@ -23,15 +23,16 @@ import org.hiero.base.crypto.SigningSchema;
 import org.hiero.consensus.event.NoOpIntakeEventCounter;
 import org.hiero.consensus.event.creator.impl.DefaultEventCreationManager;
 import org.hiero.consensus.event.creator.impl.EventCreator;
+import org.hiero.consensus.event.creator.impl.tipset.DefaultTipsetTracker;
 import org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator;
+import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.main.model.TimestampedTransaction;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.RosterEntryWrapper;
 import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory;
-import org.hiero.consensus.model.transaction.TimestampedTransaction;
 import org.hiero.consensus.orphan.DefaultOrphanBuffer;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.consensus.test.fixtures.WeightGenerators;
@@ -77,6 +78,7 @@ public class EventCreatorNetwork {
             final KeyPair keyPair = SigningFactory.generateKeyPair(SigningSchema.ED25519, nodeRandom);
             final BytesSigner signer = SigningFactory.createSigner(SigningImplementation.ED25519_SODIUM, keyPair);
 
+            final DefaultTipsetTracker tipsetTracker = new DefaultTipsetTracker(time, nodeId, roster);
             final EventCreator eventCreator = new TipsetEventCreator(
                     configuration,
                     metrics,
@@ -85,7 +87,8 @@ public class EventCreatorNetwork {
                     signer,
                     roster,
                     nodeId,
-                    () -> List.of(new TimestampedTransaction(Bytes.EMPTY, time.now())));
+                    () -> List.of(new TimestampedTransaction(Bytes.EMPTY, time.now())),
+                    tipsetTracker);
 
             final DefaultEventCreationManager eventCreationManager = new DefaultEventCreationManager(
                     configuration, metrics, time, () -> false, eventCreator, roster, nodeId);

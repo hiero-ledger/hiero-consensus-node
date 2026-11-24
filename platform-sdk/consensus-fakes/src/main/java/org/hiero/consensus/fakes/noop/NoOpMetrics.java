@@ -13,8 +13,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import org.hiero.consensus.fakes.noop.internal.NoOpMetricsFactory;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.metrics.PlatformMetrics;
-import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A no-op {@link Metrics} implementation.

@@ -5,7 +5,7 @@ import java.net.SocketException;
 import org.hiero.consensus.gossip.impl.gossip.sync.SyncInputStream;
 import org.hiero.consensus.gossip.impl.gossip.sync.SyncOutputStream;
 import org.hiero.consensus.gossip.impl.network.Connection;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * An implementation of {@link Connection} that is used to avoid returning null if there is no connection. This

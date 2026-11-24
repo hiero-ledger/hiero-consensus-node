@@ -221,7 +221,7 @@ public class QueryHederaOperations implements HederaOperations {
      * @throws UnsupportedOperationException always
      */
     @Override
-    public void deleteAliasedContract(@NonNull Bytes evmAddress) {
+    public void deleteAliasedContract(@NonNull Bytes evmAddress, @NonNull AccountID beneficiaryId) {
         throw new UnsupportedOperationException("Queries cannot delete an contract");
     }
 
@@ -231,7 +231,7 @@ public class QueryHederaOperations implements HederaOperations {
      * @throws UnsupportedOperationException always
      */
     @Override
-    public void deleteUnaliasedContract(final long number) {
+    public void deleteUnaliasedContract(final long number, @NonNull AccountID beneficiaryId) {
         throw new UnsupportedOperationException("Queries cannot delete an contract");
     }
 

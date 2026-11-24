@@ -7,9 +7,8 @@ import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHAN
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.CLPR;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteConnector;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterChannel;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCreateChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprSubmitBundle;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprUpdateLedgerConfiguration;
@@ -17,6 +16,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
@@ -77,28 +77,26 @@ public class ClprNegativePeerSuite {
             overrides = {"clpr.minLockedStake"})
     @DisplayName("Malformed (raw) bundle → CLPR_BUNDLE_VERIFICATION_FAILED")
     final Stream<DynamicTest> malformedBundleRejected() {
-        final var crypto = new ClprChannelCrypto();
-        return hapiTest(
-                clprUpdateLedgerConfiguration()
-                        .configuration(defaultLedgerConfig())
-                        .payingWith(GENESIS),
-                uploadInitCode(VERIFIER_CONTRACT),
-                contractCreate(VERIFIER_CONTRACT),
-                clprRegisterChannel().ownershipCommitment(crypto.commitment()).payingWith(GENESIS),
-                clprCompleteChannel()
-                        .channelId(crypto.channelId())
-                        .publicKey(crypto.publicKey())
-                        .signature(crypto.signature())
-                        .signatureScheme(ClprSignatureScheme.ED25519)
-                        .verifierContract(VERIFIER_CONTRACT)
-                        .configProofBytes(toConfigProofBytes(defaultLedgerConfig()))
-                        .payingWith(GENESIS),
-                clprSubmitBundle()
-                        .channelId(crypto.channelId())
-                        .bundlePayload(bundleWithSwappedMessageOrder())
-                        .endpointNodeId(0L)
-                        .payingWith(GENESIS)
-                        .hasKnownStatus(CLPR_BUNDLE_VERIFICATION_FAILED));
+        return hapiTest(ClprChannelCrypto.withVerifier(
+                VERIFIER_CONTRACT, "hiero:testing", CLPR_SERVICE_ADDRESS_20, crypto -> {
+                    return blockingOrder(
+                            clprUpdateLedgerConfiguration()
+                                    .configuration(defaultLedgerConfig())
+                                    .payingWith(GENESIS),
+                            clprCreateChannel()
+                                    .channelId(crypto.channelId())
+                                    .salt(crypto.salt())
+                                    .peerVerifier(crypto.peerVerifier())
+                                    .verifierContract(VERIFIER_CONTRACT)
+                                    .configProofBytes(toConfigProofBytes(defaultLedgerConfig()))
+                                    .payingWith(GENESIS),
+                            clprSubmitBundle()
+                                    .channelId(crypto.channelId())
+                                    .bundlePayload(bundleWithSwappedMessageOrder())
+                                    .endpointNodeId(0L)
+                                    .payingWith(GENESIS)
+                                    .hasKnownStatus(CLPR_BUNDLE_VERIFICATION_FAILED));
+                }));
     }
 
     /** Spec §4.5 step 4: out-of-order replies → channel PAUSED (no bundle-level rejection). */
@@ -107,16 +105,18 @@ public class ClprNegativePeerSuite {
             overrides = {"clpr.minLockedStake"})
     @DisplayName("Out-of-order replies → channel PAUSED (spec §4.5)")
     final Stream<DynamicTest> outOfOrderReplies() {
-        final var crypto = new ClprChannelCrypto();
-        final var aSentRunningHash = new AtomicReference<byte[]>();
-        return hapiTest(concat(
-                setupChannelWithTwoSends(crypto, defaultLedgerConfig(), aSentRunningHash),
-                sourcing(() -> clprSubmitBundle()
-                        .channelId(crypto.channelId())
-                        .bundlePayload(bundleWithOutOfOrderReplies(aSentRunningHash.get()))
-                        .endpointNodeId(0L)
-                        .payingWith(GENESIS)),
-                requirePaused(crypto)));
+        return hapiTest(ClprChannelCrypto.withVerifier(
+                VERIFIER_CONTRACT, "hiero:testing", CLPR_SERVICE_ADDRESS_20, crypto -> {
+                    final var aSentRunningHash = new AtomicReference<byte[]>();
+                    return blockingOrder(concat(
+                            setupChannelWithTwoSends(crypto, defaultLedgerConfig(), aSentRunningHash),
+                            sourcing(() -> clprSubmitBundle()
+                                    .channelId(crypto.channelId())
+                                    .bundlePayload(bundleWithOutOfOrderReplies(aSentRunningHash.get()))
+                                    .endpointNodeId(0L)
+                                    .payingWith(GENESIS)),
+                            requirePaused(crypto)));
+                }));
     }
 
     /** Spec §4.5 PAUSED-recovery: after PAUSED, a well-formed reply bundle returns the channel to ACTIVE. */
@@ -125,22 +125,24 @@ public class ClprNegativePeerSuite {
             overrides = {"clpr.minLockedStake"})
     @DisplayName("PAUSED → ACTIVE recovery after a multi-message bundle (spec §4.5)")
     final Stream<DynamicTest> pausedToActiveRecoveryAfterMultiMessageBundle() {
-        final var crypto = new ClprChannelCrypto();
-        final var aSentRunningHash = new AtomicReference<byte[]>();
-        return hapiTest(concat(
-                setupChannelWithTwoSends(crypto, defaultLedgerConfig(), aSentRunningHash),
-                sourcing(() -> clprSubmitBundle()
-                        .channelId(crypto.channelId())
-                        .bundlePayload(bundleWithOutOfOrderReplies(aSentRunningHash.get()))
-                        .endpointNodeId(0L)
-                        .payingWith(GENESIS)),
-                requirePaused(crypto),
-                sourcing(() -> clprSubmitBundle()
-                        .channelId(crypto.channelId())
-                        .bundlePayload(bundleWithCorrectlyOrderedReplies(aSentRunningHash.get()))
-                        .endpointNodeId(0L)
-                        .payingWith(GENESIS)),
-                requireActive(crypto)));
+        return hapiTest(ClprChannelCrypto.withVerifier(
+                VERIFIER_CONTRACT, "hiero:testing", CLPR_SERVICE_ADDRESS_20, crypto -> {
+                    final var aSentRunningHash = new AtomicReference<byte[]>();
+                    return blockingOrder(concat(
+                            setupChannelWithTwoSends(crypto, defaultLedgerConfig(), aSentRunningHash),
+                            sourcing(() -> clprSubmitBundle()
+                                    .channelId(crypto.channelId())
+                                    .bundlePayload(bundleWithOutOfOrderReplies(aSentRunningHash.get()))
+                                    .endpointNodeId(0L)
+                                    .payingWith(GENESIS)),
+                            requirePaused(crypto),
+                            sourcing(() -> clprSubmitBundle()
+                                    .channelId(crypto.channelId())
+                                    .bundlePayload(bundleWithCorrectlyOrderedReplies(aSentRunningHash.get()))
+                                    .endpointNodeId(0L)
+                                    .payingWith(GENESIS)),
+                            requireActive(crypto)));
+                }));
     }
 
     /**
@@ -152,29 +154,31 @@ public class ClprNegativePeerSuite {
             overrides = {"clpr.minLockedStake", "clpr.connectorQueueQuotaPct"})
     @DisplayName("Queue-full during multi-message inbound: reply enqueues bypass cap, app sends blocked")
     final Stream<DynamicTest> queueFullDuringMultiMessageInbound() {
-        final var crypto = new ClprChannelCrypto();
-        final var aSentRunningHash = new AtomicReference<byte[]>();
-        // 2 sends fit under cap=4; the bundle's 2 reply enqueues push next_message_id to 5.
-        final int tightQueueDepth = 4;
-        return hapiTest(concat(
-                new SpecOperation[] {
-                    // 100% disables the per-connector quota so the depth cap isn't masked by §8.11.
-                    overriding("clpr.connectorQueueQuotaPct", "100"),
-                },
-                setupChannelWithTwoSends(crypto, defaultLedgerConfig(tightQueueDepth), aSentRunningHash),
-                sourcing(() -> clprSubmitBundle()
-                        .channelId(crypto.channelId())
-                        .bundlePayload(bundleWithTwoDataMessagesUnknownConnector(aSentRunningHash.get()))
-                        .endpointNodeId(0L)
-                        .payingWith(GENESIS)),
-                withOpContext((spec, opLog) -> {
-                    final var conn = readChannel(spec, crypto);
-                    if (conn.nextMessageId() <= tightQueueDepth) {
-                        throw new AssertionError("Expected next_message_id > " + tightQueueDepth
-                                + " after reply enqueues; was " + conn.nextMessageId());
-                    }
-                }),
-                sendMessageOp(crypto, "msg-blocked").hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
+        return hapiTest(ClprChannelCrypto.withVerifier(
+                VERIFIER_CONTRACT, "hiero:testing", CLPR_SERVICE_ADDRESS_20, crypto -> {
+                    final var aSentRunningHash = new AtomicReference<byte[]>();
+                    // 2 sends fit under cap=4; the bundle's 2 reply enqueues push next_message_id to 5.
+                    final int tightQueueDepth = 4;
+                    return blockingOrder(concat(
+                            new SpecOperation[] {
+                                // 100% disables the per-connector quota so the depth cap isn't masked by §8.11.
+                                overriding("clpr.connectorQueueQuotaPct", "100"),
+                            },
+                            setupChannelWithTwoSends(crypto, defaultLedgerConfig(tightQueueDepth), aSentRunningHash),
+                            sourcing(() -> clprSubmitBundle()
+                                    .channelId(crypto.channelId())
+                                    .bundlePayload(bundleWithTwoDataMessagesUnknownConnector(aSentRunningHash.get()))
+                                    .endpointNodeId(0L)
+                                    .payingWith(GENESIS)),
+                            withOpContext((spec, opLog) -> {
+                                final var conn = readChannel(spec, crypto);
+                                if (conn.nextMessageId() <= tightQueueDepth) {
+                                    throw new AssertionError("Expected next_message_id > " + tightQueueDepth
+                                            + " after reply enqueues; was " + conn.nextMessageId());
+                                }
+                            }),
+                            sendMessageOp(crypto, "msg-blocked").hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
+                }));
     }
 
     /** Step 8's non-resetting {@code responseIndex} must skip the Data slot between two replies. */
@@ -183,16 +187,18 @@ public class ClprNegativePeerSuite {
             overrides = {"clpr.minLockedStake"})
     @DisplayName("Interleaved Data+Reply in same bundle → channel stays ACTIVE")
     final Stream<DynamicTest> interleavedDataAndReplyInSameBundle() {
-        final var crypto = new ClprChannelCrypto();
-        final var aSentRunningHash = new AtomicReference<byte[]>();
-        return hapiTest(concat(
-                setupChannelWithTwoSends(crypto, defaultLedgerConfig(), aSentRunningHash),
-                sourcing(() -> clprSubmitBundle()
-                        .channelId(crypto.channelId())
-                        .bundlePayload(bundleInterleavedDataAndReply(aSentRunningHash.get()))
-                        .endpointNodeId(0L)
-                        .payingWith(GENESIS)),
-                requireActive(crypto)));
+        return hapiTest(ClprChannelCrypto.withVerifier(
+                VERIFIER_CONTRACT, "hiero:testing", CLPR_SERVICE_ADDRESS_20, crypto -> {
+                    final var aSentRunningHash = new AtomicReference<byte[]>();
+                    return blockingOrder(concat(
+                            setupChannelWithTwoSends(crypto, defaultLedgerConfig(), aSentRunningHash),
+                            sourcing(() -> clprSubmitBundle()
+                                    .channelId(crypto.channelId())
+                                    .bundlePayload(bundleInterleavedDataAndReply(aSentRunningHash.get()))
+                                    .endpointNodeId(0L)
+                                    .payingWith(GENESIS)),
+                            requireActive(crypto)));
+                }));
     }
 
     // ── Setup helpers ────────────────────────────────────────────────────────
@@ -209,23 +215,22 @@ public class ClprNegativePeerSuite {
         return new SpecOperation[] {
             overriding("clpr.minLockedStake", "100"),
             clprUpdateLedgerConfiguration().configuration(config).payingWith(GENESIS),
-            uploadInitCode(VERIFIER_CONTRACT),
-            contractCreate(VERIFIER_CONTRACT),
             uploadInitCode(CONNECTOR_CONTRACT),
             contractCreate(CONNECTOR_CONTRACT),
             uploadInitCode(CLPR_CONTRACT),
             contractCreate(CLPR_CONTRACT),
             cryptoCreate("caller").balance(ONE_HUNDRED_HBARS),
-            clprRegisterChannel().ownershipCommitment(crypto.commitment()).payingWith(GENESIS),
-            clprCompleteChannel()
+            clprCreateChannel()
                     .channelId(crypto.channelId())
-                    .publicKey(crypto.publicKey())
-                    .signature(crypto.signature())
-                    .signatureScheme(ClprSignatureScheme.ED25519)
+                    .salt(crypto.salt())
+                    .peerVerifier(crypto.peerVerifier())
                     .verifierContract(VERIFIER_CONTRACT)
                     .configProofBytes(toConfigProofBytes(config))
                     .payingWith(GENESIS),
-            clprRegisterConnector().commitment(crypto.connectorCommitment()).payingWith(GENESIS),
+            clprRegisterConnector()
+                    .channelId(crypto.channelId())
+                    .commitment(crypto.connectorCommitment())
+                    .payingWith(GENESIS),
             clprCompleteConnector()
                     .connectorId(crypto.connectorId())
                     .publicKey(crypto.publicKey())

@@ -1892,19 +1892,9 @@ enum HederaFunctionality {
     ClprUpdateLedgerConfiguration = 117;
 
     /**
-     * Register a new CLPR Channel to a peer ledger.
-     */
-    ClprRegisterChannel = 118;
-
-    /**
-     * Complete a PENDING CLPR Channel (reveal phase).
-     */
-    ClprCompleteChannel = 119;
-
-    /**
      * Initiate graceful closure of a CLPR Channel.
      */
-    ClprCloseChannel = 120;
+    ClprDeleteChannel = 120;
 
     /**
      * Get the current CLPR ledger configuration.
@@ -1946,6 +1936,14 @@ enum HederaFunctionality {
      * (Internal-only) Externalize CLPR singleton maintenance.
      */
     ClprMaintenance = 129;
+
+    /**
+     * Remove a peer endpoint from a CLPR Channel's cached endpoint manifest.
+     */
+    ClprEvictPeerEndpoint = 130;
+
+    /** Create a CLPR channel in a single transaction. */
+    ClprCreateChannel = 131;
 }
 
 /**
