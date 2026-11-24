@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.transactions.clpr;
 
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprCompleteChannel;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprCreateChannel;
 
 import com.google.common.base.MoreObjects;
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
-import com.hederahashgraph.api.proto.java.ClprCompleteChannelTransactionBody;
-import com.hederahashgraph.api.proto.java.ClprSignatureScheme;
+import com.hederahashgraph.api.proto.java.ClprCreateChannelTransactionBody;
 import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Key;
@@ -19,52 +18,46 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
- * HAPI spec operation for {@code ClprCompleteChannel} transactions.
+ * HAPI spec operation for {@code ClprCreateChannel} transactions.
  */
-public class HapiClprCompleteChannel extends HapiTxnOp<HapiClprCompleteChannel> {
+public class HapiClprCreateChannel extends HapiTxnOp<HapiClprCreateChannel> {
 
     private byte[] channelId;
-    private byte[] publicKey;
-    private byte[] signature;
-    private ClprSignatureScheme signatureScheme = ClprSignatureScheme.ED25519;
+    private byte[] salt;
+    private byte[] peerVerifier;
     private Optional<String> verifierContractName = Optional.empty();
     private Optional<ContractID> verifierContractId = Optional.empty();
     private byte[] configProofBytes;
     private byte[] endpointManifestProofBytes;
 
-    public HapiClprCompleteChannel() {}
+    public HapiClprCreateChannel() {}
 
-    public HapiClprCompleteChannel channelId(final byte[] channelId) {
+    public HapiClprCreateChannel channelId(final byte[] channelId) {
         this.channelId = channelId;
         return this;
     }
 
-    public HapiClprCompleteChannel publicKey(final byte[] publicKey) {
-        this.publicKey = publicKey;
+    public HapiClprCreateChannel salt(final byte[] salt) {
+        this.salt = salt;
         return this;
     }
 
-    public HapiClprCompleteChannel signature(final byte[] signature) {
-        this.signature = signature;
+    public HapiClprCreateChannel peerVerifier(final byte[] peerVerifier) {
+        this.peerVerifier = peerVerifier;
         return this;
     }
 
-    public HapiClprCompleteChannel signatureScheme(final ClprSignatureScheme scheme) {
-        this.signatureScheme = scheme;
-        return this;
-    }
-
-    public HapiClprCompleteChannel verifierContract(final String contractName) {
+    public HapiClprCreateChannel verifierContract(final String contractName) {
         this.verifierContractName = Optional.of(contractName);
         return this;
     }
 
-    public HapiClprCompleteChannel verifierContractId(final ContractID contractId) {
+    public HapiClprCreateChannel verifierContractId(final ContractID contractId) {
         this.verifierContractId = Optional.of(contractId);
         return this;
     }
 
-    public HapiClprCompleteChannel configProofBytes(final byte[] configProofBytes) {
+    public HapiClprCreateChannel configProofBytes(final byte[] configProofBytes) {
         this.configProofBytes = configProofBytes;
         return this;
     }
@@ -75,36 +68,35 @@ public class HapiClprCompleteChannel extends HapiTxnOp<HapiClprCompleteChannel> 
      * {@code StateProof} bytes of the peer's finalized {@code ClprEndpointManifest} singleton,
      * as returned by {@code clprGetEndpointManifest}.
      */
-    public HapiClprCompleteChannel endpointManifestProofBytes(final byte[] endpointManifestProofBytes) {
+    public HapiClprCreateChannel endpointManifestProofBytes(final byte[] endpointManifestProofBytes) {
         this.endpointManifestProofBytes = endpointManifestProofBytes;
         return this;
     }
 
     @Override
     public HederaFunctionality type() {
-        return ClprCompleteChannel;
+        return ClprCreateChannel;
     }
 
     @Override
-    protected HapiClprCompleteChannel self() {
+    protected HapiClprCreateChannel self() {
         return this;
     }
 
     @Override
     protected Consumer<TransactionBody.Builder> opBodyDef(final HapiSpec spec) throws Throwable {
-        final ClprCompleteChannelTransactionBody opBody = spec.txns()
-                .<ClprCompleteChannelTransactionBody, ClprCompleteChannelTransactionBody.Builder>body(
-                        ClprCompleteChannelTransactionBody.class, b -> {
+        final ClprCreateChannelTransactionBody opBody = spec.txns()
+                .<ClprCreateChannelTransactionBody, ClprCreateChannelTransactionBody.Builder>body(
+                        ClprCreateChannelTransactionBody.class, b -> {
                             if (channelId != null) {
                                 b.setChannelId(ByteString.copyFrom(channelId));
                             }
-                            if (publicKey != null) {
-                                b.setPublicKey(ByteString.copyFrom(publicKey));
+                            if (salt != null) {
+                                b.setSalt(ByteString.copyFrom(salt));
                             }
-                            if (signature != null) {
-                                b.setSignature(ByteString.copyFrom(signature));
+                            if (peerVerifier != null) {
+                                b.setPeerVerifier(ByteString.copyFrom(peerVerifier));
                             }
-                            b.setSignatureScheme(signatureScheme);
                             verifierContractId.ifPresent(b::setVerifierContract);
                             if (verifierContractName.isPresent()) {
                                 b.setVerifierContract(spec.registry().getContractId(verifierContractName.get()));
@@ -116,7 +108,7 @@ public class HapiClprCompleteChannel extends HapiTxnOp<HapiClprCompleteChannel> 
                                 b.setEndpointManifestProofBytes(ByteString.copyFrom(endpointManifestProofBytes));
                             }
                         });
-        return b -> b.setClprCompleteChannel(opBody);
+        return b -> b.setClprCreateChannel(opBody);
     }
 
     @Override

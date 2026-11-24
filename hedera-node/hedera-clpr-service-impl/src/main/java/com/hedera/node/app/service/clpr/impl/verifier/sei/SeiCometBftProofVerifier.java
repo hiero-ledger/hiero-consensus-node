@@ -84,7 +84,7 @@ public final class SeiCometBftProofVerifier {
     private static final byte[] EVM_ZERO_WORD = new byte[32];
 
     // ── Storage-proof layout shared with the QBFT/Ethereum bundle constructors ──
-    // Every bundle proves the five Channel fields (offsets {1,2,4,5,16}, including the proven
+    // Every bundle proves the five Channel fields (offsets {1,2,4,5,15}, including the proven
     // endpointManifestVersion). Message-bearing bundles add the last message's running-hash slot as a
     // sixth entry. Matches the relay's ClprServiceStorageLayout / the on-chain ClprEvmBundleVerifier.
     private static final int STORAGE_PROOF_CHANNEL_ENTRIES = 5;
@@ -110,7 +110,7 @@ public final class SeiCometBftProofVerifier {
     private static final BigInteger CHANNEL_OFFSET_RECEIVED_MSG_ID = BigInteger.TWO;
     private static final BigInteger CHANNEL_OFFSET_SENT_RUNNING_HASH = BigInteger.valueOf(4);
     private static final BigInteger CHANNEL_OFFSET_RECEIVED_RUNNING_HASH = BigInteger.valueOf(5);
-    private static final BigInteger CHANNEL_OFFSET_ENDPOINT_MANIFEST_VERSION = BigInteger.valueOf(16);
+    private static final BigInteger CHANNEL_OFFSET_ENDPOINT_MANIFEST_VERSION = BigInteger.valueOf(15);
 
     private SeiCometBftProofVerifier() {}
 
@@ -351,7 +351,7 @@ public final class SeiCometBftProofVerifier {
             headerHash32 = proven.headerHash32();
 
             // Manifest-only recovery bundle (spec §8.1.4): a state_proof (to establish the store root)
-            // with EMPTY bundle_content and a slot-18 manifest proof but NO queue storage slots. It
+            // with EMPTY bundle_content and a slot-14 manifest proof but NO queue storage slots. It
             // authenticates the peer chain and proves the endpoint manifest while carrying no queue
             // state — the store root comes from the multistore commitment, not the per-slot proofs, so
             // verifyStateProof tolerates zero queue slots. bundleContentBytes/queueMetadata stay null;
@@ -370,7 +370,7 @@ public final class SeiCometBftProofVerifier {
                 queueMetadata = decodeQueueMetadata(proven.slotValues());
 
                 // Endpoint-manifest advance (spec §4.2 Step 1b): a separate top-level ICS-23 proof of the
-                // slot-18 commitment against the same proven store root as the queue slots.
+                // slot-14 commitment against the same proven store root as the queue slots.
                 if (hasManifestProof) {
                     newEndpointManifestBytes = verifyEndpointManifestProof(
                             payload.manifestStorageProof(),
@@ -683,8 +683,8 @@ public final class SeiCometBftProofVerifier {
 
     /**
      * Verifies the optional endpoint-manifest advance carried by a Sei bundle (spec §4.2 Step 1b) —
-     * the CometBFT analog of the QBFT slot-18 manifest proof. {@code manifest_storage_proof} is a
-     * single ICS-23 IAVL existence proof of the {@code _endpointManifest.commitment} slot (18) in the
+     * the CometBFT analog of the QBFT slot-14 manifest proof. {@code manifest_storage_proof} is a
+     * single ICS-23 IAVL existence proof of the {@code _endpointManifest.commitment} slot (14) in the
      * peer's {@code evm} store, verified against the <b>same</b> {@code storeRoot} (hence the same
      * signed header / app-hash) as the queue-metadata slots. Kept out of {@code state_proof.storage_proofs}
      * so the fixed queue-slot ordering is unaffected. Binding + invariants mirror {@code BesuQbftVerifier}:
@@ -709,7 +709,7 @@ public final class SeiCometBftProofVerifier {
                     + " (expected 0x03 || serviceAddress || slot)");
         }
         if (!Arrays.equals(key, 1 + ADDRESS_LENGTH, key.length, endpointManifestCommitmentSlot(), 0, 32)) {
-            throw ProofException.sei("manifest_storage_proof is not for the endpoint-manifest commitment slot (18)");
+            throw ProofException.sei("manifest_storage_proof is not for the endpoint-manifest commitment slot (14)");
         }
         final byte[] value = manifestStorageProof.value().toByteArray();
         if (value.length != 32) {
@@ -722,7 +722,7 @@ public final class SeiCometBftProofVerifier {
 
         // Bind the supplied preimage to the proven commitment: commitment = keccak256(preimage).
         if (!Arrays.equals(MiscCryptoUtils.keccak256DigestOf(manifestPreimage), value)) {
-            throw ProofException.sei("endpoint_manifest preimage does not match the proven commitment (slot 18)");
+            throw ProofException.sei("endpoint_manifest preimage does not match the proven commitment (slot 14)");
         }
         final ClprEndpointManifest manifest;
         try {
@@ -771,7 +771,7 @@ public final class SeiCometBftProofVerifier {
             final int sentRunningHashIndex = findSlot(slots, addUint256(base, CHANNEL_OFFSET_SENT_RUNNING_HASH));
             final int receivedRunningHashIndex =
                     findSlot(slots, addUint256(base, CHANNEL_OFFSET_RECEIVED_RUNNING_HASH));
-            // offset 16: endpointManifestVersion — proven on every bundle (the sender's cached view of our
+            // offset 15: endpointManifestVersion — proven on every bundle (the sender's cached view of our
             // manifest version). Required, so a relay cannot omit it and fall back to the relayed value.
             final int manifestVersionIndex =
                     findSlot(slots, addUint256(base, CHANNEL_OFFSET_ENDPOINT_MANIFEST_VERSION));
@@ -990,7 +990,7 @@ public final class SeiCometBftProofVerifier {
         final byte[] receivedIdSlot = provenSlotValues[SP_INDEX_RECEIVED_MSG_ID];
         final long receivedMessageId = readUint64BigEndian(receivedIdSlot, 16);
 
-        // Slot +16: endpointManifestVersion (uint64) — a lone field in its own slot, LSB-packed (last 8 bytes).
+        // Slot +15: endpointManifestVersion (uint64) — a lone field in its own slot, LSB-packed (last 8 bytes).
         final byte[] manifestVersionSlot = provenSlotValues[SP_INDEX_ENDPOINT_MANIFEST_VERSION];
         final long endpointManifestVersion = readUint64BigEndian(manifestVersionSlot, 24);
 
@@ -1148,7 +1148,7 @@ public final class SeiCometBftProofVerifier {
      * @param newTrustAnchorId {@code validator_set_hash || height} of {@code newTrustAnchor};
      *     {@code null} iff it is
      * @param newEndpointManifestBytes protobuf {@code ClprEndpointManifest} preimage proven by the
-     *     bundle's slot-18 manifest proof (spec §4.2 Step 1b); empty ({@code byte[0]}) when the bundle
+     *     bundle's slot-14 manifest proof (spec §4.2 Step 1b); empty ({@code byte[0]}) when the bundle
      *     carried no manifest advance
      */
     public record VerifiedBundle(
