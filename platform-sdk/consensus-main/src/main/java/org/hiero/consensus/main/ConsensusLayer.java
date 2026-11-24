@@ -18,7 +18,8 @@ import org.hiero.consensus.main.model.Round;
  * no backpressure mechanism, however there are internal protections to prevent it from consuming too many resources. A
  * struggling consensus layer will simply take longer to produce the requested round(s).
  *
- * <p>A more complete architecture description is located at <i>platform-sdk/docs/proposals/consensus-layer/Consensus-Layer.md</i>.
+ * <p>A more complete architecture description is located at
+ * <i>platform-sdk/docs/proposals/consensus-layer/Consensus-Layer.md</i>.
  */
 public interface ConsensusLayer {
 
@@ -96,10 +97,8 @@ public interface ConsensusLayer {
      * Sets the reconnect peer protocol factory, which is provided by the adapter.
      *
      * <p>This method is temporary and will be deleted when reconnect teaching moves to the block node.
-     *
-     * @param reconnectPeerProtocolFactory the peer protocol factory
      */
-    //    void setReconnectPeerProtocolFactory(@NonNull final PeerProtocolFactory reconnectPeerProtocolFactory);
+    void setReconnectPeerProtocolFactory(/* @NonNull final PeerProtocolFactory reconnectPeerProtocolFactory */ );
 
     /**
      * Informs the consensus layer of a status change based on events owned by the execution layer. This method is

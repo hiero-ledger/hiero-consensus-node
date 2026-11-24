@@ -16,6 +16,7 @@ import org.hiero.consensus.main.model.ConsensusLayerRosterInputs;
 import org.hiero.consensus.main.model.KeysAndCerts;
 import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.main.model.RunningEventHashOverride;
+import org.hiero.consensus.main.model.TransactionLimits;
 
 /**
  * This record contains all the required and optional inputs when creating the {@link ConsensusLayer}.

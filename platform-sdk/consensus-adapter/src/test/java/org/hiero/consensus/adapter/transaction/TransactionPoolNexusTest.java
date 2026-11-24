@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.event.creator.impl.pool;
+package org.hiero.consensus.adapter.transaction;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -15,10 +15,9 @@ import java.util.List;
 import org.hiero.base.utility.ByteUtils;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.main.model.TimestampedTransaction;
+import org.hiero.consensus.main.model.TransactionLimits;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.test.fixtures.Randotron;
-import org.hiero.consensus.transaction.TransactionLimits;
-import org.hiero.consensus.transaction.TransactionPoolNexus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;

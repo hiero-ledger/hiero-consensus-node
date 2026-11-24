@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.main;
+package org.hiero.consensus.main.model;
 
 /**
  * Configuration regarding transactions

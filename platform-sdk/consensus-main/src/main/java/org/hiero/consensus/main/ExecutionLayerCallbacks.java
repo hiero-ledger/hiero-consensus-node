@@ -8,6 +8,7 @@ import java.util.List;
 import org.hiero.consensus.main.model.Event;
 import org.hiero.consensus.main.model.Round;
 import org.hiero.consensus.main.model.TimestampedTransaction;
+import org.hiero.consensus.main.model.TransactionLimits;
 
 /**
  * The API of the Execution Layer exposed to the Consensus Layer. All methods are blocking; therefore they must

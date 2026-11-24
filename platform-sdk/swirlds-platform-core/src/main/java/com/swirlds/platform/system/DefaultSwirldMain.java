@@ -6,10 +6,10 @@ import com.swirlds.base.time.Time;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
+import org.hiero.consensus.adapter.transaction.TransactionPoolNexus;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.main.model.TimestampedTransaction;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.transaction.TransactionPoolNexus;
 
 /**
  * A default implementation of the {@link SwirldMain} interface for applications that do not require a custom

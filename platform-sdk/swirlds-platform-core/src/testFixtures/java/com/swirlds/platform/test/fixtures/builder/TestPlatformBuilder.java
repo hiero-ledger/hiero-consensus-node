@@ -21,8 +21,8 @@ import org.hiero.consensus.ConsensusLayerBuildingBlocks;
 import org.hiero.consensus.ConsensusLayerInputs;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.main.model.ConsensusLayerRosterInputs;
+import org.hiero.consensus.main.model.KeysAndCerts;
 import org.hiero.consensus.main.model.NodeId;
-import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.wiring.framework.model.WiringModel;
 
