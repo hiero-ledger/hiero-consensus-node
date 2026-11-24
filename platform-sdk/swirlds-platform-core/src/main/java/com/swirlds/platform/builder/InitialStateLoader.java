@@ -32,7 +32,7 @@ import org.hiero.base.crypto.HashBuilder;
 import org.hiero.consensus.ConsensusLayerBuildingBlocks;
 import org.hiero.consensus.ConsensusLayerInputs;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
-import org.hiero.consensus.model.stream.RunningEventHashOverride;
+import org.hiero.consensus.main.model.RunningEventHashOverride;
 import org.hiero.consensus.round.EventWindowUtils;
 import org.hiero.consensus.state.config.StateConfig;
 import org.hiero.consensus.state.persistence.SignedStateFilePath;

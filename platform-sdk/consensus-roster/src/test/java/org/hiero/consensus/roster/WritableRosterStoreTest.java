@@ -32,7 +32,7 @@ import java.util.List;
 import java.util.Objects;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
-import org.hiero.consensus.model.roster.ConsensusLayerRosterInputs;
+import org.hiero.consensus.main.model.ConsensusLayerRosterInputs;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

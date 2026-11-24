@@ -3,8 +3,8 @@ package org.hiero.consensus.event.stream;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import org.hiero.consensus.main.model.RunningEventHashOverride;
 import org.hiero.consensus.model.event.CesEvent;
-import org.hiero.consensus.model.stream.RunningEventHashOverride;
 import org.hiero.consensus.wiring.framework.component.InputWireLabel;
 
 /**

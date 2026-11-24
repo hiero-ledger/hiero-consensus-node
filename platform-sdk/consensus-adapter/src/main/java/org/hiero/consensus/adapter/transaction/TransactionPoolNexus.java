@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.transaction;
+package org.hiero.consensus.adapter.transaction;
 
 import static org.hiero.base.CompareTo.isLessThan;
 
@@ -18,6 +18,7 @@ import java.util.Objects;
 import java.util.Queue;
 import java.util.function.IntConsumer;
 import org.hiero.consensus.main.model.TimestampedTransaction;
+import org.hiero.consensus.main.model.TransactionLimits;
 import org.hiero.consensus.main.model.legacy.EventTransactionSupplier;
 import org.hiero.consensus.model.status.PlatformStatus;
 

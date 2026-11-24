@@ -8,8 +8,8 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.hiero.consensus.main.model.KeysAndCerts;
 import org.hiero.consensus.main.model.NodeId;
-import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.roster.RosterWrapper;
 
 /**

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.model.quiescence;
+package org.hiero.consensus.main.model;
 
 /**
  * Instructions on which state of quiescence this node should be in.
