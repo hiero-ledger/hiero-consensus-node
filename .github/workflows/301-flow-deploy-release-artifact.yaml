@@ -36,10 +36,12 @@ jobs:
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
+  # Never runs in a fork. In a private repository only the DevOps bucket upload in 850 runs; every
+  # public destination is guarded by repository visibility.
   prepare-tag-release:
     name: Prepare Release [Tag]
     runs-on: hl-cn-default-lin-sm
-    if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
+    if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && !github.event.repository.fork }}
     outputs:
       version: ${{ steps.tag.outputs.version }}
       prerelease: ${{ steps.tag.outputs.prerelease }}
@@ -96,64 +98,6 @@ jobs:
       jf-user-name: ${{ vars.JF_USER_NAME }}
       jf-access-token: ${{ secrets.JF_ACCESS_TOKEN }}
 
-  update-hedera-protobufs:
-    name: Update Hedera Protobufs
-    runs-on: hl-cn-default-lin-sm
-    needs:
-      - prepare-tag-release
-    if: ${{ github.event.repository.visibility == 'public' && needs.prepare-tag-release.result == 'success' && needs.prepare-tag-release.outputs.prerelease == 'false' }}
-    steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
-        with:
-          egress-policy: audit
-
-      - name: Checkout Hiero Consensus Node Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          token: ${{ secrets.GH_ACCESS_TOKEN }}
-          ref: ${{ inputs.ref }}
-          fetch-depth: "0"
-
-      - name: Checkout Hedera Protobufs Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          token: ${{ secrets.PROTOBUFS_GH_ACCESS_TOKEN }}
-          fetch-depth: "0"
-          repository: hashgraph/hedera-protobufs
-          path: hedera-protobufs
-
-      - name: Install rsync
-        run: sudo apt update && sudo apt -y install rsync
-
-      - name: Update the folders owned by Services
-        working-directory: hedera-protobufs
-        run: |
-          git push --delete origin v${{ needs.prepare-tag-release.outputs.version }} || true
-          git tag --delete v${{ needs.prepare-tag-release.outputs.version }} || true
-          rsync -a --delete ../hapi/hedera-protobuf-java-api/src/main/proto/services/ services/
-
-      - name: Import GPG key for commit signoff
-        id: gpg_import
-        uses: step-security/ghaction-import-gpg@c0b4a334b9b72bfaaebec86ef022a78a5b17f828 # v7.0.0
-        with:
-          gpg_private_key: ${{ secrets.PROTOBUFS_GPG_KEY_CONTENTS }}
-          passphrase: ${{ secrets.PROTOBUFS_GPG_KEY_PASSPHRASE }}
-          git_user_signingkey: true
-          git_commit_gpgsign: true
-          git_tag_gpgsign: true
-
-      - name: Add & Commit
-        uses: EndBug/add-and-commit@a94899bca583c204427a224a7af87c02f9b325d5 # v9.1.4
-        with:
-          cwd: "hedera-protobufs"
-          author_name: swirlds-eng-automation
-          author_email: ${{ secrets.PROTOBUFS_GPG_USER_EMAIL }}
-          commit: --signoff
-          message: "ci: Copied recent protobuf changes from hedera-services"
-          new_branch: "update-recent-protobuf-changes-${{ github.run_number }}"
-          tag: 'v${{ needs.prepare-tag-release.outputs.version }} -s -m "Hedera Protobufs v${{ needs.prepare-tag-release.outputs.version }}" -u "${{ steps.gpg_import.outputs.keyid }}"'
-
   release-branch:
     name: Release [Branch]
     uses: ./.github/workflows/850-call-build-release-artifact.yaml
@@ -192,6 +136,8 @@ jobs:
     runs-on: hl-cn-default-lin-sm
     needs:
       - release-branch
+    # Starts a workflow in the public repository, so it runs only there: never in a private repository or a fork.
+    if: ${{ github.event.repository.visibility == 'public' && !github.event.repository.fork }}
     steps:
       - name: Prepare Runner
         id: prepare-runner
@@ -231,6 +177,8 @@ jobs:
     runs-on: hl-cn-default-lin-sm
     needs:
       - release-branch
+    # Starts a workflow in the public repository, so it runs only there: never in a private repository or a fork.
+    if: ${{ github.event.repository.visibility == 'public' && !github.event.repository.fork }}
     steps:
       - name: Prepare Runner
         id: prepare-runner
@@ -275,7 +223,7 @@ jobs:
       - deploy-xts-ci-trigger
     if:
       ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-enabled == false &&
-      (needs.release-branch.result != 'success' || needs.deploy-xts-ci-trigger.result != 'success') &&
+      (needs.release-branch.result != 'success' || needs.deploy-xts-ci-trigger.result == 'failure') &&
       !cancelled() }}
     steps:
       - name: Prepare Runner
