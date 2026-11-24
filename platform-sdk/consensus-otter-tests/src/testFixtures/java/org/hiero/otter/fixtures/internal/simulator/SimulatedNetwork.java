@@ -35,6 +35,11 @@ public abstract class SimulatedNetwork extends AbstractNetwork implements TimeTi
     protected final ConsensusRoundPool consensusRoundPool = new ConsensusRoundPool();
 
     /**
+     * Whether a node receives forwarded copies of its own events.
+     */
+    private final boolean echoes;
+
+    /**
      * The event receiver of every node created so far. The simulated network is set up with all of them at once when
      * the network starts.
      */
@@ -60,15 +65,19 @@ public abstract class SimulatedNetwork extends AbstractNetwork implements TimeTi
      * @param timeManager the time manager
      * @param transactionGenerator the transaction generator
      * @param useRandomNodeIds whether to use random node IDs
+     * @param echoes whether a node receives forwarded copies of its own events. The environment decides this, as it
+     *               depends on what the nodes of the environment do with such copies
      */
     protected SimulatedNetwork(
             @NonNull final Random random,
             @NonNull final SimulatorTimeManager timeManager,
             @NonNull final TransactionGenerator transactionGenerator,
-            final boolean useRandomNodeIds) {
+            final boolean useRandomNodeIds,
+            final boolean echoes) {
         super(random, useRandomNodeIds);
         this.timeManager = requireNonNull(timeManager);
         this.transactionGenerator = requireNonNull(transactionGenerator);
+        this.echoes = echoes;
     }
 
     /**
@@ -121,8 +130,8 @@ public abstract class SimulatedNetwork extends AbstractNetwork implements TimeTi
      */
     @Override
     protected void preStartHook(@NonNull final Roster roster) {
-        simulatedNetworkConnectivity =
-                new SimulatedNetworkConnectivity(random, timeManager.now(), RosterWrapper.of(roster), eventReceivers);
+        simulatedNetworkConnectivity = new SimulatedNetworkConnectivity(
+                random, timeManager.now(), RosterWrapper.of(roster), eventReceivers, echoes);
     }
 
     /**
@@ -196,8 +205,8 @@ public abstract class SimulatedNetwork extends AbstractNetwork implements TimeTi
          * {@inheritDoc}
          */
         @Override
-        public void resetCursor(@NonNull final NodeId nodeId) {
-            simulatedNetworkConnectivity().resetCursor(nodeId);
+        public void nodeRestarted(@NonNull final NodeId nodeId) {
+            simulatedNetworkConnectivity().nodeRestarted(nodeId);
         }
     }
 }

@@ -5,10 +5,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.Random;
+import java.util.stream.IntStream;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -16,16 +18,17 @@ import org.junit.jupiter.api.Test;
 @DisplayName("EventDeduplicator Test")
 class EventDeduplicatorTest {
 
-    private final EventDeduplicator deduplicator = new EventDeduplicator();
+    private final EventDeduplicator deduplicator = new EventDeduplicator(
+            TestRosters.rosterOf(IntStream.range(0, 71).mapToObj(NodeId::of).toArray(NodeId[]::new)));
 
     @Test
     @DisplayName("a node submitting the same event again is a duplicate")
     void sameNodeIsDuplicate() {
         final PlatformEvent event = event();
 
-        assertThat(deduplicator.addIfUnique(event, 0)).isTrue();
-        assertThat(deduplicator.addIfUnique(event, 0)).isFalse();
-        assertThat(deduplicator.addIfUnique(event.copyGossipedData(), 0)).isFalse();
+        assertThat(isUnique(event, 0)).isTrue();
+        assertThat(isUnique(event, 0)).isFalse();
+        assertThat(isUnique(event.copyGossipedData(), 0)).isFalse();
     }
 
     @Test
@@ -33,12 +36,12 @@ class EventDeduplicatorTest {
     void eachNodeIsUniqueOnce() {
         final PlatformEvent event = event();
 
-        assertThat(deduplicator.addIfUnique(event, 0)).isTrue();
-        assertThat(deduplicator.addIfUnique(event, 3)).isTrue();
-        assertThat(deduplicator.addIfUnique(event, 70)).isTrue();
-        assertThat(deduplicator.addIfUnique(event, 3)).isFalse();
-        assertThat(deduplicator.addIfUnique(event, 70)).isFalse();
-        assertThat(deduplicator.addIfUnique(event, 0)).isFalse();
+        assertThat(isUnique(event, 0)).isTrue();
+        assertThat(isUnique(event, 3)).isTrue();
+        assertThat(isUnique(event, 70)).isTrue();
+        assertThat(isUnique(event, 3)).isFalse();
+        assertThat(isUnique(event, 70)).isFalse();
+        assertThat(isUnique(event, 0)).isFalse();
     }
 
     @Test
@@ -53,10 +56,10 @@ class EventDeduplicatorTest {
                 EventOrigin.GOSSIP);
         new DefaultEventHasher().hashEvent(resigned);
 
-        assertThat(deduplicator.addIfUnique(event, 0)).isTrue();
-        assertThat(deduplicator.addIfUnique(resigned, 0)).isTrue();
-        assertThat(deduplicator.addIfUnique(resigned, 0)).isFalse();
-        assertThat(deduplicator.addIfUnique(event, 0)).isFalse();
+        assertThat(isUnique(event, 0)).isTrue();
+        assertThat(isUnique(resigned, 0)).isTrue();
+        assertThat(isUnique(resigned, 0)).isFalse();
+        assertThat(isUnique(event, 0)).isFalse();
     }
 
     @Test
@@ -65,8 +68,24 @@ class EventDeduplicatorTest {
         final PlatformEvent event = event();
         deduplicator.setOldestEventWindow(new EventWindow(100, 101, 100, 100));
 
-        assertThat(deduplicator.addIfUnique(event, 0)).isTrue();
-        assertThat(deduplicator.addIfUnique(event, 0)).isTrue();
+        assertThat(isUnique(event, 0)).isTrue();
+        assertThat(isUnique(event, 0)).isTrue();
+    }
+
+    @Test
+    @DisplayName("an event below the window already shifted past is unique, even after the oldest window moves back")
+    void eventBelowShiftedWindowIsUnique() {
+        final PlatformEvent event = event();
+        deduplicator.setOldestEventWindow(new EventWindow(100, 101, 100, 100));
+        deduplicator.setOldestEventWindow(EventWindow.getGenesisEventWindow());
+
+        assertThat(isUnique(event, 0)).isTrue();
+        assertThat(isUnique(event, 0)).isTrue();
+        assertThat(deduplicator.find(event)).isNull();
+    }
+
+    private boolean isUnique(final PlatformEvent event, final int submitter) {
+        return deduplicator.addIfUnique(event, submitter) != null;
     }
 
     private static PlatformEvent event() {

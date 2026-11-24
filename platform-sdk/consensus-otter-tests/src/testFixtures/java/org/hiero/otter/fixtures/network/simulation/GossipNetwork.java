@@ -35,5 +35,5 @@ public interface GossipNetwork {
      *
      * @param nodeId the id of the node that has restarted
      */
-    void resetCursor(@NonNull NodeId nodeId);
+    void nodeRestarted(@NonNull NodeId nodeId);
 }
