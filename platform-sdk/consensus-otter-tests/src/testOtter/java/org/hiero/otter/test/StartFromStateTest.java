@@ -24,9 +24,7 @@ import org.hiero.base.crypto.SigningSchema;
 import org.hiero.consensus.event.creator.config.EventCreationConfig_;
 import org.hiero.consensus.fakes.crypto.DetRandomProvider;
 import org.hiero.consensus.fakes.crypto.KeysAndCertsGenerator;
-import org.hiero.consensus.model.event.EventHashFactory;
 import org.hiero.consensus.state.saved.SavedStateMetadata;
-import org.hiero.otter.fixtures.Capability;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.OtterTest;
@@ -61,7 +59,7 @@ public class StartFromStateTest {
                 5, // one more
                 8, // double the original roster
             })
-    void migrationTest(final int numberOfNodes, @NonNull final TestEnvironment env) throws IOException {
+    void migrationTest(final int numberOfNodes, @NonNull final TestEnvironment env) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
         final SemanticVersion currentVersion = OtterSavedStateUtils.fetchApplicationVersion();
@@ -77,7 +75,6 @@ public class StartFromStateTest {
         network.savedStateDirectory(SAVED_STATE_PATH);
         network.version(
                 currentVersion.copyBuilder().minor(currentVersion.minor()).build());
-        initializeEventHashFactory(env, readSavedStateRound());
 
         // Setup continuous assertions
         assertContinuouslyThat(network.newLogResults()).haveNoErrorLevelMessages();
@@ -120,7 +117,6 @@ public class StartFromStateTest {
         network.savedStateDirectory(SAVED_STATE_PATH);
 
         final long savedStateRound = readSavedStateRound();
-        initializeEventHashFactory(env, savedStateRound);
 
         // Override the keys and certificates for all nodes
         // Otter will automatically update the roster history with the new certs
@@ -161,21 +157,6 @@ public class StartFromStateTest {
                     .findAny()
                     .orElseThrow();
             return SavedStateMetadata.parse(metadataFile).round();
-        }
-    }
-
-    /**
-     * Initializes the EventHashFactory on the local JVM so that events sent back in consensus rounds for assertions are
-     * hashed correctly. Starting from the saved state is an upgrade, so the nodes place the event cutover right after
-     * the saved state round.
-     *
-     * @param env             the test environment
-     * @param savedStateRound the round of the saved state
-     */
-    private static void initializeEventHashFactory(@NonNull final TestEnvironment env, final long savedStateRound) {
-        if (env.capabilities().contains(Capability.SINGLE_NODE_JVM_SHUTDOWN)) {
-            // Only required for the container environment
-            EventHashFactory.initialize(1);
         }
     }
 }

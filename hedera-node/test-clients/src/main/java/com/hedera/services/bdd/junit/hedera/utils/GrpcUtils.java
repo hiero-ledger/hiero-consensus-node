@@ -220,12 +220,10 @@ public class GrpcUtils {
                 clients.getTokenSvcStub(nodeAccountId, false, false).claimAirdrop(transaction);
             case AtomicBatch ->
                 clients.getUtilSvcStub(nodeAccountId, false, false).atomicBatch(transaction);
-            case ClprRegisterChannel ->
-                clients.getClprSvcStub(nodeAccountId, false, false).registerChannel(transaction);
-            case ClprCompleteChannel ->
-                clients.getClprSvcStub(nodeAccountId, false, false).completeChannel(transaction);
-            case ClprCloseChannel ->
-                clients.getClprSvcStub(nodeAccountId, false, false).closeChannel(transaction);
+            case ClprCreateChannel ->
+                clients.getClprSvcStub(nodeAccountId, false, false).createChannel(transaction);
+            case ClprDeleteChannel ->
+                clients.getClprSvcStub(nodeAccountId, false, false).deleteChannel(transaction);
             case ClprEvictPeerEndpoint ->
                 clients.getClprSvcStub(nodeAccountId, false, false).evictPeerEndpoint(transaction);
             case ClprSubmitBundle ->

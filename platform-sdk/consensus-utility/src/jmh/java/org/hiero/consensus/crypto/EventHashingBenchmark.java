@@ -18,7 +18,6 @@ import org.hiero.consensus.benchmark.tools.event.EventShape;
 import org.hiero.consensus.benchmark.tools.event.EventStreamGenerator;
 import org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler;
 import org.hiero.consensus.benchmark.tools.histogram.LatencyRecorder;
-import org.hiero.consensus.model.event.EventHashFactory;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.roster.RosterWrapper;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -154,8 +153,6 @@ public class EventHashingBenchmark {
                 constant(transactionsPerEvent),
                 constant(MAINNET.transactionSize().median()));
 
-        // Every event birth round is past the cutover, so every event is hashed with SHA-256.
-        EventHashFactory.initialize(0);
         final RosterWrapper roster = randomRoster(new Random(SEED), NUMBER_OF_NODES);
         generatedEvents = EventStreamGenerator.generateUnsignedEvents(shape, roster, NUMBER_OF_EVENTS, SEED);
 

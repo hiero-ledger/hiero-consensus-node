@@ -24,9 +24,8 @@
           "milliOpsPerSec": 10000,
           "operations": [
             "ClprUpdateLedgerConfiguration",
-            "ClprRegisterChannel",
-            "ClprCompleteChannel",
-            "ClprCloseChannel",
+            "ClprCreateChannel",
+            "ClprDeleteChannel",
             "ClprEvictPeerEndpoint",
             "ClprCreateConnector",
             "ClprDeleteConnector"
@@ -97,9 +96,8 @@
             "RegisteredNodeDelete",
             "AtomicBatch",
             "ClprUpdateLedgerConfiguration",
-            "ClprRegisterChannel",
-            "ClprCompleteChannel",
-            "ClprCloseChannel",
+            "ClprCreateChannel",
+            "ClprDeleteChannel",
             "ClprEvictPeerEndpoint",
             "ClprCreateConnector",
             "ClprDeleteConnector",

@@ -1,5 +1,13 @@
 # CLPR on Hiero — Implementation Documentation
 
+## Opening a channel
+
+Submit `proto.ClprService/createChannel` with the expected channel ID, a 32-byte salt, the local verifier contract, the peer verifier address in its native byte encoding, and the peer configuration and endpoint-manifest proofs. The local verifier authenticates the peer chain ID and service address. The first successful open creates the channel in ACTIVE state. Both ledgers must use the same salt.
+
+To compute the ID, hash each side's UTF-8 CAIP-2 chain ID, service address bytes, and verifier address bytes independently with Keccak-256. Concatenate the three hashes for each side in that order. Sort the two 96-byte results in unsigned lexicographic order, concatenate them, append the raw salt, and hash the resulting 224 bytes with Keccak-256. Hiero uses the 20-byte service address at 0x16e and its verifier's canonical 20-byte EVM address.
+
+This release retires channel register and complete transactions. Connector registration still uses register and complete.
+
 This directory describes how the **Cross-Ledger Permissioned Routing (CLPR)** protocol is
 manifested in the Hiero (Hedera) consensus node. It is intended to be loaded by humans and AI
 agents working on CLPR code in this repository.
@@ -79,8 +87,8 @@ Each file is self-contained; load only what you need.
   initializes missing singleton values in the first round; the handle workflow does the same during
   post-upgrade setup. Both use `V0780ClprSchema.initializeSingletons()` and the active network
   configuration, preserving existing values. Schema versions only order schemas; they do not gate initialization.
-- **`HederaFunctionality` values:** `CLPR_REGISTER_CHANNEL`, `CLPR_COMPLETE_CHANNEL`,
-  `CLPR_CLOSE_CHANNEL`, `CLPR_CREATE_CONNECTOR`,
+- **`HederaFunctionality` values:** `CLPR_CREATE_CHANNEL`,
+  `CLPR_DELETE_CHANNEL`, `CLPR_CREATE_CONNECTOR`,
   `CLPR_DELETE_CONNECTOR`, `CLPR_SUBMIT_BUNDLE`, `CLPR_REDACT_MESSAGE`,
   `CLPR_UPDATE_LEDGER_CONFIGURATION`, plus the `CLPR_GET_LEDGER_CONFIGURATION` query.
   All map to `ClprService.NAME` in `ServiceScopeLookup`.

@@ -9,7 +9,6 @@ import static com.hedera.services.yahcli.commands.clpr.IdentityTestSupport.readK
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.hedera.hapi.node.clpr.ClprSignatureScheme;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -18,29 +17,24 @@ import java.util.HexFormat;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class GenerateConnectorIdentityCommandTest {
 
     @ParameterizedTest
-    @EnumSource(
-            value = ClprSignatureScheme.class,
-            names = {"ED25519", "ECDSA_SECP256K1"})
-    void bundleFileOmitsPrivateKey(final ClprSignatureScheme scheme, @TempDir final Path dir) throws Exception {
+    @ValueSource(strings = {"ED25519", "ECDSA_SECP256K1"})
+    void bundleFileOmitsPrivateKey(final String scheme, @TempDir final Path dir) throws Exception {
         final var bundlePath = dir.resolve("connector.json");
-        assertThat(newGenerator(scheme.name(), bundlePath.toString()).call()).isZero();
+        assertThat(newGenerator(scheme, bundlePath.toString()).call()).isZero();
         assertThat(ClprArgs.readFlatJsonStringFields(bundlePath)).doesNotContainKey("privateKey");
         final var keyHex = HexFormat.of().formatHex(readKeyFile(dir.resolve("connector.json.key")));
         assertThat(Files.readString(bundlePath)).doesNotContain(keyHex);
     }
 
     @ParameterizedTest
-    @EnumSource(
-            value = ClprSignatureScheme.class,
-            names = {"ED25519", "ECDSA_SECP256K1"})
-    void bundleAndKeyFilesHaveOwnerOnlyPermissions(final ClprSignatureScheme scheme, @TempDir final Path dir)
-            throws Exception {
-        assertThat(newGenerator(scheme.name(), dir.resolve("connector.json").toString())
+    @ValueSource(strings = {"ED25519", "ECDSA_SECP256K1"})
+    void bundleAndKeyFilesHaveOwnerOnlyPermissions(final String scheme, @TempDir final Path dir) throws Exception {
+        assertThat(newGenerator(scheme, dir.resolve("connector.json").toString())
                         .call())
                 .isZero();
         assertOwnerOnly(dir.resolve("connector.json"));
@@ -51,18 +45,16 @@ class GenerateConnectorIdentityCommandTest {
      * Round trip: the {@code .key} file alone must be enough to re-derive every public field in the bundle.
      */
     @ParameterizedTest
-    @EnumSource(
-            value = ClprSignatureScheme.class,
-            names = {"ED25519", "ECDSA_SECP256K1"})
-    void keyFileRoundTripsToBundle(final ClprSignatureScheme scheme, @TempDir final Path dir) throws Exception {
+    @ValueSource(strings = {"ED25519", "ECDSA_SECP256K1"})
+    void keyFileRoundTripsToBundle(final String scheme, @TempDir final Path dir) throws Exception {
         final var bundlePath = dir.resolve("connector.json");
-        assertThat(newGenerator(scheme.name(), bundlePath.toString()).call()).isZero();
+        assertThat(newGenerator(scheme, bundlePath.toString()).call()).isZero();
 
         final var bundle = ClprArgs.readFlatJsonStringFields(bundlePath);
-        final var derivedPublicKey = derivePublicKey(scheme.name(), readKeyFile(dir.resolve("connector.json.key")));
+        final var derivedPublicKey = derivePublicKey(scheme, readKeyFile(dir.resolve("connector.json.key")));
         final var salt = ClprArgs.parseHex(bundle.get("salt"));
 
-        assertThat(bundle.get("signatureScheme")).isEqualTo(scheme.name());
+        assertThat(bundle.get("signatureScheme")).isEqualTo(scheme);
         assertThat(ClprArgs.parseHex(bundle.get("publicKey"))).isEqualTo(derivedPublicKey);
         final var connectorId = MiscCryptoUtils.keccak256DigestOf(concat(derivedPublicKey, salt));
         assertThat(ClprArgs.parseHex(bundle.get("connectorId"))).isEqualTo(connectorId);
@@ -70,15 +62,12 @@ class GenerateConnectorIdentityCommandTest {
     }
 
     @ParameterizedTest
-    @EnumSource(
-            value = ClprSignatureScheme.class,
-            names = {"ED25519", "ECDSA_SECP256K1"})
-    void existingBundleIsBackedUpNotOverwritten(final ClprSignatureScheme scheme, @TempDir final Path dir)
-            throws Exception {
+    @ValueSource(strings = {"ED25519", "ECDSA_SECP256K1"})
+    void existingBundleIsBackedUpNotOverwritten(final String scheme, @TempDir final Path dir) throws Exception {
         final var target = dir.resolve("connector.json");
         Files.writeString(target, "old-bundle");
 
-        assertThat(newGenerator(scheme.name(), target.toString()).call()).isZero();
+        assertThat(newGenerator(scheme, target.toString()).call()).isZero();
 
         final var backups = backupsOf(dir, "connector.json");
         assertThat(backups).hasSize(1);
@@ -88,15 +77,12 @@ class GenerateConnectorIdentityCommandTest {
     }
 
     @ParameterizedTest
-    @EnumSource(
-            value = ClprSignatureScheme.class,
-            names = {"ED25519", "ECDSA_SECP256K1"})
-    void existingKeyFileIsBackedUpNotDestroyed(final ClprSignatureScheme scheme, @TempDir final Path dir)
-            throws Exception {
+    @ValueSource(strings = {"ED25519", "ECDSA_SECP256K1"})
+    void existingKeyFileIsBackedUpNotDestroyed(final String scheme, @TempDir final Path dir) throws Exception {
         final var keyPath = dir.resolve("connector.json.key");
         Files.writeString(keyPath, "old-key-material");
 
-        assertThat(newGenerator(scheme.name(), dir.resolve("connector.json").toString())
+        assertThat(newGenerator(scheme, dir.resolve("connector.json").toString())
                         .call())
                 .isZero();
 

@@ -1,5 +1,7 @@
 # CLPR Hiero Implementation Specification
 
+Current channel setup uses a single `createChannel` transaction. See the [channel handler](handlers.md#clprcreatechannelhandler) for the active flow.
+
 This document maps CLPR to Hiero's native constructs. The canonical
 [CLPR Protocol Specification](https://github.com/LFDT-CLPR/clpr-spec/blob/945082d69e65dd0fd9e9bdf8d59cb8121579f6fd/clpr-service-spec.md)
 is the normative source for protocol behavior, including channel lifecycle semantics; its requirements take
@@ -39,18 +41,17 @@ that goes through consensus) or a HAPI query (read-only operation). All transact
 
 The following new `oneof` variants are added to `TransactionBody`:
 
-| Pseudo-API (spec section 6) |      HAPI Transaction Type      |   TransactionBody oneof field   |                            Authority                             |
-|-----------------------------|---------------------------------|---------------------------------|------------------------------------------------------------------|
-| `updateLedgerConfiguration` | `ClprUpdateLedgerConfiguration` | `clprUpdateLedgerConfiguration` | CLPR admin (council key)                                         |
-| `registerChannel`           | `ClprRegisterChannel`           | `clprRegisterChannel`           | Any (permissionless; commit phase — stores ownership commitment) |
-| `completeChannel`           | `ClprCompleteChannel`           | `clprCompleteChannel`           | Any (permissionless; reveal phase — creates ACTIVE Channel)      |
-| `closeChannel`              | `ClprCloseChannel`              | `clprCloseChannel`              | CLPR admin (ACTIVE/PAUSED → CLOSING → DRAINED → CLOSED)          |
-| `registerConnector`         | `ClprCreateConnector`           | `clprCreateConnector`           | Payer and connector identity key                                 |
-| `topUpConnector`            | `ClprTopUpConnector`            | `clprTopUpConnector`            | Connector admin                                                  |
-| `withdrawConnectorBalance`  | `ClprWithdrawConnectorBalance`  | `clprWithdrawConnectorBalance`  | Connector admin                                                  |
-| `deregisterConnector`       | `ClprDeleteConnector`           | `clprDeleteConnector`           | Connector admin                                                  |
-| `submitBundle`              | `ClprSubmitBundle`              | `clprSubmitBundle`              | Any (typically endpoint)                                         |
-| `redactMessage`             | `ClprRedactMessage`             | `clprRedactMessage`             | CLPR admin                                                       |
+|       Hiero operation       |      HAPI Transaction Type      |   TransactionBody oneof field   |                        Authority                        |
+|-----------------------------|---------------------------------|---------------------------------|---------------------------------------------------------|
+| `updateLedgerConfiguration` | `ClprUpdateLedgerConfiguration` | `clprUpdateLedgerConfiguration` | CLPR admin (council key)                                |
+| `createChannel`             | `ClprCreateChannel`             | `clprCreateChannel`             | Any payer with a valid peer proof                       |
+| `deleteChannel`             | `ClprDeleteChannel`             | `clprDeleteChannel`             | CLPR admin (ACTIVE/PAUSED → CLOSING → DRAINED → CLOSED) |
+| `createConnector`           | `ClprCreateConnector`           | `clprCreateConnector`           | Payer and connector identity key                        |
+| `topUpConnector`            | `ClprTopUpConnector`            | `clprTopUpConnector`            | Connector admin                                         |
+| `withdrawConnectorBalance`  | `ClprWithdrawConnectorBalance`  | `clprWithdrawConnectorBalance`  | Connector admin                                         |
+| `deleteConnector`           | `ClprDeleteConnector`           | `clprDeleteConnector`           | Connector admin                                         |
+| `submitBundle`              | `ClprSubmitBundle`              | `clprSubmitBundle`              | Any (typically endpoint)                                |
+| `redactMessage`             | `ClprRedactMessage`             | `clprRedactMessage`             | CLPR admin                                              |
 
 **Note:** There is no `reportMisbehavior` transaction. Misbehavior detection and enforcement are strictly
 local (see cross-platform spec §1.6).
@@ -88,56 +89,14 @@ message ClprUpdateLedgerConfigurationTransactionBody {
 ### 1.2.2 Channel Management
 
 ```protobuf
-// Phase 1 (Commit): Reserves an ownership commitment for a Channel ID.
-// Permissionless — stores the commitment hash to prevent squatting. No
-// Channel state is created yet (see cross-platform spec §5.1).
-message ClprRegisterChannelTransactionBody {
-  /**
-   * 32-byte ownership commitment: keccak256(channel_id || public_key).
-   * The preimage (channel_id + public_key) is revealed in completeChannel.
-   */
-  bytes ownership_commitment = 1;
-}
-
-// Phase 2 (Reveal): Completes registration by revealing the preimage, proving
-// key ownership via signature, validating the verifier contract and peer config
-// proof, then creating the Channel in ACTIVE state.
-// See cross-platform spec §5.1 for the full commit-reveal scheme.
-message ClprCompleteChannelTransactionBody {
-  /**
-   * 32-byte Channel ID. Same on all chains for a given channel.
-   */
+// Any payer can open a channel after the verifier authenticates the peer configuration.
+message ClprCreateChannelTransactionBody {
   bytes channel_id = 1;
-
-  /**
-   * Public key proving ownership of the commitment.
-   * Encoding depends on signature_scheme (ECDSA_SECP256K1: 64 bytes uncompressed;
-   * ED25519: 32 bytes).
-   */
-  bytes public_key = 2;
-
-  /**
-   * Signature over keccak256(channel_id), proving ownership of the private key.
-   * Always 64 bytes.
-   */
-  bytes signature = 3;
-
-  /**
-   * The signature scheme used.
-   */
-  ClprSignatureScheme signature_scheme = 4;
-
-  /**
-   * AccountID of the locally deployed verifier system contract.
-   * Immutable after channel creation.
-   */
-  AccountID verifier_contract = 5;
-
-  /**
-   * Opaque proof bytes from the peer ledger, used to obtain verified peer
-   * configuration.
-   */
-  bytes config_proof_bytes = 6;
+  bytes salt = 2;
+  proto.ContractID verifier_contract = 3;
+  bytes peer_verifier = 4;
+  bytes config_proof_bytes = 5;
+  bytes endpoint_manifest_proof_bytes = 6;
 }
 
 // Initiates close of a Channel.
@@ -154,7 +113,7 @@ message ClprCompleteChannelTransactionBody {
 // recovery path when the peer's close-notification cannot be delivered);
 // this does not wait for outstanding acknowledgements.
 // See cross-platform spec §2.1.1 for the full status transition table.
-message ClprCloseChannelTransactionBody {
+message ClprDeleteChannelTransactionBody {
   bytes channel_id = 1;
 }
 ```
@@ -239,8 +198,7 @@ Each CLPR transaction produces a `TransactionRecord` with a standard `Transactio
 - `ClprSendMessage` records include the assigned `message_id` in the receipt.
 - `ClprSubmitBundle` records include the count of messages processed, any generated response message IDs,
   and a list of slash events (if any).
-- `ClprRegisterChannel` records include the `channel_id` (Channel created in PENDING state).
-- `ClprCompleteChannel` records include the `channel_id` (Channel transitioned to ACTIVE).
+- A successful `ClprCreateChannel` creates an ACTIVE channel with the submitted ID.
 - `ClprCreateConnector` identifies the connector by `(channel_id, connector_id)`.
 
 ## 1.3 Query Definitions
@@ -295,9 +253,8 @@ These remain as they are in the prototype, served by the `ClprEndpointService` g
 |           Transaction           |                               Required Signers                               |
 |---------------------------------|------------------------------------------------------------------------------|
 | `ClprUpdateLedgerConfiguration` | CLPR admin key (Hedera council key, file `0.0.150` or equivalent system key) |
-| `ClprRegisterChannel`           | Transaction payer only (permissionless; commit phase)                        |
-| `ClprCompleteChannel`           | Transaction payer only (permissionless; reveal phase)                        |
-| `ClprCloseChannel`              | CLPR admin key                                                               |
+| `ClprCreateChannel`             | Transaction payer only                                                       |
+| `ClprDeleteChannel`             | CLPR admin key                                                               |
 | `ClprCreateConnector`           | Transaction payer + connector identity key                                   |
 | `ClprTopUpConnector`            | Connector admin key                                                          |
 | `ClprWithdrawConnectorBalance`  | Connector admin key                                                          |
@@ -327,10 +284,10 @@ Initial schema: `V0650ClprSchema` (version `0.65.0`, matching the anticipated re
 
 ### 2.3.1 Singletons
 
-|        State Key        |           Type            |                                                                                                                                     Description                                                                                                                                      |
-|-------------------------|---------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `LEDGER_CONFIGURATION`  | `ClprLedgerConfiguration` | This ledger's local CLPR configuration (chain_id, protocol_version, throttles, timestamp). Created at genesis with `chain_id` = `eip155:<contracts.chainId>` and `protocol_version` from `clpr.protocolVersion`. The `chain_id` and `protocol_version` are immutable after creation. |
-| `LOCAL_LEDGER_METADATA` | `ClprLocalLedgerMetadata` | Local metadata: generated ledger ID, roster hash used for current config, next short ledger ID. Exists in prototype.                                                                                                                                                                 |
+|        State Key        |           Type            |                                                                                                                                                                                                        Description                                                                                                                                                                                                         |
+|-------------------------|---------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `LEDGER_CONFIGURATION`  | `ClprLedgerConfiguration` | This ledger's local CLPR configuration (chain_id, protocol_version, throttles, timestamp). Created at genesis with `chain_id` = `eip155:<contracts.chainId>` and `protocol_version` from `clpr.protocolVersion`. The `chain_id` and `protocol_version` are immutable after creation, except that post-upgrade setup replaces a `chain_id` outside the `eip155` namespace (such as the 0.79 default `hiero:localnet`) once. |
+| `LOCAL_LEDGER_METADATA` | `ClprLocalLedgerMetadata` | Local metadata: generated ledger ID, roster hash used for current config, next short ledger ID. Exists in prototype.                                                                                                                                                                                                                                                                                                       |
 
 ### 2.3.2 Key-Value Stores
 
@@ -378,7 +335,7 @@ message ClprChannel {
 }
 
 enum ClprChannelStatus {
-  PENDING = 0;  // Commit phase: claimed but not yet revealed
+  PENDING = 0;  // Historical channel state
   ACTIVE = 1;
   PAUSED = 2;
   CLOSING = 3;
@@ -408,18 +365,17 @@ fingerprints are not rewritten.
 
 **Channel Status Transitions** (see also cross-platform spec section 2.1.1):
 
-|   From    |    To     |                                                         Trigger                                                          |
-|-----------|-----------|--------------------------------------------------------------------------------------------------------------------------|
-| (new)     | `PENDING` | `ClprRegisterChannel` succeeds (commit phase)                                                                            |
-| `PENDING` | `ACTIVE`  | `ClprCompleteChannel` succeeds (reveal phase)                                                                            |
-| `PENDING` | (deleted) | Admin: `ClprCloseChannel` on a PENDING Channel (immediate deletion)                                                      |
-| `ACTIVE`  | `PAUSED`  | Auto: response ordering violation during `ClprSubmitBundle`                                                              |
-| `ACTIVE`  | `CLOSING` | Admin: `ClprCloseChannel`, or peer's `ClprQueueMetadata.status` is `CLOSING`/`DRAINED`/`CLOSED`                          |
-| `PAUSED`  | `ACTIVE`  | Auto: peer fixes ordering (if admin hasn't closed)                                                                       |
-| `PAUSED`  | `CLOSING` | Admin: `ClprCloseChannel`, or peer status is `CLOSING`/`DRAINED`/`CLOSED`; drain requires valid response ordering        |
-| `CLOSING` | `DRAINED` | Auto: peer has acknowledged all outbound Data Messages; responses may still be in flight                                 |
-| `DRAINED` | `CLOSED`  | Auto: peer is `DRAINED`/`CLOSED` and all outbound messages, including responses, are acknowledged                        |
-| `DRAINED` | `CLOSED`  | Admin: `ClprCloseChannel` recovery when the peer's close-notification cannot be delivered; not gated on acknowledgements |
+|   From    |    To     |                                                          Trigger                                                          |
+|-----------|-----------|---------------------------------------------------------------------------------------------------------------------------|
+| (new)     | `ACTIVE`  | `ClprCreateChannel` verifies the peer and the channel ID.                                                                 |
+| `PENDING` | (deleted) | Admin: `ClprDeleteChannel` on a PENDING Channel (immediate deletion)                                                      |
+| `ACTIVE`  | `PAUSED`  | Auto: response ordering violation during `ClprSubmitBundle`                                                               |
+| `ACTIVE`  | `CLOSING` | Admin: `ClprDeleteChannel`, or peer's `ClprQueueMetadata.status` is `CLOSING`/`DRAINED`/`CLOSED`                          |
+| `PAUSED`  | `ACTIVE`  | Auto: peer fixes ordering (if admin hasn't closed)                                                                        |
+| `PAUSED`  | `CLOSING` | Admin: `ClprDeleteChannel`, or peer status is `CLOSING`/`DRAINED`/`CLOSED`; drain requires valid response ordering        |
+| `CLOSING` | `DRAINED` | Auto: peer has acknowledged all outbound Data Messages; responses may still be in flight                                  |
+| `DRAINED` | `CLOSED`  | Auto: peer is `DRAINED`/`CLOSED` and all outbound messages, including responses, are acknowledged                         |
+| `DRAINED` | `CLOSED`  | Admin: `ClprDeleteChannel` recovery when the peer's close-notification cannot be delivered; not gated on acknowledgements |
 
 `CLOSED` is a terminal state with no outgoing transitions.
 
@@ -463,7 +419,8 @@ migration path:
 3. New state stores (`CHANNELS`, `CONNECTORS`, `CONNECTOR_INDEX`) are created empty.
 4. The `LEDGER_CONFIGURATION` singleton is created with `chain_id` = `eip155:<contracts.chainId>` and
    `protocol_version` from `clpr.protocolVersion`. The `chain_id` and `protocol_version` are immutable after creation —
-   they can never be changed via `ClprUpdateLedgerConfiguration`.
+   they can never be changed via `ClprUpdateLedgerConfiguration`. Post-upgrade setup replaces a stored `chain_id`
+   outside the `eip155` namespace (such as the 0.79 default `hiero:localnet`) with `eip155:<contracts.chainId>` once.
    **Decision:** The prototype state structure was intentionally simplified for early development. The migration
    drops prototype-specific fields that do not map to the cross-platform spec (e.g., `next_ledger_short_id`
    in `ClprLocalLedgerMetadata` becomes unused once Channels have proper 32-byte IDs).
@@ -515,18 +472,17 @@ public final class ClprServiceImpl implements ClprService {
 Each HAPI transaction type maps to a `TransactionHandler` implementation. Handlers follow the standard
 `preHandle(PreHandleContext)` / `handle(HandleContext)` pattern.
 
-|             Handler Class              |        Transaction Type         |                                                                                                                                                 Complexity                                                                                                                                                 |
-|----------------------------------------|---------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `ClprUpdateLedgerConfigurationHandler` | `ClprUpdateLedgerConfiguration` | Medium (admin key check, store config). The handler preserves immutable fields (`chain_id`, `protocol_version`) from the genesis configuration and updates only mutable fields (throttles, endpoints); `service_address` is fixed. Timestamp is set to the consensus time of the transaction.              |
-| `ClprRegisterChannelHandler`           | `ClprRegisterChannel`           | Medium (commit phase: verifyConfig call, store verifier contract and code fingerprint, Channel creation in PENDING state). No ECDSA verification at this stage. The `chain_id` and `service_address` are derived from the verified peer configuration proof. The verifier is immutable after registration. |
-| `ClprCompleteChannelHandler`           | `ClprCompleteChannel`           | Medium (reveal phase: ECDSA verify, keccak256(channel_id ‖ public_key) == stored commitment check, create Channel in ACTIVE state).                                                                                                                                                                        |
-| `ClprCloseChannelHandler`              | `ClprCloseChannel`              | Low (PENDING → immediate deletion; ACTIVE/PAUSED → graceful drain through CLOSING/DRAINED; DRAINED → CLOSED admin recovery; peer status and acknowledgements complete automatic closure per §2.1.1)                                                                                                        |
-| `ClprCreateConnectorHandler`           | `ClprCreateConnector`           | Verifies the derived ID, locks the stake, and records the local contract and admin key for this channel.                                                                                                                                                                                                   |
-| `ClprTopUpConnectorHandler`            | `ClprTopUpConnector`            | Low (balance update)                                                                                                                                                                                                                                                                                       |
-| `ClprWithdrawConnectorBalanceHandler`  | `ClprWithdrawConnectorBalance`  | Low (balance check + transfer)                                                                                                                                                                                                                                                                             |
-| `ClprDeleteConnectorHandler`           | `ClprDeleteConnector`           | Medium (in-flight check, fund return)                                                                                                                                                                                                                                                                      |
-| `ClprSubmitBundleHandler`              | `ClprSubmitBundle`              | **High** (per-endpoint throttle check, verifier call, replay defense, hash chain verify, per-message dispatch, response generation, slashing)                                                                                                                                                              |
-| `ClprRedactMessageHandler`             | `ClprRedactMessage`             | Low (payload removal, slot retention)                                                                                                                                                                                                                                                                      |
+|             Handler Class              |        Transaction Type         |                                                                                                                                          Complexity                                                                                                                                           |
+|----------------------------------------|---------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ClprUpdateLedgerConfigurationHandler` | `ClprUpdateLedgerConfiguration` | Medium (admin key check, store config). The handler preserves immutable fields (`chain_id`, `protocol_version`) from the genesis configuration and updates only mutable fields (throttles, endpoints); `service_address` is fixed. Timestamp is set to the consensus time of the transaction. |
+| `ClprCreateChannelHandler`             | `ClprCreateChannel`             | Verify the peer proofs, check the derived ID, and store an ACTIVE channel.                                                                                                                                                                                                                    |
+| `ClprDeleteChannelHandler`             | `ClprDeleteChannel`             | Low (PENDING → immediate deletion; ACTIVE/PAUSED → graceful drain through CLOSING/DRAINED; DRAINED → CLOSED admin recovery; peer status and acknowledgements complete automatic closure per §2.1.1)                                                                                           |
+| `ClprCreateConnectorHandler`           | `ClprCreateConnector`           | Verifies the derived ID, locks the stake, and records the local contract and admin key for this channel.                                                                                                                                                                                      |
+| `ClprTopUpConnectorHandler`            | `ClprTopUpConnector`            | Low (balance update)                                                                                                                                                                                                                                                                          |
+| `ClprWithdrawConnectorBalanceHandler`  | `ClprWithdrawConnectorBalance`  | Low (balance check + transfer)                                                                                                                                                                                                                                                                |
+| `ClprDeleteConnectorHandler`           | `ClprDeleteConnector`           | Medium (in-flight check, fund return)                                                                                                                                                                                                                                                         |
+| `ClprSubmitBundleHandler`              | `ClprSubmitBundle`              | **High** (per-endpoint throttle check, verifier call, replay defense, hash chain verify, per-message dispatch, response generation, slashing)                                                                                                                                                 |
+| `ClprRedactMessageHandler`             | `ClprRedactMessage`             | Low (payload removal, slot retention)                                                                                                                                                                                                                                                         |
 
 ### 3.2.1 Handler Details: ClprSubmitBundleHandler
 
@@ -617,7 +573,7 @@ verifies the payer can pay:
   CLPR admin key to the required keys set.
 - **Connector admin transactions** (`TopUp`, `Withdraw`, `Deregister`): `preHandle` looks up the Connector and
   adds its admin key to the required keys set.
-- **Permissionless transactions** (`RegisterChannel`, `SubmitBundle`): `preHandle` is a no-op (payer key
+- **Permissionless transactions** (`CreateChannel`, `SubmitBundle`): `preHandle` is a no-op (payer key
   is the only requirement).
 
 **Note:** `sendMessage` is a system contract method and does not go through `preHandle`.
@@ -940,10 +896,9 @@ Each handler registers a `ServiceFeeCalculator`:
 |           Transaction           |                          Fee Basis                          |                                                  Notes                                                  |
 |---------------------------------|-------------------------------------------------------------|---------------------------------------------------------------------------------------------------------|
 | `ClprUpdateLedgerConfiguration` | Fixed base                                                  | Admin operation; relatively rare. Config propagation is lazy, so no per-Channel enqueue at update time. |
-| `ClprRegisterChannel`           | Fixed base + verifyConfig call cost                         | Commit phase: verifyConfig call + store Channel in PENDING state                                        |
-| `ClprCompleteChannel`           | Fixed base + ECDSA verification cost                        | Reveal phase: ECDSA verify + transition PENDING → ACTIVE                                                |
+| `ClprCreateChannel`             | Base fee, verifier gas and stored channel bytes             | Creates an ACTIVE channel                                                                               |
 | `ClprUpdateEndpointRoster`      | Fixed base + verification cost                              |                                                                                                         |
-| `ClprCloseChannel`              | Fixed base                                                  | Low; transition to CLOSING                                                                              |
+| `ClprDeleteChannel`             | Fixed base                                                  | Low; transition to CLOSING                                                                              |
 | `ClprCreateConnector`           | Fixed base                                                  |                                                                                                         |
 | `ClprTopUpConnector`            | Fixed base                                                  |                                                                                                         |
 | `ClprWithdrawConnectorBalance`  | Fixed base                                                  |                                                                                                         |
@@ -1010,24 +965,8 @@ because Hiero verifiers are deployed as EVM smart contracts.
 
 ## 11.5 Signature Verification
 
-**Spec says:** Channel completion requires revealing the channel_id and public_key (verifying the
-ownership commitment), plus a signature proving control of the keypair. The signature scheme is
-platform-specific. Endpoint identity uses `endpoint_signature` for attribution.
+The local verifier authenticates the peer configuration during channel opening. The handler derives the channel ID from both endpoint identities and the agreed salt.
 
-**Hiero decision:** Use ECDSA secp256k1 via Hiero's native `ECDSA_SECP256K1` key support. Signatures are
-verified using the platform's built-in cryptographic utilities (same code path as `ecrecover` in the EVM).
-This choice provides compatibility with EVM-based peer ledgers but is a Hiero-specific decision — the
-cross-platform protocol allows any signature scheme that satisfies the ownership commitment verification
-(`keccak256(channel_id || public_key) == stored_commitment`). The channel_id is an arbitrary 32-byte
-value chosen by the registrant, not derived from any key. Different ledgers may use different key types.
-
-- **Channel completion (reveal phase):** The caller provides the channel_id and the public key.
-  The handler verifies `keccak256(channel_id || public_key)` matches the stored ownership commitment
-  and then verifies the signature against the supplied public key. Signed payload is
-  `keccak256(channel_id)`. The channel ID alone is sufficient — there is no replay risk since
-  the channel ID is unique, and simplifying the payload allows the same signature to work on both
-  ledgers. Signature verification happens only during `completeChannel`, not during
-  `registerChannel` (the commit phase has no signature).
 - **Endpoint signature:** Signed payload is `keccak256(channel_id || proof_bytes)`. The signer's public key
   is recovered via ecrecover and matched against `ecdsa_signing_key` entries in the Channel's endpoint roster.
 - **Local misbehavior detection:** Uses the same ecrecover mechanism on the `endpoint_signature` for attribution during local frequency tracking.
@@ -1071,7 +1010,7 @@ the next message in the bundle is processed.
 ## 11.9 Prototype Compatibility
 
 The existing prototype on the `20111-clpr-prototype` branch defines a simpler model with:
-- `adoptPeerConfiguration` instead of `registerChannel`
+- `adoptPeerConfiguration` instead of `createChannel`
 - `processSyncResult` instead of `submitBundle`
 - `sync` as a HAPI query instead of a separate gRPC service
 - `ClprLedgerId` instead of 32-byte Channel IDs
@@ -1114,17 +1053,9 @@ separate reply status: inbound Data Messages are dispatched normally in CLOSING 
 
 **Action:** Add the `ClprMessageReplyStatus` enum and the `status` field to `ClprMessageReply`.
 
-### F-4: Channel ID and Ownership Commitment
+### F-4: Channel ID derivation
 
-The cross-platform spec defines the Channel ID as an arbitrary 32-byte value chosen by the registrant, with
-ownership proven via a commit-reveal scheme. The ownership commitment is `keccak256(channel_id || public_key)`.
-During `registerChannel`, only the commitment is submitted. During `completeChannel`, the channel_id and
-public_key are revealed, and the system verifies they match the stored commitment. The ECDSA signature proves
-control of the keypair. The spec does not define the exact signed payload format — it says "The exact signed
-payload format is defined in platform-specific specifications."
-
-**Resolution:** This spec defines the signed payload as
-`keccak256(channel_id)` (see section 11.5).
+Both parties derive the same ID from their chain IDs, service addresses, verifier addresses, and a shared salt. See [Opening a channel](README.md#opening-a-channel).
 
 ### F-5: Response Message to Non-Contract Senders
 
@@ -1159,7 +1090,7 @@ same peer ledger, so ledger ID is insufficient as a key.
 
 **Resolved.** A response ordering violation transitions the Channel to PAUSED. PAUSED auto-recovers when the
 next bundle contains correctly ordered responses (if admin hasn't closed). Admin may close a PAUSED Channel
-(`closeChannel` transitions to CLOSING); the Channel drains once the peer fixes the ordering. If the
+(`deleteChannel` transitions to CLOSING); the Channel drains once the peer fixes the ordering. If the
 peer never fixes the ordering, the Channel stays PAUSED (or CLOSING) indefinitely.
 
 ### F-9: Queue Metadata Naming

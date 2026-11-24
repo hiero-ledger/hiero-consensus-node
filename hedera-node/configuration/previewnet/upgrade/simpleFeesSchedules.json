@@ -797,18 +797,14 @@
           "baseFee": 10000000,
           "extras": []
         },
+
         {
-          "name": "ClprRegisterChannel",
+          "name": "ClprCreateChannel",
           "baseFee": 10000000,
           "extras": []
         },
         {
-          "name": "ClprCompleteChannel",
-          "baseFee": 10000000,
-          "extras": []
-        },
-        {
-          "name": "ClprCloseChannel",
+          "name": "ClprDeleteChannel",
           "baseFee": 10000000,
           "extras": []
         },

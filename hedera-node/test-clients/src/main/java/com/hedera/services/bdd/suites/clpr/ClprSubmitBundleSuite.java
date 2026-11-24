@@ -4,16 +4,16 @@ package com.hedera.services.bdd.suites.clpr;
 import static com.hedera.services.bdd.junit.ContextRequirement.PROPERTY_OVERRIDES;
 import static com.hedera.services.bdd.junit.TestTags.CLPR;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCloseChannel;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteChannel;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCreateChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCreateConnector;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterChannel;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprDeleteChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprSubmitBundle;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprUpdateLedgerConfiguration;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -91,174 +91,170 @@ public class ClprSubmitBundleSuite {
 
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
     final Stream<DynamicTest> rejectsMalformedPayload() {
-        final var crypto = new ClprChannelCrypto();
-        return hapiTest(
-                clprUpdateLedgerConfiguration()
-                        .configuration(defaultLedgerConfig())
-                        .payingWith(GENESIS),
-                uploadInitCode(VERIFIER_CONTRACT),
-                contractCreate(VERIFIER_CONTRACT),
-                clprRegisterChannel().ownershipCommitment(crypto.commitment()).payingWith(GENESIS),
-                clprCompleteChannel()
-                        .channelId(crypto.channelId())
-                        .publicKey(crypto.publicKey())
-                        .signature(crypto.signature())
-                        .signatureScheme(ClprSignatureScheme.ED25519)
-                        .verifierContract(VERIFIER_CONTRACT)
-                        .configProofBytes(toConfigProofBytes(defaultLedgerConfig()))
-                        .payingWith(GENESIS),
-                clprSubmitBundle()
-                        .channelId(crypto.channelId())
-                        .bundlePayload(new byte[] {0x7F, 0x7F})
-                        .endpointNodeId(0L)
-                        .payingWith(GENESIS)
-                        .hasKnownStatus(CLPR_BUNDLE_VERIFICATION_FAILED));
+        return hapiTest(ClprChannelCrypto.withVerifier(
+                VERIFIER_CONTRACT, "hiero:testing", CLPR_SERVICE_ADDRESS_20, crypto -> {
+                    return blockingOrder(
+                            clprUpdateLedgerConfiguration()
+                                    .configuration(defaultLedgerConfig())
+                                    .payingWith(GENESIS),
+                            clprCreateChannel()
+                                    .channelId(crypto.channelId())
+                                    .salt(crypto.salt())
+                                    .peerVerifier(crypto.peerVerifier())
+                                    .verifierContract(VERIFIER_CONTRACT)
+                                    .configProofBytes(toConfigProofBytes(defaultLedgerConfig()))
+                                    .payingWith(GENESIS),
+                            clprSubmitBundle()
+                                    .channelId(crypto.channelId())
+                                    .bundlePayload(new byte[] {0x7F, 0x7F})
+                                    .endpointNodeId(0L)
+                                    .payingWith(GENESIS)
+                                    .hasKnownStatus(CLPR_BUNDLE_VERIFICATION_FAILED));
+                }));
     }
 
     @Disabled("Spec §4.2-1a: bundle with no messages, no trust rotation, and no ack progress is rejected")
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
     final Stream<DynamicTest> successfulEmptyBundle() {
-        final var crypto = new ClprChannelCrypto();
-        // Empty bundle: no messages, next_message_id=1 (same as channel initial state)
-        final var bundle = ClprBundleContent.newBuilder()
-                .setMetadata(ClprQueueMetadata.newBuilder()
-                        .setNextMessageId(1)
-                        .setSentRunningHash(ByteString.copyFrom(ZERO_HASH))
-                        .setReceivedMessageId(0)
-                        .setStatus(ClprChannelStatus.ACTIVE)
-                        .build())
-                .build();
-        return hapiTest(
-                clprUpdateLedgerConfiguration()
-                        .configuration(defaultLedgerConfig())
-                        .payingWith(GENESIS),
-                uploadInitCode(VERIFIER_CONTRACT),
-                contractCreate(VERIFIER_CONTRACT),
-                clprRegisterChannel().ownershipCommitment(crypto.commitment()).payingWith(GENESIS),
-                clprCompleteChannel()
-                        .channelId(crypto.channelId())
-                        .publicKey(crypto.publicKey())
-                        .signature(crypto.signature())
-                        .signatureScheme(ClprSignatureScheme.ED25519)
-                        .verifierContract(VERIFIER_CONTRACT)
-                        .configProofBytes(toConfigProofBytes(defaultLedgerConfig()))
-                        .payingWith(GENESIS),
-                clprSubmitBundle()
-                        .channelId(crypto.channelId())
-                        .bundlePayload(bundle.toByteArray())
-                        .endpointNodeId(0L)
-                        .payingWith(GENESIS));
+        return hapiTest(ClprChannelCrypto.withVerifier(
+                VERIFIER_CONTRACT, "hiero:testing", CLPR_SERVICE_ADDRESS_20, crypto -> {
+                    // Empty bundle: no messages, next_message_id=1 (same as channel initial state)
+                    final var bundle = ClprBundleContent.newBuilder()
+                            .setMetadata(ClprQueueMetadata.newBuilder()
+                                    .setNextMessageId(1)
+                                    .setSentRunningHash(ByteString.copyFrom(ZERO_HASH))
+                                    .setReceivedMessageId(0)
+                                    .setStatus(ClprChannelStatus.ACTIVE)
+                                    .build())
+                            .build();
+                    return blockingOrder(
+                            clprUpdateLedgerConfiguration()
+                                    .configuration(defaultLedgerConfig())
+                                    .payingWith(GENESIS),
+                            clprCreateChannel()
+                                    .channelId(crypto.channelId())
+                                    .salt(crypto.salt())
+                                    .peerVerifier(crypto.peerVerifier())
+                                    .verifierContract(VERIFIER_CONTRACT)
+                                    .configProofBytes(toConfigProofBytes(defaultLedgerConfig()))
+                                    .payingWith(GENESIS),
+                            clprSubmitBundle()
+                                    .channelId(crypto.channelId())
+                                    .bundlePayload(bundle.toByteArray())
+                                    .endpointNodeId(0L)
+                                    .payingWith(GENESIS));
+                }));
     }
 
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
     final Stream<DynamicTest> successfulSingleMessageBundle() {
-        final var crypto = new ClprChannelCrypto();
-        // Build a single data message and compute running hash
-        final var dataPayload = ClprMessagePayload.newBuilder()
-                .setMessage(ClprMessage.newBuilder()
-                        .setConnectorId(ByteString.copyFrom(crypto.connectorId()))
-                        .setTargetApplication(ByteString.copyFrom(new byte[] {40, 50}))
-                        .setSender(ByteString.copyFrom(new byte[] {60, 70}))
-                        .setMessageData(ByteString.copyFrom(new byte[] {1, 2, 3}))
-                        .build())
-                .build();
-        return hapiTest(
-                overriding("clpr.minLockedStake", "100"),
-                clprUpdateLedgerConfiguration()
-                        .configuration(defaultLedgerConfig())
-                        .payingWith(GENESIS),
-                uploadInitCode(VERIFIER_CONTRACT),
-                contractCreate(VERIFIER_CONTRACT),
-                clprRegisterChannel().ownershipCommitment(crypto.commitment()).payingWith(GENESIS),
-                clprCompleteChannel()
-                        .channelId(crypto.channelId())
-                        .publicKey(crypto.publicKey())
-                        .signature(crypto.signature())
-                        .signatureScheme(ClprSignatureScheme.ED25519)
-                        .verifierContract(VERIFIER_CONTRACT)
-                        .configProofBytes(toConfigProofBytes(defaultLedgerConfig()))
-                        .payingWith(GENESIS),
-                // §6.3 connector registration
-                clprCreateConnector()
-                        .connectorId(crypto.connectorId())
-                        .ed25519Identity(crypto.seed())
-                        .salt(crypto.connectorSalt())
-                        .channelId(crypto.channelId())
-                        .connectorContract(VERIFIER_CONTRACT)
-                        .adminKeyName(GENESIS)
-                        .lockedStake(100_000_000L)
-                        .payingWith(GENESIS),
-                clprSubmitBundle()
-                        .channelId(crypto.channelId())
-                        .bundlePayload(toBundleProofBytes(
-                                ClprChannelStatus.ACTIVE, 0L, 0L, ZERO_HASH, java.util.List.of(dataPayload)))
-                        .endpointNodeId(0L)
-                        .payingWith(GENESIS));
+        return hapiTest(ClprChannelCrypto.withVerifier(
+                VERIFIER_CONTRACT, "hiero:testing", CLPR_SERVICE_ADDRESS_20, crypto -> {
+                    // Build a single data message and compute running hash
+                    final var dataPayload = ClprMessagePayload.newBuilder()
+                            .setMessage(ClprMessage.newBuilder()
+                                    .setConnectorId(ByteString.copyFrom(crypto.connectorId()))
+                                    .setTargetApplication(ByteString.copyFrom(new byte[] {40, 50}))
+                                    .setSender(ByteString.copyFrom(new byte[] {60, 70}))
+                                    .setMessageData(ByteString.copyFrom(new byte[] {1, 2, 3}))
+                                    .build())
+                            .build();
+                    return blockingOrder(
+                            overriding("clpr.minLockedStake", "100"),
+                            clprUpdateLedgerConfiguration()
+                                    .configuration(defaultLedgerConfig())
+                                    .payingWith(GENESIS),
+                            clprCreateChannel()
+                                    .channelId(crypto.channelId())
+                                    .salt(crypto.salt())
+                                    .peerVerifier(crypto.peerVerifier())
+                                    .verifierContract(VERIFIER_CONTRACT)
+                                    .configProofBytes(toConfigProofBytes(defaultLedgerConfig()))
+                                    .payingWith(GENESIS),
+                            // §6.3 connector registration
+                            clprCreateConnector()
+                                    .connectorId(crypto.connectorId())
+                                    .ed25519Identity(crypto.seed())
+                                    .salt(crypto.connectorSalt())
+                                    .channelId(crypto.channelId())
+                                    .connectorContract(VERIFIER_CONTRACT)
+                                    .adminKeyName(GENESIS)
+                                    .lockedStake(100_000_000L)
+                                    .payingWith(GENESIS),
+                            clprSubmitBundle()
+                                    .channelId(crypto.channelId())
+                                    .bundlePayload(toBundleProofBytes(
+                                            ClprChannelStatus.ACTIVE,
+                                            0L,
+                                            0L,
+                                            ZERO_HASH,
+                                            java.util.List.of(dataPayload)))
+                                    .endpointNodeId(0L)
+                                    .payingWith(GENESIS));
+                }));
     }
 
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
     final Stream<DynamicTest> drainedChannelStillAcceptsBundles() {
-        final var crypto = new ClprChannelCrypto();
-        // One "hello" message per bundle so neither hits the EmptyBundle rejection
-        // (spec §4.2 step 1a — no messages, no rotation, no ack progress).
-        final var helloMessage = ClprMessagePayload.newBuilder()
-                .setMessage(ClprMessage.newBuilder()
-                        .setConnectorId(ByteString.copyFrom(new byte[32]))
-                        .setTargetApplication(ByteString.copyFrom(new byte[20]))
-                        .setSender(ByteString.copyFrom(new byte[20]))
-                        .setMessageData(ByteString.copyFromUtf8("hello"))
-                        .build())
-                .build();
-        // First bundle: peer reports CLOSING (not DRAINED). Since local has no outbound,
-        // local transitions ACTIVE → CLOSING → DRAINED. Peer is only CLOSING so we stop
-        // at DRAINED (not CLOSED).
-        final var firstBundle = ClprBundleContent.newBuilder()
-                .setMetadata(ClprQueueMetadata.newBuilder()
-                        .setNextMessageId(2)
-                        .setSentRunningHash(ByteString.copyFrom(ZERO_HASH))
-                        .setReceivedMessageId(0)
-                        .setStatus(ClprChannelStatus.CLOSING)
-                        .build())
-                .addMessages(helloMessage)
-                .build();
-        // Second bundle: submitted while local is DRAINED. Must still succeed
-        // so the peer can receive acks and complete its drain.
-        final var secondBundle = ClprBundleContent.newBuilder()
-                .setMetadata(ClprQueueMetadata.newBuilder()
-                        .setNextMessageId(2)
-                        .setSentRunningHash(ByteString.copyFrom(ZERO_HASH))
-                        .setReceivedMessageId(0)
-                        .setStatus(ClprChannelStatus.DRAINED)
-                        .build())
-                .addMessages(helloMessage)
-                .build();
-        return hapiTest(
-                clprUpdateLedgerConfiguration()
-                        .configuration(defaultLedgerConfig())
-                        .payingWith(GENESIS),
-                uploadInitCode(VERIFIER_CONTRACT),
-                contractCreate(VERIFIER_CONTRACT),
-                clprRegisterChannel().ownershipCommitment(crypto.commitment()).payingWith(GENESIS),
-                clprCompleteChannel()
-                        .channelId(crypto.channelId())
-                        .publicKey(crypto.publicKey())
-                        .signature(crypto.signature())
-                        .signatureScheme(ClprSignatureScheme.ED25519)
-                        .verifierContract(VERIFIER_CONTRACT)
-                        .configProofBytes(toConfigProofBytes(defaultLedgerConfig()))
-                        .payingWith(GENESIS),
-                // First bundle: peer CLOSING transitions local ACTIVE → CLOSING → DRAINED
-                clprSubmitBundle()
-                        .channelId(crypto.channelId())
-                        .bundlePayload(toBundleProofBytes(firstBundle))
-                        .endpointNodeId(0L)
-                        .payingWith(GENESIS),
-                // Second bundle on DRAINED channel — must still succeed
-                clprSubmitBundle()
-                        .channelId(crypto.channelId())
-                        .bundlePayload(toBundleProofBytes(secondBundle))
-                        .endpointNodeId(0L)
-                        .payingWith(GENESIS));
+        return hapiTest(ClprChannelCrypto.withVerifier(
+                VERIFIER_CONTRACT, "hiero:testing", CLPR_SERVICE_ADDRESS_20, crypto -> {
+                    // One "hello" message per bundle so neither hits the EmptyBundle rejection
+                    // (spec §4.2 step 1a — no messages, no rotation, no ack progress).
+                    final var helloMessage = ClprMessagePayload.newBuilder()
+                            .setMessage(ClprMessage.newBuilder()
+                                    .setConnectorId(ByteString.copyFrom(new byte[32]))
+                                    .setTargetApplication(ByteString.copyFrom(new byte[20]))
+                                    .setSender(ByteString.copyFrom(new byte[20]))
+                                    .setMessageData(ByteString.copyFromUtf8("hello"))
+                                    .build())
+                            .build();
+                    // First bundle: peer reports CLOSING (not DRAINED). Since local has no outbound,
+                    // local transitions ACTIVE → CLOSING → DRAINED. Peer is only CLOSING so we stop
+                    // at DRAINED (not CLOSED).
+                    final var firstBundle = ClprBundleContent.newBuilder()
+                            .setMetadata(ClprQueueMetadata.newBuilder()
+                                    .setNextMessageId(2)
+                                    .setSentRunningHash(ByteString.copyFrom(ZERO_HASH))
+                                    .setReceivedMessageId(0)
+                                    .setStatus(ClprChannelStatus.CLOSING)
+                                    .build())
+                            .addMessages(helloMessage)
+                            .build();
+                    // Second bundle: submitted while local is DRAINED. Must still succeed
+                    // so the peer can receive acks and complete its drain.
+                    final var secondBundle = ClprBundleContent.newBuilder()
+                            .setMetadata(ClprQueueMetadata.newBuilder()
+                                    .setNextMessageId(2)
+                                    .setSentRunningHash(ByteString.copyFrom(ZERO_HASH))
+                                    .setReceivedMessageId(0)
+                                    .setStatus(ClprChannelStatus.DRAINED)
+                                    .build())
+                            .addMessages(helloMessage)
+                            .build();
+                    return blockingOrder(
+                            clprUpdateLedgerConfiguration()
+                                    .configuration(defaultLedgerConfig())
+                                    .payingWith(GENESIS),
+                            clprCreateChannel()
+                                    .channelId(crypto.channelId())
+                                    .salt(crypto.salt())
+                                    .peerVerifier(crypto.peerVerifier())
+                                    .verifierContract(VERIFIER_CONTRACT)
+                                    .configProofBytes(toConfigProofBytes(defaultLedgerConfig()))
+                                    .payingWith(GENESIS),
+                            // First bundle: peer CLOSING transitions local ACTIVE → CLOSING → DRAINED
+                            clprSubmitBundle()
+                                    .channelId(crypto.channelId())
+                                    .bundlePayload(toBundleProofBytes(firstBundle))
+                                    .endpointNodeId(0L)
+                                    .payingWith(GENESIS),
+                            // Second bundle on DRAINED channel — must still succeed
+                            clprSubmitBundle()
+                                    .channelId(crypto.channelId())
+                                    .bundlePayload(toBundleProofBytes(secondBundle))
+                                    .endpointNodeId(0L)
+                                    .payingWith(GENESIS));
+                }));
     }
 
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
@@ -267,124 +263,122 @@ public class ClprSubmitBundleSuite {
         // local channel, the handler must transition local → CLOSING.
         // (peerState == CLOSED satisfies the same guard as CLOSING/DRAINED per the handler's
         // step-10 check: peerState ∈ {CLOSING, DRAINED, CLOSED} && localStatus == ACTIVE.)
-        final var crypto = new ClprChannelCrypto();
-        final var closedPeerBundle = ClprBundleContent.newBuilder()
-                .setMetadata(ClprQueueMetadata.newBuilder()
-                        .setNextMessageId(2)
-                        .setSentRunningHash(ByteString.copyFrom(ZERO_HASH))
-                        .setReceivedMessageId(0)
-                        .setStatus(ClprChannelStatus.CLOSED)
-                        .build())
-                .addMessages(ClprMessagePayload.newBuilder()
-                        .setMessage(ClprMessage.newBuilder()
-                                .setConnectorId(ByteString.copyFrom(new byte[32]))
-                                .setTargetApplication(ByteString.copyFrom(new byte[20]))
-                                .setSender(ByteString.copyFrom(new byte[20]))
-                                .setMessageData(ByteString.copyFromUtf8("last"))
-                                .build())
-                        .build())
-                .build();
-        return hapiTest(
-                overriding("clpr.minLockedStake", "100"),
-                clprUpdateLedgerConfiguration()
-                        .configuration(defaultLedgerConfig())
-                        .payingWith(GENESIS),
-                uploadInitCode(VERIFIER_CONTRACT),
-                contractCreate(VERIFIER_CONTRACT),
-                uploadInitCode(CONNECTOR_CONTRACT),
-                contractCreate(CONNECTOR_CONTRACT),
-                uploadInitCode(CLPR_CONTRACT),
-                contractCreate(CLPR_CONTRACT),
-                cryptoCreate("caller").balance(ONE_HUNDRED_HBARS),
-                clprRegisterChannel().ownershipCommitment(crypto.commitment()).payingWith(GENESIS),
-                clprCompleteChannel()
-                        .channelId(crypto.channelId())
-                        .publicKey(crypto.publicKey())
-                        .signature(crypto.signature())
-                        .signatureScheme(ClprSignatureScheme.ED25519)
-                        .verifierContract(VERIFIER_CONTRACT)
-                        .configProofBytes(toConfigProofBytes(defaultLedgerConfig()))
-                        .payingWith(GENESIS),
-                clprCreateConnector()
-                        .connectorId(crypto.connectorId())
-                        .ed25519Identity(crypto.seed())
-                        .salt(crypto.connectorSalt())
-                        .channelId(crypto.channelId())
-                        .connectorContract(CONNECTOR_CONTRACT)
-                        .adminKeyName(GENESIS)
-                        .lockedStake(100_000_000L)
-                        .payingWith(GENESIS),
-                contractCall(
-                                CLPR_CONTRACT,
-                                "sendMessage",
-                                crypto.channelId(),
-                                crypto.connectorId(),
-                                new byte[20],
-                                new byte[] {1, 2, 3})
-                        .gas(2_000_000L)
-                        .payingWith("caller"),
-                // Bundle with peer=CLOSED: local ACTIVE → CLOSING (an unacked data message keeps the channel from
-                // DRAINED or CLOSED)
-                clprSubmitBundle()
-                        .channelId(crypto.channelId())
-                        .bundlePayload(toBundleProofBytes(closedPeerBundle))
-                        .endpointNodeId(0L)
-                        .payingWith(GENESIS),
-                // The local ledger should have initiated a closing transition; to verify, ensure an attempt to close
-                // the channel fails
-                clprCloseChannel()
-                        .channelId(crypto.channelId())
-                        .payingWith(GENESIS)
-                        .hasKnownStatusFrom(CLPR_INVALID_CHANNEL_STATUS));
+        return hapiTest(ClprChannelCrypto.withVerifier(
+                VERIFIER_CONTRACT, "hiero:testing", CLPR_SERVICE_ADDRESS_20, crypto -> {
+                    final var closedPeerBundle = ClprBundleContent.newBuilder()
+                            .setMetadata(ClprQueueMetadata.newBuilder()
+                                    .setNextMessageId(2)
+                                    .setSentRunningHash(ByteString.copyFrom(ZERO_HASH))
+                                    .setReceivedMessageId(0)
+                                    .setStatus(ClprChannelStatus.CLOSED)
+                                    .build())
+                            .addMessages(ClprMessagePayload.newBuilder()
+                                    .setMessage(ClprMessage.newBuilder()
+                                            .setConnectorId(ByteString.copyFrom(new byte[32]))
+                                            .setTargetApplication(ByteString.copyFrom(new byte[20]))
+                                            .setSender(ByteString.copyFrom(new byte[20]))
+                                            .setMessageData(ByteString.copyFromUtf8("last"))
+                                            .build())
+                                    .build())
+                            .build();
+                    return blockingOrder(
+                            overriding("clpr.minLockedStake", "100"),
+                            clprUpdateLedgerConfiguration()
+                                    .configuration(defaultLedgerConfig())
+                                    .payingWith(GENESIS),
+                            uploadInitCode(CONNECTOR_CONTRACT),
+                            contractCreate(CONNECTOR_CONTRACT),
+                            uploadInitCode(CLPR_CONTRACT),
+                            contractCreate(CLPR_CONTRACT),
+                            cryptoCreate("caller").balance(ONE_HUNDRED_HBARS),
+                            clprCreateChannel()
+                                    .channelId(crypto.channelId())
+                                    .salt(crypto.salt())
+                                    .peerVerifier(crypto.peerVerifier())
+                                    .verifierContract(VERIFIER_CONTRACT)
+                                    .configProofBytes(toConfigProofBytes(defaultLedgerConfig()))
+                                    .payingWith(GENESIS),
+                            clprCreateConnector()
+                                    .connectorId(crypto.connectorId())
+                                    .ed25519Identity(crypto.seed())
+                                    .salt(crypto.connectorSalt())
+                                    .channelId(crypto.channelId())
+                                    .connectorContract(CONNECTOR_CONTRACT)
+                                    .adminKeyName(GENESIS)
+                                    .lockedStake(100_000_000L)
+                                    .payingWith(GENESIS),
+                            contractCall(
+                                            CLPR_CONTRACT,
+                                            "sendMessage",
+                                            crypto.channelId(),
+                                            crypto.connectorId(),
+                                            new byte[20],
+                                            new byte[] {1, 2, 3})
+                                    .gas(2_000_000L)
+                                    .payingWith("caller"),
+                            // Bundle with peer=CLOSED: local ACTIVE → CLOSING (an unacked data message keeps the
+                            // channel from
+                            // DRAINED or CLOSED)
+                            clprSubmitBundle()
+                                    .channelId(crypto.channelId())
+                                    .bundlePayload(toBundleProofBytes(closedPeerBundle))
+                                    .endpointNodeId(0L)
+                                    .payingWith(GENESIS),
+                            // The local ledger should have initiated a closing transition; to verify, ensure an attempt
+                            // to close
+                            // the channel fails
+                            clprDeleteChannel()
+                                    .channelId(crypto.channelId())
+                                    .payingWith(GENESIS)
+                                    .hasKnownStatusFrom(CLPR_INVALID_CHANNEL_STATUS));
+                }));
     }
 
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
     final Stream<DynamicTest> configPropagatedOnSubmitBundleAfterConfigUpdate() {
-        final var crypto = new ClprChannelCrypto();
-        // Empty bundle — no messages, just triggers lazy config propagation
-        final var bundle = ClprBundleContent.newBuilder()
-                .setMetadata(ClprQueueMetadata.newBuilder()
-                        .setNextMessageId(2)
-                        .setSentRunningHash(ByteString.copyFrom(ZERO_HASH))
-                        .setReceivedMessageId(0)
-                        .setStatus(ClprChannelStatus.ACTIVE)
-                        .build())
-                .addMessages(ClprMessagePayload.newBuilder()
-                        .setMessage(ClprMessage.newBuilder()
-                                .setConnectorId(ByteString.copyFrom(new byte[32]))
-                                .setTargetApplication(ByteString.copyFrom(new byte[20]))
-                                .setSender(ByteString.copyFrom(new byte[20]))
-                                .setMessageData(ByteString.copyFromUtf8("hello"))
-                                .build())
-                        .build())
-                .build();
-        return hapiTest(
-                // Initial config
-                clprUpdateLedgerConfiguration()
-                        .configuration(defaultLedgerConfig())
-                        .payingWith(GENESIS),
-                uploadInitCode(VERIFIER_CONTRACT),
-                contractCreate(VERIFIER_CONTRACT),
-                clprRegisterChannel().ownershipCommitment(crypto.commitment()).payingWith(GENESIS),
-                clprCompleteChannel()
-                        .channelId(crypto.channelId())
-                        .publicKey(crypto.publicKey())
-                        .signature(crypto.signature())
-                        .signatureScheme(ClprSignatureScheme.ED25519)
-                        .verifierContract(VERIFIER_CONTRACT)
-                        .configProofBytes(toConfigProofBytes(defaultLedgerConfig()))
-                        .payingWith(GENESIS),
-                // Update config AFTER channel established — makes channel's
-                // lastConfigTimestamp stale, triggering lazy propagation on next interaction
-                clprUpdateLedgerConfiguration()
-                        .configuration(defaultLedgerConfig())
-                        .payingWith(GENESIS),
-                // Submit bundle — should succeed and internally enqueue ConfigUpdate
-                clprSubmitBundle()
-                        .channelId(crypto.channelId())
-                        .bundlePayload(toBundleProofBytes(bundle))
-                        .endpointNodeId(0L)
-                        .payingWith(GENESIS));
+        return hapiTest(ClprChannelCrypto.withVerifier(
+                VERIFIER_CONTRACT, "hiero:testing", CLPR_SERVICE_ADDRESS_20, crypto -> {
+                    // Empty bundle — no messages, just triggers lazy config propagation
+                    final var bundle = ClprBundleContent.newBuilder()
+                            .setMetadata(ClprQueueMetadata.newBuilder()
+                                    .setNextMessageId(2)
+                                    .setSentRunningHash(ByteString.copyFrom(ZERO_HASH))
+                                    .setReceivedMessageId(0)
+                                    .setStatus(ClprChannelStatus.ACTIVE)
+                                    .build())
+                            .addMessages(ClprMessagePayload.newBuilder()
+                                    .setMessage(ClprMessage.newBuilder()
+                                            .setConnectorId(ByteString.copyFrom(new byte[32]))
+                                            .setTargetApplication(ByteString.copyFrom(new byte[20]))
+                                            .setSender(ByteString.copyFrom(new byte[20]))
+                                            .setMessageData(ByteString.copyFromUtf8("hello"))
+                                            .build())
+                                    .build())
+                            .build();
+                    return blockingOrder(
+                            // Initial config
+                            clprUpdateLedgerConfiguration()
+                                    .configuration(defaultLedgerConfig())
+                                    .payingWith(GENESIS),
+                            clprCreateChannel()
+                                    .channelId(crypto.channelId())
+                                    .salt(crypto.salt())
+                                    .peerVerifier(crypto.peerVerifier())
+                                    .verifierContract(VERIFIER_CONTRACT)
+                                    .configProofBytes(toConfigProofBytes(defaultLedgerConfig()))
+                                    .payingWith(GENESIS),
+                            // Update config AFTER channel established — makes channel's
+                            // lastConfigTimestamp stale, triggering lazy propagation on next interaction
+                            clprUpdateLedgerConfiguration()
+                                    .configuration(defaultLedgerConfig())
+                                    .payingWith(GENESIS),
+                            // Submit bundle — should succeed and internally enqueue ConfigUpdate
+                            clprSubmitBundle()
+                                    .channelId(crypto.channelId())
+                                    .bundlePayload(toBundleProofBytes(bundle))
+                                    .endpointNodeId(0L)
+                                    .payingWith(GENESIS));
+                }));
     }
 
     private static ClprLedgerConfiguration defaultLedgerConfig() {

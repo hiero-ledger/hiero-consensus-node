@@ -22,7 +22,6 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
-import org.hiero.base.crypto.ECDSASecp256k1;
 
 /**
  * Static helpers for constructing CLPR smoke-test artifacts.
@@ -249,7 +248,7 @@ public final class ClprTestHelpers {
      * <p>The channel state contributes the {@code ClprQueueMetadata} fields the verifier
      * reconstructs from the proven channel leaf:
      * <ul>
-     *   <li>{@code next_message_id = 1} (matches {@code ClprCompleteChannelHandler} init)</li>
+     *   <li>{@code next_message_id = 1} (matches {@code ClprCreateChannelHandler} init)</li>
      *   <li>both running hashes initialised to 32 zero bytes</li>
      *   <li>{@code status = ACTIVE}</li>
      * </ul>
@@ -267,32 +266,9 @@ public final class ClprTestHelpers {
     }
 
     /**
-     * Computes the channel ownership commitment {@code keccak256(channelId || publicKey)}.
-     *
-     * @param channelId 32-byte channel ID
-     * @param publicKey    64-byte uncompressed secp256k1 public key (without 0x04 prefix)
-     */
-    public static Bytes computeCommitment(final Bytes channelId, final Bytes publicKey) {
-        final var payload = new byte[(int) (channelId.length() + publicKey.length())];
-        channelId.getBytes(0, payload, 0, (int) channelId.length());
-        publicKey.getBytes(0, payload, (int) channelId.length(), (int) publicKey.length());
-        return MiscCryptoUtils.keccak256DigestOf(Bytes.wrap(payload));
-    }
-
-    /**
      * Derives the shared connector ID from the raw public key and salt.
      */
     public static Bytes deriveConnectorId(final Bytes pubKey, final Bytes salt) {
         return MiscCryptoUtils.keccak256DigestOf(Bytes.merge(pubKey, salt));
-    }
-
-    /**
-     * Signs {@code keccak256(channelId.toByteArray())} with the given secp256k1 secret key.
-     *
-     * @return 64-byte compact recoverable ECDSA signature
-     */
-    public static byte[] signChannelId(final byte[] secKey, final Bytes channelId) {
-        final var messageHash = MiscCryptoUtils.keccak256DigestOf(channelId.toByteArray());
-        return ECDSASecp256k1.signDigestWithEcdsaSecp256k1(secKey, messageHash);
     }
 }

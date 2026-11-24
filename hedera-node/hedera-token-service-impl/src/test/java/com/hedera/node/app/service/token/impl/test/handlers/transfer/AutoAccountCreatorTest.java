@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_ENTITIES_IN_PRICE_R
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.asAccount;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -62,7 +63,8 @@ class AutoAccountCreatorTest extends StepsBase {
         accountCreatorInternalSetup(false);
         given(handleContext.dispatch(
                         argThat(options -> CryptoCreateStreamBuilder.class.equals(options.streamBuilderType())
-                                && payerId.equals(options.payerId()))))
+                                && payerId.equals(options.payerId())
+                                && options.reversingBehavior() == REVERSIBLE)))
                 .will((invocation) -> {
                     final var copy =
                             account.copyBuilder().accountId(hbarReceiverId).build();
@@ -96,7 +98,8 @@ class AutoAccountCreatorTest extends StepsBase {
         accountCreatorInternalSetup(false);
         given(handleContext.dispatch(
                         argThat(options -> CryptoCreateStreamBuilder.class.equals(options.streamBuilderType())
-                                && payerId.equals(options.payerId()))))
+                                && payerId.equals(options.payerId())
+                                && options.reversingBehavior() == REVERSIBLE)))
                 .will((invocation) -> {
                     final var copy =
                             account.copyBuilder().accountId(hbarReceiverId).build();
@@ -130,7 +133,8 @@ class AutoAccountCreatorTest extends StepsBase {
         final var address = new ProtoBytes(Bytes.wrap(evmAddress));
         given(handleContext.dispatch(
                         argThat(options -> CryptoCreateStreamBuilder.class.equals(options.streamBuilderType())
-                                && payerId.equals(options.payerId()))))
+                                && payerId.equals(options.payerId())
+                                && options.reversingBehavior() == REVERSIBLE)))
                 .will((invocation) -> {
                     final var copy =
                             account.copyBuilder().accountId(hbarReceiverId).build();

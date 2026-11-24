@@ -89,9 +89,8 @@ import "services/node_delete.proto";
 import "services/custom_fees.proto";
 
 import "services/clpr_update_ledger_configuration.proto";
-import "services/clpr_complete_channel.proto";
-import "services/clpr_register_channel.proto";
-import "services/clpr_close_channel.proto";
+import "services/clpr_create_channel.proto";
+import "services/clpr_delete_channel.proto";
 import "services/clpr_create_connector.proto";
 import "services/clpr_delete_connector.proto";
 import "services/clpr_submit_bundle.proto";
@@ -720,19 +719,9 @@ message TransactionBody {
         com.hedera.hapi.node.clpr.ClprUpdateLedgerConfigurationTransactionBody clprUpdateLedgerConfiguration = 82;
 
         /**
-         * Phase 1 (Commit): Claim a CLPR Channel ID. Creates in PENDING state.
-         */
-        com.hedera.hapi.node.clpr.ClprRegisterChannelTransactionBody clprRegisterChannel = 83;
-
-        /**
-         * Phase 2 (Reveal): Complete a PENDING Channel. Transitions to ACTIVE.
-         */
-        com.hedera.hapi.node.clpr.ClprCompleteChannelTransactionBody clprCompleteChannel = 84;
-
-        /**
          * Initiate graceful closure of a CLPR Channel.
          */
-        com.hedera.hapi.node.clpr.ClprCloseChannelTransactionBody clprCloseChannel = 85;
+        com.hedera.hapi.node.clpr.ClprDeleteChannelTransactionBody clprDeleteChannel = 85;
 
         /**
          * Submit a bundle of cross-ledger messages from a peer sync.
@@ -766,6 +755,9 @@ message TransactionBody {
          * Requires the CLPR admin key.
          */
         com.hedera.hapi.node.clpr.ClprEvictPeerEndpointTransactionBody clprEvictPeerEndpoint = 93;
+
+        /** Create a channel with an ID bound to both ledgers and verifiers. */
+        com.hedera.hapi.node.clpr.ClprCreateChannelTransactionBody clprCreateChannel = 94;
     }
 
     /**

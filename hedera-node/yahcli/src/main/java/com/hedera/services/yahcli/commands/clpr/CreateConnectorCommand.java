@@ -76,7 +76,7 @@ public class CreateConnectorCommand implements Callable<Integer> {
 
         final var bundle = ClprArgs.readFlatJsonStringFields(identityPath);
         final var scheme =
-                GenerateChannelIdentityCommand.ClprIdentityCrypto.normalizeScheme(bundle.get("signatureScheme"));
+                GenerateConnectorIdentityCommand.ClprIdentityCrypto.normalizeScheme(bundle.get("signatureScheme"));
         final var key = readIdentityKey(keyPath != null ? keyPath : Path.of(identityPath + ".key"));
         final var op = clprCreateConnector()
                 .connectorId(ClprArgs.requiredBytes("connector-id", bundle.get("connectorId")))

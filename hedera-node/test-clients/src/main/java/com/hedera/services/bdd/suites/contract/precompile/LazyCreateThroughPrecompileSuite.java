@@ -160,7 +160,12 @@ public class LazyCreateThroughPrecompileSuite {
                     allRunFor(spec, callOp);
                 }),
                 childRecordsCheck(
-                        creationAttempt, CONTRACT_REVERT_EXECUTED, recordWith().status(MAX_CHILD_RECORDS_EXCEEDED)));
+                        creationAttempt,
+                        CONTRACT_REVERT_EXECUTED,
+                        // the two rolled back hollow creations that fit under the limit are kept as reverted children
+                        recordWith().revertedAccountCreation(),
+                        recordWith().revertedAccountCreation(),
+                        recordWith().status(MAX_CHILD_RECORDS_EXCEEDED)));
     }
 
     @HapiTest
@@ -271,6 +276,8 @@ public class LazyCreateThroughPrecompileSuite {
                             childRecordsCheck(
                                     TRANSFER_THEN_REVERT_TXN,
                                     CONTRACT_REVERT_EXECUTED,
+                                    // the rolled back hollow creation is kept as a reverted child
+                                    recordWith().revertedAccountCreation(),
                                     recordWith().status(REVERTED_SUCCESS)),
                             childRecordsCheck(
                                     TRANSFER_TXN,
@@ -380,10 +387,14 @@ public class LazyCreateThroughPrecompileSuite {
                             childRecordsCheck(
                                     NOT_ENOUGH_GAS_TXN,
                                     CONTRACT_REVERT_EXECUTED,
+                                    // the rolled back hollow creation is kept as a reverted child
+                                    recordWith().revertedAccountCreation(),
                                     recordWith().status(INSUFFICIENT_GAS)),
                             childRecordsCheck(
                                     TRANSFER_FROM_ACCOUNT_REVERT_TXN,
                                     CONTRACT_REVERT_EXECUTED,
+                                    // the rolled back hollow creation is kept as a reverted child
+                                    recordWith().revertedAccountCreation(),
                                     recordWith().status(REVERTED_SUCCESS)),
                             childRecordsCheck(
                                     TRANSFER_FROM_ACCOUNT_TXN,
@@ -478,6 +489,8 @@ public class LazyCreateThroughPrecompileSuite {
                             childRecordsCheck(
                                     TRANSFER_FROM_ACCOUNT_REVERT_TXN,
                                     CONTRACT_REVERT_EXECUTED,
+                                    // the rolled back hollow creation is kept as a reverted child
+                                    recordWith().revertedAccountCreation(),
                                     recordWith().status(REVERTED_SUCCESS)),
                             childRecordsCheck(
                                     TRANSFER_FROM_ACCOUNT_TXN,
@@ -669,10 +682,12 @@ public class LazyCreateThroughPrecompileSuite {
                                     .refusingEthConversion()
                                     .hasKnownStatus(SUCCESS));
                 }),
-                getTxnRecord(TRANSFER_TXN).hasNonStakingChildRecordCount(1),
+                getTxnRecord(TRANSFER_TXN).hasNonStakingChildRecordCount(2),
                 childRecordsCheck(
                         TRANSFER_TXN,
                         SUCCESS,
+                        // the rolled back hollow creation is kept as a reverted child
+                        recordWith().revertedAccountCreation(),
                         recordWith()
                                 .status(REVERTED_SUCCESS)
                                 .contractCallResult(resultWith()

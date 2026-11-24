@@ -1,44 +1,68 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.clpr;
 
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
+import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
+import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.CLPR_SERVICE_ADDRESS_20;
+
+import com.hedera.node.app.hapi.utils.ClprChannelId;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.services.bdd.spec.SpecOperation;
 import java.security.SecureRandom;
+import java.util.function.Function;
 import org.hiero.base.crypto.Ed25519;
 
-/**
- * Generates Ed25519 key material for the
- * channel handshake and connector registration. Tests that only exercise a
- * registered channel can ignore the connector accessors.
- */
+/** Derives a verifier-bound channel ID and a reusable connector identity for tests. */
 final class ClprChannelCrypto {
     private final byte[] seed = new byte[Ed25519.SEED_BYTES];
     private final byte[] channelId;
-    private final byte[] publicKey;
-    private final byte[] commitment;
-    private final byte[] signature;
+    private final byte[] salt = new byte[32];
     private final byte[] connectorSalt;
     private final byte[] connectorId;
 
     ClprChannelCrypto() {
-        final var rng = new SecureRandom();
+        this("eip155:298", CLPR_SERVICE_ADDRESS_20, "hiero:testing", CLPR_SERVICE_ADDRESS_20);
+    }
 
-        // Random 32-byte channel ID
-        channelId = new byte[32];
-        rng.nextBytes(channelId);
+    /** Build dependent operations after the ledger has assigned the deployed verifier its address. */
+    static SpecOperation withVerifier(
+            final String verifier,
+            final String peerChain,
+            final byte[] peerService,
+            final Function<ClprChannelCrypto, SpecOperation> scenario) {
+        return blockingOrder(
+                uploadInitCode(verifier),
+                contractCreate(verifier),
+                sourcingContextual(spec -> scenario.apply(new ClprChannelCrypto(
+                        "eip155:" + spec.startupProperties().getLong("contracts.chainId"),
+                        asSolidityAddress(spec.registry().getContractId(verifier)),
+                        peerChain,
+                        peerService))));
+    }
+
+    ClprChannelCrypto(
+            final String localChain, final byte[] verifier, final String peerChain, final byte[] peerService) {
+        final var rng = new SecureRandom();
+        rng.nextBytes(salt);
+        channelId = ClprChannelId.derive(
+                        localChain,
+                        Bytes.wrap(CLPR_SERVICE_ADDRESS_20),
+                        Bytes.wrap(verifier),
+                        peerChain,
+                        Bytes.wrap(peerService),
+                        Bytes.wrap(peerVerifier()),
+                        Bytes.wrap(salt))
+                .toByteArray();
 
         // Generate Ed25519 key pair
         rng.nextBytes(seed);
         final byte[] secretKey = new byte[Ed25519.SECRET_KEY_BYTES];
-        publicKey = new byte[Ed25519.PUBLIC_KEY_BYTES];
+        final byte[] publicKey = new byte[Ed25519.PUBLIC_KEY_BYTES];
         Ed25519.newKeypair(publicKey, secretKey, seed);
-
-        // commitment = keccak256(channelId || publicKey)  — spec §5.1.2
-        commitment = MiscCryptoUtils.keccak256DigestOf(concat(channelId, publicKey));
-
-        // signature = Ed25519.sign(keccak256(channelId))  — spec §5.1.3
-        signature = new byte[Ed25519.SIGNATURE_BYTES];
-        final var messageHash = MiscCryptoUtils.keccak256DigestOf(channelId);
-        Ed25519.sign(signature, messageHash, secretKey);
 
         // connectorId = keccak256(pubKey || salt)  — spec §6.3 deriveConnectorId
         connectorSalt = new byte[32];
@@ -50,20 +74,16 @@ final class ClprChannelCrypto {
         return seed;
     }
 
+    byte[] salt() {
+        return salt;
+    }
+
+    byte[] peerVerifier() {
+        return CLPR_SERVICE_ADDRESS_20;
+    }
+
     byte[] channelId() {
         return channelId;
-    }
-
-    byte[] publicKey() {
-        return publicKey;
-    }
-
-    byte[] commitment() {
-        return commitment;
-    }
-
-    byte[] signature() {
-        return signature;
     }
 
     byte[] connectorSalt() {

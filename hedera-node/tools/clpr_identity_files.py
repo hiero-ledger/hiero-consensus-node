@@ -1,5 +1,5 @@
 """
-Key-file helpers shared by sign-clpr-channel-identity.py and derive-clpr-connector-identity.py
+Key-file helpers used by derive-clpr-connector-identity.py
 (loaded by file path, the same way build-besu-qbft-config-payload.py loads its common module).
 
   _check_key_file   refuse symlinked/special key files and, on POSIX, loose or foreign-owned ones
