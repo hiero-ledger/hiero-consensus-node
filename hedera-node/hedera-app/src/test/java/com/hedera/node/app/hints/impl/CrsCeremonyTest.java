@@ -24,6 +24,7 @@ import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
@@ -79,6 +80,7 @@ class CrsCeremonyTest {
                 Bytes.EMPTY,
                 CONSTRUCTION,
                 mock(RosterTransitionWeights.class),
+                Set.of(),
                 tasks::add,
                 library,
                 Map.of(),

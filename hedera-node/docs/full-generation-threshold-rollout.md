@@ -16,7 +16,8 @@ previous main-branch behavior:
 Threshold comparisons retain their existing strictness and integer rounding. For example, `F=7, S=5` changes the
 minimum preprocessing vote weight from 2 to 3 and the minimum block signer weight from 3 to 4. A native signature
 whose signer weight is 10 with `F=20, S=18` passes the old `1/2` check but fails the new equivalent `5/9` check;
-weight 11 passes the latter.
+weight 11 passes the latter. A history-backed key preprocessed with TSS 3.29.1 commits 20 directly, so its ordinary
+`1/2` check rejects weight 10 and accepts weight 11.
 
 ## Availability and fault tolerance
 
@@ -30,10 +31,11 @@ The node logs an activation warning when `S <= 5F/6`, once for that generation r
 
 ## Compatibility and legacy state
 
-History-disabled and mock-signature configurations retain their previous scheme-based behavior. With history
-enabled, mock-signature rotations still promote hinTS and history together. Fresh genesis
+Preprocessing with history disabled produces participant-weight keys. Preprocessing with history enabled commits
+the complete target weight even while block signatures are mocked, so the key is ready for cutover. Mock-signature
+rotations promote hinTS and history together. Fresh genesis
 initializes TSS singleton values in its first handled round; runtime restoration must not read those values before
-that round. These compatibility paths do not claim full-generation enforcement.
+that round.
 
 In real history mode, a completed scheme requires a matching completed history proof: target identity,
 verification key, any provenance binding, and participant weights must agree. Signing attempts freeze the complete
@@ -52,14 +54,26 @@ already require the missing source denominator. The node never guesses from a di
 Completed legacy non-WRAPS proofs without a membership snapshot fail with a recovery/reset diagnostic; they do not
 silently enter the WRAPS recovery wait.
 
-WRAPS proof-adoption votes and key-provenance authorization retain their separate scheme-based authority rules;
-this release does not change those quorum denominators. Existing canonical native WRAPS book checks remain in force.
+Incremental WRAPS proof-adoption votes use the source scheme's eligible weight. WRAPS signing requires a
+majority of effective Schnorr weight. A provenance signature additionally requires strictly more than one third
+of the source hinTS key's committed weight.
 
-## Remaining verifier protocol work
+## Verifying across the 3.29.1 upgrade
 
-This is consensus-node enforcement. WRAPS metadata currently authenticates only the hinTS verification key, and the
-composite `TSS.verifyTSS` API still verifies against half the weight encoded in that key. A coalition above half of
-a sparse scheme can therefore still produce a signature accepted by outside verifiers. A coordinated follow-up
-must authenticate the minimum threshold alongside the key, update the cryptography library's composite format and
-API, and update block-node, mirror-node, and CLPR verifiers. This release does not change the signature wire format
-or established trust roots.
+The requirements for a given key are fixed when preprocessing starts. New history-backed constructions persist
+`preprocessing_roster_weight` with their cutoff. Every target member contributes its listed weight to the
+verification key, and only members with valid hints at the cutoff can sign. On restart the node recovers the
+same inputs. A construction already past its cutoff at upgrade completes under the participant-weight rule,
+so previously cast votes still agree with the result.
+
+WRAPS authenticates the verification key bytes. For a new history-backed key, the composite verifier's existing
+strict `1/2` check enforces a full-book majority. The existing wire format and ledger trust root support ordinary
+rotation to these keys. Legacy sparse keys continue to expose their participant-weight denominator to external
+verifiers, including when they verify historical proofs. The consensus node still uses the complete history
+snapshot to enforce its local block-signing threshold for those keys.
+
+The CN/CLPR regression `HistoryLibraryImplTest.compositeBlockProofRequiresStrictMajorityOfTheFullRoster`
+rotates a participant-weight key (18) to a full-roster key (20) under one ledger ID. The 3.29.1
+`NativeTssVerifier` and the released 3.28.0 composite verifier both accepted the historical 10-weight proof,
+rejected a 10-weight proof after rotation, and accepted an 11-weight proof after rotation. Both also
+rejected proofs assembled from mismatched generations after verification had populated the WRAPS cache.

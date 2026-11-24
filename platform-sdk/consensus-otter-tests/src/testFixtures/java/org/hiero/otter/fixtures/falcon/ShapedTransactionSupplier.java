@@ -11,8 +11,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import org.hiero.consensus.benchmark.tools.event.EventShape;
+import org.hiero.consensus.main.model.TimestampedTransaction;
 import org.hiero.consensus.model.transaction.EventTransactionSupplier;
-import org.hiero.consensus.model.transaction.TimestampedTransaction;
 
 /**
  * Gives each event a node creates transactions drawn from a shape, with {@link EventShape#sampleTransactions}. The event

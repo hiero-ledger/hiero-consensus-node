@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.test.calculator;
 
-import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_CLOSE_CHANNEL;
-import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CHANNEL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CONNECTOR;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_CREATE_CHANNEL;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_DELETE_CHANNEL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_DEREGISTER_CONNECTOR;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_EVICT_PEER_ENDPOINT;
-import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_REGISTER_CHANNEL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_REGISTER_CONNECTOR;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SUBMIT_BUNDLE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_UPDATE_LEDGER_CONFIGURATION;
@@ -50,9 +49,8 @@ class ClprGenesisFeeScheduleTest {
     /** Every CLPR transaction functionality that MUST have a 1/10¢ flat fee. */
     private static final EnumSet<HederaFunctionality> CLPR_TRANSACTION_OPS = EnumSet.of(
             CLPR_UPDATE_LEDGER_CONFIGURATION,
-            CLPR_REGISTER_CHANNEL,
-            CLPR_COMPLETE_CHANNEL,
-            CLPR_CLOSE_CHANNEL,
+            CLPR_CREATE_CHANNEL,
+            CLPR_DELETE_CHANNEL,
             CLPR_EVICT_PEER_ENDPOINT,
             CLPR_REGISTER_CONNECTOR,
             CLPR_COMPLETE_CONNECTOR,

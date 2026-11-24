@@ -6,7 +6,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import org.assertj.core.api.AbstractAssert;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.otter.fixtures.Node;
 
 /**

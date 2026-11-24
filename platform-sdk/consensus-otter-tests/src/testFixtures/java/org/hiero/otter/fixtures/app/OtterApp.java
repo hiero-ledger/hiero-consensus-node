@@ -28,12 +28,12 @@ import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.file.FileSystemManager;
-import org.hiero.consensus.model.event.ConsensusEvent;
-import org.hiero.consensus.model.event.Event;
-import org.hiero.consensus.model.hashgraph.Round;
-import org.hiero.consensus.model.transaction.ConsensusTransaction;
+import org.hiero.consensus.main.model.ConsensusEvent;
+import org.hiero.consensus.main.model.ConsensusTransaction;
+import org.hiero.consensus.main.model.Event;
+import org.hiero.consensus.main.model.Round;
+import org.hiero.consensus.main.model.Transaction;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
-import org.hiero.consensus.model.transaction.Transaction;
 import org.hiero.otter.fixtures.app.services.platform.PlatformStateService;
 import org.hiero.otter.fixtures.app.services.roster.RosterService;
 import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
@@ -164,7 +164,7 @@ public class OtterApp implements ConsensusStateEventHandler {
             service.onRoundStart(state.getWritableStates(service.name()), round);
         }
 
-        for (final ConsensusEvent consensusEvent : round) {
+        for (final ConsensusEvent consensusEvent : round.getConsensusEvents()) {
             for (final OtterService service : allServices) {
                 service.onEventStart(state.getWritableStates(service.name()), consensusEvent);
             }

@@ -7,9 +7,9 @@
 #
 #   Step 1 — Version detection
 #     Read version.txt, derive MAJOR.MINOR, compute the previous minor series,
-#     pick the latest matching v<MAJOR>.<MINOR-1>.* tag as the baseline
-#     (source) version. The upgrade target is always the local build; its
-#     version is read from HederaNode.jar's manifest.
+#     pick the latest v<MAJOR>.<MINOR-1>.* tag by semantic-version precedence
+#     as the baseline (source) version. The upgrade target is always the
+#     local build; its version is read from HederaNode.jar's manifest.
 #
 #   Step 2 — Solo 3-node + Mirror Node deployment at the previous-minor tag
 #     kind cluster + solo {init, cluster-ref, deployment, cluster-ref-setup,
@@ -54,7 +54,6 @@ KEEP_NETWORK="${KEEP_NETWORK:-true}"
 
 LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH:-${REPO_ROOT}/hedera-node/data}"
 SOLO_UPGRADE_TIMEOUT_SECS="${SOLO_UPGRADE_TIMEOUT_SECS:-1800}"
-
 # Solo's default mirror node can be too old for the baseline, so use the CITR pin.
 CITR_ENV_FILE="${REPO_ROOT}/.github/workflows/support/citr/.citr-env"
 MIRROR_NODE_VERSION="${MIRROR_NODE_VERSION:-$({ sed -n 's/^citr-mirror-node-version=//p' "${CITR_ENV_FILE}" 2>/dev/null | head -n 1; } || true)}"
@@ -218,9 +217,10 @@ run_command_with_timeout() {
 
 # === Step 1 ====================================================================
 # Read version.txt -> extract MAJOR.MINOR -> previous minor -> latest matching
-# released/RC tag; that tag is the BASELINE (source) version the network is
-# first deployed at. The upgrade TARGET is always the local build staged via
-# --local-build-path; its real version comes from HederaNode.jar's manifest.
+# tag by semver precedence (release or RC); that tag is the BASELINE (source)
+# version the network is first deployed at. The upgrade TARGET is always the
+# local build staged via --local-build-path; its real version comes from
+# HederaNode.jar's manifest.
 compute_versions() {
   local raw major_minor major minor prev_series prev_tag
   raw="$(cat "${REPO_ROOT}/version.txt")"
@@ -236,7 +236,13 @@ compute_versions() {
   log "Fetching tags to resolve latest v${prev_series}.* release/rc"
   git -C "${REPO_ROOT}" fetch --tags --quiet
 
-  prev_tag="$(git -C "${REPO_ROOT}" tag -l "v${prev_series}.*" | sort -V | tail -n 1)"
+  # Pick the newest tag by semantic-version precedence. Plain `sort -V` ranks a
+  # pre-release above its own release (v0.79.2-rc.2 > v0.79.2); semver ranks it
+  # below (v0.79.2-rc.2 < v0.79.2 < v0.79.3-rc.1). Turning the pre-release '-'
+  # into '~' gives semver order, because `sort -V` sorts '~' before everything,
+  # even the end of the string.
+  prev_tag="$(git -C "${REPO_ROOT}" tag -l "v${prev_series}.*" \
+    | sed 's/-/~/' | sort -V | tail -n 1 | sed 's/~/-/')"
 
   TARGET_VERSION="$(local_build_implementation_version)"
   [[ -n "${TARGET_VERSION}" ]] || {
@@ -267,6 +273,30 @@ compute_versions() {
   log "Migration target           : ${TARGET_VERSION} (local build at ${LOCAL_BUILD_PATH})"
 }
 
+# Solo's default application.properties sets blockStream.streamMode=RECORDS next to
+# tss.hintsEnabled=true. In RECORDS mode the node skips all TSS work, so a TSS-enabled
+# baseline never advances its genesis hinTS state, which the upgrade target then
+# rejects as "legacy" state (V079HintsSchema). Override the stream mode so TSS runs:
+#   baseline < 0.80  : BOTH   (block stream alongside the record stream)
+#   baseline >= 0.80 : BLOCKS (block stream only) with real, not mock, signatures
+# Only called for baselines that keep TSS on; sets BASELINE_APP_PROPS.
+configure_baseline_stream_mode() {
+  local label="${DEPLOY_VERSION_LABEL#v}"
+  local series
+  series="$(cut -d. -f1,2 <<<"${label}")"
+
+  BASELINE_APP_PROPS="${WORK_DIR}/baseline-application.properties"
+  if [[ "$(printf '%s\n' "0.80" "${series}" | sort -V | head -n 1)" == "0.80" ]]; then
+    printf '%s\n' \
+      "blockStream.streamMode=BLOCKS" \
+      "tss.forceMockSignatures=false" > "${BASELINE_APP_PROPS}"
+    log "Baseline ${series} >= 0.80: deploying with blockStream.streamMode=BLOCKS, tss.forceMockSignatures=false"
+  else
+    printf '%s\n' "blockStream.streamMode=BOTH" > "${BASELINE_APP_PROPS}"
+    log "Baseline ${series} < 0.80: deploying with blockStream.streamMode=BOTH"
+  fi
+}
+
 # Reads the baseline's TSS library (hedera-cryptography) version and, when it is
 # older than MIN_MIGRATABLE_TSS_LIBRARY_VERSION, writes node properties that keep
 # TSS off on the baseline. Leaves the baseline's own defaults when the version
@@ -289,6 +319,7 @@ configure_baseline_tss() {
   if [[ "$(printf '%s\n' "${MIN_MIGRATABLE_TSS_LIBRARY_VERSION}" "${crypto_version}" | sort -V | head -n 1)" \
       == "${MIN_MIGRATABLE_TSS_LIBRARY_VERSION}" ]]; then
     log "Baseline TSS library ${crypto_version}: keeping the baseline's TSS defaults"
+    configure_baseline_stream_mode
     return 0
   fi
 
@@ -636,7 +667,7 @@ create_cluster               # Step 2 (prereq: kind cluster)
 configure_solo               #         solo init + cluster-ref + deployment
 setup_cluster_prereqs        #         MinIO operator
 deploy_baseline              #         CN @ prev_tag + MN with pinger
-upgrade_to_local             # Step 3 (CN upgrade to local build)
+upgrade_to_local            # Step 3 (CN upgrade to local build)
 step4_crypto_create_smoke    # Step 4 + 4a (CryptoCreate via SDK + MN log scan)
 
 log "PASS: migration ${BASELINE_DESC} -> ${TARGET_VERSION} (local build) + CryptoCreate smoke completed"

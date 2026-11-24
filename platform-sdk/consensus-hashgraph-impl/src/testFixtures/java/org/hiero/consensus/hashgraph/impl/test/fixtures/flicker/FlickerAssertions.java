@@ -2,6 +2,7 @@
 package org.hiero.consensus.hashgraph.impl.test.fixtures.flicker;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hiero.consensus.main.model.ConsensusLayerConstants.DEFAULT_EVENT_DIGEST_TYPE;
 
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -10,7 +11,6 @@ import java.util.List;
 import java.util.Map;
 import org.assertj.core.api.ListAssert;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.model.event.EventHashFactory;
 
 /**
  * Assertions over consensus output, stated in the names a graph uses.
@@ -54,7 +54,7 @@ public final class FlickerAssertions {
             @NonNull final ConsensusSnapshot snapshot, @NonNull final List<NamedEvent> graph) {
         final Map<Hash, String> names = namesByHash(graph);
         return snapshot.judgeIds().stream()
-                .map(judgeId -> EventHashFactory.hash(judgeId.judgeHash()))
+                .map(judgeId -> new Hash(judgeId.judgeHash(), DEFAULT_EVENT_DIGEST_TYPE))
                 .map(hash -> name(names, hash))
                 .toList();
     }

@@ -19,9 +19,11 @@ import com.hedera.node.config.data.ClprConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import io.grpc.Deadline;
 import io.grpc.Status;
-import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.TimeUnit;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
@@ -141,17 +143,18 @@ public final class ClprStreamingSynchronizer implements ClprSynchronizer {
                 channel.ackedMessageId(),
                 channel.receivedMessageId());
 
-        // The deadline covers the whole exchange, not one round trip.
-        final var timeout = Duration.ofSeconds(clprConfig.syncTimeoutSeconds());
+        // DNS resolution and the stream share the same deadline.
+        final var deadline = Deadline.after(clprConfig.syncTimeoutSeconds(), TimeUnit.SECONDS);
         try {
             // A peer advertises its TLS certificate only when its TLS listener is serving, in which
             // case the advertised port is that listener's; otherwise it advertises its plaintext port.
             final var client = clientCache.clientFor(
                     endpoint.serviceEndpoint().ipAddress(),
                     endpoint.serviceEndpoint().port(),
-                    endpoint.tlsCertificate().length() > 0);
+                    endpoint.tlsCertificate().length() > 0,
+                    deadline);
             final boolean completed;
-            try (var call = client.sync(timeout)) {
+            try (var call = client.sync(deadline)) {
                 completed = new Exchange(call, channel, peerId)
                         .run(localEndpointManifestVersion, peerObservedManifestVersion);
             }
@@ -160,6 +163,13 @@ public final class ClprStreamingSynchronizer implements ClprSynchronizer {
             } else {
                 peerSelector.recordFailure(peerId);
             }
+        } catch (final RejectedExecutionException e) {
+            // Local capacity says nothing about the peer's health. Let the next scheduled tick retry.
+            logger.debug(
+                    "[CLPR-SYNC-OUTBOUND] deferring sync for channel {} via peer {}: {}",
+                    channelId,
+                    peerId,
+                    e.getMessage());
         } catch (final ClprSyncException | ClientException e) {
             final var code = Status.fromThrowable(e).getCode();
             if (code == Status.Code.NOT_FOUND) {

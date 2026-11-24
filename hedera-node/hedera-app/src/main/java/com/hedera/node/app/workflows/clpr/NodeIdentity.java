@@ -6,6 +6,7 @@ import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.config.data.GrpcConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.Locale;
 
 /**
  * Represents the identity of a node in the network, containing configuration details
@@ -25,9 +26,8 @@ record NodeIdentity(
      * {@code selfNodeInfo().hapiEndpoints()} carries a port that doesn't match the
      * actually-bound gRPC port. Falls back to comparing dotted-decimal
      * {@link ServiceEndpoint#ipAddressV4()} and {@link ServiceEndpoint#domainName()}
-     * against the peer's {@code ip_address}/{@code port} pair. Per RFC 1035 the
-     * domain-name comparison is case-insensitive and tolerates a trailing dot on
-     * either side (FQDN form).
+     * against the peer's {@code ip_address}/{@code port} pair. Domain names are compared
+     * case-insensitively and retain the trailing dot that suppresses DNS search-list expansion.
      */
     public boolean isSelf(@NonNull final String host, final int port) {
         if (isLoopback(host) && (port == grpcConfig.port() || port == grpcConfig.tlsPort())) {
@@ -51,7 +51,10 @@ record NodeIdentity(
     }
 
     private static boolean isLoopback(@NonNull final String host) {
-        return "127.0.0.1".equals(host) || "::1".equals(host) || "localhost".equals(host);
+        return "127.0.0.1".equals(host)
+                || "::1".equals(host)
+                || "localhost".equalsIgnoreCase(host)
+                || "localhost.".equalsIgnoreCase(host);
     }
 
     private static boolean matchesIpAddressV4(@NonNull final ServiceEndpoint ep, @NonNull final String host) {
@@ -69,10 +72,11 @@ record NodeIdentity(
         if (domain == null || domain.isEmpty()) {
             return false;
         }
-        return stripTrailingDot(domain).equalsIgnoreCase(stripTrailingDot(host));
+        return dnsKey(domain).equals(dnsKey(host));
     }
 
-    private static String stripTrailingDot(@NonNull final String s) {
-        return s.endsWith(".") ? s.substring(0, s.length() - 1) : s;
+    /** Peer keys retain the trailing dot because it suppresses DNS search-list expansion. */
+    static String dnsKey(@NonNull final String host) {
+        return host.toLowerCase(Locale.ROOT);
     }
 }

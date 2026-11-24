@@ -10,6 +10,7 @@ import com.hedera.node.app.hints.impl.BlockHashSigning;
 import com.hedera.node.app.hints.impl.HintsContext;
 import com.hedera.node.app.hints.impl.HintsModule;
 import com.hedera.node.app.hints.impl.RsaContext;
+import com.hedera.node.app.hints.impl.SigningAttemptId;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -34,7 +35,7 @@ public class HintsPartialSignatureHandler implements TransactionHandler {
     private static final Logger log = LogManager.getLogger(HintsPartialSignatureHandler.class);
 
     @NonNull
-    private final ConcurrentMap<Bytes, BlockHashSigning> signings;
+    private final ConcurrentMap<SigningAttemptId, HintsContext.Signing> signings;
 
     @NonNull
     private final ConcurrentMap<Bytes, BlockHashSigning> rsaSignings;
@@ -67,7 +68,8 @@ public class HintsPartialSignatureHandler implements TransactionHandler {
     @Inject
     public HintsPartialSignatureHandler(
             @NonNull final Duration blockPeriod,
-            @Named(HintsModule.HINTS_SIGNINGS) @NonNull final ConcurrentMap<Bytes, BlockHashSigning> signings,
+            @Named(HintsModule.HINTS_SIGNINGS) @NonNull
+                    final ConcurrentMap<SigningAttemptId, HintsContext.Signing> signings,
             @Named(HintsModule.RSA_SIGNINGS) @NonNull final ConcurrentMap<Bytes, BlockHashSigning> rsaSignings,
             @NonNull final HintsContext context,
             @NonNull final RsaContext rsaContext) {
@@ -151,8 +153,8 @@ public class HintsPartialSignatureHandler implements TransactionHandler {
 
     /**
      * Whether a partial signature that reached consensus might not have been incorporated at pre-handle, but would be
-     * if incorporated now. This is the case when there is either no signing attempt for its message, or a signing
-     * attempt for its construction that still lacks a signature from its creator.
+     * if incorporated now. This is the case when there is either no signing attempt for its message and
+     * construction, or one that still lacks a signature from its creator.
      * <p>
      * Pre-handle only incorporates partial signatures for constructions this node already knows; so when this node
      * is behind its peers, it can pre-handle their partial signatures for a block under a new construction before it
@@ -164,12 +166,8 @@ public class HintsPartialSignatureHandler implements TransactionHandler {
      * @return true if the partial signature should be validated and incorporated at handle
      */
     private boolean isStillNeeded(@NonNull final HintsPartialSignatureTransactionBody op, final long creatorId) {
-        final var existing = signings.get(op.message());
-        if (existing == null) {
-            return true;
-        }
-        final var signing = asMatchingSigning(existing, op.constructionId());
-        return signing != null && signing.needsSignatureFrom(creatorId);
+        final var existing = signings.get(new SigningAttemptId(op.message(), op.constructionId()));
+        return existing == null || existing.needsSignatureFrom(creatorId);
     }
 
     /**
@@ -190,36 +188,28 @@ public class HintsPartialSignatureHandler implements TransactionHandler {
 
     /**
      * Finds or creates a signing attempt for the transaction body's construction id, never merely for the
-     * currently-active construction. The signing map is keyed by block hash, so the explicit construction check is
-     * what prevents a handoff from mixing partial signatures between adjacent constructions.
+     * currently-active construction. The signing map is keyed by block hash and construction id, so a handoff
+     * cannot mix partial signatures between adjacent constructions, and an attempt under one construction cannot
+     * hide partial signatures for the other.
      */
     private @Nullable HintsContext.Signing getOrCreateSigningFor(
             @NonNull final HintsPartialSignatureTransactionBody op) {
-        final var existing = signings.get(op.message());
+        final var attemptId = new SigningAttemptId(op.message(), op.constructionId());
+        final var existing = signings.get(attemptId);
         if (existing != null) {
-            return asMatchingSigning(existing, op.constructionId());
+            return existing;
         }
         final var created = hintsContext.newSigningForConstruction(
-                op.message(), op.constructionId(), () -> signings.remove(op.message()));
+                op.message(), op.constructionId(), () -> signings.remove(attemptId));
         if (created == null) {
             return null;
         }
-        final var raced = signings.putIfAbsent(op.message(), created);
+        final var raced = signings.putIfAbsent(attemptId, created);
         if (raced == null) {
             return created;
         }
         created.cancel();
-        return asMatchingSigning(raced, op.constructionId());
-    }
-
-    /**
-     * Returns the signing only if it was opened under the requested construction id.
-     */
-    private @Nullable HintsContext.Signing asMatchingSigning(
-            @Nullable final BlockHashSigning signing, final long constructionId) {
-        return signing instanceof HintsContext.Signing hintsSigning && hintsSigning.constructionId() == constructionId
-                ? hintsSigning
-                : null;
+        return raced;
     }
 
     private void incorporateRsaIfValid(@NonNull final HintsPartialSignatureTransactionBody op, final long creatorId) {
@@ -243,8 +233,8 @@ public class HintsPartialSignatureHandler implements TransactionHandler {
     private @Nullable Boolean validate(@NonNull final PartialSignature partialSignature) {
         try {
             // Should never throw, but if it does, we don't want to cache the result, so we catch and return null
-            final var signing = asMatchingSigning(
-                    signings.get(partialSignature.body().message()), partialSignature.constructionId());
+            final var signing = signings.get(
+                    new SigningAttemptId(partialSignature.body().message(), partialSignature.constructionId()));
             return signing == null
                     ? hintsContext.validate(partialSignature.nodeId(), partialSignature.crs(), partialSignature.body())
                     : signing.validatePartial(

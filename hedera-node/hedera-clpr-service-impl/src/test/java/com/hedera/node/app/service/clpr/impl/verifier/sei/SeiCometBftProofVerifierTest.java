@@ -49,8 +49,8 @@ class SeiCometBftProofVerifierTest {
             SyntheticSeiChain.hash32("sei-channel").toByteArray();
 
     private static final byte[] CHANNEL_CONTEXT = channelContext(CHANNEL_ID, SERVICE);
-    /** {@code keccak256(CHANNEL_ID || uint256(15))}: base of the {@code _channels[CHANNEL_ID]} struct. */
-    private static final BigInteger CHANNEL_BASE_SLOT = new BigInteger(1, mappingSlot(CHANNEL_ID, 15));
+    /** {@code keccak256(CHANNEL_ID || uint256(11))}: base of the {@code _channels[CHANNEL_ID]} struct. */
+    private static final BigInteger CHANNEL_BASE_SLOT = new BigInteger(1, mappingSlot(CHANNEL_ID, 11));
     /** Running-hash slot of message 41, the last message when {@code nextMessageId = 42} (see queueSlotValues). */
     private static final byte[] LAST_MESSAGE_RUNNING_HASH_SLOT = lastMessageRunningHashSlot(CHANNEL_ID, 42L);
 
@@ -113,7 +113,7 @@ class SeiCometBftProofVerifierTest {
             slot(CHANNEL_BASE_SLOT.add(BigInteger.TWO)),
             slot(CHANNEL_BASE_SLOT.add(BigInteger.valueOf(4))),
             slot(CHANNEL_BASE_SLOT.add(BigInteger.valueOf(5))),
-            slot(CHANNEL_BASE_SLOT.add(BigInteger.valueOf(16)))
+            slot(CHANNEL_BASE_SLOT.add(BigInteger.valueOf(15)))
         };
     }
 
@@ -127,7 +127,7 @@ class SeiCometBftProofVerifierTest {
         ByteBuffer.wrap(receivedSlot, 16, 8).putLong(17L); // receivedMessageId
         ByteBuffer.wrap(receivedSlot, 24, 8).putLong(16L); // ackedMessageId
         final byte[] manifestVersionSlot = new byte[32];
-        ByteBuffer.wrap(manifestVersionSlot, 24, 8).putLong(5L); // endpointManifestVersion (offset 16, LSB)
+        ByteBuffer.wrap(manifestVersionSlot, 24, 8).putLong(5L); // endpointManifestVersion (offset 15, LSB)
         return new byte[][] {
             lastMsgHash,
             statusSlot,
@@ -441,7 +441,7 @@ class SeiCometBftProofVerifierTest {
                     .isEqualTo(SyntheticSeiChain.hash32("sent-running").toByteArray());
             assertThat(metadata.receivedRunningHash())
                     .isEqualTo(SyntheticSeiChain.hash32("received-running").toByteArray());
-            // endpointManifestVersion comes from the PROVEN offset-16 slot, not relayed content
+            // endpointManifestVersion comes from the PROVEN offset-15 slot, not relayed content
             assertThat(metadata.endpointManifestVersion()).isEqualTo(5L);
         }
 
@@ -491,7 +491,7 @@ class SeiCometBftProofVerifierTest {
             final var slots = queueStorageSlotsInVerifierOrder();
             final var values = queueSlotValues();
             // Prove the last-message hash + the four queue fields {1,2,4,5}; the endpointManifestVersion
-            // slot (offset 16) is proven non-existent, so it maps to the zero word (canonical index 4).
+            // slot (offset 15) is proven non-existent, so it maps to the zero word (canonical index 4).
             final var chain = SyntheticSeiChain.stateProof(
                     VALIDATORS, VALIDATORS, VALIDATORS, Arrays.copyOf(slots, 5), Arrays.copyOf(values, 5));
             final var entries = new ArrayList<>(chain.stateProof().storageProofs());
@@ -1193,7 +1193,7 @@ class SeiCometBftProofVerifierTest {
      * Exercises the optional endpoint-manifest advance (spec §4.2 Step 1b) verified by
      * {@link SeiCometBftProofVerifier}'s private {@code verifyEndpointManifestProof}, reached through
      * {@code verifyBundle} by carrying {@code manifest_storage_proof} + {@code endpoint_manifest}. The
-     * fixture proves the slot-18 commitment against the same store root as the queue slots.
+     * fixture proves the slot-14 commitment against the same store root as the queue slots.
      */
     @Nested
     class EndpointManifestProof {
@@ -1257,7 +1257,7 @@ class SeiCometBftProofVerifierTest {
                     .toByteArray();
         }
 
-        /** A fully valid manifest bundle: slot-18 commitment == keccak256(preimage), preimage strict-parses. */
+        /** A fully valid manifest bundle: slot-14 commitment == keccak256(preimage), preimage strict-parses. */
         private static byte[] validBundle(final ClprEndpointManifest manifest) {
             final byte[] preimage = preimageOf(manifest);
             final var chain = chainWithManifestSlot(
@@ -1301,14 +1301,14 @@ class SeiCometBftProofVerifierTest {
         @Test
         void rejectsWrongCommitmentSlot() {
             final byte[] preimage = preimageOf(manifest(1L, SERVICE));
-            // slot 19 targets the service contract but is not the endpoint-manifest commitment slot (18)
+            // slot 19 targets the service contract but is not the endpoint-manifest commitment slot (14)
             final var chain = chainWithManifestSlot(slot(19), MiscCryptoUtils.keccak256DigestOf(preimage));
             final byte[] payload = manifestBundle(bundleStateProof(chain), manifestEntry(chain), preimage);
             final byte[] anchor = anchorBytes();
 
             assertThatThrownBy(() -> verifyForChannel(payload, anchor))
                     .isInstanceOf(ProofException.class)
-                    .hasMessageContaining("endpoint-manifest commitment slot (18)");
+                    .hasMessageContaining("endpoint-manifest commitment slot (14)");
         }
 
         @Test
@@ -1434,7 +1434,7 @@ class SeiCometBftProofVerifierTest {
 
         /**
          * Manifest-only recovery bundle (spec §8.1.4): a state proof over just the manifest slot (enough
-         * to establish the store root), EMPTY bundle_content, and the slot-18 manifest proof — but NO
+         * to establish the store root), EMPTY bundle_content, and the slot-14 manifest proof — but NO
          * queue storage slots. Builds a chain carrying only the manifest slot, then strips it from
          * {@code state_proof.storage_proofs} (leaving them empty) while proving it via the top-level
          * {@code manifest_storage_proof}. This wire shape is not yet produced by the clpr-evm-endpoint

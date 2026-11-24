@@ -1,14 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.clpr;
 
+import static com.hedera.node.app.info.DiskStartupNetworks.OVERRIDE_NETWORK_JSON;
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.DATA_CONFIG_DIR;
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.WORKING_DIR;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.allNodes;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
+import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.awaitStatus;
+import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.classicFeeCollectorIdFor;
+import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.CANDIDATE_ROSTER_JSON;
 import static com.hedera.services.bdd.spec.HapiSpec.networkHapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.clprGetEndpointManifest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.clprGetLedgerConfiguration;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteConnector;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterChannel;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCreateChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprSubmitBundle;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprUpdateLedgerConfiguration;
@@ -16,6 +21,8 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
@@ -27,20 +34,29 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.runBackgroundTraffi
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForFrozenNetwork;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.upgrade.BuildUpgradeZipOp.FAKE_UPGRADE_ZIP_LOC;
+import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.DEFAULT_UPGRADE_FILE_ID;
 import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.upgradeFileHashAt;
 import static com.hedera.services.bdd.suites.regression.system.LifecycleTest.confirmFreezeAndShutdown;
+import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.protobuf.ByteString;
+import com.hedera.node.app.hapi.utils.ClprChannelId;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
+import com.hedera.node.app.info.DiskStartupNetworks;
+import com.hedera.node.internal.network.Network;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNode;
@@ -66,19 +82,34 @@ import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
+import java.util.function.ToIntFunction;
+import java.util.regex.MatchResult;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.LongStream;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Ed25519;
+import org.hiero.consensus.fakes.crypto.KeysAndCertsGenerator;
+import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.roster.RosterUtils;
 import org.junit.jupiter.api.DynamicTest;
 
 /**
@@ -115,6 +146,9 @@ public abstract class HieroToHieroBase implements LifecycleTest {
     static final String SEND_MESSAGE = "sendMessage";
     static final String GET_QUEUE_STATE = "getChannelQueueState";
     static final long GAS = 2_000_000L;
+    /** The node-local CLPR channel registry (default {@code clpr.peerEndpointsFile}), relative to a working dir. */
+    static final String PEER_ENDPOINTS_FILE = "data/clpr/peer-endpoints.json";
+
     static final long MIN_STAKE = 100L;
     /** How long {@link #awaitReceivedMessage} / {@link #awaitAckedMessage} wait for delivery once WRAPS is warm. */
     static final Duration DELIVERY_TIMEOUT = Duration.ofMinutes(1);
@@ -158,6 +192,38 @@ public abstract class HieroToHieroBase implements LifecycleTest {
             .plus(WRAPS_SYNC_POINT_TIMEOUT.multipliedBy(2))
             .plus(MANIFEST_APPEAR_TIMEOUT.multipliedBy(2))
             .plus(Duration.ofMinutes(5));
+
+    /**
+     * Stake added to each node already in the roster when new nodes are enrolled into the hinTS scheme, so the
+     * nodes already signing keep more than 2/3 of every rotation's weight.
+     */
+    static final long EXISTING_NODE_STAKE = 10 * ONE_HBAR;
+    /**
+     * Stake added to each new node per enrollment rotation. Small next to {@link #EXISTING_NODE_STAKE}, so even
+     * after {@link #MAX_ENROLLMENT_ROTATIONS} rotations the new nodes stay well below 1/3 of the weight.
+     */
+    static final long ADDED_NODE_STAKE = ONE_HBAR;
+    /** Most weight rotations to run before every new node has a key in the active hinTS scheme. */
+    static final int MAX_ENROLLMENT_ROTATIONS = 3;
+    /** How long to wait for one enrollment rotation's hinTS scheme and history proof. */
+    static final Duration ROTATION_TSS_TIMEOUT = Duration.ofMinutes(5);
+    /** Balance given to each added node's account, which pays for the bundles that node submits. */
+    static final long ADDED_NODE_ACCOUNT_FUNDING = 100_000_000_000L;
+    /** How long an upgrade that adds a node waits for every node to be ACTIVE (a new node first reconnects). */
+    static final Duration ROSTER_CHANGE_TO_ACTIVE_TIMEOUT = Duration.ofMinutes(5);
+    /** How long to wait for a node to export the candidate roster after {@code PREPARE_UPGRADE}. */
+    static final Duration CANDIDATE_ROSTER_EXPORT_TIMEOUT = Duration.ofMinutes(1);
+    /** How long to wait for the candidate roster's history construction and its WRAPS proof. */
+    static final Duration CANDIDATE_ROSTER_TSS_TIMEOUT = Duration.ofMinutes(10);
+
+    /**
+     * The config version each ledger last started with, by network name (0, the genesis version, if never
+     * upgraded). {@link #CURRENT_CONFIG_VERSION} is shared by all networks, so it says nothing about one ledger's.
+     */
+    private static final Map<String, Integer> CONFIG_VERSIONS = new ConcurrentHashMap<>();
+
+    /** Makes staker account names unique across a test's rotations. */
+    private static final AtomicLong STAKER_SEQ = new AtomicLong();
 
     /** Poll interval for {@link #awaitPortsFree}. */
     private static final Duration PORT_FREE_POLL = Duration.ofSeconds(5);
@@ -271,8 +337,11 @@ public abstract class HieroToHieroBase implements LifecycleTest {
      * Polls the network's {@code hgcaa.log} until a line matching {@code pattern} is found, or
      * throws after {@code timeout}. Used to assert handler-emitted log markers (e.g. step10
      * ConfigUpdate application on the peer).
+     *
+     * @return the match in the first matching line
      */
-    public static void awaitLogLine(final SubProcessNetwork network, final Pattern pattern, final Duration timeout) {
+    public static MatchResult awaitLogLine(
+            final SubProcessNetwork network, final Pattern pattern, final Duration timeout) {
         final Path logPath = network.nodes()
                 .getFirst()
                 .metadata()
@@ -283,8 +352,10 @@ public abstract class HieroToHieroBase implements LifecycleTest {
         while (Instant.now().isBefore(deadline)) {
             if (Files.exists(logPath)) {
                 try (var lines = Files.lines(logPath)) {
-                    if (lines.anyMatch(line -> pattern.matcher(line).find())) {
-                        return;
+                    final var match =
+                            lines.map(pattern::matcher).filter(Matcher::find).findFirst();
+                    if (match.isPresent()) {
+                        return match.get().toMatchResult();
                     }
                 } catch (final IOException ignored) {
                     // log may be mid-rotation; retry
@@ -353,64 +424,75 @@ public abstract class HieroToHieroBase implements LifecycleTest {
     }
 
     /**
-     * Polls {@code clprGetEndpointManifest} on {@code network} until the version has advanced to at
-     * least {@code baseline.get() + 1} — proving the manifest was rebuilt in response to an endpoint
-     * change.
+     * Polls {@code clprGetEndpointManifest} on {@code network} until its manifest has advanced past
+     * {@code baseline} and advertises exactly the network's current nodes — one endpoint per node, on that
+     * node's HAPI TLS port ({@code tlsPortBase + nodeId}) — then records that version into {@code sink}.
+     * After a roster change this proves the manifest added every new node and dropped every departed one.
+     * Deferred, so it reads the network's nodes as they are when it runs.
      */
-    static DynamicTest awaitManifestVersionAtLeast(final SubProcessNetwork network, final AtomicLong baseline) {
-        return networkHapiTest(
-                        "Await advanced manifest version on " + network.name(),
-                        network,
-                        withOpContext((spec, opLog) -> {
-                            final long target = baseline.get() + 1;
-                            final var manifest = pollManifest(spec, m -> m.getVersion() >= target);
-                            opLog.info(
-                                    "Manifest on {} advanced to version {} (>= {})",
-                                    network.name(),
-                                    manifest.getVersion(),
-                                    target);
-                        }))
-                .findFirst()
-                .orElseThrow();
+    static DynamicTest awaitManifestMatchesRoster(
+            final SubProcessNetwork network, final int tlsPortBase, final AtomicLong baseline, final AtomicLong sink) {
+        return deferred(
+                "Await manifest of " + network.name() + " matching its roster",
+                () -> networkHapiTest(
+                                "Await manifest matching the roster of " + network.name(),
+                                network,
+                                withOpContext((spec, opLog) -> {
+                                    final var expectedPorts = network.nodes().stream()
+                                            .map(node -> tlsPortBase + (int) node.getNodeId())
+                                            .sorted()
+                                            .toList();
+                                    final var manifest = pollManifest(
+                                            spec,
+                                            m -> m.getVersion() > baseline.get()
+                                                    && advertisedPorts(m).equals(expectedPorts));
+                                    sink.set(manifest.getVersion());
+                                    opLog.info(
+                                            "Manifest of {} advanced {} -> {} and advertises ports {}",
+                                            network.name(),
+                                            baseline.get(),
+                                            manifest.getVersion(),
+                                            expectedPorts);
+                                }))
+                        .findFirst()
+                        .orElseThrow());
+    }
+
+    private static List<Integer> advertisedPorts(final ClprEndpointManifest manifest) {
+        return manifest.getEndpointsList().stream()
+                .map(endpoint -> endpoint.getServiceEndpoint().getPort())
+                .sorted()
+                .toList();
     }
 
     /**
-     * Polls until {@code network}'s manifest version reaches {@code baseline.get() + 1}, then asserts
-     * it advanced by <b>exactly one</b> — catching a double-bump / churn (e.g. both the self-publish
-     * and the prune firing) rather than the single expected rebuild.
+     * Awaits the receiver-side Step 1b log line proving {@code peer} applied the manifest at version
+     * {@code version} — carried in a bundle proof or a recovery bundle — and that it advertises every port in
+     * {@code ports}. Deferred, so it reads the peer's log as it is when it runs.
      */
-    static DynamicTest awaitManifestVersionExactly(final SubProcessNetwork network, final AtomicLong baseline) {
-        return networkHapiTest(
-                        "Await manifest version == baseline+1 on " + network.name(),
-                        network,
-                        withOpContext((spec, opLog) -> {
-                            final long expected = baseline.get() + 1;
-                            final var manifest = pollManifest(spec, m -> m.getVersion() >= expected);
-                            assertEquals(
-                                    expected,
-                                    manifest.getVersion(),
-                                    "manifest should advance by exactly one after the endpoint change");
-                            opLog.info("Manifest on {} advanced to exactly version {}", network.name(), expected);
-                        }))
-                .findFirst()
-                .orElseThrow();
-    }
-
-    /**
-     * Awaits the receiver-side Step 1b log line proving {@code peer} applied the advanced manifest
-     * carried in the sender's bundle proof — {@code version=<baseline>-><baseline+1>}.
-     */
-    static DynamicTest awaitManifestAppliedOnPeer(final SubProcessNetwork peer, final AtomicLong baseline) {
-        return networkHapiTest(
-                        "Await Step 1b manifest application on " + peer.name(), peer, withOpContext((spec, opLog) -> {
-                            final long from = baseline.get();
-                            final var pattern = Pattern.compile(
-                                    "applying new endpoint manifest.*version=" + from + "->" + (from + 1));
-                            awaitLogLine(peer, pattern, MANIFEST_APPEAR_TIMEOUT);
-                            opLog.info("Peer {} applied manifest version {}->{}", peer.name(), from, from + 1);
-                        }))
-                .findFirst()
-                .orElseThrow();
+    static DynamicTest awaitManifestAppliedOnPeer(
+            final SubProcessNetwork peer, final AtomicLong version, final Supplier<List<Integer>> ports) {
+        return deferred(
+                "Await manifest application on " + peer.name(),
+                () -> networkHapiTest(
+                                "Await Step 1b manifest application on " + peer.name(),
+                                peer,
+                                withOpContext((spec, opLog) -> {
+                                    final var line = new StringBuilder("applying new endpoint manifest.*version=\\d+->"
+                                            + version.get() + " .*endpoints=");
+                                    ports.get()
+                                            .forEach(port -> line.append("(?=.*:")
+                                                    .append(port)
+                                                    .append("\\b)"));
+                                    awaitLogLine(peer, Pattern.compile(line.toString()), MANIFEST_APPEAR_TIMEOUT);
+                                    opLog.info(
+                                            "Peer {} applied manifest version {} with ports {}",
+                                            peer.name(),
+                                            version.get(),
+                                            ports.get());
+                                }))
+                        .findFirst()
+                        .orElseThrow());
     }
 
     /**
@@ -465,8 +547,8 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                                         .withUpdateFile(DEFAULT_UPGRADE_FILE_ID)
                                         .havingHash(upgradeFileHashAt(FAKE_UPGRADE_ZIP_LOC))),
                                 confirmFreezeAndShutdown(),
-                                sourcing(() -> FakeNmt.restartWithConfigVersion(
-                                        allNodes(), CURRENT_CONFIG_VERSION.incrementAndGet())),
+                                sourcing(
+                                        () -> FakeNmt.restartWithConfigVersion(allNodes(), nextConfigVersion(network))),
                                 waitForActive(allNodes(), RESTART_TO_ACTIVE_TIMEOUT),
                                 blockingOrder(doAdhoc(() -> {
                                     awaitWrapsExtensible(network);
@@ -477,140 +559,553 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                 .orElseThrow();
     }
 
+    // ---- roster-change helpers (shared by the manifest suites) ----
+
     /**
-     * Rotates a <b>single node's</b> {@code grpc.tlsPort} via a genuine single-node restart, leaving the
-     * rest of the network running the whole time. This models a partial (per-node) endpoint rotation.
-     *
-     * <p><b>Why it's ISS-safe.</b> {@code grpc.tlsPort} is a {@code @NodeProperty} — node-local, not
-     * saved in state, explicitly allowed to differ per node (contrast {@code @NetworkProperty}, which is
-     * in state and must match across nodes or ISS). The port only ever feeds node-local runtime (the
-     * HAPI TLS listener bind) and the self-publish <em>submit</em> side-effect; the manifest
-     * state is rebuilt purely from the gossiped {@code ClprEndpointPublication} at consensus, never from
-     * any node's local config. So node {@code nodeId} carrying a different port than its peers does not
-     * diverge the state hash.
-     *
-     * <p><b>Why the other nodes stay up.</b> Only {@code nodeId} restarts (a same-port
-     * {@code ReassignPorts.NO} path — no freeze, no config-version bump, no roster/TSS change), so the
-     * other nodes keep their in-memory CLPR state ({@code peerObservedManifestVersions}) and continue
-     * driving the manifest proof outbound to the peer once the ledger reaches consensus again.
-     *
-     * <p><b>Why it stops gracefully.</b> The node is asked to exit (SIGTERM) rather than killed, so its
-     * preconsensus event writer flushes its file on shutdown. A killed node can lose its newest events,
-     * which its peers already have, and on restart branch its own event chain. (With a 2-node ledger it
-     * cannot reconnect from its peer instead: the remaining node alone cannot reach consensus, so the
-     * restarted node never falls behind.)
-     *
-     * <p><b>Mechanism.</b> The new value is written into node {@code nodeId}'s
-     * {@code data/config/application.properties} while it is stopped; the single-node start path does not
-     * re-run {@code configureApplicationProperties}, so it sticks and the restarted JVM binds the HAPI TLS
-     * listener to the new port and self-publishes the changed endpoint. That publication opens a
-     * construction; the other (non-restarted) nodes then publish their own current endpoints into it
-     * (an all-hands snapshot — no IP-keyed carry-over), so it fast-closes on the full set and advances
-     * the manifest by exactly one, with node {@code nodeId} now carrying the new port.
+     * Wraps a step so it is built only when it runs, not when the test's step stream is built. A plain
+     * {@code networkHapiTest} captures the network's nodes when it is built, so a step that follows a roster
+     * change in the same test must be deferred to target the nodes the network has by then.
      */
-    DynamicTest rotateNodeHapiTlsPort(final SubProcessNetwork network, final long nodeId, final int newTlsPort) {
-        return networkHapiTest(
-                        "Rotate " + network.name() + " node" + nodeId + " grpc.tlsPort -> " + newTlsPort,
-                        network,
-                        blockingOrder(
-                                // Stop only this node, gracefully so it keeps every event it created; the other
-                                // nodes keep running (and keep their #335 state).
-                                doAdhoc(() -> ((SubProcessNode) network.getRequiredNode(byNodeId(nodeId)))
-                                        .gracefulStopFuture(SHUTDOWN_TIMEOUT)
-                                        .join()),
-                                // Rewrite its per-node tlsPort while it is stopped.
-                                doAdhoc(() -> setNodeHapiTlsPort(network, nodeId, newTlsPort)),
-                                // Wait until this node's reused ports (gossip/gRPC/prometheus) are actually
-                                // releasable before it rebinds on restart, instead of a blind fixed sleep.
-                                awaitPortsFree(network.nodes().stream()
-                                        .filter(n -> n.getNodeId() == nodeId)
-                                        .toList()),
-                                // Restart just this node (ReassignPorts.NO, cfgVer 0) — it reconnects via gossip.
-                                FakeNmt.restartNode(byNodeId(nodeId)),
-                                waitForActive(byNodeId(nodeId), RESTART_TO_ACTIVE_TIMEOUT)))
+    static DynamicTest deferred(final String displayName, final Supplier<DynamicTest> step) {
+        return DynamicTest.dynamicTest(
+                displayName, () -> step.get().getExecutable().execute());
+    }
+
+    /**
+     * Replaces nodes of {@code network} with as many new ones, through two DAB upgrades that keep every TSS
+     * hand-off valid whatever roster the (shared) network starts from:
+     * <ol>
+     *   <li>{@link #stakeCurrentNodes stake} the nodes already in the roster, so they carry stake-sized weights;</li>
+     *   <li>create the new nodes and upgrade to a roster with them added. With no stake on them they get zero
+     *       weight in the candidate roster, so the nodes already in the roster hold all of its weight;</li>
+     *   <li>{@link #enrollInHintsScheme enroll} the new nodes into the active hinTS scheme through stake
+     *       rotations. TSS counts as "already in the roster" only the parties of the active hinTS scheme, and a
+     *       node added at an upgrade is not one until a later construction finds its hinTS key published;</li>
+     *   <li>delete the {@code count} lowest-id nodes that were already there, and upgrade to a roster without
+     *       them. The new nodes now sign and carry stake, and every node left was in the previous scheme.</li>
+     * </ol>
+     * The manifest reconciler rebuilds the endpoint manifest at each roster change, so the manifest advances
+     * at least once and ends up advertising exactly the nodes left.
+     *
+     * @param count how many nodes to replace, given the network as it is when the replacement starts
+     * @param addedNodeIds receives the ids of the new nodes
+     */
+    Stream<DynamicTest> replaceNodes(
+            final SubProcessNetwork network,
+            final ToIntFunction<SubProcessNetwork> count,
+            final List<Long> addedNodeIds) {
+        final AtomicInteger replaced = new AtomicInteger();
+        return Stream.of(
+                deferred("Stake the current nodes of " + network.name(), () -> stakeCurrentNodes(network)),
+                deferred("Add new nodes to " + network.name(), () -> {
+                    replaced.set(count.applyAsInt(network));
+                    return addNodes(network, replaced.get(), addedNodeIds);
+                }),
+                deferred(
+                        "Enroll the new nodes of " + network.name() + " into the hinTS scheme",
+                        () -> enrollInHintsScheme(network, addedNodeIds)),
+                deferred(
+                        "Delete replaced nodes of " + network.name(),
+                        () -> deleteOldestNodes(network, replaced.get(), addedNodeIds)));
+    }
+
+    /** Creates {@code count} nodes with the next node ids and upgrades {@code network} to a roster with them. */
+    private DynamicTest addNodes(final SubProcessNetwork network, final int count, final List<Long> addedNodeIds) {
+        final long firstNodeId = network.maxNodeId() + 1;
+        final var nodeIds =
+                LongStream.range(firstNodeId, firstNodeId + count).boxed().toList();
+        addedNodeIds.addAll(nodeIds);
+        final List<SpecOperation> ops = new ArrayList<>();
+        final List<SpecOperation> preRestartOps = new ArrayList<>();
+        for (final long nodeId : nodeIds) {
+            final long accountNum = classicFeeCollectorIdFor(nodeId);
+            ops.add(nodeCreate("node" + nodeId, accountNum)
+                    .adminKey(GENESIS)
+                    .description("node" + nodeId)
+                    // The endpoints and gossip certificate the network assigns the node when it is added, so the
+                    // candidate roster built from state matches the roster the restarted nodes adopt
+                    .serviceEndpoint(List.of(network.grpcEndpointFor(nodeId)))
+                    // In address-book order, which reverses the roster entry's (see snapshotOfFutureRoster)
+                    .gossipEndpoint(network.gossipEndpointsFor(nodeId).reversed())
+                    .gossipCaCertificate(gossipCaCertificateFor(nodeId))
+                    .exposingCreatedIdTo(createdId ->
+                            assertEquals(nodeId, createdId, "node id of the node created on " + network.name())));
+            // The node pays for the bundles it submits from its own account
+            ops.add(cryptoTransfer(tinyBarsFromTo(GENESIS, String.valueOf(accountNum), ADDED_NODE_ACCOUNT_FUNDING)));
+            preRestartOps.add(FakeNmt.addNode(nodeId));
+        }
+        for (final long nodeId : nodeIds) {
+            // addNode writes a new node's genesis network as of that node, so rewrite it once all are added; and it
+            // only initializes the working dir, so also write the node's CLPR properties, grpc.tlsPort and HAPI TLS
+            // certificate before it first starts
+            preRestartOps.add(doAdhoc(() -> {
+                network.refreshGenesisNetwork(nodeId);
+                network.runPostInitWorkingDirActions(nodeId);
+                copyPeerEndpointsFile(network, nodeId, nodeIds);
+            }));
+        }
+        ops.add(upgradeWithRosterChange(network, List.of(), preRestartOps.toArray(SpecOperation[]::new)));
+        return networkHapiTest("Add nodes " + nodeIds, network, ops.toArray(SpecOperation[]::new))
                 .findFirst()
                 .orElseThrow();
     }
 
     /**
-     * Rotates <b>every</b> node's {@code grpc.tlsPort} at once — a true simultaneous endpoint turnover:
-     * all nodes are stopped together, each node's port is rewritten ({@code basePort + nodeId}), then the
-     * whole network is restarted in a single step. Because all nodes re-publish their new endpoints into
-     * one construction, the manifest advances by <b>exactly one</b> (contrast rotating nodes one-by-one,
-     * which yields an intermediate version per node). Re-awaits WRAPS/ledger-id readiness so the
-     * post-restart {@code clprGetEndpointManifest} proof and any outbound bundle are peer-verifiable.
-     *
-     * <p>Used by the complete-turnover scenarios (§8.1.2 / §8.1.3): with every endpoint replaced at once,
-     * the peer's entire cached endpoint set becomes unreachable simultaneously.
+     * Makes every node in {@code addedNodeIds} a party of {@code network}'s active hinTS scheme, through weight
+     * rotations driven by stake. Each rotation:
+     * <ol>
+     *   <li>stakes {@link #ADDED_NODE_STAKE} to each new node; the nodes already signing were staked
+     *       {@link #EXISTING_NODE_STAKE} each before the new nodes were added, so they keep more than 2/3 of the
+     *       rotated weight and the rotation's hinTS construction is not inert;</li>
+     *   <li>waits for the next stake period, when the stakes become the candidate roster's weights;</li>
+     *   <li>waits for the rotation's hinTS scheme and WRAPS history proof, after which the network hands off to
+     *       the rotation at once.</li>
+     * </ol>
+     * The new nodes are targets of the first rotation, and its hinTS construction waits for their keys before it
+     * preprocesses, so one rotation normally enrolls them. A new node that publishes only after the (short, in these
+     * tests) key grace period misses that rotation; a later one then finds its key published from the start. This
+     * repeats until a rotation's scheme has every new node's key, or fails after {@link #MAX_ENROLLMENT_ROTATIONS}.
      */
-    DynamicTest rotateAllNodesHapiTlsPorts(final SubProcessNetwork network, final int basePort) {
+    private static DynamicTest enrollInHintsScheme(final SubProcessNetwork network, final List<Long> addedNodeIds) {
         return networkHapiTest(
-                        "Rotate ALL " + network.name() + " node HAPI TLS ports simultaneously (base " + basePort + ")",
+                        "Enroll nodes " + addedNodeIds + " into the hinTS scheme",
                         network,
-                        blockingOrder(
-                                // Freeze first so every node writes a signed state at a clean round boundary and
-                                // flushes its preconsensus event stream. Without this, killing all nodes mid-stream
-                                // leaves unsettled PCES events that replay non-deterministically on restart and can
-                                // trip an ISS (self hash != consensus hash) → CATASTROPHIC_FAILURE. Mirrors the
-                                // freeze-before-restart the restart suite uses.
+                        withOpContext((spec, opLog) -> {
+                            final long periodMins = spec.startupProperties().getLong("staking.periodMins");
+                            for (int rotation = 1; rotation <= MAX_ENROLLMENT_ROTATIONS; rotation++) {
+                                final long mark = logLineCount(network);
+                                final List<SpecOperation> stakes = new ArrayList<>();
+                                addedNodeIds.forEach(nodeId -> stakes.add(stakeOp(nodeId, ADDED_NODE_STAKE)));
+                                allRunFor(spec, stakes);
+                                // Stakes are recomputed, and the rotation started, while handling the first
+                                // transaction of the next stake period
+                                allRunFor(
+                                        spec,
+                                        waitUntilStartOfNextStakingPeriod(periodMins),
+                                        cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1L)));
+                                final var hintsConstruction = awaitLogLineAfter(
+                                        network,
+                                        mark,
+                                        Pattern.compile("Creating controller for construction #(\\d+) from nodes "
+                                                + "\\[[^]]*\\] to \\[([^]]*)\\]"),
+                                        ROTATION_TSS_TIMEOUT);
+                                final var constructionId = hintsConstruction.group(1);
+                                final int numTargetNodes = countListed(hintsConstruction.group(2));
+                                // The keys the construction preprocessed, which can include keys published after it
+                                // started; with every target node's key among them, the added nodes are parties
+                                final int numPreprocessedKeys = countListed(awaitLogLineAfter(
+                                                network,
+                                                mark,
+                                                Pattern.compile("Calling preprocess for construction #" + constructionId
+                                                        + " with crsHash=\\w+, hintKeyHashes=\\{([^}]*)\\}"),
+                                                ROTATION_TSS_TIMEOUT)
+                                        .group(1));
+                                awaitLogLineAfter(
+                                        network,
+                                        mark,
+                                        Pattern.compile(
+                                                "Completed hinTS scheme for construction #" + constructionId + " "),
+                                        ROTATION_TSS_TIMEOUT);
+                                final var historyConstructionId = awaitLogLineAfter(
+                                                network,
+                                                mark,
+                                                Pattern.compile("Created NEXT construction #(\\d+) for rosters"),
+                                                ROTATION_TSS_TIMEOUT)
+                                        .group(1);
+                                awaitLogLineAfter(
+                                        network,
+                                        mark,
+                                        Pattern.compile("History proof constructed \\(#" + historyConstructionId
+                                                + ", WRAPS-extensible\\? true\\)"),
+                                        ROTATION_TSS_TIMEOUT);
+                                final boolean enrolled = numPreprocessedKeys == numTargetNodes;
+                                opLog.info(
+                                        "Rotation {} of {}: hinTS construction #{} preprocessed {} of {} target nodes' "
+                                                + "keys{}",
+                                        rotation,
+                                        network.name(),
+                                        constructionId,
+                                        numPreprocessedKeys,
+                                        numTargetNodes,
+                                        enrolled ? " — all of " + addedNodeIds + " enrolled" : "");
+                                if (enrolled) {
+                                    return;
+                                }
+                            }
+                            throw new AssertionError("Nodes " + addedNodeIds + " of " + network.name()
+                                    + " were not enrolled into the hinTS scheme within " + MAX_ENROLLMENT_ROTATIONS
+                                    + " stake rotations");
+                        }))
+                .findFirst()
+                .orElseThrow();
+    }
+
+    /**
+     * Stakes {@link #EXISTING_NODE_STAKE} to every current node of {@code network}, and waits for the resulting weight
+     * rotation's history proof. Done before adding nodes, so the nodes already in the roster carry stake-sized weights:
+     * with only unit weights, two or more zero-weight new nodes make the platform's weighted sync-lag median 0/0
+     * (see {@code SyncLagCalculator}), which blocks event creation until the network deadlocks.
+     */
+    private static DynamicTest stakeCurrentNodes(final SubProcessNetwork network) {
+        return networkHapiTest("Stake the current nodes of " + network.name(), network, withOpContext((spec, opLog) -> {
+                    final long mark = logLineCount(network);
+                    allRunFor(
+                            spec,
+                            network.nodes().stream()
+                                    .map(node -> stakeOp(node.getNodeId(), EXISTING_NODE_STAKE))
+                                    .toList());
+                    // Stakes are recomputed, and the weight rotation started, while handling the first
+                    // transaction of the next stake period
+                    allRunFor(
+                            spec,
+                            waitUntilStartOfNextStakingPeriod(
+                                    spec.startupProperties().getLong("staking.periodMins")),
+                            cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1L)));
+                    final var constructionId = awaitLogLineAfter(
+                                    network,
+                                    mark,
+                                    Pattern.compile("Created NEXT construction #(\\d+) for rosters"),
+                                    ROTATION_TSS_TIMEOUT)
+                            .group(1);
+                    awaitLogLineAfter(
+                            network,
+                            mark,
+                            Pattern.compile("History proof constructed \\(#" + constructionId
+                                    + ", WRAPS-extensible\\? true\\)"),
+                            ROTATION_TSS_TIMEOUT);
+                    opLog.info(
+                            "Staked the current nodes of {} (history construction #{})",
+                            network.name(),
+                            constructionId);
+                }))
+                .findFirst()
+                .orElseThrow();
+    }
+
+    /**
+     * Counts the entries of a comma-separated list as logged, e.g. {@code 0, 1, 2} or {@code 1=ab, 2=cd}.
+     *
+     * @param listed the list without its brackets
+     * @return the number of entries
+     */
+    private static int countListed(final String listed) {
+        return listed.isBlank() ? 0 : listed.split(",").length;
+    }
+
+    /** Stakes {@code amount} to node {@code nodeId} from a new account that declines rewards, so it stays put. */
+    private static SpecOperation stakeOp(final long nodeId, final long amount) {
+        return cryptoCreate("stakerOfNode" + nodeId + "-" + STAKER_SEQ.incrementAndGet())
+                .balance(amount)
+                .stakedNodeId(nodeId)
+                .declinedReward(true);
+    }
+
+    /**
+     * Deletes the {@code count} lowest-id nodes of {@code network} that are not in {@code keptNodeIds} and
+     * upgrades it to a roster without them.
+     */
+    private DynamicTest deleteOldestNodes(
+            final SubProcessNetwork network, final int count, final List<Long> keptNodeIds) {
+        final var departed = network.nodes().stream()
+                .filter(node -> !keptNodeIds.contains(node.getNodeId()))
+                .sorted(Comparator.comparingLong(HederaNode::getNodeId))
+                .limit(count)
+                .toList();
+        final var departedNodeIds = departed.stream().map(HederaNode::getNodeId).toList();
+        final List<SpecOperation> ops = new ArrayList<>();
+        departedNodeIds.forEach(nodeId -> ops.add(nodeDelete(String.valueOf(nodeId))));
+        ops.add(upgradeWithRosterChange(
+                network,
+                departed.stream()
+                        .map(node -> node.getHost() + ":" + node.getGrpcPort())
+                        .toList(),
+                departedNodeIds.stream()
+                        .map(nodeId -> FakeNmt.removeNode(byNodeId(nodeId)))
+                        .toArray(SpecOperation[]::new)));
+        return networkHapiTest("Delete nodes " + departedNodeIds, network, ops.toArray(SpecOperation[]::new))
+                .findFirst()
+                .orElseThrow();
+    }
+
+    /**
+     * Freeze + software upgrade of {@code network} to the roster its node store now implies, keeping every
+     * surviving node's ports. Before freezing it waits until the candidate roster can be adopted (see
+     * {@link #awaitCandidateRosterAdoptable}); {@code preRestartOps} then add or remove the nodes while the
+     * network is down. Afterwards it rebuilds the network's clients for its new nodes and re-awaits WRAPS
+     * readiness so post-upgrade outbound bundles are peer-verifiable.
+     *
+     * @param departedNodeUris the {@code host:port} gRPC URIs of the nodes the upgrade removes
+     */
+    private SpecOperation upgradeWithRosterChange(
+            final SubProcessNetwork network,
+            final List<String> departedNodeUris,
+            final SpecOperation... preRestartOps) {
+        return blockingOrder(
+                // Each node exports the candidate roster at PREPARE_UPGRADE; drop earlier upgrades' exports first
+                doAdhoc(() -> network.nodes().forEach(node -> deleteCandidateRosterExport(node))),
+                prepareFakeUpgrade(),
+                doAdhoc(() -> awaitCandidateRosterAdoptable(network)),
+                runBackgroundTrafficUntilFreezeComplete(),
+                sourcing(() -> freezeUpgrade()
+                        .startingIn(2)
+                        .seconds()
+                        .withUpdateFile(DEFAULT_UPGRADE_FILE_ID)
+                        .havingHash(upgradeFileHashAt(FAKE_UPGRADE_ZIP_LOC))),
+                confirmFreezeAndShutdown(),
+                blockingOrder(preRestartOps),
+                // FakeNmt writes an override-network.json for every node not starting from genesis, which makes
+                // the restarted nodes adopt the harness's roster through the override path. Drop it, so they adopt
+                // the candidate roster from state through canAdoptRoster, as a mainnet upgrade does.
+                doAdhoc(() -> network.nodes().forEach(HieroToHieroBase::deleteOverrideNetwork)),
+                sourcing(() -> FakeNmt.restartWithConfigVersion(allNodes(), nextConfigVersion(network))),
+                // A new node first reconnects to get the state
+                waitForActive(allNodes(), ROSTER_CHANGE_TO_ACTIVE_TIMEOUT),
+                doAdhoc(() -> {
+                    // Every node restarted, so channels opened before the restart may still be backing off from
+                    // their failed connections; replace them all, along with the departed nodes' channels
+                    final List<String> staleNodeUris = new ArrayList<>(departedNodeUris);
+                    network.nodes().forEach(node -> staleNodeUris.add(node.getHost() + ":" + node.getGrpcPort()));
+                    network.refreshClientsForCurrentNodes(staleNodeUris);
+                    awaitWrapsExtensible(network);
+                    awaitWrapsSyncPoint(network);
+                    network.awaitLedgerId(RESTART_TO_ACTIVE_TIMEOUT);
+                }));
+    }
+
+    /** Number of lines currently in the {@code hgcaa.log} {@link #awaitLogLine} scans for {@code network}. */
+    private static long logLineCount(final SubProcessNetwork network) {
+        final Path logPath = network.nodes()
+                .getFirst()
+                .metadata()
+                .workingDirOrThrow()
+                .resolve("output")
+                .resolve("hgcaa.log");
+        try (var lines = Files.lines(logPath)) {
+            return lines.count();
+        } catch (final IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /**
+     * As {@link #awaitLogLine}, but only matches lines after the first {@code mark} lines, so a step can wait for
+     * a log line its own actions caused rather than an earlier occurrence.
+     */
+    private static MatchResult awaitLogLineAfter(
+            final SubProcessNetwork network, final long mark, final Pattern pattern, final Duration timeout) {
+        final Path logPath = network.nodes()
+                .getFirst()
+                .metadata()
+                .workingDirOrThrow()
+                .resolve("output")
+                .resolve("hgcaa.log");
+        final Instant deadline = Instant.now().plus(timeout);
+        while (Instant.now().isBefore(deadline)) {
+            try (var lines = Files.lines(logPath)) {
+                final var match = lines.skip(mark)
+                        .map(pattern::matcher)
+                        .filter(Matcher::find)
+                        .findFirst();
+                if (match.isPresent()) {
+                    return match.get().toMatchResult();
+                }
+            } catch (final IOException ignored) {
+                // log may be mid-rotation; retry
+            }
+            sleepFor(POLL_INTERVAL);
+        }
+        throw new AssertionError("Network '" + network.name() + "' never logged pattern /" + pattern + "/ after line "
+                + mark + " within " + timeout);
+    }
+
+    /**
+     * Copies the node-local CLPR channel registry ({@code clpr.peerEndpointsFile}) of a node already in
+     * {@code network} into the working dir of the added node {@code nodeId}, if any such node has one. A node learns
+     * the channels it must sync only from this file when it starts, and an added node never handled their activation.
+     * This stands in for a production mechanism that does not exist yet: a node added to a real network has no such
+     * file.
+     *
+     * @param network the network the node was added to
+     * @param nodeId the added node's id
+     * @param addedNodeIds the ids of every node added in the same upgrade
+     */
+    private static void copyPeerEndpointsFile(
+            final SubProcessNetwork network, final long nodeId, final List<Long> addedNodeIds) {
+        final var source = network.nodes().stream()
+                .filter(node -> !addedNodeIds.contains(node.getNodeId()))
+                .map(node -> node.getExternalPath(WORKING_DIR).resolve(PEER_ENDPOINTS_FILE))
+                .filter(Files::exists)
+                .findFirst();
+        if (source.isEmpty()) {
+            return;
+        }
+        final var target = network.getRequiredNode(byNodeId(nodeId))
+                .getExternalPath(WORKING_DIR)
+                .resolve(PEER_ENDPOINTS_FILE);
+        try {
+            Files.createDirectories(requireNonNull(target.getParent()));
+            Files.copy(source.get(), target, StandardCopyOption.REPLACE_EXISTING);
+        } catch (final IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private static void deleteOverrideNetwork(final HederaNode node) {
+        try {
+            Files.deleteIfExists(node.getExternalPath(DATA_CONFIG_DIR).resolve(OVERRIDE_NETWORK_JSON));
+        } catch (final IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private static void deleteCandidateRosterExport(final HederaNode node) {
+        try {
+            Files.deleteIfExists(node.metadata().workingDirOrThrow().resolve(CANDIDATE_ROSTER_JSON));
+        } catch (final IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /**
+     * Blocks until {@code network} can adopt the candidate roster it exported at {@code PREPARE_UPGRADE}: a node
+     * adopts a roster at an upgrade only once the WRAPS history proof for it (which requires its hinTS scheme)
+     * is complete, and refuses to start on an override roster before that. Finds the history construction
+     * targeting the candidate roster's hash, then waits for its proof.
+     */
+    private static void awaitCandidateRosterAdoptable(final SubProcessNetwork network) {
+        final Path export =
+                network.nodes().getFirst().metadata().workingDirOrThrow().resolve(CANDIDATE_ROSTER_JSON);
+        final var deadline = Instant.now().plus(CANDIDATE_ROSTER_EXPORT_TIMEOUT);
+        Optional<Network> candidate = Optional.empty();
+        while (candidate.isEmpty()) {
+            if (Instant.now().isAfter(deadline)) {
+                throw new IllegalStateException(
+                        "Network '" + network.name() + "' did not export a candidate roster at " + export);
+            }
+            if (Files.exists(export)) {
+                try {
+                    candidate = DiskStartupNetworks.loadNetworkFrom(export);
+                } catch (final RuntimeException ignored) {
+                    // still being written; retry
+                }
+            }
+            if (candidate.isEmpty()) {
+                sleepFor(POLL_INTERVAL);
+            }
+        }
+        final var targetHash = RosterUtils.hash(RosterUtils.rosterFrom(candidate.get()))
+                .getBytes()
+                .toHex();
+        final var constructionId = awaitLogLine(
+                        network,
+                        Pattern.compile("Created NEXT construction #(\\d+) for rosters \\(source=[0-9a-f]+, target="
+                                + targetHash + "\\)"),
+                        CANDIDATE_ROSTER_TSS_TIMEOUT)
+                .group(1);
+        awaitLogLine(
+                network,
+                Pattern.compile("History proof constructed \\(#" + constructionId + ", WRAPS-extensible\\? true\\)"),
+                CANDIDATE_ROSTER_TSS_TIMEOUT);
+        log.info(
+                "{} can adopt candidate roster {} (history construction #{})",
+                network.name(),
+                targetHash,
+                constructionId);
+    }
+
+    /** The gossip CA certificate {@link SubProcessNetwork} generates for node {@code nodeId}. */
+    private static byte[] gossipCaCertificateFor(final long nodeId) {
+        try {
+            final var nodeKeys = KeysAndCertsGenerator.generateKeysAndCerts(List.of(NodeId.of(nodeId)));
+            return nodeKeys.get(NodeId.of(nodeId)).sigCert().getEncoded();
+        } catch (final Exception e) {
+            throw new IllegalStateException("Failed to generate the gossip certificate of node" + nodeId, e);
+        }
+    }
+
+    // ---- partition helpers ----
+
+    /**
+     * Freezes and shuts down every node of {@code network}, cutting it off from its peers (and, while down, from
+     * any roster change they make) until {@link #restartLedger}.
+     */
+    static DynamicTest shutDownLedger(final SubProcessNetwork network) {
+        return deferred(
+                "Shut down " + network.name(),
+                () -> networkHapiTest(
+                                "Freeze and shut down " + network.name(),
+                                network,
+                                // As the restart suite does: keep the ledger busy until the freeze completes, so the
+                                // events the freeze round's consensus rests on are persisted before the nodes are
+                                // killed; with every node down, none can recover lost events from a peer, and the
+                                // ledger would never reach consensus again
                                 runBackgroundTrafficUntilFreezeComplete(),
                                 freezeOnly().startingIn(2).seconds(),
                                 waitForFrozenNetwork(FREEZE_TIMEOUT),
-                                // Kill every node at once — the whole endpoint set turns over simultaneously.
-                                FakeNmt.shutdownWithin(allNodes(), SHUTDOWN_TIMEOUT),
-                                // Rewrite each stopped node's tlsPort (basePort offset by node id).
-                                doAdhoc(() -> network.nodes()
-                                        .forEach(n -> setNodeHapiTlsPort(
-                                                network, n.getNodeId(), basePort + (int) n.getNodeId()))),
-                                awaitPortsFree(network.nodes()),
-                                // Restart all nodes together (single restart), then await consensus + WRAPS.
-                                FakeNmt.restartNode(allNodes()),
-                                waitForActive(allNodes(), RESTART_TO_ACTIVE_TIMEOUT),
-                                doAdhoc(() -> {
-                                    awaitWrapsExtensible(network);
-                                    awaitWrapsSyncPoint(network);
-                                    network.awaitLedgerId(RESTART_TO_ACTIVE_TIMEOUT);
-                                })))
-                .findFirst()
-                .orElseThrow();
+                                FakeNmt.shutdownWithin(allNodes(), SHUTDOWN_TIMEOUT))
+                        .findFirst()
+                        .orElseThrow());
     }
 
     /**
-     * Returns an operation that blocks until every TCP port the given nodes rebind on a
-     * {@code ReassignPorts.NO} restart (gRPC, node-operator gRPC, internal/external gossip, prometheus) is
-     * actually releasable, so the restarted process can bind without a {@link java.net.BindException}.
-     *
-     * <p>Replaces a blind fixed unbinding sleep: it probes each port by attempting a throwaway bind and
-     * returns as soon as all are free (typically seconds, since a killed process releases its listening
-     * sockets almost immediately), or throws after {@link #PORT_FREE_TIMEOUT} if a port is still held.
+     * Returns a new config version for an upgrade of {@code network} and records it as the version the ledger runs,
+     * so {@link #restartLedger} can bring it back on that same version.
      */
-    static SpecOperation awaitPortsFree(final List<HederaNode> nodes) {
-        return doAdhoc(() -> {
-            final var ports = nodes.stream()
-                    .flatMap(n -> Stream.of(
-                            n.metadata().grpcPort(),
-                            n.metadata().grpcNodeOperatorPort(),
-                            n.metadata().internalGossipPort(),
-                            n.metadata().externalGossipPort(),
-                            n.metadata().prometheusPort()))
-                    .distinct()
-                    .toList();
-            final var deadline = Instant.now().plus(PORT_FREE_TIMEOUT);
-            for (final int port : ports) {
-                while (!isPortFree(port)) {
-                    if (Instant.now().isAfter(deadline)) {
-                        throw new IllegalStateException("Port " + port + " still bound after " + PORT_FREE_TIMEOUT
-                                + "; the killed node did not release it");
-                    }
-                    try {
-                        Thread.sleep(PORT_FREE_POLL.toMillis());
-                    } catch (final InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        throw new IllegalStateException("Interrupted while waiting for port " + port + " to free", e);
-                    }
-                }
-            }
+    private static int nextConfigVersion(final SubProcessNetwork network) {
+        final int configVersion = CURRENT_CONFIG_VERSION.incrementAndGet();
+        CONFIG_VERSIONS.put(network.name(), configVersion);
+        return configVersion;
+    }
+
+    /**
+     * Restarts every node of a {@link #shutDownLedger shut down} {@code network} on its same ports and waits
+     * until its block proofs are peer-verifiable again. Runs outside a spec, since a spec cannot target a network
+     * with no live node.
+     */
+    static DynamicTest restartLedger(final SubProcessNetwork network) {
+        return DynamicTest.dynamicTest("Restart " + network.name(), () -> {
+            awaitPortsFree(network.nodes());
+            // An outage, not an upgrade: come back on the version the ledger last ran
+            final int configVersion = CONFIG_VERSIONS.getOrDefault(network.name(), 0);
+            network.nodes().forEach(node -> ((SubProcessNode) node).startWithConfigVersion(configVersion));
+            network.nodes().forEach(node -> awaitStatus(node, RESTART_TO_ACTIVE_TIMEOUT, ACTIVE));
+            // Channels to the ledger have been failing to connect while it was down and may still be backing off;
+            // replace them so the next queries reach the restarted nodes at once
+            network.refreshClientsForCurrentNodes(network.nodes().stream()
+                    .map(node -> node.getHost() + ":" + node.getGrpcPort())
+                    .toList());
+            awaitWrapsSyncPoint(network);
+            network.awaitLedgerId(RESTART_TO_ACTIVE_TIMEOUT);
         });
+    }
+
+    /**
+     * Blocks until every TCP port the given nodes rebind on a same-port restart (gRPC, node-operator gRPC,
+     * internal/external gossip, prometheus) is actually releasable, so the restarted process can bind without a
+     * {@link java.net.BindException}. Probes each port by attempting a throwaway bind and returns as soon as all
+     * are free (typically seconds, since a killed process releases its listening sockets almost immediately), or
+     * throws after {@link #PORT_FREE_TIMEOUT} if a port is still held.
+     */
+    static void awaitPortsFree(final List<HederaNode> nodes) {
+        final var ports = nodes.stream()
+                .flatMap(n -> Stream.of(
+                        n.metadata().grpcPort(),
+                        n.metadata().grpcNodeOperatorPort(),
+                        n.metadata().internalGossipPort(),
+                        n.metadata().externalGossipPort(),
+                        n.metadata().prometheusPort()))
+                .distinct()
+                .toList();
+        final var deadline = Instant.now().plus(PORT_FREE_TIMEOUT);
+        for (final int port : ports) {
+            while (!isPortFree(port)) {
+                if (Instant.now().isAfter(deadline)) {
+                    throw new IllegalStateException("Port " + port + " still bound after " + PORT_FREE_TIMEOUT
+                            + "; the killed node did not release it");
+                }
+                sleepFor(PORT_FREE_POLL);
+            }
+        }
     }
 
     /**
@@ -628,71 +1123,12 @@ public abstract class HieroToHieroBase implements LifecycleTest {
         }
     }
 
-    /**
-     * Rotates ALL HAPI TLS ports on <b>both</b> ledgers at once, running each ledger's
-     * {@link #rotateAllNodesHapiTlsPorts} on its own {@link ParallelSpecOps} worker (via {@link #asSubOp})
-     * so the two complete turnovers overlap rather than running A-then-B. This is what the §8.1.3
-     * simultaneous-turnover scenario requires: both ledgers' entire endpoint sets go unreachable in the
-     * same window (no serial gap where one side is already back up), and the wall time is the slower
-     * single-ledger turnover, not the sum. {@code failOnErrors()} surfaces either side's failure instead
-     * of logging-and-swallowing it. Base ports must stay globally-unique per the
-     * {@link #setNodeHapiTlsPort} invariant.
-     */
-    DynamicTest rotateBothNetworksHapiTlsPortsInParallel(
-            final SubProcessNetwork ledgerA,
-            final int basePortA,
-            final SubProcessNetwork ledgerB,
-            final int basePortB) {
-        return networkHapiTest(
-                        "Rotate ALL HAPI TLS ports on both ledgers simultaneously (A base " + basePortA + ", B base "
-                                + basePortB + ")",
-                        ledgerA,
-                        new ParallelSpecOps(
-                                        asSubOp(rotateAllNodesHapiTlsPorts(ledgerA, basePortA)),
-                                        asSubOp(rotateAllNodesHapiTlsPorts(ledgerB, basePortB)))
-                                .failOnErrors())
-                .findFirst()
-                .orElseThrow();
-    }
-
-    /**
-     * Rewrites {@code grpc.tlsPort} in node {@code nodeId}'s {@code data/config/application.properties},
-     * dropping any existing {@code grpc.tlsPort} line so the restarted JVM reads exactly the new value.
-     * Call only while that node is stopped (between {@code shutdownWithin} and {@code restartNode}).
-     *
-     * <p><b>Not restored, intentionally.</b> This writes {@code application.properties} directly (outside
-     * {@code getApplicationPropertyOverrides()}), and {@code grpc.tlsPort} is a {@code STARTUP_ONLY} key,
-     * so the rotated value is never reverted on the shared {@code ledgerA_manifest} / {@code ledgerB_manifest}
-     * networks — reverting it would just cost another rewrite + restart. That is safe only because every
-     * rotation targets an <b>absolute, globally-unique</b> port and asserts that exact value, never the
-     * inherited one: each test overwrites whatever a prior test left with its own known target, no two
-     * rotations land on the same port, and no assertion depends on execution order. Any new rotation test
-     * MUST preserve this invariant — pick a fresh base port (node {@code i} binds {@code base + i}).
-     */
-    private static void setNodeHapiTlsPort(final SubProcessNetwork network, final long nodeId, final int newTlsPort) {
-        final var node = network.nodes().stream()
-                .filter(n -> n.getNodeId() == nodeId)
-                .findFirst()
-                .orElseThrow(() -> new IllegalStateException("no node " + nodeId + " in " + network.name()));
-        final Path appProps = node.metadata()
-                .workingDirOrThrow()
-                .resolve("data")
-                .resolve("config")
-                .resolve("application.properties");
+    private static void sleepFor(final Duration duration) {
         try {
-            final var retained = new java.util.ArrayList<String>();
-            if (Files.exists(appProps)) {
-                for (final var line : Files.readAllLines(appProps)) {
-                    if (!line.strip().startsWith("grpc.tlsPort")) {
-                        retained.add(line);
-                    }
-                }
-            }
-            retained.add("grpc.tlsPort=" + newTlsPort);
-            Files.write(appProps, retained);
-            log.info("Rotated {} node{} grpc.tlsPort -> {} in {}", network.name(), nodeId, newTlsPort, appProps);
-        } catch (final IOException e) {
-            throw new UncheckedIOException("Failed to rotate grpc.tlsPort for " + network.name() + " node" + nodeId, e);
+            Thread.sleep(duration.toMillis());
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while waiting", e);
         }
     }
 
@@ -760,7 +1196,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
             final int maxQueueDepth) {
         final AtomicReference<ByteString> proofA = new AtomicReference<>();
         final AtomicReference<ByteString> proofB = new AtomicReference<>();
-        // Manifest-only mode: completeChannel and the verifyConfig probes both require each
+        // Manifest-only mode: createChannel and the verifyConfig probes both require each
         // ledger's endpoint-manifest StateProof, so capture and thread them like the HAPI TLS overload.
         final AtomicReference<ByteString> manifestProofA = new AtomicReference<>();
         final AtomicReference<ByteString> manifestProofB = new AtomicReference<>();
@@ -809,7 +1245,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
      * As {@link #setupBothNetworks(SubProcessNetwork, SubProcessNetwork, int, int, ClprCrypto,
      * int, int)} but additionally captures each ledger's manifest {@code StateProof} via the
      * {@code clprGetEndpointManifest} HAPI query and threads it into the peer's
-     * {@code ClprCompleteChannel} as {@code endpoint_manifest_proof_bytes} (required, since the
+     * {@code ClprCreateChannel} as {@code endpoint_manifest_proof_bytes} (required, since the
      * manifest-aware verifier ABI rejects an empty manifest proof). Dial targets, including each
      * network's HAPI TLS port and certificate, come from the captured manifests.
      *
@@ -932,18 +1368,6 @@ public abstract class HieroToHieroBase implements LifecycleTest {
     }
 
     /**
-     * Wraps a {@link DynamicTest} (a HapiSpec built by e.g. {@link #deployAndConnect}) as a
-     * {@link SpecOperation} so it can be a child of {@link ParallelSpecOps}. The wrapped op runs
-     * on the calling thread — under {@code ParallelSpecOps} that's a distinct
-     * {@link HapiSpec#getCommonThreadPool()} worker, so both children execute concurrently
-     * against their respective target networks.
-     */
-    private static SpecOperation asSubOp(final DynamicTest dynamicTest) {
-        return withOpContext(
-                (ignoredSpec, ignoredLog) -> dynamicTest.getExecutable().execute());
-    }
-
-    /**
      * Phase 1: install the LedgerConfiguration in state. Funds the node operator account so it can
      * pay gas for the verifier-contract dispatch when handling inbound bundles.
      */
@@ -1016,7 +1440,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                         // just-installed throttles. clprGetLedgerConfiguration proves against a SIGNED block
                         // that lags committed state, so an early capture can carry an empty trust anchor (the
                         // ledger_id isn't in the proven config yet) or a PRIOR install's throttles — either of
-                        // which would make the peer's clprCompleteChannel verifyConfig revert. Decoding in
+                        // which would make the peer's clprCreateChannel verifyConfig revert. Decoding in
                         // process (rather than calling the verifier precompile) gives the same guarantee
                         // without the 6 KB call-size limit the config+manifest proofs would exceed.
                         if (captured != null
@@ -1122,11 +1546,11 @@ public abstract class HieroToHieroBase implements LifecycleTest {
      * True when the config {@link com.hedera.hapi.block.stream.StateProof} decodes to a
      * {@code ClprLedgerConfiguration} that carries a populated {@code initial_trust_anchor} and the
      * just-installed throttles — i.e. the proof is committed and current, so the peer's
-     * {@code clprCompleteChannel} verifyConfig will accept it.
+     * {@code clprCreateChannel} verifyConfig will accept it.
      *
      * <p>{@code clprGetLedgerConfiguration} proves against a SIGNED block that lags committed state, so an
      * early capture can carry an empty trust anchor (the ledger_id isn't in the proven config yet) or a
-     * PRIOR install's throttles on a shared network. Both would make the peer's completeChannel verifyConfig
+     * PRIOR install's throttles on a shared network. Both would make the peer's createChannel verifyConfig
      * revert. This is decoded in-process (see {@link ClprTestProofs#decodeLedgerConfig}) rather than via a
      * verifier-precompile call, so it is not subject to the 6 KB contract-call size limit that the
      * config+manifest proofs together would exceed.
@@ -1148,7 +1572,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
      * and the system-contract caller; fund the connector; then run the channel + connector
      * commit-reveal. The peer's config StateProof is read at execution time via {@link
      * com.hedera.services.bdd.spec.utilops.UtilVerbs#sourcing sourcing} so phase 2 has populated
-     * the reference before this networkHapiTest builds its clprCompleteChannel op.
+     * the reference before this networkHapiTest builds its clprCreateChannel op.
      *
      * <p>All contractCreate + clprXxx ops live in a single {@code networkHapiTest} so contract IDs
      * (PassThroughAuth, ClprSystemContract, ClprLedgerVerifier) remain visible to the later
@@ -1181,16 +1605,11 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                         cryptoTransfer(tinyBarsFromTo(GENESIS, CONNECTOR_CONTRACT, ONE_HUNDRED_HBARS)),
                         uploadInitCode(CLPR_CONTRACT),
                         contractCreate(CLPR_CONTRACT),
-                        // Channel commit-reveal
-                        clprRegisterChannel()
-                                .ownershipCommitment(crypto.channelCommitment)
-                                .payingWith(GENESIS),
                         sourcing(() -> {
-                            var op = clprCompleteChannel()
+                            var op = clprCreateChannel()
                                     .channelId(crypto.channelId)
-                                    .publicKey(crypto.publicKey)
-                                    .signature(crypto.channelSignature)
-                                    .signatureScheme(ClprSignatureScheme.ED25519)
+                                    .salt(crypto.channelSalt)
+                                    .peerVerifier(ClprCrypto.CLPR_SERVICE_ADDRESS)
                                     .verifierContract(VERIFIER)
                                     .configProofBytes(peerConfigProof.get().toByteArray())
                                     .payingWith(GENESIS)
@@ -1500,25 +1919,27 @@ public abstract class HieroToHieroBase implements LifecycleTest {
         final byte[] publicKey = new byte[Ed25519.PUBLIC_KEY_BYTES];
         final byte[] secretKey = new byte[Ed25519.SECRET_KEY_BYTES];
         final byte[] channelId;
-        final byte[] channelCommitment;
-        final byte[] channelSignature = new byte[Ed25519.SIGNATURE_BYTES];
+        final byte[] channelSalt;
         final byte[] connectorSalt = new byte[32]; // all zeros
         final byte[] connectorId;
         final byte[] connectorCommitment;
         final byte[] connectorSignature = new byte[Ed25519.SIGNATURE_BYTES];
 
-        ClprCrypto() {
+        ClprCrypto(final SubProcessNetwork ledgerA, final SubProcessNetwork ledgerB) {
             Ed25519.newKeypair(publicKey, secretKey, TEST_PRIVATE_KEY_SEED);
 
             final var seed = "hiero-e2e-test-conn-v1-" + INSTANCE_COUNTER.incrementAndGet();
-            channelId = MiscCryptoUtils.keccak256DigestOf(seed.getBytes(StandardCharsets.UTF_8));
-
-            // Channel commitment: keccak256(channelId || pubKey)
-            channelCommitment = MiscCryptoUtils.keccak256DigestOf(concat(channelId, publicKey));
-
-            // Channel signature: Ed25519 over keccak256(channelId)
-            final var connSigMsg = MiscCryptoUtils.keccak256DigestOf(channelId);
-            Ed25519.sign(channelSignature, connSigMsg, secretKey);
+            channelSalt = MiscCryptoUtils.keccak256DigestOf(seed.getBytes(StandardCharsets.UTF_8));
+            final var service = Bytes.wrap(CLPR_SERVICE_ADDRESS);
+            channelId = ClprChannelId.derive(
+                            "eip155:" + ledgerA.startupProperties().getLong("contracts.chainId"),
+                            service,
+                            service,
+                            "eip155:" + ledgerB.startupProperties().getLong("contracts.chainId"),
+                            service,
+                            service,
+                            Bytes.wrap(channelSalt))
+                    .toByteArray();
 
             // connectorId = keccak256(channelId || pubKey || connectorSalt)
             connectorId = MiscCryptoUtils.keccak256DigestOf(concat(channelId, concat(publicKey, connectorSalt)));

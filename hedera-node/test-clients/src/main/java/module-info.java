@@ -120,6 +120,7 @@ open module com.hedera.node.test.clients {
     requires org.hiero.base.utility;
     requires org.hiero.consensus.event.stream;
     requires org.hiero.consensus.metrics;
+    requires org.hiero.consensus.main.model;
     requires org.hiero.consensus.model;
     requires org.hiero.consensus.pces.impl.test.fixtures;
     requires org.hiero.consensus.platformstate;
@@ -154,7 +155,6 @@ open module com.hedera.node.test.clients {
     requires org.hyperledger.besu.evm;
     requires org.hyperledger.besu.internal.crypto;
     requires org.hyperledger.besu.nativelib.gnark;
-    requires org.hyperledger.besu.nativelib.secp256k1;
     requires org.json;
     requires org.junit.jupiter.api;
     requires org.junit.platform.commons;

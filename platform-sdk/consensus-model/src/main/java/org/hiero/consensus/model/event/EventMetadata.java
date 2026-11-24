@@ -13,7 +13,8 @@ import java.util.Collections;
 import java.util.List;
 import org.hiero.base.crypto.AbstractHashable;
 import org.hiero.base.utility.ListUtils;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.EventDescriptorWrapper;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 
 /**
@@ -61,7 +62,7 @@ public class EventMetadata extends AbstractHashable {
      * Create a EventMetadata object
      *
      * @param creatorId    ID of this event's creator
-     * @param allParents   all parent event descriptors
+     * @param allParents   all parent event descriptors in an immutable list
      * @param timeCreated  creation time, as claimed by its creator
      * @param transactions list of transactions included in this event instance
      * @param birthRound   birth round associated with event
@@ -75,7 +76,7 @@ public class EventMetadata extends AbstractHashable {
 
         requireNonNull(transactions, "The transactions must not be null");
         this.creatorId = requireNonNull(creatorId, "The creatorId must not be null");
-        this.allParents = List.copyOf(requireNonNull(allParents, "The allParents must not be null"));
+        this.allParents = requireNonNull(allParents, "The allParents must not be null");
         if (!this.allParents.isEmpty() && this.allParents.getFirst().creator().equals(creatorId)) {
             // this event has a self parent
             this.selfParent = this.allParents.getFirst();

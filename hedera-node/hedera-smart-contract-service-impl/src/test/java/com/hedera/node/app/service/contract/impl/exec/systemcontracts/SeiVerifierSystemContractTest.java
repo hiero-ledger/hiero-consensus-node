@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts;
 
-import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NOT_ENABLED;
+import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.NOT_SUPPORTED;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.haltResult;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertSamePrecompileResult;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.base.ContractID;
-import com.hedera.node.app.service.contract.impl.exec.failure.HandleExceptionHaltReason;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.sei.SeiVerifierCallFactory;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
@@ -21,6 +21,8 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -57,19 +59,28 @@ class SeiVerifierSystemContractTest {
         }
     }
 
-    @Test
-    void haltsWithClprNotEnabledWhenClprIsDisabled() {
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void keepsTheClprEnabledCheckOfEveryClprSystemContract(final boolean clprEnabled) {
         final var subject = new SeiVerifierSystemContract(gasCalculator, callFactory, contractMetrics);
         given(configuration.getConfigData(ClprConfig.class)).willReturn(clprConfig);
-        given(clprConfig.enabled()).willReturn(false);
+        given(clprConfig.enabled()).willReturn(clprEnabled);
 
         try (final var frameUtils = mockStatic(FrameUtils.class)) {
             frameUtils.when(() -> FrameUtils.configOf(frame)).thenReturn(configuration);
 
-            final var expected = haltResult(new HandleExceptionHaltReason(CLPR_NOT_ENABLED), frame.getRemainingGas());
-            final var result = subject.computeFully(ContractID.DEFAULT, Bytes.fromHexString("00000000"), frame);
-
-            assertSamePrecompileResult(expected, result);
+            assertThat(subject.isDisabled(frame)).isEqualTo(!clprEnabled);
         }
+    }
+
+    @Test
+    void haltsEveryInvocationWithNotSupported() {
+        final var subject = new SeiVerifierSystemContract(gasCalculator, callFactory, contractMetrics);
+
+        final var expected = haltResult(NOT_SUPPORTED, frame.getRemainingGas());
+        final var result = subject.computeFully(ContractID.DEFAULT, Bytes.fromHexString("00000000"), frame);
+
+        assertSamePrecompileResult(expected, result);
+        verifyNoInteractions(callFactory);
     }
 }

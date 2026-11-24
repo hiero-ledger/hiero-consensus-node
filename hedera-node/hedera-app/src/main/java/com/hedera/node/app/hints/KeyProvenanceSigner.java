@@ -85,7 +85,15 @@ public final class KeyProvenanceSigner {
         this.aggregationKey = keys.aggregationKey();
         this.verificationKey = keys.verificationKey();
         this.parties = Map.copyOf(byNode);
-        this.totalWeight = weight;
+        this.totalWeight = construction.preprocessingRosterWeightOrElse(weight);
+        if (this.totalWeight < weight) {
+            throw new IllegalArgumentException("Provenance signer weight exceeds the preprocessing roster weight");
+        }
+    }
+
+    /** Returns the weight committed in the source key for its strict one-third provenance threshold. */
+    public long verificationKeyWeight() {
+        return totalWeight;
     }
 
     /** Returns the persisted source hinTS construction ID, independent of the history construction ID. */

@@ -84,7 +84,7 @@ transaction, if within the window during which such a reversal is possible.
 ### Authorization privileges for CLPR transactions
 
 The treasury, system admin, and configured CLPR admin can submit
-`ClprUpdateLedgerConfiguration`, `ClprCloseChannel`, and `ClprEvictPeerEndpoint`.
+`ClprUpdateLedgerConfiguration`, `ClprDeleteChannel`, and `ClprEvictPeerEndpoint`.
 The network property `accounts.clprAdmin` defaults to `-1`, which disables the
 delegation, so only the treasury and system admin can submit these transactions. To
 enable a CLPR admin, set the property to a positive account number in the network

@@ -14,8 +14,7 @@ Both proofs must have the same signing key. Fetch both again if the key rotates 
 
 Open the destination channel with the compact verifier that advertises
 `0x01 || keccak256(raw hinTS verification key)` as its 33-byte
-`Channel.trustAnchorId`. The verifier uses the 32-byte hash itself as the
-channel's cryptographic anchor. If the channel was opened with the earlier
+`Channel.trustAnchorId`. The verifier stores the key hash and the last accepted witness checkpoint in the channel’s trust anchor. If the channel was opened with the earlier
 draft's raw hash ID, open a test channel with the tagged verifier.
 
 The relay copies the full committed `trustAnchorId` into
@@ -33,7 +32,7 @@ batches followed by message delivery, and a SHA-256 witness from the native cons
 It checks that an unknown anchor, a missing witness, and a replayed witness batch leave the channel
 unchanged. Requests using the native format still receive the original state proof bytes.
 
-Use a disposable checkout of the Solidity verifier with support for witness-form Hiero bundles. Its
+Use a disposable checkout of the Solidity verifier that supports one-step channel opening and witness-form Hiero bundles. Its
 Foundry submodules must be initialized, and its fixtures must include `HieroWitnessSubmitBundle.t.sol`
 and the rotation and witness fixture files that test reads.
 

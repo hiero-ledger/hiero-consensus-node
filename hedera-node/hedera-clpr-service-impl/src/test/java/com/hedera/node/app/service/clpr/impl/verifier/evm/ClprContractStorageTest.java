@@ -20,17 +20,17 @@ class ClprContractStorageTest {
             HEX.parseHex("3c5b7a99b8d7f61534537291b0cfee0d2c4b6a89a8c7e60524436281a0bfdefd");
 
     // The Channel slot keys of CHANNEL_ID, from foundry: cast keccak $(cast abi-encode "f(bytes32,uint256)"
-    // <channelId> 15), plus the offsets 1, 2, 4, 5 and 16.
+    // <channelId> 11), plus the offsets 1, 2, 4, 5 and 15.
     private static final byte[] STATUS_AND_NEXT_MESSAGE_ID_SLOT =
-            HEX.parseHex("44637163277d9a932c1ffaff31b12f7a1ef43c674d0f3387a8f8e6864b1628f4");
+            HEX.parseHex("84a3a2a33f3a9d2d4bdfb74276b46bd8cfd61cb5498b54f182ee03cfbcbdedcf");
     private static final byte[] RECEIVED_MESSAGE_ID_SLOT =
-            HEX.parseHex("44637163277d9a932c1ffaff31b12f7a1ef43c674d0f3387a8f8e6864b1628f5");
+            HEX.parseHex("84a3a2a33f3a9d2d4bdfb74276b46bd8cfd61cb5498b54f182ee03cfbcbdedd0");
     private static final byte[] SENT_RUNNING_HASH_SLOT =
-            HEX.parseHex("44637163277d9a932c1ffaff31b12f7a1ef43c674d0f3387a8f8e6864b1628f7");
+            HEX.parseHex("84a3a2a33f3a9d2d4bdfb74276b46bd8cfd61cb5498b54f182ee03cfbcbdedd2");
     private static final byte[] RECEIVED_RUNNING_HASH_SLOT =
-            HEX.parseHex("44637163277d9a932c1ffaff31b12f7a1ef43c674d0f3387a8f8e6864b1628f8");
+            HEX.parseHex("84a3a2a33f3a9d2d4bdfb74276b46bd8cfd61cb5498b54f182ee03cfbcbdedd3");
     private static final byte[] ENDPOINT_MANIFEST_VERSION_SLOT =
-            HEX.parseHex("44637163277d9a932c1ffaff31b12f7a1ef43c674d0f3387a8f8e6864b162903");
+            HEX.parseHex("84a3a2a33f3a9d2d4bdfb74276b46bd8cfd61cb5498b54f182ee03cfbcbdeddd");
 
     /** A slot outside the Channel struct, standing for the last message's running-hash slot. */
     private static final byte[] MESSAGE_SLOT =
@@ -110,7 +110,7 @@ class ClprContractStorageTest {
             assertThat(metadata.receivedMessageId()).isEqualTo(0x1112131415161718L);
             assertThat(metadata.sentRunningHash()).isEqualTo(sent);
             assertThat(metadata.receivedRunningHash()).isEqualTo(received);
-            // proven from the offset-16 slot, never from relayed content
+            // proven from the offset-15 slot, never from relayed content
             assertThat(metadata.endpointManifestVersion()).isEqualTo(42L);
             assertThat(metadata.lastMessageRunningHash()).isEqualTo(new byte[32]);
         }
@@ -249,7 +249,7 @@ class ClprContractStorageTest {
         return slot;
     }
 
-    /** Slot +16 layout: a lone uint64 at the LSB (last 8 bytes). */
+    /** Slot +15 layout: a lone uint64 at the LSB (last 8 bytes). */
     private static byte[] manifestSlot(final long version) {
         final byte[] slot = new byte[32];
         putUint64(slot, 24, version);

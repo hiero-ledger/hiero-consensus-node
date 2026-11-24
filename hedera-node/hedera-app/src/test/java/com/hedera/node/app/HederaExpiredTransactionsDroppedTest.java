@@ -19,7 +19,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
-import org.hiero.consensus.model.transaction.TimestampedTransaction;
+import org.hiero.consensus.main.model.TimestampedTransaction;
 import org.hiero.consensus.transaction.TransactionPoolNexus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

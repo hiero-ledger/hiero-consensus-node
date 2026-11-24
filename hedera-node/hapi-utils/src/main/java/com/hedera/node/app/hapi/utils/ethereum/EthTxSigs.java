@@ -18,6 +18,7 @@ import java.util.HexFormat;
 import java.util.Optional;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.ECDSASecp256k1;
 
 public record EthTxSigs(byte[] publicKey, byte[] address) {
     private static final ContextualLibsecp256k1 LIBSECP256K1 = ContextualLibsecp256k1.getInstance();
@@ -161,22 +162,7 @@ public record EthTxSigs(byte[] publicKey, byte[] address) {
         // a simple (r, s) concatenation breaks signature verification below
         byte[] signature = concatLeftPadded(r, s);
 
-        final byte[] parsedSignature = new byte[Libsecp256k1.RECOVERABLE_SIGNATURE_BYTES];
-        final MemorySegment parsedSignatureSeg = MemorySegment.ofArray(parsedSignature);
-
-        if (LIBSECP256K1.secp256k1EcdsaRecoverableSignatureParseCompact(
-                        parsedSignatureSeg, MemorySegment.ofArray(signature), recId)
-                == 0) {
-            throw new IllegalArgumentException("Could not parse signature");
-        }
-        final byte[] newPubKey = new byte[Libsecp256k1.PUBLIC_KEY_BYTES];
-        if (LIBSECP256K1.secp256k1EcdsaRecover(
-                        MemorySegment.ofArray(newPubKey), parsedSignatureSeg, MemorySegment.ofArray(dataHash))
-                == 0) {
-            throw new IllegalArgumentException("Could not recover signature");
-        } else {
-            return newPubKey;
-        }
+        return ECDSASecp256k1.recoverPublicKey(dataHash, signature, recId);
     }
 
     @VisibleForTesting

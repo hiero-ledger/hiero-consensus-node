@@ -23,8 +23,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.sloth.fixtures.SlothTransactionType;
 import org.hiero.sloth.fixtures.container.docker.EventMessageFactory;
@@ -216,12 +216,11 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
         }
 
         wrapWithErrorHandling(responseObserver, () -> {
-            final QuiescenceCommand command =
-                    switch (request.getCommand()) {
-                        case QUIESCE -> QuiescenceCommand.QUIESCE;
-                        case BREAK_QUIESCENCE -> QuiescenceCommand.BREAK_QUIESCENCE;
-                        default -> QuiescenceCommand.DONT_QUIESCE;
-                    };
+            final QuiescenceCommand command = switch (request.getCommand()) {
+                case QUIESCE -> QuiescenceCommand.QUIESCE;
+                case BREAK_QUIESCENCE -> QuiescenceCommand.BREAK_QUIESCENCE;
+                default -> QuiescenceCommand.DONT_QUIESCE;
+            };
 
             consensusNodeManager.sendQuiescenceCommand(command);
             responseObserver.onNext(Empty.getDefaultInstance());

@@ -25,11 +25,17 @@ class ClprEndpointManifestOptionsTest {
     }
 
     @Test
-    void completeChannelAcceptsEndpointManifestProof() {
+    void createChannelAcceptsEndpointManifestProof() {
         final var parsed = new CommandLine(new Yahcli())
                 .parseArgs(
                         "clpr",
-                        "complete-channel",
+                        "create-channel",
+                        "--channel-id",
+                        "00".repeat(32),
+                        "--salt",
+                        "00".repeat(32),
+                        "--peer-verifier",
+                        "ff",
                         "--verifier-contract",
                         "0.0.366",
                         "--config-proof",
@@ -37,18 +43,30 @@ class ClprEndpointManifestOptionsTest {
                         "--endpoint-manifest-proof",
                         "manifest.bin");
 
-        final var command = (CompleteChannelCommand)
+        final var command = (CreateChannelCommand)
                 parsed.subcommand().subcommand().commandSpec().userObject();
         assertThat(command.configProofFile).isEqualTo("config.bin");
         assertThat(command.endpointManifestProofFile).isEqualTo("manifest.bin");
     }
 
     @Test
-    void completeChannelDoesNotRequireEndpointManifestProof() {
+    void createChannelDoesNotRequireEndpointManifestProof() {
         final var parsed = new CommandLine(new Yahcli())
-                .parseArgs("clpr", "complete-channel", "--verifier-contract", "0.0.367", "--config-proof-hex", "01");
+                .parseArgs(
+                        "clpr",
+                        "create-channel",
+                        "--channel-id",
+                        "00".repeat(32),
+                        "--salt",
+                        "00".repeat(32),
+                        "--peer-verifier",
+                        "ff",
+                        "--verifier-contract",
+                        "0.0.367",
+                        "--config-proof-hex",
+                        "01");
 
-        final var command = (CompleteChannelCommand)
+        final var command = (CreateChannelCommand)
                 parsed.subcommand().subcommand().commandSpec().userObject();
         assertThat(command.endpointManifestProofFile).isNull();
         assertThat(command.endpointManifestProofHex).isNull();

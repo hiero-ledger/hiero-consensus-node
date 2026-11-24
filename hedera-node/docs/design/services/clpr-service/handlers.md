@@ -20,7 +20,7 @@ abstract class enforces:
    `ClprChannel` or throws `HandleException` (e.g. `INVALID_CLPR_CHANNEL_ID`,
    `CLPR_CHANNEL_NOT_ACTIVE`).
 3. **Admin gating** uses the platform's `PrivilegesVerifier`. The treasury, system
-   admin, and configured `accounts.clprAdmin` payer can submit `closeChannel`,
+   admin, and configured `accounts.clprAdmin` payer can submit `deleteChannel`,
    `evictPeerEndpoint`, and `updateLedgerConfiguration`.
    The framework verifies the payer signature and rejects unauthorized payers with
    `AUTHORIZATION_FAILED`.
@@ -38,33 +38,13 @@ HAPI dispatch table for the CLPR `HederaFunctionality` values. Add new handlers 
 For each: trigger functionality → spec §6 method → key validation → state writes →
 side-effects.
 
-### `ClprRegisterChannelHandler` — commit phase
+### `ClprCreateChannelHandler`
 
-- Functionality: `CLPR_REGISTER_CHANNEL`. Spec §5.1.2 / §6.2 (`registerChannel`).
-- Body: `ClprRegisterChannelTransactionBody`.
-- Validates: payer pays the registration fee; commitment hash well-formed; commitment not
-  already in `PENDING_COMMITMENTS` (pending reveal, or bound to an existing Channel in any
-  status, including `CLOSED`) — otherwise `CLPR_CHANNEL_ALREADY_EXISTS`.
-- Writes: `PENDING_COMMITMENTS[commitment_hash] = commitment_hash`.
-- No channel record is created in this phase.
+Any payer can open a channel in one transaction. The selected verifier authenticates the peer configuration and endpoint manifest. The handler derives the channel ID from both ledgers’ chain IDs, service addresses, verifier addresses, and the shared 32-byte salt. If the ID matches the submitted ID and the channel is new, the handler stores the active channel and schedules synchronization with its verified endpoints.
 
-### `ClprCompleteChannelHandler` — reveal phase
+### `ClprDeleteChannelHandler` — admin close
 
-- Functionality: `CLPR_COMPLETE_CHANNEL`. Spec §5.1.3 / §6.2 (`completeChannel`).
-- Validates: preimage matches the prior `PENDING_COMMITMENTS` entry; signer key matches
-  preimage; verifier contract resolves; chain ID, throttles, etc. on the candidate config
-  pass `verifyConfig`. Re-derives `channelId`.
-- Writes: `CHANNELS[channelId] = ClprChannel{ status: ACTIVE, ownership_commitment, … }`. The
-  commitment is **not** removed: it stays in `PENDING_COMMITMENTS` for as long as the Channel
-  record exists. Channel records are kept in every status, including `CLOSED`, so a Channel
-  can never be created again.
-- **Lifecycle hook:** calls `ClprChannelLifecycle.onChannelActivated(channelId)`
-  → `ClprChannelManager` adds the channel to its sync schedule. (In the standalone
-  executor module the lifecycle is a no-op.)
-
-### `ClprCloseChannelHandler` — admin close
-
-- Functionality: `CLPR_CLOSE_CHANNEL`. Spec §6.2 (`closeChannel`).
+- Functionality: `CLPR_DELETE_CHANNEL`. HAPI method: `deleteChannel` (channel closure in spec §6.2).
 - Admin-gated.
 - From `ACTIVE`/`PAUSED`, status becomes `CLOSING`, or `DRAINED` directly if the whole
   outbound queue is already acknowledged. From `DRAINED`, status becomes `CLOSED`.
@@ -93,7 +73,6 @@ side-effects.
 ### `ClprRegisterConnectorHandler` / `ClprCompleteConnectorHandler`
 
 - Functionalities: `CLPR_REGISTER_CONNECTOR`, `CLPR_COMPLETE_CONNECTOR`. Spec §6.3.
-- Same commit-reveal shape as channel registration.
 - Register requires a 32-byte `channel_id` identifying an existing channel and a 32-byte
   `commitment`. A missing channel fails with `CLPR_CHANNEL_NOT_FOUND` before storing the commitment.
   The channel ID is public metadata; the commitment preimage is verified during reveal.
@@ -137,6 +116,12 @@ side-effects.
      `CLOSING`/`DRAINED`: graceful close drains inbound traffic through normal dispatch.
 - State writes: channel's `received_running_hash`, `last_received_message_id`; per-data-
   message replies stored back into the queue (replies on the source-side queue).
+- An authorized CLPR admin can use `yahcli clpr submit-bundle --expected-cached-manifest-version`
+  to replace that exact cached version with a verified lower manifest. For a Hiero TSS channel, fetch
+  a fresh proof from the repaired peer with `yahcli clpr get-endpoint-manifest --for-manifest-recovery --proof-path <path>`.
+  Recovery requires an authenticated source block timestamp and a proof without queue metadata or messages.
+  After recovery, a higher manifest version can advance the channel only with a proof from a strictly
+  later source block. Verifiers that do not authenticate source ordering cannot downgrade a manifest.
 - Slashing/reimbursement: on misbehaviour, calls `ClprSlashingUtils.slashConnector(...)`
   and credits the submitting endpoint per `ClprConfig.endpointMarginPercent`. See
   [`config-and-slashing.md`](config-and-slashing.md).

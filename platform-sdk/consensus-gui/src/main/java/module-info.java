@@ -13,6 +13,7 @@ module org.hiero.consensus.gui {
     requires org.hiero.base.crypto;
     requires org.hiero.consensus.hashgraph.impl;
     requires org.hiero.consensus.hashgraph;
+    requires org.hiero.consensus.main.model;
     requires java.desktop;
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;

@@ -119,8 +119,8 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.AbstractTask;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.model.event.ConsensusEvent;
-import org.hiero.consensus.model.hashgraph.Round;
+import org.hiero.consensus.main.model.ConsensusEvent;
+import org.hiero.consensus.main.model.Round;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.platformstate.ReadablePlatformStateStore;
@@ -2322,7 +2322,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     private static Instant firstConsensusTimestampOf(final Round round) {
-        for (final ConsensusEvent consensusEvent : round) {
+        for (final ConsensusEvent consensusEvent : round.getConsensusEvents()) {
             final var eventTimestamp = consensusEvent.getConsensusTimestamp();
             if (eventTimestamp != null && eventTimestamp.isAfter(Instant.EPOCH)) {
                 return eventTimestamp;

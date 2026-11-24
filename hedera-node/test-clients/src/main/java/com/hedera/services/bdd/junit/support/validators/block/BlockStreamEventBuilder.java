@@ -5,6 +5,7 @@ import static com.hedera.node.app.hapi.utils.CommonPbjConverters.MAX_PBJ_RECORD_
 import static com.hedera.pbj.runtime.Codec.DEFAULT_MAX_DEPTH;
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Fail.fail;
+import static org.hiero.consensus.main.model.ConsensusLayerConstants.DEFAULT_EVENT_DIGEST_TYPE;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
@@ -32,7 +33,6 @@ import java.util.Map;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.HashingOutputStream;
-import org.hiero.consensus.model.event.EventHashFactory;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 
@@ -82,7 +82,7 @@ public class BlockStreamEventBuilder {
         /** Returns the parent event hash. */
         @NonNull
         public Hash parentHash() {
-            return EventHashFactory.hash(parentDescriptor.hash(), parentDescriptor.birthRound());
+            return new Hash(parentDescriptor.hash(), DEFAULT_EVENT_DIGEST_TYPE);
         }
     }
 
@@ -353,12 +353,9 @@ public class BlockStreamEventBuilder {
     private static class RedactedEventHasher {
 
         private final MessageDigest sha256EventDigest = DigestType.SHA_256.buildDigest();
-        private final MessageDigest sha384EventDigest = DigestType.SHA_384.buildDigest();
 
         private final WritableSequentialData sha256EventStream =
                 new WritableStreamingData(new HashingOutputStream(sha256EventDigest));
-        private final WritableSequentialData sha384EventStream =
-                new WritableStreamingData(new HashingOutputStream(sha384EventDigest));
 
         /** The hashing stream for the transactions. */
         private final MessageDigest transactionDigest = DigestType.SHA_384.buildDigest();
@@ -371,31 +368,19 @@ public class BlockStreamEventBuilder {
                 @NonNull final EventCore eventCore,
                 @NonNull final List<EventDescriptor> parents,
                 @NonNull final List<TransactionWrapper> wrappedTransactions) {
-            final DigestType digestType;
-            final MessageDigest eventDigest;
-            final WritableSequentialData eventStream;
-            if (EventHashFactory.isBirthRoundPostCutover(eventCore.birthRound())) {
-                digestType = DigestType.SHA_256;
-                eventDigest = sha256EventDigest;
-                eventStream = sha256EventStream;
-            } else {
-                digestType = DigestType.SHA_384;
-                eventDigest = sha384EventDigest;
-                eventStream = sha384EventStream;
-            }
             try {
-                EventCore.PROTOBUF.write(eventCore, eventStream);
+                EventCore.PROTOBUF.write(eventCore, sha256EventStream);
                 for (final EventDescriptor parent : parents) {
-                    EventDescriptor.PROTOBUF.write(parent, eventStream);
+                    EventDescriptor.PROTOBUF.write(parent, sha256EventStream);
                 }
                 for (final TransactionWrapper transaction : wrappedTransactions) {
-                    processTransactionHash(eventStream, transaction);
+                    processTransactionHash(sha256EventStream, transaction);
                 }
             } catch (final IOException e) {
                 throw new RuntimeException("An exception occurred while trying to hash an event!", e);
             }
 
-            return new Hash(eventDigest.digest(), digestType);
+            return new Hash(sha256EventDigest.digest(), DEFAULT_EVENT_DIGEST_TYPE);
         }
 
         private void processTransactionHash(

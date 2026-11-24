@@ -35,7 +35,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.LongStream;
@@ -51,11 +50,11 @@ import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.hashgraph.impl.consensus.Consensus;
 import org.hiero.consensus.hashgraph.impl.consensus.ConsensusUtils;
 import org.hiero.consensus.io.IOIterator;
+import org.hiero.consensus.main.model.ConsensusEvent;
+import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.main.model.Round;
 import org.hiero.consensus.model.event.CesEvent;
-import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.hashgraph.Round;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pces.config.PcesConfig;
 import org.hiero.consensus.pces.config.PcesFileWriterType;
 import org.hiero.consensus.pces.impl.common.PcesFile;
@@ -293,7 +292,7 @@ public final class EventRecoveryWorkflow {
             logger.info(
                     STARTUP.getMarker(),
                     "Applying {} events from round {}",
-                    round.getEventCount(),
+                    round.getConsensusEvents().size(),
                     round.getRoundNum());
 
             signedState = handleNextRound(consensusStateEventHandler, configuration, stateLifecycleManager, round);
@@ -399,8 +398,8 @@ public final class EventRecoveryWorkflow {
         final RunningHashCalculatorForStream<CesEvent> hashCalculator = new RunningHashCalculatorForStream<>();
         hashCalculator.setRunningHash(previousRunningHash);
 
-        for (final ConsensusEvent event : round) {
-            hashCalculator.addObject((CesEvent) event);
+        for (final CesEvent event : round.getConsensusEvents()) {
+            hashCalculator.addObject(event);
         }
 
         final Hash runningHash = hashCalculator.getRunningHash();
@@ -420,17 +419,10 @@ public final class EventRecoveryWorkflow {
     }
 
     static ConsensusEvent getLastEvent(final Round round) {
-        final Iterator<ConsensusEvent> iterator = round.iterator();
-
-        while (iterator.hasNext()) {
-            final ConsensusEvent event = iterator.next();
-
-            if (!iterator.hasNext()) {
-                return event;
-            }
+        if (round.getConsensusEvents().isEmpty()) {
+            throw new IllegalStateException("round has no events");
         }
-
-        throw new IllegalStateException("round has no events");
+        return round.getConsensusEvents().getLast();
     }
 
     /**
@@ -448,7 +440,7 @@ public final class EventRecoveryWorkflow {
 
         mutableState.throwIfImmutable();
 
-        for (final ConsensusEvent event : round) {
+        for (final ConsensusEvent event : round.getConsensusEvents()) {
             consensusStateEventHandler.onPreHandle(event, immutableState, NO_OP_CONSUMER);
         }
 

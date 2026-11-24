@@ -27,6 +27,7 @@ import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 import org.hiero.base.ValueReference;
@@ -36,7 +37,7 @@ import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.gossip.impl.network.Connection;
 import org.hiero.consensus.gossip.impl.network.protocol.PeerProtocol;
 import org.hiero.consensus.gossip.impl.network.protocol.Protocol;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 import org.hiero.consensus.reconnect.config.ReconnectConfig_;
@@ -237,7 +238,8 @@ class ReconnectStatePeerProtocolTests {
                 fallenBehindManager,
                 () -> ACTIVE,
                 reservedSignedStateResultPromise,
-                mock(StateLifecycleManager.class));
+                mock(StateLifecycleManager.class),
+                new AtomicLong(-1));
         final SignedState signedState = spy(new RandomSignedStateGenerator().build());
         when(signedState.isComplete()).thenReturn(true);
         final VirtualMapState state = mock(VirtualMapState.class);
@@ -258,7 +260,8 @@ class ReconnectStatePeerProtocolTests {
                 fallenBehindManager,
                 () -> ACTIVE,
                 reservedSignedStateResultPromise,
-                mock(StateLifecycleManager.class));
+                mock(StateLifecycleManager.class),
+                new AtomicLong(-1));
 
         // pretend we have fallen behind
         when(fallenBehindManager.hasFallenBehind()).thenReturn(true);

@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import {ClprTypes} from "@hiero-ledger/clpr/libraries/ClprTypes.sol";
+import {ClprHieroTrustAnchor} from "@hiero-ledger/clpr/libraries/proof/hiero/ClprHieroTrustAnchor.sol";
 import {ClprHieroProofCodec} from "@hiero-ledger/clpr/libraries/proof/hiero/ClprHieroProofCodec.sol";
 import {HieroVerifier} from "@hiero-ledger/clpr/verifiers/hiero/HieroVerifier.sol";
 import {IClprService} from "@hiero-ledger/clpr/interfaces/IClprService.sol";
@@ -60,7 +61,7 @@ contract HieroJavaProofInteropTest is HieroWitnessSubmitBundleTest {
         service = _deployClprService(1, "eip155:1337");
         service.initialize("", defaultThrottles, "", "", economics);
         service.setClprEnabled(true);
-        assertEq(_openJavaChannel("rotations-initial", bytes32(0)), channelId);
+        channelId = _openJavaChannel("rotations-initial", bytes32(0));
         connectorId = ConnectorRegistrar.register(
             IClprService(address(service)),
             channelId,
@@ -101,13 +102,14 @@ contract HieroJavaProofInteropTest is HieroWitnessSubmitBundleTest {
         bytes memory batch = _javaProof("catch-up-1");
         service.submitBundle(channelId, batch);
         bytes memory before = abi.encode(service.getChannel(channelId));
-        vm.expectRevert(HieroVerifier.ClprHieroAnchorMismatch.selector);
+        uint256 checkpoint = this.anchorCheckpoint(service.getChannel(channelId).trustAnchor);
+        vm.expectRevert(abi.encodeWithSelector(HieroVerifier.ClprHieroStaleWitness.selector, checkpoint, checkpoint));
         service.submitBundle(channelId, batch);
         assertEq(abi.encode(service.getChannel(channelId)), before);
     }
 
-    function _javaAnchor(string memory key) private view returns (bytes memory) {
-        return abi.encodePacked(keccak256(_javaProof(string.concat(key, "-key"))));
+    function _javaKeyHash(string memory key) private view returns (bytes32) {
+        return keccak256(_javaProof(string.concat(key, "-key")));
     }
 
     function _javaAnchorId(string memory key) private view returns (bytes memory) {
@@ -116,15 +118,19 @@ contract HieroJavaProofInteropTest is HieroWitnessSubmitBundleTest {
 
     function _assertJavaAnchorOnly(ClprTypes.Channel memory before, string memory key) private {
         ClprTypes.Channel memory channel = service.getChannel(channelId);
-        before.trustAnchor = _javaAnchor(key);
+        assertEq(channel.trustAnchor.length, ClprHieroTrustAnchor.LEN);
+        assertEq(this.anchorKeyHash(channel.trustAnchor), _javaKeyHash(key));
+        assertGt(this.anchorCheckpoint(channel.trustAnchor), this.anchorCheckpoint(before.trustAnchor));
+        before.trustAnchor = channel.trustAnchor;
         before.trustAnchorId = _javaAnchorId(key);
         assertEq(abi.encode(channel), abi.encode(before));
     }
 
     function _openJavaChannel(string memory initialKey, bytes32 salt) private returns (bytes32 nativeChannel) {
-        bytes memory pubKey = _signerPubKey();
-        nativeChannel = service.deriveChannelId("hiero:localnet", pubKey, salt);
-        bytes memory initialAnchor = _javaAnchor(initialKey);
+        nativeChannel = service.deriveChannelId(
+            "hiero:localnet", PEER_SERVICE_ADDRESS, address(hieroVerifier), TEST_PEER_VERIFIER, salt
+        );
+        bytes32 initialKeyHash = _javaKeyHash(initialKey);
         vm.clearMockedCalls();
         vm.mockCall(
             address(hieroVerifier),
@@ -139,17 +145,14 @@ contract HieroJavaProofInteropTest is HieroWitnessSubmitBundleTest {
                 PEER_SERVICE_ADDRESS,
                 uint96(0),
                 defaultThrottles,
-                initialAnchor,
-                abi.encodePacked(hex"01", initialAnchor),
+                ClprHieroTrustAnchor.encode(initialKeyHash, 0),
+                _javaAnchorId(initialKey),
                 ClprTypes.ClprEndpointManifest({
                     version: 1, serviceAddress: PEER_SERVICE_ADDRESS, endpoints: new ClprTypes.Endpoint[](0)
                 })
             )
         );
-        service.registerChannel(nativeChannel, keccak256(abi.encodePacked(nativeChannel, pubKey)));
-        (uint8 v, bytes32 r, bytes32 s) =
-            vm.sign(signerPk, _ethSignedHash(keccak256(abi.encodePacked(nativeChannel, address(service)))));
-        service.completeChannel(nativeChannel, pubKey, abi.encodePacked(r, s, v), salt, address(hieroVerifier), "", "");
+        service.openChannel(nativeChannel, salt, address(hieroVerifier), TEST_PEER_VERIFIER, "", "");
         assertEq(service.getChannel(nativeChannel).trustAnchorId, _javaAnchorId(initialKey));
     }
 }

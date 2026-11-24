@@ -21,7 +21,7 @@ import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
-import org.hiero.consensus.model.event.ConsensusEvent;
+import org.hiero.consensus.main.model.ConsensusEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -117,7 +117,8 @@ class DefaultTransactionHandlerTests {
                     tester.getHandledRounds().getFirst(),
                     "the round handled should be the one we provided");
             boolean eventWithNoTransactions = false;
-            for (final ConsensusEvent consensusEvent : tester.getHandledRounds().getFirst()) {
+            for (final ConsensusEvent consensusEvent :
+                    tester.getHandledRounds().getFirst().getConsensusEvents()) {
                 if (consensusEvent.getTransactions().isEmpty()) {
                     eventWithNoTransactions = true;
                     break;

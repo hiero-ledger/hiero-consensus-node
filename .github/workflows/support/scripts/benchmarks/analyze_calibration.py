@@ -16,7 +16,9 @@ calls.
 
 A result without warmup iterations and with at least 4 measurement iterations is a probe; any other result measures a
 configuration. One call takes at most one configuration of each kind. With only a probe, the analysis prints the
-configuration run to start; with both, it prints the calibration block.
+configuration run to start; with a configuration run, it prints the calibration block. A benchmark whose warmup cannot
+be probed, because it needs warmup iterations of its own, is calibrated by the configuration run alone; its block then
+shows the steady state as unknown.
 
 Method:
 - A unit is one measurement of one parameter set: one JMH invocation of run_benchmarks.py, or one parameter set of an
@@ -903,13 +905,10 @@ def main():
         commits = {u.info.get("commit") for u in units if u.info.get("commit")}
         if len(commits) > 1:
             print(f"WARNING: the runs measured {len(commits)} commits: {', '.join(sorted(c[:10] for c in commits))}.\n")
-        if probes:
-            print("### Calibration block\n")
-            print("```")
-            print(calibration_block(summaries, probes, forks, args))
-            print("```\n")
-        else:
-            print("The calibration block also needs the probe's runs.\n")
+        print("### Calibration block\n")
+        print("```")
+        print(calibration_block(summaries, probes, forks, args))
+        print("```\n")
 
     if args.dump:
         import csv

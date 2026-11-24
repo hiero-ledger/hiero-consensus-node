@@ -49,6 +49,12 @@ public class SubmitBundleCommand implements Callable<Integer> {
             description = "Path to a binary file with the bundle payload bytes")
     String bundlePayloadFile;
 
+    @Option(
+            names = "--expected-cached-manifest-version",
+            paramLabel = "<version>",
+            description = "Admin recovery only. Replace this exact cached version with a lower verified manifest.")
+    String expectedCachedManifestVersion;
+
     @Override
     public Integer call() throws Exception {
         final var config = configFrom(clprCommand.getYahcli());
@@ -71,6 +77,9 @@ public class SubmitBundleCommand implements Callable<Integer> {
         final var op = clprSubmitBundle()
                 .channelId(ClprArgs.requiredBytes("channel-id", channelIdHex))
                 .bundlePayload(payload);
+        if (expectedCachedManifestVersion != null) {
+            op.expectedCachedManifestVersion(Long.parseUnsignedLong(expectedCachedManifestVersion));
+        }
 
         final var delegate = new ClprTxnSuite(config, "ClprSubmitBundle", op);
         delegate.runSuiteSync();

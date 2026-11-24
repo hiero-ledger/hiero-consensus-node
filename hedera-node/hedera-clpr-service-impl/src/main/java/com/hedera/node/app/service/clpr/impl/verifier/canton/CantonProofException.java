@@ -294,6 +294,42 @@ public final class CantonProofException extends RuntimeException {
         return new CantonProofException("NotApproved", detail);
     }
 
+    /** Solidity error {@code RepliesFromAnotherWrite}. */
+    @NonNull
+    public static CantonProofException repliesFromAnotherWrite() {
+        return new CantonProofException("RepliesFromAnotherWrite");
+    }
+
+    /** Solidity error {@code RepliesFromAnotherWrite} with detail. */
+    @NonNull
+    public static CantonProofException repliesFromAnotherWrite(@NonNull final String detail) {
+        return new CantonProofException("RepliesFromAnotherWrite", detail);
+    }
+
+    /** Solidity error {@code RepliesNotConfirmedByEndpoints}. */
+    @NonNull
+    public static CantonProofException repliesNotConfirmedByEndpoints() {
+        return new CantonProofException("RepliesNotConfirmedByEndpoints");
+    }
+
+    /** Solidity error {@code RepliesNotConfirmedByEndpoints} with detail. */
+    @NonNull
+    public static CantonProofException repliesNotConfirmedByEndpoints(@NonNull final String detail) {
+        return new CantonProofException("RepliesNotConfirmedByEndpoints", detail);
+    }
+
+    /** Solidity error {@code ReplyStatusNotAllowed}. */
+    @NonNull
+    public static CantonProofException replyStatusNotAllowed() {
+        return new CantonProofException("ReplyStatusNotAllowed");
+    }
+
+    /** Solidity error {@code ReplyStatusNotAllowed} with detail. */
+    @NonNull
+    public static CantonProofException replyStatusNotAllowed(@NonNull final String detail) {
+        return new CantonProofException("ReplyStatusNotAllowed", detail);
+    }
+
     /** Solidity error {@code ReplyTargetMismatch}. */
     @NonNull
     public static CantonProofException replyTargetMismatch() {

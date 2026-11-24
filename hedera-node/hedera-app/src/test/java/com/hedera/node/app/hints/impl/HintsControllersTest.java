@@ -164,6 +164,23 @@ class HintsControllersTest {
     }
 
     @Test
+    void waitsForCurrentRosterNodesOutsideSourceWhenTargetingTheCurrentMembers() {
+        // E.g. a weight rotation after node 2 was added at an upgrade
+        given(weights.targetNodeIds()).willReturn(new TreeSet<>(Set.of(1L, 2L)));
+        given(weights.sourceNodeIds()).willReturn(new TreeSet<>(Set.of(1L)));
+
+        assertEquals(Set.of(2L), HintsControllers.currentRosterNodesOutsideSource(CURRENT_ROSTER, weights));
+    }
+
+    @Test
+    void waitsForNoNodesWhenTargetingOtherMembersThanTheCurrentOnes() {
+        // E.g. an upgrade that adds node 3
+        given(weights.targetNodeIds()).willReturn(new TreeSet<>(Set.of(1L, 2L, 3L)));
+
+        assertEquals(Set.of(), HintsControllers.currentRosterNodesOutsideSource(CURRENT_ROSTER, weights));
+    }
+
+    @Test
     void stopCancelsAndRefreshesControllerForSameConstructionId() throws Exception {
         final var learnedConstruction = HintsConstruction.newBuilder()
                 .constructionId(1L)

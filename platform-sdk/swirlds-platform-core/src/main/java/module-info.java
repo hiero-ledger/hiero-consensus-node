@@ -61,6 +61,7 @@ module com.swirlds.platform.core {
     requires transitive org.hiero.consensus.gossip;
     requires transitive org.hiero.consensus.hashgraph;
     requires transitive org.hiero.consensus.iss.detection;
+    requires transitive org.hiero.consensus.main.model;
     requires transitive org.hiero.consensus.metrics;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.pces;

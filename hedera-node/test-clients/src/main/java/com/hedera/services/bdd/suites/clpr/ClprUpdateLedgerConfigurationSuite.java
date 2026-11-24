@@ -5,7 +5,7 @@ import static com.hedera.services.bdd.junit.ContextRequirement.PROPERTY_OVERRIDE
 import static com.hedera.services.bdd.junit.TestTags.CLPR;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.clprGetLedgerConfiguration;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCloseChannel;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprDeleteChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprEvictPeerEndpoint;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprUpdateLedgerConfiguration;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -60,7 +60,7 @@ public class ClprUpdateLedgerConfigurationSuite {
                         .signedBy(GENESIS),
                 clprGetLedgerConfiguration().exposingConfigTo(config -> assertEquals(throttles, config.getThrottles())),
                 // Both operations must pass authorization to check whether the channel exists.
-                clprCloseChannel()
+                clprDeleteChannel()
                         .channelId(missingChannelId)
                         .payingWith(admin)
                         .signedBy(GENESIS)
@@ -108,6 +108,32 @@ public class ClprUpdateLedgerConfigurationSuite {
                         .build())
                 .payingWith(GENESIS)
                 .hasPrecheck(INVALID_CLPR_CONFIGURATION));
+    }
+
+    @LeakyHapiTest(
+            requirement = PROPERTY_OVERRIDES,
+            overrides = {"contracts.maxGasPerTransaction"})
+    final Stream<DynamicTest> rejectsMaxGasPerMessageAboveMaxGasPerTransaction() {
+        // Inbound messages are dispatched with max_gas_per_message gas, and a contract call above
+        // contracts.maxGasPerTransaction is refused, so such a value would fail every inbound message.
+        final var maxGasPerTransaction = 15_000_000L;
+        final var atCap = HapiClprUpdateLedgerConfiguration.defaultThrottles().toBuilder()
+                .setMaxGasPerMessage(maxGasPerTransaction)
+                .build();
+        final var aboveCap =
+                atCap.toBuilder().setMaxGasPerMessage(maxGasPerTransaction + 1).build();
+        return hapiTest(
+                overriding("contracts.maxGasPerTransaction", String.valueOf(maxGasPerTransaction)),
+                clprUpdateLedgerConfiguration()
+                        .serviceAddress(CLPR_SERVICE_ADDRESS_20)
+                        .throttles(atCap)
+                        .payingWith(GENESIS),
+                clprUpdateLedgerConfiguration()
+                        .serviceAddress(CLPR_SERVICE_ADDRESS_20)
+                        .throttles(aboveCap)
+                        .payingWith(GENESIS)
+                        .hasKnownStatus(INVALID_CLPR_CONFIGURATION),
+                clprGetLedgerConfiguration().exposingConfigTo(config -> assertEquals(atCap, config.getThrottles())));
     }
 
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)

@@ -14,6 +14,7 @@ module org.hiero.consensus.gossip {
     requires transitive com.swirlds.state.impl;
     requires transitive com.swirlds.virtualmap;
     requires transitive org.hiero.base.concurrent;
+    requires transitive org.hiero.consensus.main.model;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.state;
     requires transitive org.hiero.consensus.utility;

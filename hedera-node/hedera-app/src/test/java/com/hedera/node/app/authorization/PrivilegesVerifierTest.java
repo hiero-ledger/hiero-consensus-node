@@ -14,13 +14,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.clpr.ClprSubmitBundleTransactionBody;
 import com.hedera.node.app.spi.authorization.SystemPrivilege;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hederahashgraph.api.proto.java.AccountID;
-import com.hederahashgraph.api.proto.java.ClprCloseChannelTransactionBody;
+import com.hederahashgraph.api.proto.java.ClprDeleteChannelTransactionBody;
 import com.hederahashgraph.api.proto.java.ClprEvictPeerEndpointTransactionBody;
 import com.hederahashgraph.api.proto.java.ClprUpdateLedgerConfigurationTransactionBody;
 import com.hederahashgraph.api.proto.java.ContractDeleteTransactionBody;
@@ -661,7 +662,7 @@ class PrivilegesVerifierTest {
         switch (operation) {
             case CLPR_UPDATE_LEDGER_CONFIGURATION ->
                 txn.setClprUpdateLedgerConfiguration(ClprUpdateLedgerConfigurationTransactionBody.getDefaultInstance());
-            case CLPR_CLOSE_CHANNEL -> txn.setClprCloseChannel(ClprCloseChannelTransactionBody.getDefaultInstance());
+            case CLPR_DELETE_CHANNEL -> txn.setClprDeleteChannel(ClprDeleteChannelTransactionBody.getDefaultInstance());
             case CLPR_EVICT_PEER_ENDPOINT ->
                 txn.setClprEvictPeerEndpoint(ClprEvictPeerEndpointTransactionBody.getDefaultInstance());
             default -> throw new IllegalArgumentException("Unexpected CLPR operation: " + operation);
@@ -689,13 +690,13 @@ class PrivilegesVerifierTest {
                         HederaFunctionality.CLPR_UPDATE_LEDGER_CONFIGURATION,
                         CIVILIAN,
                         SystemOpAuthorization.UNAUTHORIZED),
-                Arguments.of(HederaFunctionality.CLPR_CLOSE_CHANNEL, TREASURY, SystemOpAuthorization.AUTHORIZED),
-                Arguments.of(HederaFunctionality.CLPR_CLOSE_CHANNEL, SYSTEM_ADMIN, SystemOpAuthorization.AUTHORIZED),
+                Arguments.of(HederaFunctionality.CLPR_DELETE_CHANNEL, TREASURY, SystemOpAuthorization.AUTHORIZED),
+                Arguments.of(HederaFunctionality.CLPR_DELETE_CHANNEL, SYSTEM_ADMIN, SystemOpAuthorization.AUTHORIZED),
                 Arguments.of(
-                        HederaFunctionality.CLPR_CLOSE_CHANNEL,
+                        HederaFunctionality.CLPR_DELETE_CHANNEL,
                         EXCHANGE_RATES_ADMIN,
                         SystemOpAuthorization.UNAUTHORIZED),
-                Arguments.of(HederaFunctionality.CLPR_CLOSE_CHANNEL, CIVILIAN, SystemOpAuthorization.UNAUTHORIZED),
+                Arguments.of(HederaFunctionality.CLPR_DELETE_CHANNEL, CIVILIAN, SystemOpAuthorization.UNAUTHORIZED),
                 Arguments.of(HederaFunctionality.CLPR_EVICT_PEER_ENDPOINT, TREASURY, SystemOpAuthorization.AUTHORIZED),
                 Arguments.of(
                         HederaFunctionality.CLPR_EVICT_PEER_ENDPOINT, SYSTEM_ADMIN, SystemOpAuthorization.AUTHORIZED),
@@ -749,7 +750,7 @@ class PrivilegesVerifierTest {
                 Arguments.of("accounts.feeCollectionAccount", 802L, SystemPrivilege.UNAUTHORIZED));
         return Stream.of(
                         HederaFunctionality.CLPR_UPDATE_LEDGER_CONFIGURATION,
-                        HederaFunctionality.CLPR_CLOSE_CHANNEL,
+                        HederaFunctionality.CLPR_DELETE_CHANNEL,
                         HederaFunctionality.CLPR_EVICT_PEER_ENDPOINT)
                 .flatMap(operation -> payers.stream().map(payer -> {
                     final var args = payer.get();
@@ -758,7 +759,7 @@ class PrivilegesVerifierTest {
     }
 
     @ParameterizedTest
-    @EnumSource(names = {"CLPR_UPDATE_LEDGER_CONFIGURATION", "CLPR_CLOSE_CHANNEL", "CLPR_EVICT_PEER_ENDPOINT"})
+    @EnumSource(names = {"CLPR_UPDATE_LEDGER_CONFIGURATION", "CLPR_DELETE_CHANNEL", "CLPR_EVICT_PEER_ENDPOINT"})
     void clprAdminOperationsUseCurrentConfiguration(final HederaFunctionality operation) {
         final var initialConfig = new VersionedConfigImpl(
                 HederaTestConfigBuilder.create()
@@ -797,6 +798,29 @@ class PrivilegesVerifierTest {
                 3L));
 
         assertEquals(SystemPrivilege.UNAUTHORIZED, verifier.hasPrivileges(alternatePayer, operation, body));
+    }
+
+    @Test
+    void onlyExplicitManifestRecoveryRequiresClprAdmin() {
+        final var config = new VersionedConfigImpl(
+                HederaTestConfigBuilder.create()
+                        .withValue("accounts.clprAdmin", 601L)
+                        .getOrCreateConfig(),
+                1L);
+        final var verifier = new PrivilegesVerifier(() -> config);
+        final var operation = HederaFunctionality.CLPR_SUBMIT_BUNDLE;
+        final var body = com.hedera.hapi.node.transaction.TransactionBody.newBuilder()
+                .clprSubmitBundle(ClprSubmitBundleTransactionBody.DEFAULT)
+                .build();
+        final var recovery = body.copyBuilder()
+                .clprSubmitBundle(ClprSubmitBundleTransactionBody.newBuilder().expectedCachedManifestVersion(5L))
+                .build();
+        final var civilian = toPbj(account(CIVILIAN));
+        final var admin = toPbj(account(601));
+
+        assertEquals(SystemPrivilege.UNNECESSARY, verifier.hasPrivileges(civilian, operation, body));
+        assertEquals(SystemPrivilege.UNAUTHORIZED, verifier.hasPrivileges(civilian, operation, recovery));
+        assertEquals(SystemPrivilege.AUTHORIZED, verifier.hasPrivileges(admin, operation, recovery));
     }
 
     private TestCase accessor(TransactionBody.Builder transaction) throws InvalidProtocolBufferException {

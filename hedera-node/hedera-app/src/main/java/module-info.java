@@ -101,6 +101,7 @@ module com.hedera.node.app {
     requires transitive com.swirlds.virtualmap;
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
+    requires transitive org.hiero.consensus.main.model;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.platformstate;
     requires transitive org.hiero.consensus.utility;

@@ -14,7 +14,7 @@ import "services/state/clpr/clpr_endpoint_manifest.proto";
 /**
  * Query to retrieve the current CLPR endpoint manifest for this ledger (spec §6.5).
  * Public read: no authorization required. Callers use the response to build the
- * endpoint_manifest_proof_bytes needed by ClprCompleteChannel (spec PR #332) and
+ * endpoint_manifest_proof_bytes needed by ClprCreateChannel (spec PR #332) and
  * to construct manifest-recovery ClprSubmitBundle calls (spec PR #336).
  */
 message ClprGetEndpointManifestQuery {
@@ -22,6 +22,12 @@ message ClprGetEndpointManifestQuery {
      * Standard query header.
      */
     proto.QueryHeader header = 1;
+
+    /**
+     * Request a manifest-only bundle proof that also authenticates the source block timestamp,
+     * for use in ClprSubmitBundle. Defaults to the manifest proof used by ClprCompleteChannel.
+     */
+    bool for_manifest_recovery = 2;
 }
 
 /**
@@ -43,8 +49,9 @@ message ClprGetEndpointManifestResponse {
      * singleton leaf up to the latest signed block root on this ledger.
      *
      * Suitable verbatim as endpoint_manifest_proof_bytes for a peer's
-     * ClprCompleteChannel transaction when that peer's verifier is the
+     * ClprCreateChannel transaction when that peer's verifier is the
      * native HieroTssVerifier (or any verifier that accepts a StateProof).
+     * When for_manifest_recovery is set, the proof is instead shaped for ClprSubmitBundle.
      *
      * Empty when no signed block snapshot is available yet (e.g. during node
      * bring-up before the first block is signed); clients should retry.
