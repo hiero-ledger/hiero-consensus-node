@@ -15,6 +15,7 @@ import com.hedera.pbj.runtime.UnknownField;
 import com.hedera.pbj.runtime.UnknownFieldException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
+import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
 import com.hedera.pbj.runtime.io.stream.EOFException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -180,6 +181,12 @@ public final class IssStateProtoCodec extends Codec<IssState> {
                 uf.bytes().writeTo(out);
             });
         }
+    }
+
+    @Override
+    protected long writeImpl(@NonNull final IssState item, @NonNull final RandomAccessData output, final long offset)
+            throws IOException {
+        return output.putBytes(offset, toBytes(item));
     }
 
     /**

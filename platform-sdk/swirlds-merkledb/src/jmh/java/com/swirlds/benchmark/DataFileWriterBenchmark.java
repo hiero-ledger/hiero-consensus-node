@@ -124,7 +124,12 @@ public class DataFileWriterBenchmark {
             if (fileSize > maxFileSize) {
                 break;
             }
-            dataFileWriter.storeDataItem(out -> out.writeBytes(data), (int) data.length());
+            dataFileWriter.storeDataItem(
+                    out -> {
+                        data.resetPosition();
+                        out.writeBytes(data);
+                    },
+                    (int) data.length());
         }
     }
 

@@ -9,6 +9,7 @@ import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.util.Objects;
@@ -114,6 +115,26 @@ public record StateValue<V>(int stateId, @NonNull V value) {
             if (valueSize > 0) {
                 valueCodec.write(value.value(), out);
             }
+        }
+
+        @Override
+        protected long writeImpl(
+                @NonNull final StateValue<V> value, @NonNull final RandomAccessData out, final long offset)
+                throws IOException {
+            long bytesWritten = 0;
+            final int stateId = value.stateId();
+            bytesWritten += out.putVarInt(
+                    offset + bytesWritten,
+                    (stateId << ProtoParserTools.TAG_FIELD_OFFSET) | ProtoConstants.WIRE_TYPE_DELIMITED.ordinal(),
+                    false);
+            // Write size
+            final int valueSize = valueCodec.measureRecord(value.value());
+            bytesWritten += out.putVarInt(offset + bytesWritten, valueSize, false);
+            // Write value
+            if (valueSize > 0) {
+                bytesWritten += valueCodec.write(value.value(), out, offset + bytesWritten);
+            }
+            return bytesWritten;
         }
 
         /**

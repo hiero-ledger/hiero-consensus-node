@@ -5,7 +5,9 @@ import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
+import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
@@ -51,6 +53,12 @@ public class TestStringCodec extends Codec<String> {
         final byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
         output.writeInt(bytes.length);
         output.writeBytes(bytes);
+    }
+
+    @Override
+    protected long writeImpl(@NonNull final String item, @NonNull final RandomAccessData output, final long offset)
+            throws IOException {
+        return output.putBytes(offset, toBytes(item));
     }
 
     @Override

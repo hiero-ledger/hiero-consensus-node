@@ -16,6 +16,7 @@ import com.hedera.pbj.runtime.UnknownField;
 import com.hedera.pbj.runtime.UnknownFieldException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
+import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
 import com.hedera.pbj.runtime.io.stream.EOFException;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -191,6 +192,13 @@ public final class EntityIdGeneratorProtoCodec extends Codec<EntityIdGenerator> 
                 uf.bytes().writeTo(out);
             });
         }
+    }
+
+    @Override
+    protected long writeImpl(
+            @NonNull final EntityIdGenerator item, @NonNull final RandomAccessData output, final long offset)
+            throws IOException {
+        return output.putBytes(offset, toBytes(item));
     }
 
     /**

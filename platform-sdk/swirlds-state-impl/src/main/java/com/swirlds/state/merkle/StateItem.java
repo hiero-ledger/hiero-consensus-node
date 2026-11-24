@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.merkle;
 
+import static com.hedera.pbj.runtime.ProtoParserTools.TAG_FIELD_OFFSET;
 import static com.hedera.pbj.runtime.ProtoWriterTools.sizeOfTag;
 import static com.hedera.pbj.runtime.ProtoWriterTools.sizeOfVarInt32;
 import static com.hedera.pbj.runtime.ProtoWriterTools.writeDelimited;
@@ -12,11 +13,11 @@ import com.hedera.pbj.runtime.FieldDefinition;
 import com.hedera.pbj.runtime.FieldType;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.ProtoConstants;
-import com.hedera.pbj.runtime.ProtoParserTools;
 import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 
@@ -107,7 +108,7 @@ public record StateItem(@NonNull Bytes key, @NonNull Bytes value) {
                 throw new ParseException("StateItem key wire type mismatch: expected="
                         + ProtoConstants.WIRE_TYPE_DELIMITED.ordinal() + ", actual=" + wireType);
             }
-            return tag >> ProtoParserTools.TAG_FIELD_OFFSET;
+            return tag >> TAG_FIELD_OFFSET;
         }
 
         private static Bytes readBytes(ReadableSequentialData input, FieldDefinition fieldDefinition)
@@ -139,6 +140,25 @@ public record StateItem(@NonNull Bytes key, @NonNull Bytes value) {
                 throws IOException {
             writeDelimited(out, FIELD_KEY, toIntExact(data.key.length()), v -> v.writeBytes(data.key));
             writeDelimited(out, FIELD_VALUE, toIntExact(data.value.length()), v -> v.writeBytes(data.value));
+        }
+
+        @Override
+        protected long writeImpl(@NonNull final StateItem data, @NonNull final RandomAccessData out, final long offset)
+                throws IOException {
+            long bytesWritten = 0L;
+            bytesWritten += out.putVarInt(
+                    offset + bytesWritten,
+                    (FIELD_KEY.number() << TAG_FIELD_OFFSET) | ProtoConstants.WIRE_TYPE_DELIMITED.ordinal(),
+                    false);
+            bytesWritten += out.putVarInt(offset + bytesWritten, toIntExact(data.key.length()), false);
+            bytesWritten += out.putBytes(offset + bytesWritten, data.key);
+            bytesWritten += out.putVarInt(
+                    offset + bytesWritten,
+                    (FIELD_VALUE.number() << TAG_FIELD_OFFSET) | ProtoConstants.WIRE_TYPE_DELIMITED.ordinal(),
+                    false);
+            bytesWritten += out.putVarInt(offset + bytesWritten, toIntExact(data.value.length()), false);
+            bytesWritten += out.putBytes(offset + bytesWritten, data.value);
+            return bytesWritten;
         }
 
         /**
