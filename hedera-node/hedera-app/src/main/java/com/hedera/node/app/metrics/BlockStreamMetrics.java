@@ -918,7 +918,10 @@ public class BlockStreamMetrics {
 
         for (final RequestOneOfType requestType : RequestOneOfType.values()) {
             switch (requestType) {
-                case END_STREAM -> registerEndStreamSendMetrics(ConnectionType.ACK_OBSERVING);
+                case END_STREAM -> {
+                    registerConnectionSendMetric(groupName, ConnectionType.ACK_OBSERVING, requestType);
+                    registerEndStreamSendMetrics(ConnectionType.ACK_OBSERVING);
+                }
                 case ACKNOWLEDGE_ONLY ->
                     registerConnectionSendMetric(groupName, ConnectionType.ACK_OBSERVING, requestType);
                 default -> {
@@ -936,7 +939,10 @@ public class BlockStreamMetrics {
                 case UNSET, ACKNOWLEDGE_ONLY -> {
                     /* ignore */
                 }
-                case END_STREAM -> registerEndStreamSendMetrics(ConnectionType.BLOCK_STREAMING);
+                case END_STREAM -> {
+                    registerConnectionSendMetric(groupName, ConnectionType.BLOCK_STREAMING, requestType);
+                    registerEndStreamSendMetrics(ConnectionType.BLOCK_STREAMING);
+                }
                 default -> registerConnectionSendMetric(groupName, ConnectionType.BLOCK_STREAMING, requestType);
             }
         }

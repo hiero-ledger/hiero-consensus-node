@@ -214,11 +214,13 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
 
     @Override
     public void close() {
+        boolean wasActive = false;
         ConnectionState state;
 
         try {
             do {
                 state = currentState();
+                wasActive |= state == ConnectionState.ACTIVE;
                 if (state.isTerminal()) {
                     // either close has already been called or close was called while the connection wasn't initialized
                     return;
@@ -254,7 +256,7 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
             }
         } finally {
             // regardless of outcome, mark this connection as closed
-            if (clientHolder != null) {
+            if (wasActive) {
                 // only record the connection closed for metrics _if_ we actually opened the connection
                 metrics.recordConnectionClosed(connectionType(), CloseReason.OBSOLETE);
             }

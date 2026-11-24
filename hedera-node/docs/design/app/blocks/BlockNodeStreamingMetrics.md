@@ -171,6 +171,7 @@ These metrics relate to the requests sent from the consensus node to a block nod
 | `blockStream_connSend_requestExceedsHardLimit`          | Counter         | Number of requests that exceed the hard limit size                                          |
 | `blockStream_connSend_streamingBlockNumber`             | Gauge (long)    | The current block number this connection is streaming                                       |
 | `blockStream_observingConnSend_acknowledgeOnly`         | Counter         | Number of 'AcknowledgeOnly' requests sent on block node observing connections               |
+| `blockStream_observingConnSend_endStream`               | Counter         | Number of 'EndStream' requests sent on block node observing connections                     |
 | `blockStream_observingConnSend_endStream_error`         | Counter         | Number of 'EndStream.ERROR' requests sent on block node observing connections               |
 | `blockStream_observingConnSend_endStream_reset`         | Counter         | Number of 'EndStream.RESET' requests sent on block node observing connections               |
 | `blockStream_observingConnSend_endStream_timeout`       | Counter         | Number of 'EndStream.TIMEOUT' requests sent on block node observing connections             |
@@ -186,6 +187,7 @@ These metrics relate to the requests sent from the consensus node to a block nod
 | `blockStream_serviceConnSend_serverStatus`              | Counter         | Number of ServerStatus requests sent on block node service connections                      |
 | `blockStream_streamingConnSend_blockItems`              | Counter         | Number of 'BlockItems' requests sent on block node streaming connections                    |
 | `blockStream_streamingConnSend_endOfBlock`              | Counter         | Number of 'EndOfBlock' requests sent on block node streaming connections                    |
+| `blockStream_streamingConnSend_endStream`               | Counter         | Number of 'EndStream' requests sent on block node streaming connections                     |
 | `blockStream_streamingConnSend_endStream_error`         | Counter         | Number of 'EndStream.ERROR' requests sent on block node streaming connections               |
 | `blockStream_streamingConnSend_endStream_reset`         | Counter         | Number of 'EndStream.RESET' requests sent on block node streaming connections               |
 | `blockStream_streamingConnSend_endStream_timeout`       | Counter         | Number of 'EndStream.TIMEOUT' requests sent on block node streaming connections             |
