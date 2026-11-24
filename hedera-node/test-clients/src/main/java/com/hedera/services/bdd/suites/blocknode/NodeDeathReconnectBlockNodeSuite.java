@@ -90,13 +90,15 @@ public class NodeDeathReconnectBlockNodeSuite implements LifecycleTest {
     @HapiBlockNode(
             networkSize = 2,
             blockNodeConfigs = {
-                @HapiBlockNode.BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL),
+                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL),
+                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.REAL),
+                @BlockNodeConfig(nodeId = 2, mode = BlockNodeMode.REAL)
             },
             subProcessNodeConfigs = {
-                @HapiBlockNode.SubProcessNodeConfig(
+                @SubProcessNodeConfig(
                         nodeId = 0,
-                        blockNodeIds = {0},
-                        blockNodePriorities = {0},
+                        blockNodeIds = {0, 1, 2},
+                        blockNodePriorities = {0, 0, 0},
                         applicationPropertiesOverrides = {
                             "blockStream.buffer.maxBlocks", "15",
                             "blockStream.streamMode", "BLOCKS",
@@ -106,10 +108,10 @@ public class NodeDeathReconnectBlockNodeSuite implements LifecycleTest {
                             "blockStream.buffer.isBufferPersistenceEnabled", "true",
                             "tss.forceMockSignatures", "false"
                         }),
-                @HapiBlockNode.SubProcessNodeConfig(
+                @SubProcessNodeConfig(
                         nodeId = 1,
-                        blockNodeIds = {0},
-                        blockNodePriorities = {0},
+                        blockNodeIds = {0, 1, 2},
+                        blockNodePriorities = {0, 0, 0},
                         applicationPropertiesOverrides = {
                             "blockStream.buffer.maxBlocks", "15",
                             "blockStream.streamMode", "BLOCKS",

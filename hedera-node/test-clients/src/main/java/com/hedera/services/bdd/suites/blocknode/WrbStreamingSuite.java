@@ -37,16 +37,12 @@ public class WrbStreamingSuite {
     @HapiTest
     @HapiBlockNode(
             networkSize = 1,
-            blockNodeConfigs = {
-                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR, catchUpFromPeers = true),
-                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.SIMULATOR, catchUpFromPeers = true),
-                @BlockNodeConfig(nodeId = 2, mode = BlockNodeMode.SIMULATOR, catchUpFromPeers = true)
-            },
+            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
             subProcessNodeConfigs = {
                 @SubProcessNodeConfig(
                         nodeId = 0,
-                        blockNodeIds = {0, 1, 2},
-                        blockNodePriorities = {0, 0, 0},
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
                             // Wrapped record blocks only exist in the pre-cutover world
                             "blockStream.streamMode", "BOTH",
@@ -58,7 +54,8 @@ public class WrbStreamingSuite {
                             // Forces votingBlockNumInitialized() so WRB emission fires without
                             // waiting for migration voting; matches the unit-test pattern in
                             // BlockRecordManagerImplWrappedRecordFileBlockHashesTest.
-                            "blockStream.jumpstart.blockNum", "1"
+                            "blockStream.jumpstart.blockNum", "1",
+                            "blockStream.buffer.minAcksRequiredPerBlock", "1"
                         })
             })
     @Order(0)
@@ -110,16 +107,12 @@ public class WrbStreamingSuite {
     @HapiTest
     @HapiBlockNode(
             networkSize = 1,
-            blockNodeConfigs = {
-                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR, catchUpFromPeers = true),
-                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.SIMULATOR, catchUpFromPeers = true),
-                @BlockNodeConfig(nodeId = 2, mode = BlockNodeMode.SIMULATOR, catchUpFromPeers = true)
-            },
+            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
             subProcessNodeConfigs = {
                 @SubProcessNodeConfig(
                         nodeId = 0,
-                        blockNodeIds = {0, 1, 2},
-                        blockNodePriorities = {0, 0, 0},
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
                             "blockStream.streamMode", "BOTH",
                             "blockStream.enableCutover", "false",
@@ -130,7 +123,8 @@ public class WrbStreamingSuite {
                             // never forwarded to the block node.
                             "hedera.recordStream.liveWritePrevWrappedRecordHashes", "true",
                             "blockStream.jumpstart.blockNum", "1",
-                            "blockStream.streamWrappedRecordBlocks", "false"
+                            "blockStream.streamWrappedRecordBlocks", "false",
+                            "blockStream.buffer.minAcksRequiredPerBlock", "1"
                         })
             })
     @Order(1)
