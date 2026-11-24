@@ -53,7 +53,7 @@ import org.hiero.otter.fixtures.util.CursoredLog.Cursor;
  * network: it is created when the network starts and discarded when the network is shut down. A network with other
  * nodes, for example after a roster change, is run by a new instance.
  */
-public class SimulatedNetworkConnectivity implements GossipNetwork {
+public class SimulatedNetworkConnectivity implements GossipNetwork, NetworkView {
 
     /**
      * The random number generator to use for simulating network delays.
@@ -147,6 +147,11 @@ public class SimulatedNetworkConnectivity implements GossipNetwork {
      * Decides which copies of the submitted events are sent.
      */
     private final EventRouter router;
+
+    /**
+     * Follow the gossip for add-ons, such as a measurement, in the order they were added.
+     */
+    private final List<NetworkObserver> observers = new ArrayList<>();
 
     /**
      * Is told by {@link #links} about the links that come up, go down or restart. A field rather than this class
@@ -310,7 +315,7 @@ public class SimulatedNetworkConnectivity implements GossipNetwork {
      */
     public void setConnections(@NonNull final Map<ConnectionKey, ConnectionState> newConnections) {
         // links come up in rank order, so that the random numbers drawn for them are drawn in a reproducible order
-        links.update(newConnections, this::rankOf, currentTime, linkListener);
+        links.update(newConnections, this::requireRankOf, currentTime, linkListener);
     }
 
     /**
@@ -385,7 +390,7 @@ public class SimulatedNetworkConnectivity implements GossipNetwork {
     @Override
     public void submitEvent(@NonNull final PlatformEvent event) {
         final NodeId submitter = requireNonNull(event.getSenderId(), "a submitted event must have its sender set");
-        pendingSubmissions.submit(rankOf(submitter), event);
+        pendingSubmissions.submit(requireRankOf(submitter), event);
     }
 
     /**
@@ -413,6 +418,9 @@ public class SimulatedNetworkConnectivity implements GossipNetwork {
                 // simulating gossip. Only a node submitting the same event again is ignored.
                 final TrackedEvent tracked = trackedEvents.addIfUnique(event, sender);
                 if (tracked != null) {
+                    for (int i = 0, n = observers.size(); i < n; i++) {
+                        observers.get(i).eventSubmitted(event, sender, now);
+                    }
                     router.sendSubmission(tracked, sender, now);
                 }
             }
@@ -449,7 +457,7 @@ public class SimulatedNetworkConnectivity implements GossipNetwork {
      */
     @Override
     public void updateEventWindow(@NonNull final NodeId nodeId, @NonNull final EventWindow eventWindow) {
-        eventWindows.report(rankOf(nodeId), eventWindow);
+        eventWindows.report(requireRankOf(nodeId), eventWindow);
     }
 
     /**
@@ -536,6 +544,27 @@ public class SimulatedNetworkConnectivity implements GossipNetwork {
     }
 
     /**
+     * Adds an observer that follows the gossip, for an add-on such as a measurement. It reads the state of the network
+     * through this network, as a {@link NetworkView}. Must be added before any event is submitted. Observers are told
+     * about everything in the order they were added.
+     *
+     * @param observer the observer
+     */
+    public void addObserver(@NonNull final NetworkObserver observer) {
+        observers.add(requireNonNull(observer));
+    }
+
+    // NetworkView: the state of this network, read by a NetworkObserver
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public int rankOf(@NonNull final NodeId nodeId) {
+        return roster.index(nodeId);
+    }
+
+    /**
      * Schedule the event windows reported since the previous tick for delivery, sender by sender, to every node the
      * sender has a connection to. A node is not sent its own window, and a node that has not reported since the last
      * tick has nothing to send, because its peers already hold the window it would send.
@@ -594,7 +623,7 @@ public class SimulatedNetworkConnectivity implements GossipNetwork {
      */
     @Override
     public void nodeRestarted(@NonNull final NodeId nodeId) {
-        final int node = rankOf(nodeId);
+        final int node = requireRankOf(nodeId);
         restartedNodes.add(node);
         for (final InFlightConnections<?> inFlight : inFlightInDeliveryOrder) {
             inFlight.clearIncoming(node);
@@ -609,7 +638,7 @@ public class SimulatedNetworkConnectivity implements GossipNetwork {
      * @return the rank of the node
      * @throws IllegalArgumentException if the node is not part of the network
      */
-    private int rankOf(@NonNull final NodeId nodeId) {
+    private int requireRankOf(@NonNull final NodeId nodeId) {
         final int rank = roster.index(nodeId);
         if (rank < 0) {
             throw new IllegalArgumentException("Node " + nodeId + " is not part of the network");

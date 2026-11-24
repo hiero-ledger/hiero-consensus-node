@@ -9,6 +9,7 @@ import static org.hiero.otter.fixtures.network.simulation.TestRosters.rosterOf;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -83,6 +84,36 @@ class SimulatedNetworkConnectivityTest {
 
         assertThat(node1.receivedEvents).hasSize(1);
         assertThat(node1.receivedEvents.getFirst().getDescriptor()).isEqualTo(event.getDescriptor());
+    }
+
+    @Test
+    @DisplayName("every observer is told about the first submission of an event by each node, in the order added")
+    void observersFollowTheSubmissions() {
+        network.setConnections(connections(true));
+        final List<String> first = new ArrayList<>();
+        final List<String> second = new ArrayList<>();
+        network.addObserver((event, submitter, now) -> first.add("node " + submitter + " at " + now / 1_000_000));
+        network.addObserver((event, submitter, now) -> second.add("node " + submitter + " at " + now / 1_000_000));
+
+        final PlatformEvent event = submit(NODE_0);
+        // submitted again by the same node, which is ignored
+        forward(event, NODE_0);
+        forward(event, NODE_1);
+        tickTo(1);
+
+        // the submissions are scheduled one node at a time, in a shuffled order
+        assertThat(first).containsExactlyInAnyOrder("node 0 at 1", "node 1 at 1");
+        assertThat(second).isEqualTo(first);
+    }
+
+    @Test
+    @DisplayName("the network tells the rank of each node, and -1 for a node that is not part of it")
+    void networkViewTellsRanks() {
+        final NetworkView view = network;
+
+        assertThat(view.rankOf(NODE_1)).isEqualTo(1);
+        assertThat(view.rankOf(NODE_2)).isEqualTo(2);
+        assertThat(view.rankOf(NodeId.of(42))).isEqualTo(-1);
     }
 
     @Test
