@@ -18,10 +18,10 @@ import org.hiero.otter.fixtures.network.simulation.SimulatedNetworkConnectivity;
  * Measures the creation-to-consensus latency (C2C) and the event throughput of a Falcon network, in simulated time.
  *
  * <p>The measurement follows the network as its {@link FalconObserver}, so it must be set with
- * {@link FalconNetwork#observe(FalconObserver)} before the nodes are added:
+ * {@link FalconNetwork#registerObserver(FalconObserver)} before the nodes are added:
  * <pre>{@code
  * final ConsensusLatencyMeasurement measurement = ConsensusLatencyMeasurement.create();
- * network.observe(measurement);
+ * network.registerObserver(measurement);
  * // add the nodes, start the network
  * measurement.restart(timeManager.now());
  * // let the network run
@@ -78,7 +78,7 @@ public final class ConsensusLatencyMeasurement implements FalconObserver {
      * {@inheritDoc}
      */
     @Override
-    public void nodeAdded(@NonNull final NodeId nodeId, final boolean fullNode) {
+    public void onNodeAdded(@NonNull final NodeId nodeId, final boolean fullNode) {
         recorder.registerNode(nodeId, fullNode);
     }
 
@@ -88,7 +88,7 @@ public final class ConsensusLatencyMeasurement implements FalconObserver {
      * <p>Starts the measurement, and follows the network to count the events the nodes create.
      */
     @Override
-    public void networkStarting(@NonNull final SimulatedNetworkConnectivity network, @NonNull final Instant now) {
+    public void onNetworkStarting(@NonNull final SimulatedNetworkConnectivity network, @NonNull final Instant now) {
         recorder.markStarted(now);
         network.addObserver(new CreatedEvents(network));
     }
@@ -97,7 +97,7 @@ public final class ConsensusLatencyMeasurement implements FalconObserver {
      * {@inheritDoc}
      */
     @Override
-    public void consensusRound(@NonNull final NodeId nodeId, @NonNull final ConsensusRound round) {
+    public void onConsensusRound(@NonNull final NodeId nodeId, @NonNull final ConsensusRound round) {
         recorder.onConsensusRound(nodeId, round);
     }
 

@@ -364,7 +364,7 @@ class ConsensusLatencyBenchmark {
             network.weightGenerator(WeightGenerators.BALANCED);
             network.signingSchema(SigningSchema.ED25519);
             final ConsensusLatencyMeasurement measurement = ConsensusLatencyMeasurement.create();
-            network.observe(measurement);
+            network.registerObserver(measurement);
             network.withConfigValue(EventCreationConfig_.MAX_CREATION_RATE, setup.maxCreationRate())
                     .withConfigValue(EventCreationConfig_.MAX_OTHER_PARENTS, setup.maxOtherParents())
                     .withConfigValue(EventCreationConfig_.PERIOD, setup.granularity());

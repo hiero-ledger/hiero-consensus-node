@@ -53,7 +53,7 @@ class ConsensusLatencyMeasurementTest {
         // a forwarded copy is not an event created
         submit(network, event, NODE_1);
         network.tick(START.plusMillis(1));
-        measurement.consensusRound(FULL_NODE, round(event.getTimeCreated().plusMillis(50), List.of(event)));
+        measurement.onConsensusRound(FULL_NODE, round(event.getTimeCreated().plusMillis(50), List.of(event)));
 
         final ConsensusLatencyResult result = measurement.snapshot(START.plusSeconds(1));
         assertThat(result.nodes()).isEqualTo(3);
@@ -82,10 +82,10 @@ class ConsensusLatencyMeasurementTest {
                 new Random(0), START, TestRosters.rosterOf(receivers), receivers, false);
         network.tick(START);
         network.setConnections(connections());
-        measurement.nodeAdded(NODE_0, false);
-        measurement.nodeAdded(NODE_1, false);
-        measurement.nodeAdded(FULL_NODE, true);
-        measurement.networkStarting(network, START);
+        measurement.onNodeAdded(NODE_0, false);
+        measurement.onNodeAdded(NODE_1, false);
+        measurement.onNodeAdded(FULL_NODE, true);
+        measurement.onNetworkStarting(network, START);
         return network;
     }
 
