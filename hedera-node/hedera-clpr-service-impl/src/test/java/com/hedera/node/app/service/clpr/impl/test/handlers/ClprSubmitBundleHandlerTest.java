@@ -756,6 +756,25 @@ class ClprSubmitBundleHandlerTest {
     }
 
     @Test
+    @DisplayName("unreadable EVM result from a contract target defaults to empty response data")
+    void unreadableEvmResultDefaultsToEmpty() {
+        putChannel(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH);
+        final var bundle = buildBundle(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH, List.of(dataPayload()));
+        setupHandleContext(bundle, true);
+        putConnector();
+
+        lenient().when(dispatchResult.getEvmCallResult()).thenThrow(new IllegalStateException("no EVM result"));
+
+        subject.handle(handleContext);
+
+        final var response = messageQueueStore.getMessage(CHANNEL_ID, 0);
+        assertThat(response).isNotNull();
+        assertThat(response.payload().messageReplyOrThrow().status()).isEqualTo(ClprMessageReplyStatus.SUCCESS);
+        assertThat(response.payload().messageReplyOrThrow().messageReplyData()).isEqualTo(Bytes.EMPTY);
+        verify(dispatchResult).getEvmCallResult();
+    }
+
+    @Test
     @DisplayName("null EVM result defaults to empty response data")
     void nullEvmResultDefaultsToEmpty() {
         putChannel(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH);

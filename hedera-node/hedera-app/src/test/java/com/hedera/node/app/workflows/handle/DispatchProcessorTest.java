@@ -9,6 +9,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.NODE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SYSTEM_DELETE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SYSTEM_UNDELETE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.AUTHORIZATION_FAILED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NO_PROGRESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CONSENSUS_GAS_EXHAUSTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ENTITY_NOT_ALLOWED_TO_DELETE;
@@ -271,6 +272,30 @@ class DispatchProcessorTest {
         subject.processDispatch(dispatch);
 
         verify(recordBuilder).status(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT);
+        verify(stack).rollbackFullStack();
+    }
+
+    @Test
+    void clprSubmitBundleNoProgressRollsBack() {
+        given(dispatch.fees()).willReturn(FEES);
+        given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
+        given(dispatchValidator.validateFeeChargingScenario(dispatch))
+                .willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
+        given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
+        given(dispatch.txnInfo()).willReturn(CLPR_SUBMIT_BUNDLE_TXN_INFO);
+        given(dispatch.handleContext()).willReturn(context);
+        givenAuthorization(CLPR_SUBMIT_BUNDLE_TXN_INFO);
+        // Another node's copy of the same bundle was applied first
+        doThrow(new HandleException(CLPR_NO_PROGRESS)).when(dispatcher).dispatchHandle(context);
+        given(dispatch.txnCategory()).willReturn(USER);
+        doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
+        doCallRealMethod().when(dispatch).category();
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
+
+        subject.processDispatch(dispatch);
+
+        verify(recordBuilder).status(CLPR_NO_PROGRESS);
         verify(stack).rollbackFullStack();
     }
 

@@ -496,6 +496,19 @@ class ClprStreamingSynchronizerTest {
         }
 
         @Test
+        @DisplayName("given the sync thread is interrupted, then the peer is not penalized")
+        void givenSyncInterrupted_thenPeerIsNotPenalized() throws Exception {
+            given(streamingCall.read())
+                    .willThrow(new ClprSyncException("Streaming sync read interrupted", new InterruptedException()));
+
+            synchronize(channel(6L, 0L, 0L));
+
+            verify(streamingCall).close();
+            thenNoOutcomeIsRecorded();
+            verifyNoInteractions(bundleSubmitter);
+        }
+
+        @Test
         @DisplayName("given the peer closes before replying, then the peer is penalized")
         void givenPeerClosesBeforeReplying_thenPeerIsPenalized() throws Exception {
             given(streamingCall.read()).willReturn(null);
