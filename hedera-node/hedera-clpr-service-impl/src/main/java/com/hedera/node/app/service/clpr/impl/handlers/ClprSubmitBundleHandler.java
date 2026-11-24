@@ -12,10 +12,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_SERVICE_ACCOUNT_ID;
 import static com.hedera.node.app.service.clpr.impl.ClprBundleValidator.hasNewerManifestProof;
-import static com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator.MAX_MESSAGES_PER_BUNDLE;
 import static com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator.MIN_PROOF_OVERHEAD_BYTES;
 import static com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator.VERIFIABLE_SYNC_BYTES;
-import static com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator.channelFitsSingleMessageProof;
 import static com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator.senderPayloadBudget;
 import static com.hedera.node.app.spi.authorization.SystemPrivilege.AUTHORIZED;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.stepDispatch;
@@ -39,7 +37,6 @@ import com.hedera.hapi.node.state.clpr.ClprConfigUpdate;
 import com.hedera.hapi.node.state.clpr.ClprConnectorKey;
 import com.hedera.hapi.node.state.clpr.ClprControlMessage;
 import com.hedera.hapi.node.state.clpr.ClprEndpoint;
-import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.clpr.ClprMessagePayload;
 import com.hedera.hapi.node.state.clpr.ClprMessageReply;
@@ -54,7 +51,6 @@ import com.hedera.node.app.service.clpr.impl.ClprBundleValidator.ReplyValidation
 import com.hedera.node.app.service.clpr.impl.ClprBundleValidator.ValidatedBundle;
 import com.hedera.node.app.service.clpr.impl.ClprGasAccounting;
 import com.hedera.node.app.service.clpr.impl.ClprHashUtils;
-import com.hedera.node.app.service.clpr.impl.ClprPeerManifestPolicy;
 import com.hedera.node.app.service.clpr.impl.ClprServiceApiImpl;
 import com.hedera.node.app.service.clpr.impl.ClprSlashingUtils;
 import com.hedera.node.app.service.clpr.impl.ClprThrottlesUtils;
@@ -85,7 +81,6 @@ import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
@@ -282,83 +277,26 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         channel = requireNonNull(channelStore.getChannel(channelId));
         final var bundleContent = validated.content();
         final var metadata = bundleContent.metadata();
-        final var newTrustAnchor = bundleContent.newTrustAnchor();
-        final var newTrustAnchorId = bundleContent.newTrustAnchorId();
-
-        // Spec §4.2 Step 1b: apply new_endpoint_manifest, and Step 1c: install successor
-        // trust anchor. Applied together in a single copyBuilder / put so a manifest update
-        // and a trust-anchor rotation carried by the same bundle are atomic (they're already
-        // covered by the same verifyBundle call). All node checks have passed before this write.
-        //
-        // Step 1b guard rules (per ADR "Propagating Updates Through Bundle Payloads"):
-        // - Applied only when newEndpointManifest.version() strictly advances the current
-        //   cached version. Absent or stale manifest → silent skip; the bundle is NOT
-        //   rejected for this reason alone. Manifest updates are allowed on CLOSING /
-        //   DRAINED channels (harmless, keeps the cache current for admin purposes).
-        // - Entire manifest replacement; no partial merge.
-        final var newEndpointManifest = bundleContent.newEndpointManifest();
-        final boolean shouldUpdateManifest = validated.shouldUpdateManifest();
-        final boolean shouldUpdateTrustAnchor = newTrustAnchor.length() > 0;
-        if (shouldUpdateManifest || shouldUpdateTrustAnchor) {
-            var updatedBuilder = channel.copyBuilder();
-            if (shouldUpdateManifest) {
-                log.debug(
-                        "[ClprSubmitBundle] applying new endpoint manifest conn={} version={}->{} entries={} endpoints={}",
-                        channelId,
-                        channel.endpointManifestVersion(),
-                        newEndpointManifest.version(),
-                        newEndpointManifest.endpoints().size(),
-                        newEndpointManifest.endpoints().stream()
-                                .map(e -> {
-                                    final var svc = e.serviceEndpoint();
-                                    return svc == null ? "?" : svc.ipAddress() + ":" + svc.port();
-                                })
-                                .collect(Collectors.joining(", ", "[", "]")));
-                // Bound the same serialized manifest state as channel completion, including certificate bytes.
-                final ClprEndpointManifest storedManifest;
-                try {
-                    storedManifest =
-                            ClprPeerManifestPolicy.boundedManifest(newEndpointManifest, throttles.maxPeerEndpoints());
-                } catch (final IllegalArgumentException e) {
-                    throw new HandleException(CLPR_BUNDLE_VERIFICATION_FAILED);
-                }
-                final var truncatedEndpoints = storedManifest.endpoints();
-                updatedBuilder = updatedBuilder
-                        .endpointManifest(storedManifest)
-                        .endpointManifestVersion(storedManifest.version());
-                if (hasNewerManifestProof(channel, bundleContent)) {
-                    updatedBuilder.endpointManifestProofTimestamp(bundleContent.manifestProofTimestamp());
-                }
-                if (expectedManifestVersion != null) {
-                    updatedBuilder.peerManifestRecovered(true);
-                }
-                // Refresh the orchestrator's node-local peer endpoint cache — deferred until the bundle is
-                // handled without an exception (see doHandle).
-                deferredPeerEndpoints.set(channelId, truncatedEndpoints);
-            }
-            if (shouldUpdateTrustAnchor) {
-                log.debug(
-                        "[ClprSubmitBundle] installing successor trust anchor conn={} trustAnchorLen={} trustAnchorId={}",
-                        channelId,
-                        newTrustAnchor.length(),
-                        shortHex(newTrustAnchorId));
-                updatedBuilder = updatedBuilder.trustAnchor(newTrustAnchor).trustAnchorId(newTrustAnchorId);
-            }
-            final var updated = updatedBuilder.build();
-            if (updated.protobufSize() > channel.protobufSize()) {
-                final long syncBytes = channel.peerThrottlesOrElse(throttles).maxSyncBytes();
-                validateTrue(
-                        channelFitsSingleMessageProof(configuration, updated, syncBytes),
-                        CLPR_BUNDLE_VERIFICATION_FAILED);
-                final long newBudget = senderPayloadBudget(configuration, updated, syncBytes);
-                if (newBudget < senderPayloadBudget(configuration, channel, syncBytes)) {
-                    // A receipt in this same proof covers slots even if their reply is outstanding.
-                    final long received = metadata == null ? channel.ackedMessageId() : metadata.receivedMessageId();
-                    validateQueuedPayloadsFit(channel, received, newBudget, messageQueueStore);
-                }
-            }
+        // Apply verified anchor and manifest updates atomically before dispatching any messages.
+        final ClprChannel updated;
+        try {
+            updated = bundleValidator.channelAfterStateUpdates(
+                    channel, validated, throttles, configuration, messageQueueStore, expectedManifestVersion != null);
+        } catch (final PreCheckException e) {
+            throw new HandleException(e.responseCode());
+        }
+        if (updated != channel) {
             channel = updated;
             channelStore.put(channel);
+            if (validated.shouldUpdateManifest()) {
+                deferredPeerEndpoints.set(
+                        channelId, channel.endpointManifestOrThrow().endpoints());
+            }
+            log.debug(
+                    "[ClprSubmitBundle] updated verified channel state conn={} manifestVersion={} trustAnchorId={}",
+                    channelId,
+                    channel.endpointManifestVersion(),
+                    shortHex(channel.trustAnchorId()));
         }
 
         // A metadata-less bundle carries only a state-proven update with no queue metadata or
@@ -370,8 +308,8 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
             log.debug(
                     "[ClprSubmitBundle] state-update-only bundle accepted conn={} trustAnchorLen={} manifestUpdated={}",
                     channelId,
-                    newTrustAnchor.length(),
-                    shouldUpdateManifest);
+                    bundleContent.newTrustAnchor().length(),
+                    validated.shouldUpdateManifest());
             return;
         }
 
@@ -871,6 +809,11 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                     replyStatus = ClprMessageReplyStatus.APPLICATION_ERROR;
                                 }
                             } else if (result.status() == SUCCESS) {
+                                log.debug(
+                                        "[ClprSubmitBundle] successful onClprMessage returned no ABI-encoded bytes conn={} receivedMsgId={} target={}",
+                                        channelId,
+                                        receivedMessageId,
+                                        appContractId);
                                 replyStatus = ClprMessageReplyStatus.APPLICATION_ERROR;
                             }
                             // The child has committed into this parent savepoint. Keep successful
@@ -1430,21 +1373,6 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
             return "<null>";
         }
         return bytes.length() <= 32 ? bytes.toHex() : bytes.slice(0, 32).toHex() + "...";
-    }
-
-    private static void validateQueuedPayloadsFit(
-            @NonNull final ClprChannel channel,
-            final long received,
-            final long budget,
-            @NonNull final WritableMessageQueueStore queue) {
-        final long lastQueued = channel.nextMessageId() - 1;
-        // Bound consensus reads for a growing anchor/manifest. Retry once the peer receives more slots.
-        validateTrue(lastQueued - received <= MAX_MESSAGES_PER_BUNDLE, CLPR_QUEUE_FULL);
-        for (long id = received + 1; id <= lastQueued; id++) {
-            final var slot = queue.getMessage(channel.channelId(), id);
-            validateTrue(slot != null && slot.hasPayload(), CLPR_INTERNAL_STATE_CORRUPTION);
-            validateTrue(slot.payloadOrThrow().protobufSize() <= budget, CLPR_QUEUE_FULL);
-        }
     }
 
     /** Budget for the entire serialized reply payload, including message id, status, and protobuf framing. */

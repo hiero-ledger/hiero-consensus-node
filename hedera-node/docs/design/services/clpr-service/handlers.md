@@ -142,9 +142,13 @@ side-effects.
   2. Call `ClprVerifier.verifyBundle` (see [`verifier.md`](verifier.md)) → `ClprBundleContent`.
   3. Check monotonic & contiguous message IDs vs. channel's `acked_message_id`.
   4. Recompute received running hash with `ClprHashUtils.computeRunningHash`; compare.
-  5. Apply control messages (only `ConfigUpdate` today) before data messages.
+  5. Validate all incoming `ConfigUpdate` messages before application dispatch. A decrease in any
+     previously advertised delivery limit rejects the whole bundle. Apply accepted updates in
+     message order so later callbacks see the updated limits.
   6. Dispatch each data message to its `targetApplication` via a child contract call;
-     charge the connector and bookkeep replies (`ClprMessageReply`). This also applies in
+     charge the connector and bookkeep replies (`ClprMessageReply`). A successful
+     `onClprMessage` call must return ABI-encoded `bytes`. An encoded empty byte string is valid.
+     A call that returns no ABI data rolls back and produces `APPLICATION_ERROR`. This also applies in
      `CLOSING`/`DRAINED`: graceful close drains inbound traffic through normal dispatch.
 - State writes: channel's `received_running_hash`, `last_received_message_id`; per-data-
   message replies stored back into the queue (replies on the source-side queue).
@@ -180,8 +184,10 @@ side-effects.
 
 - Functionality: `CLPR_UPDATE_LEDGER_CONFIGURATION`. Spec §6.1.
 - Admin-gated.
-- Rejects a lower local `max_queue_depth` or growth above `clpr.maxQueueDepthCeiling` with
-  `INVALID_CLPR_CONFIGURATION` at consensus. Unchanged existing credit is allowed.
+- Rejects a decrease in any advertised delivery limit with `INVALID_CLPR_CONFIGURATION`.
+  Increases are bounded by 64 KiB for `max_message_payload_bytes`, 4 MiB for `max_sync_bytes`,
+  1,000 for `max_messages_per_bundle`, and `clpr.maxQueueDepthCeiling` for `max_queue_depth`.
+  Existing advertisements above a ceiling may be retained.
 - Writes the singleton `LEDGER_CONFIGURATION`. Bumps `timestamp`. Only path to add/edit
   `endpoints`. Throttle changes propagate to existing channels **lazily** via the
   next `sendMessage` (see `ClprServiceApiImpl` / [`evm-integration.md`](evm-integration.md)).

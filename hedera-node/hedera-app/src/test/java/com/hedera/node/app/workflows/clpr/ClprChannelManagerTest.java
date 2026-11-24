@@ -272,7 +272,7 @@ class ClprChannelManagerTest {
             try (var _ = givenMockedStateForSync(channelStore, ledgerConfigWithMaxPeerEndpoints(0))) {
                 subject.syncChannel(CHANNEL_ID_1);
 
-                // Null channel is not auto-removed; cleanup is driven by onChannelClosed only.
+                // The sync tick removes a channel once it observes its committed CLOSED state.
                 assertThat(subject.knownChannelsIds()).contains(CHANNEL_ID_1);
                 assertThat(subject.getKnownEndpoints(CHANNEL_ID_1)).isEmpty();
             }
@@ -452,16 +452,6 @@ class ClprChannelManagerTest {
             subject.onChannelActivated(CHANNEL_ID_2);
 
             assertThat(subject.knownChannelsIds()).containsExactlyInAnyOrder(CHANNEL_ID_1, CHANNEL_ID_2);
-        }
-
-        @Test
-        @DisplayName("onChannelClosed removes the closed channel")
-        void onChannelClosed() {
-            subject.onChannelActivated(CHANNEL_ID_1);
-            subject.onChannelActivated(CHANNEL_ID_2);
-            subject.onChannelClosed(CHANNEL_ID_1);
-
-            assertThat(subject.knownChannelsIds()).containsExactlyInAnyOrder(CHANNEL_ID_2);
         }
 
         @Test

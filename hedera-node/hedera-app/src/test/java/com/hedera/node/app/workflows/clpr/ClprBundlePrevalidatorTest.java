@@ -7,6 +7,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INVALID_CHANNEL_ST
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NOT_ENABLED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NO_PROGRESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_PAYLOAD_TOO_LARGE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_QUEUE_FULL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_RUNNING_HASH_MISMATCH;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
@@ -46,6 +47,7 @@ import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.clpr.ClprMessage;
 import com.hedera.hapi.node.state.clpr.ClprMessageKey;
 import com.hedera.hapi.node.state.clpr.ClprMessagePayload;
+import com.hedera.hapi.node.state.clpr.ClprMessageReply;
 import com.hedera.hapi.node.state.clpr.ClprMessageValue;
 import com.hedera.hapi.node.state.clpr.ClprQueueMetadata;
 import com.hedera.hapi.node.state.clpr.ClprSyncPayload;
@@ -110,6 +112,7 @@ class ClprBundlePrevalidatorTest {
             .protocolVersion(1)
             .throttles(ClprThrottles.newBuilder()
                     .maxSyncBytes(1024)
+                    .maxQueueDepth(10)
                     .maxMessagesPerBundle(10)
                     .maxMessagePayloadBytes(1024))
             .build();
@@ -286,7 +289,7 @@ class ClprBundlePrevalidatorTest {
         subject.validate(PAYLOAD, configuration);
 
         verify(validator).prevalidate(CHANNEL, content, LEDGER_CONFIG);
-        // Checks that depend on the latest state, including the replies, are left to consensus
+        // The working channel has room for a reply, so admission needs no queue scan.
         verify(validator, never()).validate(any(), any(), any());
         verify(validator, never()).validateReplies(any(), any(), any(), anyInt());
         verifyNoInteractions(queue);
@@ -302,6 +305,98 @@ class ClprBundlePrevalidatorTest {
         assertThat(context.payer()).isEqualTo(CLPR_SERVICE_ACCOUNT_ID);
         assertThat(context.clprDispatchMetadata().senderId()).isEqualTo(CLPR_SERVICE_ACCOUNT_ID);
         assertThat(context.clprDispatchMetadata().senderAddress()).isEqualTo(CLPR_EVM_ADDRESS_BYTES);
+    }
+
+    @Test
+    void fullQueueDefersDataButAllowsAnAcknowledgementThatMakesAPrefixFit() throws PreCheckException {
+        when(ledgerConfig.get())
+                .thenReturn(LEDGER_CONFIG
+                        .copyBuilder()
+                        .throttles(
+                                LEDGER_CONFIG.throttlesOrThrow().copyBuilder().maxQueueDepth(1))
+                        .build());
+        final var content = bundle(List.of(dataPayload(), dataPayload()));
+        givenLocalReturn(content);
+
+        assertRejected(PAYLOAD, CLPR_QUEUE_FULL);
+
+        final var receipt = content.copyBuilder()
+                .metadata(content.metadataOrThrow().copyBuilder().receivedMessageId(1))
+                .build();
+        givenLocalReturn(receipt);
+        final var oneWay = ClprMessagePayload.newBuilder()
+                .messageReply(ClprMessageReply.DEFAULT)
+                .build();
+        when(queue.get(new ClprMessageKey(CHANNEL_ID, 1)))
+                .thenReturn(ClprMessageValue.newBuilder().payload(oneWay).build());
+        subject.validate(PAYLOAD, configuration);
+    }
+
+    @Test
+    void laterDataOnlyFrameWaitsForCapacityAndIsReconsideredOnTheNextSync() throws PreCheckException {
+        final var content = bundle(List.of(dataPayload()));
+        givenLocalReturn(content.copyBuilder()
+                .metadata(content.metadataOrThrow().copyBuilder().nextMessageId(4))
+                .build());
+        when(ledgerConfig.get())
+                .thenReturn(
+                        LEDGER_CONFIG
+                                .copyBuilder()
+                                .throttles(LEDGER_CONFIG
+                                        .throttlesOrThrow()
+                                        .copyBuilder()
+                                        .maxQueueDepth(1))
+                                .build(),
+                        LEDGER_CONFIG);
+
+        assertRejected(PAYLOAD, CLPR_QUEUE_FULL);
+        subject.validate(PAYLOAD, configuration);
+        verifyNoInteractions(queue);
+    }
+
+    @Test
+    void fullQueueWithAnInconclusiveReceiptReadLeavesOrderingToConsensus() throws PreCheckException {
+        when(ledgerConfig.get())
+                .thenReturn(LEDGER_CONFIG
+                        .copyBuilder()
+                        .throttles(
+                                LEDGER_CONFIG.throttlesOrThrow().copyBuilder().maxQueueDepth(1))
+                        .build());
+        final var content = bundle(List.of(dataPayload()));
+        givenLocalReturn(content.copyBuilder()
+                .metadata(content.metadataOrThrow().copyBuilder().receivedMessageId(1))
+                .build());
+
+        subject.validate(PAYLOAD, configuration);
+        verify(queue).get(new ClprMessageKey(CHANNEL_ID, 1));
+    }
+
+    @Test
+    void anchorGrowthIsDeferredUntilTheOversizedSlotIsAcknowledged() throws PreCheckException {
+        final var jumbo = mock(JumboTransactionsConfig.class);
+        when(configuration.getConfigData(JumboTransactionsConfig.class)).thenReturn(jumbo);
+        when(jumbo.ethereumMaxCallDataSize()).thenReturn(64 * 1024);
+        final var channel = CHANNEL.copyBuilder()
+                .peerThrottles(ClprThrottles.newBuilder().maxSyncBytes(4 * 1024 * 1024))
+                .build();
+        when(channels.get(new ProtoBytes(CHANNEL_ID))).thenReturn(channel);
+        final var queued = ClprMessagePayload.newBuilder()
+                .message(ClprMessage.newBuilder().messageData(Bytes.wrap(new byte[12 * 1024])))
+                .build();
+        when(queue.get(new ClprMessageKey(CHANNEL_ID, 1)))
+                .thenReturn(ClprMessageValue.newBuilder().payload(queued).build());
+        givenLocalReturn(ClprBundleContent.newBuilder()
+                .newTrustAnchor(Bytes.wrap(new byte[32 * 1024]))
+                .newTrustAnchorId(Bytes.fromHex("02"))
+                .build());
+
+        assertRejected(PAYLOAD, CLPR_QUEUE_FULL);
+
+        when(channels.get(new ProtoBytes(CHANNEL_ID)))
+                .thenReturn(channel.copyBuilder().ackedMessageId(1).build());
+        when(queue.get(new ClprMessageKey(CHANNEL_ID, 2)))
+                .thenReturn(ClprMessageValue.newBuilder().payload(dataPayload()).build());
+        subject.validate(PAYLOAD, configuration);
     }
 
     private static Bytes encodedVerifierCall() {

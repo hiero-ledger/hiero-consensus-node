@@ -529,13 +529,6 @@ public class ClprChannelManager implements ClprChannelLifecycle {
         return Collections.unmodifiableSet(knownChannelIds);
     }
 
-    /** Removes the channel from the local registry, cancels its sync timer, and purges its caches. */
-    @Override
-    public void onChannelClosed(@NonNull final Bytes channelId) {
-        requireNonNull(channelId);
-        unscheduleChannel(channelId);
-    }
-
     /** Cancels a channel's sync timer (if any) and removes it from all local registries. */
     private void unscheduleChannel(@NonNull final Bytes channelId) {
         final var future = channelSyncFutures.remove(channelId);

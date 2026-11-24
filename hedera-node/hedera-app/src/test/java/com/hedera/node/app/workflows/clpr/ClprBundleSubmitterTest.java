@@ -2,12 +2,12 @@
 package com.hedera.node.app.workflows.clpr;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NO_PROGRESS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.state.clpr.ClprSyncPayload;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.AppContext;
@@ -25,6 +25,8 @@ import java.util.function.Supplier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.Mockito;
@@ -168,13 +170,17 @@ class ClprBundleSubmitterTest {
         verify(appContext, never()).instantSource();
     }
 
-    @Test
-    void skipsProvenNoProgressBundleWithoutReportingPeerFailure() throws PreCheckException {
+    @ParameterizedTest
+    @EnumSource(
+            value = ResponseCodeEnum.class,
+            names = {"CLPR_NO_PROGRESS", "CLPR_QUEUE_FULL"})
+    void skipsBundleWithoutPayingForGossipOrReportingPeerFailure(final ResponseCodeEnum status)
+            throws PreCheckException {
         final var payload = ClprSyncPayload.newBuilder()
                 .channelId(CHANNEL_ID)
                 .bundlePayload(BUNDLE_PAYLOAD)
                 .build();
-        doThrow(new PreCheckException(CLPR_NO_PROGRESS)).when(prevalidator).validate(payload, versionedConfig);
+        doThrow(new PreCheckException(status)).when(prevalidator).validate(payload, versionedConfig);
 
         assertThat(subject.submitBundle(payload)).isTrue();
 

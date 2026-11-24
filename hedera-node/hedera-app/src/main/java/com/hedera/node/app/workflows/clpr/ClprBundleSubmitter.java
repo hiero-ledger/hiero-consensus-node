@@ -2,6 +2,7 @@
 package com.hedera.node.app.workflows.clpr;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NO_PROGRESS;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_QUEUE_FULL;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.Duration;
@@ -65,9 +66,9 @@ public class ClprBundleSubmitter {
      * transaction paid by this node.
      *
      * <p>Nothing is submitted when CLPR is disabled, the payload is empty, gossip is unavailable, or
-     * {@link ClprBundlePrevalidator#validate} rejects the bundle. A bundle rejected only with
-     * {@code CLPR_NO_PROGRESS}, such as an idle peer's pure acknowledgement, is skipped but reported
-     * as a success, because the exchange itself did not fail. Prevalidation fails closed: an
+     * {@link ClprBundlePrevalidator#validate} rejects the bundle. A verified bundle that returns
+     * {@code CLPR_NO_PROGRESS} or {@code CLPR_QUEUE_FULL} needs no transaction on this sync.
+     * Both count as a successful exchange. Prevalidation fails closed: an
      * unexpected error while validating is reported as a failure, and nothing is submitted.
      *
      * @param payload the received sync payload from the peer
@@ -99,10 +100,12 @@ public class ClprBundleSubmitter {
         try {
             prevalidator.validate(payload, configuration);
         } catch (final PreCheckException e) {
-            // Idle peers legitimately send pure acknowledgements. Skip their transaction without
-            // treating the exchange as a peer failure or paying for a NoProgress consensus rejection.
-            if (e.responseCode() == CLPR_NO_PROGRESS) {
-                logger.debug("[CLPR-SUBMIT] skipped no-progress inbound bundle conn={}", payload.channelId());
+            if (e.responseCode() == CLPR_NO_PROGRESS || e.responseCode() == CLPR_QUEUE_FULL) {
+                // Peer delivery follows committed receive IDs. A full queue can be retried on the next sync.
+                logger.debug(
+                        "[CLPR-SUBMIT] skipped inbound bundle conn={} status={}",
+                        payload.channelId(),
+                        e.responseCode());
                 return true;
             }
             logger.warn(

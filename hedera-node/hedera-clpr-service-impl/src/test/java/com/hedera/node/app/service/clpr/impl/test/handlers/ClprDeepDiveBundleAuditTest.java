@@ -1076,7 +1076,6 @@ class ClprDeepDiveBundleAuditTest {
         final var updated = channelStore.getChannel(CHANNEL_ID);
         assertNotNull(updated);
         assertThat(updated.status()).isEqualTo(ClprChannelStatus.CLOSED);
-        verify(channelLifecycle, never()).onChannelClosed(CHANNEL_ID);
     }
 
     @Test
@@ -1145,7 +1144,6 @@ class ClprDeepDiveBundleAuditTest {
         final var updated = channelStore.getChannel(CHANNEL_ID);
         assertNotNull(updated);
         assertThat(updated.status()).isEqualTo(ClprChannelStatus.CLOSED);
-        verify(channelLifecycle, never()).onChannelClosed(CHANNEL_ID);
     }
 
     @Test
@@ -1184,7 +1182,6 @@ class ClprDeepDiveBundleAuditTest {
         final var updated = channelStore.getChannel(CHANNEL_ID);
         assertNotNull(updated);
         assertThat(updated.status()).isEqualTo(ClprChannelStatus.CLOSED);
-        verify(channelLifecycle, never()).onChannelClosed(CHANNEL_ID);
     }
 
     @Test

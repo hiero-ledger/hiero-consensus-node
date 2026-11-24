@@ -81,6 +81,7 @@ message ClprLedgerConfiguration {
  * On Hiero, max_message_payload_bytes, max_sync_bytes, max_messages_per_bundle
  * and max_queue_depth can only grow. Peers can continue to deliver messages
  * and bundles admitted under any configuration published since this rule took effect.
+ * Hiero rejects an inbound ConfigUpdate that lowers any of these four advertised limits.
  */
 message ClprThrottles {
     /**
@@ -114,8 +115,7 @@ message ClprThrottles {
      * A ConfigUpdate prepended by this send may use the last ordinary slot.
      * A peer MUST NOT enqueue new DATA if that would exceed the most
      * recently received advertised max_queue_depth in outstanding DATA to this
-     * ledger. DATA already outstanding when an external peer advertises a lower
-     * limit may drain.
+     * ledger. A rejected decrease leaves the prior advertisement in effect.
      *
      * On Hiero this local limit MUST NOT decrease. Administrator decreases fail with
      * INVALID_CLPR_CONFIGURATION; increases are bounded by clpr.maxQueueDepthCeiling.

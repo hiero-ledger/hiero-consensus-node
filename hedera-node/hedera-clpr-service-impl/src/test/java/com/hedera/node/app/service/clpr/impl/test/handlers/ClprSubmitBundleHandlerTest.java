@@ -1099,7 +1099,7 @@ class ClprSubmitBundleHandlerTest {
 
     @ParameterizedTest
     @ValueSource(ints = {1, 9})
-    void earlierReplyHonorsPeerLimitLoweredLaterInBundle(final int peerPayloadLimit) {
+    void earlierReplyHonorsFirstPeerAdvertisementLaterInBundle(final int peerPayloadLimit) {
         putChannel(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH);
         final var reducedThrottles = defaultTestThrottles()
                 .copyBuilder()
@@ -1178,7 +1178,7 @@ class ClprSubmitBundleHandlerTest {
 
     @ParameterizedTest
     @ValueSource(ints = {1, 9})
-    void acceptedReplyHonorsPeerLimitLoweredInDeferredTail(final int peerPayloadLimit) {
+    void acceptedReplyHonorsFirstPeerAdvertisementInDeferredTail(final int peerPayloadLimit) {
         putChannel(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH);
         final var reducedThrottles = defaultTestThrottles()
                 .copyBuilder()
@@ -2422,7 +2422,6 @@ class ClprSubmitBundleHandlerTest {
         final var updated = channelStore.getChannel(CHANNEL_ID);
         assertNotNull(updated);
         assertThat(updated.status()).isEqualTo(ClprChannelStatus.CLOSED);
-        verify(channelLifecycle, never()).onChannelClosed(CHANNEL_ID);
     }
 
     @Test
@@ -2491,7 +2490,6 @@ class ClprSubmitBundleHandlerTest {
         final var updated = channelStore.getChannel(CHANNEL_ID);
         assertNotNull(updated);
         assertThat(updated.status()).isEqualTo(ClprChannelStatus.CLOSED);
-        verify(channelLifecycle, never()).onChannelClosed(CHANNEL_ID);
     }
 
     @Test
@@ -2530,7 +2528,6 @@ class ClprSubmitBundleHandlerTest {
         final var updated = channelStore.getChannel(CHANNEL_ID);
         assertNotNull(updated);
         assertThat(updated.status()).isEqualTo(ClprChannelStatus.CLOSED);
-        verify(channelLifecycle, never()).onChannelClosed(CHANNEL_ID);
     }
 
     @Test
@@ -3543,6 +3540,19 @@ class ClprSubmitBundleHandlerTest {
     }
 
     @Test
+    void reducedPeerSyncLimitRejectsTheWholeBundleBeforeCallbacksOrQueueChanges() {
+        final var reduced =
+                defaultTestThrottles().copyBuilder().maxSyncBytes(512 * 1024).build();
+        final var control = ClprMessagePayload.newBuilder()
+                .control(ClprControlMessage.newBuilder()
+                        .configUpdate(ClprConfigUpdate.newBuilder()
+                                .configuration(
+                                        createLedgerConfig().copyBuilder().throttles(reduced))))
+                .build();
+        assertLaterInvalidControlRejectsBeforeDispatchOrStateChanges(control);
+    }
+
+    @Test
     @DisplayName("invalid ConfigUpdate after data rejects before dispatch or state changes")
     void invalidConfigUpdateAfterDataRejectsBeforeDispatchOrStateChanges() {
         final var invalidConfig = ClprMessagePayload.newBuilder()
@@ -3572,6 +3582,11 @@ class ClprSubmitBundleHandlerTest {
     private void assertLaterInvalidControlRejectsBeforeDispatchOrStateChanges(
             @NonNull final ClprMessagePayload invalidControl) {
         putChannel(ClprChannelStatus.ACTIVE, 2, 0, ZERO_HASH);
+        channelStore.put(channelStore
+                .getChannel(CHANNEL_ID)
+                .copyBuilder()
+                .peerThrottles(defaultTestThrottles())
+                .build());
         putOutboundSlot(1, replyPayload(9));
         putConnector();
         final var originalChannel = channelStore.getChannel(CHANNEL_ID);

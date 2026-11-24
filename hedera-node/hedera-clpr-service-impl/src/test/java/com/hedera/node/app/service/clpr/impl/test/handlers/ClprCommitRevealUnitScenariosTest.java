@@ -120,9 +120,6 @@ class ClprCommitRevealUnitScenariosTest {
             public void onChannelActivated(@NonNull final Bytes channelId) {}
 
             @Override
-            public void onChannelClosed(@NonNull final Bytes channelId) {}
-
-            @Override
             public void seedPeerEndpoints(
                     @NonNull final Bytes channelId, @NonNull final List<ClprEndpoint> endpoints) {}
 

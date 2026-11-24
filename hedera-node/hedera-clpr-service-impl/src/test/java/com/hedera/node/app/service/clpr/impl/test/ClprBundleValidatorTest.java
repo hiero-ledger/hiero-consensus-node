@@ -50,8 +50,17 @@ class ClprBundleValidatorTest {
     private static final ClprThrottles THROTTLES = ClprThrottles.newBuilder()
             .maxSyncBytes(1024)
             .maxMessagesPerBundle(10)
+            .maxQueueDepth(10)
             .maxMessagePayloadBytes(ClprMessagePayload.PROTOBUF.measureRecord(dataPayload(3)))
             .build();
+    private static final ClprThrottles ADVERTISED = ClprThrottles.newBuilder()
+            .maxQueueDepth(12000)
+            .maxMessagesPerBundle(1500)
+            .maxMessagePayloadBytes(90000)
+            .maxSyncBytes(5000000)
+            .maxGasPerMessage(1000000)
+            .build();
+
     private static final ClprLedgerConfiguration LEDGER_CONFIG = ClprLedgerConfiguration.newBuilder()
             .protocolVersion(1)
             .throttles(THROTTLES)
@@ -875,6 +884,63 @@ class ClprBundleValidatorTest {
         assertThatThrownBy(() -> subject.validate(channel, content, LEDGER_CONFIG))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(code));
+    }
+
+    static Stream<ClprThrottles> reducedAdvertisements() {
+        return Stream.of(
+                ADVERTISED.copyBuilder().maxMessagesPerBundle(1499).build(),
+                ADVERTISED.copyBuilder().maxQueueDepth(11999).build(),
+                ADVERTISED.copyBuilder().maxMessagePayloadBytes(89999).build(),
+                ADVERTISED.copyBuilder().maxSyncBytes(4999999).build());
+    }
+
+    @ParameterizedTest
+    @MethodSource("reducedAdvertisements")
+    void rejectsEachReducedPeerDeliveryLimitBeforeSubmissionAndAtConsensus(final ClprThrottles reduced) {
+        final var channel = CHANNEL.copyBuilder().peerThrottles(ADVERTISED).build();
+        final var config = LEDGER_CONFIG
+                .copyBuilder()
+                .timestamp(timestamp(11, 0))
+                .throttles(reduced)
+                .build();
+        final var content = bundle(channel, List.of(configPayload(config)));
+        assertPrevalidationRejected(channel, content, CLPR_BUNDLE_VERIFICATION_FAILED);
+        assertRejected(channel, content, CLPR_BUNDLE_VERIFICATION_FAILED);
+    }
+
+    @Test
+    void comparesWithTheLatestAdvertisementAcrossUpdatesWithoutThrottles() throws PreCheckException {
+        final var channel = CHANNEL.copyBuilder().peerThrottles(ADVERTISED).build();
+        final var raised = ADVERTISED
+                .copyBuilder()
+                .maxSyncBytes(6000000)
+                .maxGasPerMessage(500000)
+                .build();
+        final var first = configPayload(LEDGER_CONFIG
+                .copyBuilder()
+                .timestamp(timestamp(11, 0))
+                .throttles(raised)
+                .build());
+        final var omitted = configPayload(LEDGER_CONFIG
+                .copyBuilder()
+                .timestamp(timestamp(12, 0))
+                .throttles((ClprThrottles) null)
+                .build());
+        final var later = LEDGER_CONFIG.copyBuilder().timestamp(timestamp(13, 0));
+        final var accepted = bundle(
+                channel,
+                List.of(first, omitted, configPayload(later.throttles(raised).build())));
+        assertThat(subject.validate(channel, accepted, LEDGER_CONFIG).newMessages())
+                .hasSize(3);
+        subject.prevalidate(channel, accepted, LEDGER_CONFIG);
+        final var lowered = bundle(
+                channel,
+                List.of(
+                        first,
+                        omitted,
+                        configPayload(later.throttles(ADVERTISED).build())));
+        assertPrevalidationRejected(channel, lowered, CLPR_BUNDLE_VERIFICATION_FAILED);
+        assertRejected(channel, lowered, CLPR_BUNDLE_VERIFICATION_FAILED);
     }
 
     private static ClprBundleContent anchorBundle(final boolean hasAnchor, final boolean hasId) {

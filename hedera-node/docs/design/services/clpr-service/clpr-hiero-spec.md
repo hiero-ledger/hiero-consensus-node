@@ -346,18 +346,19 @@ admitted DATA has drained; supporting decreases would require an additional prot
 capacity mechanism in a future change.
 
 Peers must not enqueue new DATA beyond the latest advertised outstanding-DATA credit.
-Incoming peer configuration updates still govern new sends to that peer; an external peer's
-lower credit does not discard already outstanding DATA. A peer that disregards advertised
-credit has no liveness guarantee; force-close provides administrative recovery. Limits
-lowered before this expand-only rule cannot be reconstructed from the current configuration;
-force-close remains available for legacy channels that cannot drain.
+Incoming peer configuration updates must also preserve all four delivery limits. A decrease
+rejects the entire bundle with `CLPR_BUNDLE_VERIFICATION_FAILED` before any application
+dispatch. Each update is compared with the most recent advertisement, including earlier updates
+in the same bundle. Omitting throttles preserves the previous advertisement. Limits lowered
+before this rule took effect cannot be reconstructed from the current configuration.
 
 An inbound bundle accepts the longest prefix whose generated replies fit the reserve.
 Its received ID/hash and outbound DATA acknowledgement advance only through that prefix.
 One-way acknowledgements and independently proved anchor/manifest/status progress can
-advance even when no DATA fits. These queue-dependent decisions remain consensus-only,
-preserving the stale-state-safe admission checks from #27988: a relay can still pay a
-transaction fee when its bundle is rejected as full/no-progress at consensus.
+advance even when no DATA fits. Before paying to submit a bundle, the relay checks the
+prefix and any anchor or manifest growth against its working state. A full queue defers
+the bundle until a later sync. Consensus repeats the checks against current state and
+decides ordering and any cases for which local queue reads were inconclusive.
 
 Accepted inbound `ConfigUpdate` messages update both local loop variables and the channel
 store before later callbacks, so nested `sendMessage` calls see the new peer limits.
