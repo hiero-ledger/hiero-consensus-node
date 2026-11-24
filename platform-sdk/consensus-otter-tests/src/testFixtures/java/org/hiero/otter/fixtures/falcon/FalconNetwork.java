@@ -109,7 +109,7 @@ public class FalconNetwork extends SimulatedNetwork implements TimeTickReceiver 
      * @param observer the observer
      * @throws IllegalStateException if nodes have been added already, or an observer is already set
      */
-    public void observe(@NonNull final FalconObserver observer) {
+    public void registerObserver(@NonNull final FalconObserver observer) {
         throwIfNodesAdded("The observer must be set before nodes are added.");
         if (this.observer != null) {
             throw new IllegalStateException("An observer is already set");
@@ -127,7 +127,7 @@ public class FalconNetwork extends SimulatedNetwork implements TimeTickReceiver 
     protected void preStartHook(@NonNull final Roster roster) {
         super.preStartHook(roster);
         if (observer != null) {
-            observer.networkStarting(simulatedNetworkConnectivity(), timeManager.now());
+            observer.onNetworkStarting(simulatedNetworkConnectivity(), timeManager.now());
         }
     }
 
@@ -170,7 +170,7 @@ public class FalconNetwork extends SimulatedNetwork implements TimeTickReceiver 
                 signingSchema != null,
                 observer);
         if (observer != null) {
-            observer.nodeAdded(nodeId, true);
+            observer.onNodeAdded(nodeId, true);
         }
         addEventReceiver(node);
         return node;
@@ -203,7 +203,7 @@ public class FalconNetwork extends SimulatedNetwork implements TimeTickReceiver 
                 transactionShape,
                 signingSchema != null);
         if (observer != null) {
-            observer.nodeAdded(nodeId, false);
+            observer.onNodeAdded(nodeId, false);
         }
         addEventReceiver(node);
         return node;

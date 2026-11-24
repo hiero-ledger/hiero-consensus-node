@@ -71,7 +71,7 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver, 
     /** Whether this node signs its events with its own key. */
     private final boolean signEvents;
 
-    /** Is given the consensus rounds this node reaches, or {@code null} if nothing is. */
+    /** Can observe environment initialization and progress of consensus in the network. */
     @Nullable
     private final FalconObserver observer;
 
@@ -269,7 +269,7 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver, 
             // interned in the consensus round pool, which carries the reached timestamp of the first node that reported
             // the round, not the one of this node.
             wiring.consensusRoundOutputWire()
-                    .solderTo("FalconObserver", "consensus round", round -> observer.consensusRound(selfId, round));
+                    .solderTo("FalconObserver", "consensus round", round -> observer.onConsensusRound(selfId, round));
         }
         wiring.consensusRoundOutputWire()
                 .solderTo("ResultsCollector", "consensus round", resultsCollector::addConsensusRound);

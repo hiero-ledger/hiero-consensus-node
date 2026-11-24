@@ -42,11 +42,12 @@ class FalconObserverTest {
     private static void runObservedNetwork(@NonNull final FalconTestEnvironment env) {
         final FalconNetwork network = env.network();
         final RecordingObserver observer = new RecordingObserver();
-        network.observe(observer);
+        network.registerObserver(observer);
 
         network.addNodes(2);
         network.addMiniNodes(2);
-        assertThatThrownBy(() -> network.observe(new FalconObserver() {})).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> network.registerObserver(new FalconObserver() {}))
+                .isInstanceOf(IllegalStateException.class);
         assertThat(observer.fullNodes).hasSize(2);
         assertThat(observer.miniNodes).hasSize(2);
         assertThat(observer.startedAt).isNull();
@@ -73,7 +74,7 @@ class FalconObserverTest {
             final FalconNetwork network = env.network();
             network.addMiniNodes(1);
 
-            assertThatThrownBy(() -> network.observe(new FalconObserver() {}))
+            assertThatThrownBy(() -> network.registerObserver(new FalconObserver() {}))
                     .isInstanceOf(IllegalStateException.class);
         } finally {
             env.destroy();
@@ -91,19 +92,19 @@ class FalconObserverTest {
         private Instant startedAt;
 
         @Override
-        public void nodeAdded(@NonNull final NodeId nodeId, final boolean fullNode) {
+        public void onNodeAdded(@NonNull final NodeId nodeId, final boolean fullNode) {
             (fullNode ? fullNodes : miniNodes).add(nodeId);
         }
 
         @Override
-        public void networkStarting(@NonNull final SimulatedNetworkConnectivity network, @NonNull final Instant now) {
+        public void onNetworkStarting(@NonNull final SimulatedNetworkConnectivity network, @NonNull final Instant now) {
             assertThat(roundsByNode).isEmpty();
             startedAt = now;
             network.addObserver((event, submitter, time) -> submitters.add(submitter));
         }
 
         @Override
-        public void consensusRound(@NonNull final NodeId nodeId, @NonNull final ConsensusRound round) {
+        public void onConsensusRound(@NonNull final NodeId nodeId, @NonNull final ConsensusRound round) {
             roundsByNode.merge(nodeId, 1, Integer::sum);
         }
     }
