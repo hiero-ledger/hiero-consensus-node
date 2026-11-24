@@ -293,6 +293,10 @@ At default settings the largest proof is 126 KiB. Sync resumes at the first unre
 When a queued head and a new manifest cannot fit in one proof, the sender sends the head with
 the channel receipt first. A later proof can install the manifest once the receiver has drained its DATA.
 A native sender can send the manifest alone when it has no deliverable queued head.
+If the peer still needs the manifest and requests the same message range again, the sender
+alternates manifest offers with channel proofs that carry any queued messages and the current
+receipt. A receipt can release the peer's last outstanding reply even when the sender's queue
+is empty. The next manifest offer can then succeed at the same receive ID.
 Prevalidation checks the complete encoded call against the receiver's configured calldata limit.
 Hiero caps new DATA and replies at 64 KiB. For a single message, the sender reserves
 23 KiB for the native TSS signature, both Merkle paths and framing. It also reserves the

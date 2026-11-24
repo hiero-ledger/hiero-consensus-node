@@ -35,6 +35,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.function.ToLongFunction;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -58,6 +60,9 @@ public class ClprStateProofManager {
     private final ClprHieroProofSupport hieroProofSupport;
     private final ConfigProvider configProvider;
 
+    // Node-local retry state shared by successive syncs. At most one outstanding manifest offer per channel.
+    private final ConcurrentMap<Bytes, Long> manifestOfferStarts = new ConcurrentHashMap<>();
+
     @Inject
     public ClprStateProofManager(
             @NonNull final BlockProvenSnapshotProvider snapshotProvider,
@@ -68,6 +73,26 @@ public class ClprStateProofManager {
         this.tssVerifier = requireNonNull(tssVerifier);
         this.hieroProofSupport = requireNonNull(hieroProofSupport);
         this.configProvider = requireNonNull(configProvider);
+    }
+
+    /** Discards retry state when the channel closes. */
+    public void forgetManifestOffer(@NonNull final Bytes channelId) {
+        manifestOfferStarts.remove(channelId);
+    }
+
+    private boolean retryWithoutManifest(
+            final Bytes channelId, final long firstMessageId, final boolean peerNeedsManifest) {
+        if (!peerNeedsManifest) {
+            forgetManifestOffer(channelId);
+            return false;
+        }
+        // If the peer asks for the same range again, skip the manifest for one attempt. Removing the
+        // entry re-arms the manifest even if a pure ACK frees a slot without advancing the receive ID.
+        return manifestOfferStarts.merge(
+                        channelId,
+                        firstMessageId,
+                        (previous, requested) -> previous.equals(requested) ? null : requested)
+                == null;
     }
 
     /**
@@ -317,26 +342,22 @@ public class ClprStateProofManager {
      *
      * <p>Trims the message tail to fit both the peer's framed sync limit and the local
      * verifier calldata budget after reserving its ABI arguments. Messages that don't fit
-     * stay in the outbound queue and are picked up by the next sync tick — no bookkeeping needed
-     * since the queue is keyed by {@code messageId}. If the peer needs the endpoint manifest and
-     * it fits on its own but cannot fit alongside the first message, prove just the manifest
-     * without queue metadata. When the peer reports that version, send the queued head.
-     * Omit a manifest that exceeds the limit even on its own.
+     * stay queued for a later sync. A stale manifest normally travels with the channel and its
+     * messages. If the first message only fits without the manifest, send the message first.
+     * A native proof can carry a standalone manifest when the queue is empty and the combined
+     * proof does not fit.
      *
-     * <p>When the local outbound queue has no message at {@code firstMessageId} the behaviour
-     * depends on {@code allowPureAck}: responder paths pass {@code true} so the channel-only
-     * proof is still emitted (a pure-ACK bundle carrying just the channel leaf — the peer
-     * learns the current {@code receivedMessageId} / {@code receivedRunningHash} ack frontier).
-     * Initiator paths also pass {@code true} for CLOSING and DRAINED channels so the peer learns
-     * the proven closing status even with an empty queue. Other initiator paths pass {@code false}
-     * to skip the bundle unless it carries messages or an endpoint manifest update.
+     * <p>If the peer still requests the same message range and a manifest update, alternate
+     * manifest offers with channel proofs. A channel proof delivers DATA or a receipt independently
+     * of a manifest the peer cannot yet install. This includes active initiators with an empty queue.
+     * Otherwise, a channel-only proof is permitted only when the caller requests a pure ACK.
      *
      * @param channelId   raw bytes of the channel identifier
      * @param firstMessageId first outbound message ID to include (= ackedMessageId + 1)
      * @param peerThrottles  peer-published throttles governing this bundle (max messages, max bytes)
      * @param allowPureAck   when true, emit a channel-only (pure-ACK) bundle if no message
-     *                       leaves are available; when false, require messages or an endpoint manifest update
-     * @param includeEndpointManifest  when true, embed a Merkle path for this ledger's
+     *                       leaves are available outside a manifest retry
+     * @param includeEndpointManifest  when true, offer a Merkle path for this ledger's
      *                       {@code ClprEndpointManifest} singleton so the peer's verifyBundle can
      *                       return {@code new_endpoint_manifest} and Step 1b applies the update
      *                       (spec §4.5, ADR "Propagating updates"). Callers pass {@code true} only
@@ -646,7 +667,8 @@ public class ClprStateProofManager {
 
         // ── Endpoint manifest singleton leaf (spec §4.9) ──────────────────────────
         StateProof standaloneManifest = null;
-        if (includeEndpointManifest) {
+        final boolean retryWithoutManifest = retryWithoutManifest(channelId, firstMessageId, includeEndpointManifest);
+        if (includeEndpointManifest && !retryWithoutManifest) {
             addEndpointManifest(allPaths, binaryState, channelId, extendedSibs, digest);
             if (nativeProof && allPaths.size() > 1) {
                 allPaths.add(ClprProofTimestamp.pathFor(allPaths.getLast(), tsBytes, digest));
@@ -755,25 +777,15 @@ public class ClprStateProofManager {
                     firstMessageId);
         }
 
-        // A channel proof with no message leaves carries the channel's status and current ack frontier
-        // (channel.receivedMessageId / receivedRunningHash), plus any requested endpoint
-        // manifest. Responder paths (`allowPureAck=true`) need this so they can acknowledge
-        // an inbound message even when the local outbound queue is empty — without it, the
-        // peer never learns its message was received and replays forever. Initiators also pass
-        // `allowPureAck=true` during shutdown to propagate their proven CLOSING or DRAINED status.
-        //
-        // An initiator (`allowPureAck=false`) with an empty queue still has meaningful work when
-        // it must push a manifest advance the peer has not observed — a moved endpoint has to
-        // propagate or peers stay stuck dialing the stale address. So permit a manifest-only
-        // bundle when the manifest will actually be carried.
-        // Skip only when there are no messages, no permitted channel-only proof, and no manifest to send.
+        // A responder, a closing initiator, or a manifest retry may carry a receipt without messages.
+        // An undeliverable queued head must never become a channel-only proof attesting a later queue tip.
         if (messageLeafCount == 0) {
             if (!hasManifestPath
                     && standaloneManifest != null
                     && payloadSize.applyAsLong(standaloneManifest) <= maxBundlePayloadBytes) {
                 return new BundleProof(StateProof.PROTOBUF.toBytes(standaloneManifest), 0, firstMessageId - 1);
             }
-            if (headTooLarge || (!allowPureAck && !hasManifestPath)) {
+            if (headTooLarge || (!allowPureAck && !retryWithoutManifest && !hasManifestPath)) {
                 log.debug(
                         "[CLPR-BUNDLE-BUILD] no queued messages and no manifest to push; skipping initiator "
                                 + "bundle conn={} firstMessageId={}",
@@ -783,7 +795,7 @@ public class ClprStateProofManager {
             }
             log.debug(
                     "[CLPR-BUNDLE-BUILD] building {} bundle conn={} firstMessageId={}",
-                    allowPureAck ? "pure-ack" : "manifest-only",
+                    hasManifestPath ? "channel + manifest" : "pure-ack",
                     channelId,
                     firstMessageId);
         }

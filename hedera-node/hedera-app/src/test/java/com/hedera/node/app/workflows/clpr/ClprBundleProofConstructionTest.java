@@ -75,6 +75,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -316,6 +317,29 @@ class ClprBundleProofConstructionTest {
                 .asString()
                 .contains("head message " + FIRST_MESSAGE_ID + " alone exceeds the effective proof budget")
                 .contains("channel=" + CHANNEL_ID, "candidateBytes=", "maxSyncBytes=8192");
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {0, 1})
+    void compactInitiatorRetriesStaleManifestWithChannelProof(final int queuedMessages) throws Exception {
+        final var channel = channel(queuedMessages, 8_192);
+        givenQueue(channel, 1, true);
+        // Each cycle creates a new producer but uses the same peer report and node's proof manager.
+        for (final boolean expectManifest : List.of(true, false, true)) {
+            final var payload = requireNonNull(producer(channel, SIGNING_KEY).next(true));
+            final var proof = ClprHieroProofCodec.decodeEnvelope(payload).stateProofOrThrow();
+            final var values = new ArrayList<StateValue>();
+            for (final var path : proof.paths()) {
+                values.add(StateItem.PROTOBUF.parse(path.stateItemLeafOrThrow()).valueOrThrow());
+            }
+            assertThat(values).filteredOn(StateValue::hasClprServiceIChannels).hasSize(1);
+            assertThat(values)
+                    .filteredOn(StateValue::hasClprServiceIMessageQueue)
+                    .hasSize(queuedMessages);
+            assertThat(values)
+                    .filteredOn(StateValue::hasClprServiceIEndpointManifest)
+                    .hasSize(expectManifest ? 1 : 0);
+        }
     }
 
     @Test

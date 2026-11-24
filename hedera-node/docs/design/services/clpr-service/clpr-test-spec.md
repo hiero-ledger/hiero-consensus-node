@@ -558,6 +558,12 @@ DRAINED as part of initiating the close.
   queued head fits. Compact proofs always include the channel leaf. An unfit head must never result
   in a channel-only offer attesting a queue tip ahead of the receiver. A duplicate verified manifest
   returns `CLPR_NO_PROGRESS`.
+- With an empty queue after a terminal reply arrives, verify that a receipt reaches the peer even
+  when a standalone manifest was deferred. The next sync must install the manifest at the same receive ID.
+- Rotate both manifests while each peer has undelivered DATA. Make both combined proofs fit the wire
+  but exceed the receiver's budget for its outstanding slot after manifest growth. With no new
+  application traffic, verify the DATA and terminal replies are delivered, both queues drain, and
+  both new manifests install.
 - Against a 4 MiB peer, queue two maximum-size DATA messages and a successor. Verify that separate
   prefixes deliver all three in order and that their terminal replies reach the source application.
 

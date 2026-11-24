@@ -12,6 +12,8 @@ import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.res
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -74,7 +76,9 @@ import java.math.BigInteger;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Stream;
@@ -248,137 +252,255 @@ class VerifyBundleCallTest {
             assertThat((byte[]) manifestStruct.get(1)).isEqualTo(SERVICE_ADDR.toByteArray());
         }
 
+        private final VersionedConfigImpl configuration = new VersionedConfigImpl(
+                HederaTestConfigBuilder.create()
+                        .withValue("clpr.verifyProofsAtSender", false)
+                        .withValue("jumboTransactions.ethereumMaxCallDataSize", 64 * 1024)
+                        .getOrCreateConfig(),
+                0);
+        private final ClprThrottles limits = ClprThrottles.newBuilder()
+                .maxQueueDepth(10)
+                .maxMessagesPerBundle(10)
+                .maxMessagePayloadBytes(16 * 1024)
+                .maxSyncBytes(4 * 1024 * 1024)
+                .build();
+        private final ClprLedgerConfiguration ledgerConfig =
+                ClprLedgerConfiguration.newBuilder().throttles(limits).build();
+        private final ClprBundleValidator validator = new ClprBundleValidator();
+
         @ParameterizedTest
         @ValueSource(ints = {30, 34})
         void terminalReplyDrainsDataBeforeLargerManifestInstalls(final int senderAnchorKiB) throws Exception {
-            final var configuration = new VersionedConfigImpl(
-                    HederaTestConfigBuilder.create()
-                            .withValue("clpr.verifyProofsAtSender", false)
-                            .withValue("jumboTransactions.ethereumMaxCallDataSize", 64 * 1024)
-                            .getOrCreateConfig(),
-                    0);
-            final var limits = ClprThrottles.newBuilder()
-                    .maxQueueDepth(10)
-                    .maxMessagesPerBundle(10)
-                    .maxMessagePayloadBytes(16 * 1024)
-                    .maxSyncBytes(4 * 1024 * 1024)
+            final var a = new Peer(22);
+            final var b = new Peer(senderAnchorKiB);
+            a.enqueue(data(12));
+            b.apply(a.offerTo(b, false));
+            final var reply = reply(4);
+            b.enqueue(reply);
+            b.rotateManifest(50211);
+
+            final var standalone = validator.validate(
+                    a.channel,
+                    ClprBundleContent.newBuilder()
+                            .newEndpointManifest(b.manifest)
+                            .build(),
+                    ledgerConfig);
+            assertThatThrownBy(() -> a.apply(standalone)).has(responseCode(CLPR_QUEUE_FULL));
+
+            final var delivery = b.offerTo(a, false);
+            assertThat(delivery.shouldUpdateManifest()).isFalse();
+            assertThat(delivery.newMessages()).containsExactly(reply);
+            a.apply(delivery);
+            assertThat(a.queue).isEmpty();
+
+            a.apply(b.offerTo(a, false));
+            assertThat(a.channel.endpointManifest()).isEqualTo(b.manifest);
+        }
+
+        @ParameterizedTest
+        @ValueSource(booleans = {false, true})
+        void emptyQueueRetriesWithReceiptThenInstallsStandaloneManifest(final boolean allowPureAck) throws Exception {
+            final var a = new Peer(22);
+            final var b = new Peer(34);
+            b.enqueue(data(1));
+            a.apply(b.offerTo(a, false));
+            a.enqueue(reply(4));
+            b.apply(a.offerTo(b, false));
+            assertThat(b.queue).isEmpty();
+            assertThat(a.queue).hasSize(1);
+            b.rotateManifest(50211);
+
+            final var first = b.offerTo(a, allowPureAck);
+            assertThat(first.content().metadata()).isNull();
+            assertThat(first.shouldUpdateManifest()).isTrue();
+            assertThatThrownBy(() -> a.apply(first)).has(responseCode(CLPR_QUEUE_FULL));
+
+            final var receipt = b.offerTo(a, allowPureAck);
+            assertThat(receipt.shouldUpdateManifest()).isFalse();
+            assertThat(receipt.newMessages()).isEmpty();
+            assertThat(receipt.content().metadataOrThrow().receivedMessageId()).isOne();
+            a.apply(receipt);
+            assertThat(a.queue).isEmpty();
+            // Receiving a pure ACK did not change A's advertised receive ID or manifest version.
+            a.apply(b.offerTo(a, allowPureAck));
+            assertThat(a.channel.endpointManifest()).isEqualTo(b.manifest);
+        }
+
+        @Test
+        void simultaneousManifestRotationsDrainBothQueuesAfterTrafficStops() throws Exception {
+            final var a = new Peer(18);
+            final var b = new Peer(18);
+            final var dataA = data(10);
+            final var dataB = data(11);
+            a.enqueue(dataA);
+            b.enqueue(dataB);
+            a.rotateManifest(50211);
+            b.rotateManifest(50212);
+
+            // Both combined proofs fit the wire but would strand the receiver's own admitted DATA.
+            final var firstA = a.offerTo(b, false);
+            final var firstB = b.offerTo(a, true);
+            assertThat(firstA.newMessages()).containsExactly(dataA);
+            assertThat(firstB.newMessages()).containsExactly(dataB);
+            assertThat(firstA.shouldUpdateManifest()).isTrue();
+            assertThat(firstB.shouldUpdateManifest()).isTrue();
+            assertThatThrownBy(() -> b.apply(firstA)).has(responseCode(CLPR_QUEUE_FULL));
+            assertThatThrownBy(() -> a.apply(firstB)).has(responseCode(CLPR_QUEUE_FULL));
+
+            final var retryA = a.offerTo(b, false);
+            final var retryB = b.offerTo(a, true);
+            assertThat(retryA.shouldUpdateManifest()).isFalse();
+            assertThat(retryB.shouldUpdateManifest()).isFalse();
+            assertThat(retryA.newMessages()).containsExactly(dataA);
+            assertThat(retryB.newMessages()).containsExactly(dataB);
+            b.apply(retryA);
+            a.apply(retryB);
+            // Only the terminal replies generated by those deliveries remain to be sent.
+            a.enqueue(reply(0));
+            b.enqueue(reply(0));
+            final var replyA = a.offerTo(b, false);
+            final var replyB = b.offerTo(a, true);
+            b.apply(replyA);
+            a.apply(replyB);
+            assertThat(a.channel.endpointManifest()).isEqualTo(b.manifest);
+            assertThat(b.channel.endpointManifest()).isEqualTo(a.manifest);
+            // Each peer with an outstanding reply polls the other for its receipt.
+            a.apply(b.offerTo(a, true));
+            b.apply(a.offerTo(b, true));
+            assertThat(a.queue).isEmpty();
+            assertThat(b.queue).isEmpty();
+            assertThat(a.channel.ackedMessageId()).isEqualTo(2);
+            assertThat(b.channel.ackedMessageId()).isEqualTo(2);
+        }
+
+        private static ClprMessagePayload data(final int kib) {
+            return ClprMessagePayload.newBuilder()
+                    .message(ClprMessage.newBuilder().messageData(Bytes.wrap(new byte[kib * 1024])))
                     .build();
-            final var config =
-                    ClprLedgerConfiguration.newBuilder().throttles(limits).build();
-            final var manifest = ClprEndpointManifest.newBuilder()
-                    .version(2)
-                    .serviceAddress(SERVICE_ADDR)
-                    .endpoints(ClprEndpoint.newBuilder()
-                            .serviceEndpoint(ClprServiceEndpoint.newBuilder()
-                                    .ipAddress("127.0.0.1")
-                                    .port(50211))
-                            .tlsCertificate(Bytes.wrap(new byte[15 * 1024]))
-                            .build())
-                    .build();
-            final var zeroHash = Bytes.wrap(new byte[32]);
-            final var data = ClprMessagePayload.newBuilder()
-                    .message(ClprMessage.newBuilder().messageData(Bytes.wrap(new byte[12 * 1024])))
-                    .build();
-            final var dataHash = ClprHashUtils.computeRunningHash(zeroHash, data);
-            final var reply = ClprMessagePayload.newBuilder()
+        }
+
+        private static ClprMessagePayload reply(final int kib) {
+            return ClprMessagePayload.newBuilder()
                     .messageReply(ClprMessageReply.newBuilder()
                             .messageId(1)
                             .status(ClprMessageReplyStatus.SUCCESS)
-                            .messageReplyData(Bytes.wrap(new byte[4 * 1024])))
+                            .messageReplyData(Bytes.wrap(new byte[kib * 1024])))
                     .build();
-            final var replyHash = ClprHashUtils.computeRunningHash(zeroHash, reply);
-
-            final var a = ClprChannel.newBuilder()
-                    .channelId(CHANNEL_ID)
-                    .status(ClprChannelStatus.ACTIVE)
-                    .trustAnchor(Bytes.wrap(new byte[22 * 1024]))
-                    .peerThrottles(limits)
-                    .nextMessageId(2)
-                    .sentRunningHash(dataHash)
-                    .receivedRunningHash(zeroHash)
-                    .build();
-            final var b = ClprChannel.newBuilder()
-                    .channelId(CHANNEL_ID)
-                    .status(ClprChannelStatus.ACTIVE)
-                    .trustAnchor(Bytes.wrap(new byte[senderAnchorKiB * 1024]))
-                    .peerThrottles(limits)
-                    .nextMessageId(2)
-                    .sentRunningHash(replyHash)
-                    .receivedMessageId(1)
-                    .receivedRunningHash(dataHash)
-                    .build();
-            assertThat(data.protobufSize())
-                    .isLessThanOrEqualTo((int) senderPayloadBudget(configuration, a, limits.maxSyncBytes()));
-            assertThat(reply.protobufSize())
-                    .isLessThanOrEqualTo((int) senderPayloadBudget(configuration, b, limits.maxSyncBytes()));
-            final var manager = proofManagerFor(b, manifest, new ClprMessageValue(reply, replyHash), configuration);
-            final var validator = new ClprBundleValidator();
-            final var queue = mock(ReadableMessageQueueStore.class);
-            given(queue.getMessage(CHANNEL_ID, 1)).willReturn(new ClprMessageValue(data, dataHash));
-
-            // A cannot accept B's larger manifest while its admitted DATA is waiting for B's receipt.
-            final var updateOnly = validator.validate(
-                    a,
-                    ClprBundleContent.newBuilder().newEndpointManifest(manifest).build(),
-                    config);
-            assertThatThrownBy(() ->
-                            validator.channelAfterStateUpdates(a, updateOnly, limits, configuration, queue, false))
-                    .has(responseCode(CLPR_QUEUE_FULL));
-
-            // B has both updates available. Its first proof carries the receipt and the terminal reply.
-            final var first = Objects.requireNonNull(manager.buildBundleProof(CHANNEL_ID, 1, limits, false, true));
-            final var delivery = receive(first, a, config);
-            assertThat(delivery.shouldUpdateManifest()).isFalse();
-            assertThat(delivery.newMessages()).containsExactly(reply);
-            final var ack = (ClprBundleValidator.ReplyValidation.AckedThrough)
-                    validator.validateReplies(a, delivery, queue, limits.maxQueueDepth());
-            assertThat(ack.lastAckedMessageId()).isOne();
-            assertThat(ack.acceptedMessageCount()).isOne();
-            final var drained = a.copyBuilder()
-                    .ackedMessageId(ack.lastAckedMessageId())
-                    .receivedMessageId(first.lastMessageId())
-                    .receivedRunningHash(delivery.receivedRunningHash())
-                    .build();
-
-            final var second = Objects.requireNonNull(
-                    manager.buildBundleProof(CHANNEL_ID, drained.receivedMessageId() + 1, limits, false, true));
-            final var update = receive(second, drained, config);
-            final var installed =
-                    validator.channelAfterStateUpdates(drained, update, limits, configuration, queue, false);
-            assertThat(installed.endpointManifestVersion()).isEqualTo(manifest.version());
-            assertThat(installed.endpointManifest()).isEqualTo(manifest);
         }
 
-        private ClprStateProofManager proofManagerFor(
-                final ClprChannel channel,
-                final ClprEndpointManifest manifest,
-                final ClprMessageValue message,
-                final VersionedConfigImpl config) {
-            final var state = mock(State.class, withSettings().extraInterfaces(BinaryState.class));
-            final var binary = (BinaryState) state;
-            final var key = new ClprMessageKey(CHANNEL_ID, 1);
-            given(binary.getKvPath(CHANNELS_STATE_ID, ProtoBytes.PROTOBUF.toBytes(new ProtoBytes(CHANNEL_ID))))
-                    .willReturn(1L);
-            given(binary.getSingletonPath(ENDPOINT_MANIFEST_STATE_ID)).willReturn(2L);
-            given(binary.getKvPath(MESSAGE_QUEUE_STATE_ID, ClprMessageKey.PROTOBUF.toBytes(key)))
-                    .willReturn(3L);
-            given(binary.getKvPath(
-                            MESSAGE_QUEUE_STATE_ID, ClprMessageKey.PROTOBUF.toBytes(new ClprMessageKey(CHANNEL_ID, 2))))
-                    .willReturn(-1L);
-            given(binary.getMerkleProof(1))
-                    .willReturn(new MerkleProof(BundleRange.channelLeaf(channel), List.of(), List.of()));
-            given(binary.getMerkleProof(2)).willReturn(new MerkleProof(manifestLeaf(manifest), List.of(), List.of()));
-            given(binary.getMerkleProof(3))
-                    .willReturn(new MerkleProof(keyedMessageLeaf(CHANNEL_ID, 1, message), List.of(), List.of()));
-            final var snapshot = mock(BlockProvenSnapshot.class);
-            given(snapshot.state()).willReturn(state);
-            given(snapshot.path()).willReturn(MerklePath.DEFAULT);
-            given(snapshot.tssSignature()).willReturn(Bytes.wrap(new byte[13_712]));
-            given(snapshot.blockTimestamp()).willReturn(Timestamp.DEFAULT);
-            final var snapshots = mock(BlockProvenSnapshotProvider.class);
-            given(snapshots.latestSnapshot()).willReturn(Optional.of(snapshot));
-            return new ClprStateProofManager(
-                    snapshots, mock(TssVerifier.class), () -> config, mock(ClprHieroProofSupport.class));
+        /** Each peer offers proofs from its own queue and uses the other peer's committed receive ID and version. */
+        private class Peer implements ReadableMessageQueueStore {
+            private final Map<Long, ClprMessageValue> queue = new HashMap<>();
+            private final ClprStateProofManager manager;
+            private ClprEndpointManifest manifest = ClprEndpointManifest.newBuilder()
+                    .version(1)
+                    .serviceAddress(SERVICE_ADDR)
+                    .build();
+            private ClprChannel channel;
+
+            Peer(final int anchorKiB) {
+                final var zeroHash = Bytes.wrap(new byte[32]);
+                channel = ClprChannel.newBuilder()
+                        .channelId(CHANNEL_ID)
+                        .status(ClprChannelStatus.ACTIVE)
+                        .trustAnchor(Bytes.wrap(new byte[anchorKiB * 1024]))
+                        .peerThrottles(limits)
+                        .nextMessageId(1)
+                        .receivedRunningHash(zeroHash)
+                        .sentRunningHash(zeroHash)
+                        .endpointManifest(manifest)
+                        .endpointManifestVersion(manifest.version())
+                        .build();
+                final var state = mock(State.class, withSettings().extraInterfaces(BinaryState.class));
+                final var binary = (BinaryState) state;
+                given(binary.getKvPath(CHANNELS_STATE_ID, ProtoBytes.PROTOBUF.toBytes(new ProtoBytes(CHANNEL_ID))))
+                        .willReturn(1L);
+                lenient()
+                        .when(binary.getSingletonPath(ENDPOINT_MANIFEST_STATE_ID))
+                        .thenReturn(2L);
+                given(binary.getKvPath(eq(MESSAGE_QUEUE_STATE_ID), any())).willAnswer(call -> {
+                    final Bytes key = call.getArgument(1);
+                    final long id = ClprMessageKey.PROTOBUF.parse(key).messageId();
+                    return queue.containsKey(id) ? 2 + id : -1L;
+                });
+                given(binary.getMerkleProof(anyLong())).willAnswer(call -> {
+                    final long path = call.getArgument(0);
+                    final var leaf = switch (Math.toIntExact(path)) {
+                        case 1 -> BundleRange.channelLeaf(channel);
+                        case 2 -> manifestLeaf(manifest);
+                        default -> keyedMessageLeaf(CHANNEL_ID, path - 2, queue.get(path - 2));
+                    };
+                    return new MerkleProof(leaf, List.of(), List.of());
+                });
+                final var snapshot = mock(BlockProvenSnapshot.class);
+                given(snapshot.state()).willReturn(state);
+                given(snapshot.path()).willReturn(MerklePath.DEFAULT);
+                given(snapshot.tssSignature()).willReturn(Bytes.wrap(new byte[13_712]));
+                given(snapshot.blockTimestamp()).willReturn(Timestamp.DEFAULT);
+                final var snapshots = mock(BlockProvenSnapshotProvider.class);
+                given(snapshots.latestSnapshot()).willReturn(Optional.of(snapshot));
+                manager = new ClprStateProofManager(
+                        snapshots, mock(TssVerifier.class), () -> configuration, mock(ClprHieroProofSupport.class));
+            }
+
+            @Override
+            public ClprMessageValue getMessage(@NonNull final Bytes channelId, final long messageId) {
+                return CHANNEL_ID.equals(channelId) ? queue.get(messageId) : null;
+            }
+
+            @Override
+            public long sizeOfState() {
+                return queue.size();
+            }
+
+            void rotateManifest(final int port) {
+                manifest = manifest.copyBuilder()
+                        .version(manifest.version() + 1)
+                        .endpoints(ClprEndpoint.newBuilder()
+                                .serviceEndpoint(ClprServiceEndpoint.newBuilder()
+                                        .ipAddress("127.0.0.1")
+                                        .port(port))
+                                .tlsCertificate(Bytes.wrap(new byte[15 * 1024]))
+                                .build())
+                        .build();
+            }
+
+            void enqueue(final ClprMessagePayload payload) {
+                assertThat(payload.protobufSize())
+                        .isLessThanOrEqualTo((int) senderPayloadBudget(configuration, channel, limits.maxSyncBytes()));
+                final var hash = ClprHashUtils.computeRunningHash(channel.sentRunningHash(), payload);
+                queue.put(channel.nextMessageId(), new ClprMessageValue(payload, hash));
+                channel = channel.copyBuilder()
+                        .sentRunningHash(hash)
+                        .nextMessageId(channel.nextMessageId() + 1)
+                        .build();
+            }
+
+            ClprBundleValidator.ValidatedBundle offerTo(final Peer peer, final boolean allowPureAck) throws Exception {
+                final var proof = Objects.requireNonNull(manager.buildBundleProof(
+                        CHANNEL_ID,
+                        peer.channel.receivedMessageId() + 1,
+                        limits,
+                        allowPureAck,
+                        peer.channel.endpointManifestVersion() < manifest.version()));
+                return receive(proof, peer.channel, ledgerConfig);
+            }
+
+            void apply(final ClprBundleValidator.ValidatedBundle delivery) throws Exception {
+                validator.prevalidateCapacity(channel, delivery, limits, configuration, this);
+                final var updated =
+                        validator.channelAfterStateUpdates(channel, delivery, limits, configuration, this, false);
+                final var ack = (ClprBundleValidator.ReplyValidation.AckedThrough)
+                        validator.validateReplies(channel, delivery, this, limits.maxQueueDepth());
+                assertThat(ack.acceptedMessageCount())
+                        .isEqualTo(delivery.newMessages().size());
+                queue.keySet().removeIf(id -> id <= ack.lastAckedMessageId());
+                channel = updated.copyBuilder()
+                        .ackedMessageId(ack.lastAckedMessageId())
+                        .receivedMessageId(channel.receivedMessageId() + ack.acceptedMessageCount())
+                        .receivedRunningHash(delivery.receivedRunningHash())
+                        .build();
+            }
         }
 
         private ClprBundleValidator.ValidatedBundle receive(

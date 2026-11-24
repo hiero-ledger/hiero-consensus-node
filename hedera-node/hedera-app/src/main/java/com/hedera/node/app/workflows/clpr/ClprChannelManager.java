@@ -12,6 +12,7 @@ import com.hedera.hapi.node.state.clpr.ClprPeerEndpointsEntry;
 import com.hedera.node.app.service.clpr.ClprChannelLifecycle;
 import com.hedera.node.app.service.clpr.ClprService;
 import com.hedera.node.app.service.clpr.ReadableChannelStore;
+import com.hedera.node.app.service.clpr.impl.ClprStateProofManager;
 import com.hedera.node.app.service.clpr.impl.ReadableEndpointManifestStoreImpl;
 import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.config.ConfigProvider;
@@ -72,6 +73,7 @@ public class ClprChannelManager implements ClprChannelLifecycle {
     private final Set<String> ongoingChannelSyncs = ConcurrentHashMap.newKeySet();
     private final ClprSynchronizer synchronizer;
     private final ClprEndpointClientCache clientCache;
+    private final ClprStateProofManager stateProofManager;
 
     private volatile boolean started = false;
 
@@ -127,11 +129,13 @@ public class ClprChannelManager implements ClprChannelLifecycle {
             @NonNull final ConfigProvider configProvider,
             @NonNull final Supplier<AutoCloseableWrapper<State>> stateAccessor,
             @NonNull final ClprSynchronizer synchronizer,
-            @NonNull final ClprEndpointClientCache clientCache) {
+            @NonNull final ClprEndpointClientCache clientCache,
+            @NonNull final ClprStateProofManager stateProofManager) {
         this.configProvider = requireNonNull(configProvider);
         this.stateAccessor = requireNonNull(stateAccessor);
         this.synchronizer = requireNonNull(synchronizer);
         this.clientCache = requireNonNull(clientCache);
+        this.stateProofManager = requireNonNull(stateProofManager);
         final var clprConfig = configProvider.getConfiguration().getConfigData(ClprConfig.class);
         this.peerEndpointsPath = Paths.get(clprConfig.peerEndpointsFile());
         this.syncSemaphore = new Semaphore(clprConfig.maxConcurrentSyncs());
@@ -535,6 +539,7 @@ public class ClprChannelManager implements ClprChannelLifecycle {
         if (future != null) {
             future.cancel(false);
         }
+        stateProofManager.forgetManifestOffer(channelId);
         if (knownChannelIds.remove(channelId)) {
             peerEndpointCache.remove(channelId);
             peerObservedManifestVersions.remove(channelId);
