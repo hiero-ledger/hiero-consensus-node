@@ -18,8 +18,8 @@ import java.util.Queue;
 import java.util.function.IntConsumer;
 import org.hiero.consensus.main.TransactionLimits;
 import org.hiero.consensus.main.model.TimestampedTransaction;
+import org.hiero.consensus.main.model.legacy.EventTransactionSupplier;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.model.transaction.EventTransactionSupplier;
 
 /**
  * Store a list of transactions created by self, both system and non-system, for wrapping in the next event to be

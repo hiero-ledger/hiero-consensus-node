@@ -9,7 +9,7 @@ import org.hiero.base.crypto.SignatureType;
 import org.hiero.base.crypto.Signer;
 import org.hiero.base.crypto.SigningFactory;
 import org.hiero.base.crypto.SigningSchema;
-import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.main.model.KeysAndCerts;
 
 /**
  * An instance capable of signing data with the platforms private signing key. This class is not thread safe.
