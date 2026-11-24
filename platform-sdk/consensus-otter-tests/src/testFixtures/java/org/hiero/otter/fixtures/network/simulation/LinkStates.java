@@ -9,7 +9,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.function.ToIntFunction;
 import org.hiero.consensus.gossip.config.BroadcastConfig;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
 import org.hiero.otter.fixtures.network.Topology.ConnectionState;
 

@@ -33,7 +33,7 @@ import org.hiero.base.concurrent.locks.locked.Locked;
 import org.hiero.base.concurrent.manager.ThreadManager;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.config.RecycleBinConfig;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * A standard implementation of a {@link RecycleBin}.

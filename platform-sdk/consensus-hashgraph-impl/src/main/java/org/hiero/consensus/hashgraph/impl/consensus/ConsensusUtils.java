@@ -8,7 +8,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import org.hiero.base.crypto.CryptoConstants;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
-import org.hiero.consensus.model.event.Event;
+import org.hiero.consensus.main.model.Event;
 
 /** Various utility methods used by {@link ConsensusImpl} */
 public final class ConsensusUtils {

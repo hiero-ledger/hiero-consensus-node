@@ -18,8 +18,8 @@ import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.otter.docker.app.EventMessageFactory;
 import org.hiero.consensus.otter.docker.app.EventStreamManager;
@@ -252,12 +252,11 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
         }
 
         wrapWithErrorHandling(responseObserver, () -> {
-            final QuiescenceCommand command =
-                    switch (request.getCommand()) {
-                        case QUIESCE -> QuiescenceCommand.QUIESCE;
-                        case BREAK_QUIESCENCE -> QuiescenceCommand.BREAK_QUIESCENCE;
-                        default -> QuiescenceCommand.DONT_QUIESCE;
-                    };
+            final QuiescenceCommand command = switch (request.getCommand()) {
+                case QUIESCE -> QuiescenceCommand.QUIESCE;
+                case BREAK_QUIESCENCE -> QuiescenceCommand.BREAK_QUIESCENCE;
+                default -> QuiescenceCommand.DONT_QUIESCE;
+            };
 
             consensusNodeManager.sendQuiescenceCommand(command);
             responseObserver.onNext(Empty.getDefaultInstance());

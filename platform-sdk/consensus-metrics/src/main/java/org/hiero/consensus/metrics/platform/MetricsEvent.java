@@ -3,7 +3,7 @@ package org.hiero.consensus.metrics.platform;
 
 import com.swirlds.metrics.api.Metric;
 import java.util.Objects;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 public record MetricsEvent(Type type, NodeId nodeId, Metric metric) {
     public enum Type {

@@ -15,8 +15,8 @@ import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.PathsConfig;
 import org.hiero.consensus.fakes.noop.NoOpRecycleBin;
 import org.hiero.consensus.io.IOIterator;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pces.impl.common.PcesFile;
 import org.hiero.consensus.pces.impl.common.PcesFileReader;
 import org.hiero.consensus.pces.impl.common.PcesFileTracker;
@@ -77,7 +77,7 @@ public class SingleNodePcesResultImpl implements SingleNodePcesResult {
                 new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
         try {
             return getDatabaseDirectory(
-                    configuration, fileSystemManager, org.hiero.consensus.model.node.NodeId.of(nodeId));
+                    configuration, fileSystemManager, org.hiero.consensus.main.model.NodeId.of(nodeId));
         } catch (final IOException e) {
             throw new UncheckedIOException("Error resolving default PCES directory", e);
         }

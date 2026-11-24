@@ -108,7 +108,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Ed25519;
 import org.hiero.consensus.fakes.crypto.KeysAndCertsGenerator;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
 import org.junit.jupiter.api.DynamicTest;
 

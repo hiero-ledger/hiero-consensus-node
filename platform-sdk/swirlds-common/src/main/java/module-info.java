@@ -12,6 +12,7 @@ module com.swirlds.common {
     requires transitive com.swirlds.config.api;
     requires transitive org.hiero.base.concurrent;
     requires transitive org.hiero.base.utility;
+    requires transitive org.hiero.consensus.main.model;
     requires transitive org.hiero.consensus.model;
     requires com.swirlds.logging;
     requires jdk.httpserver;

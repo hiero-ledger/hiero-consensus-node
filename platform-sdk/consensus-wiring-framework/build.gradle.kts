@@ -34,8 +34,8 @@ jmhModuleInfo {
     requires("com.swirlds.config.extensions.test.fixtures")
     requires("org.hiero.base.concurrent")
     requires("org.hiero.consensus.benchmark.tools")
+    requires("org.hiero.consensus.main.model")
     requires("org.hiero.consensus.metrics")
-    requires("org.hiero.consensus.model")
     requires("org.hiero.consensus.wiring.framework")
     requires("jmh.core")
 }

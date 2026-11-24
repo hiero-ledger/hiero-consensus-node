@@ -7,6 +7,7 @@ open module org.hiero.otter.fixtures.test {
     requires org.apache.logging.log4j;
     requires org.assertj.core;
     requires org.hiero.consensus.fakes;
+    requires org.hiero.consensus.main.model;
     requires org.junit.jupiter.params;
     requires static com.github.spotbugs.annotations;
 }

@@ -43,6 +43,7 @@ module org.hiero.sloth.fixtures {
     requires transitive com.swirlds.state.api;
     requires transitive com.swirlds.state.impl;
     requires transitive org.hiero.consensus.gossip;
+    requires transitive org.hiero.consensus.main.model;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.utility.test.fixtures;
     requires transitive org.hiero.consensus.utility;
