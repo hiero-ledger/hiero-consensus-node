@@ -17,11 +17,9 @@ option java_multiple_files = true;
  * through CLOSING -> DRAINED -> CLOSED.
  *
  * When no Channel exists for channel_id and ownership_commitment is
- * set, the matching entry in PENDING_COMMITMENTS is deleted (admin sweep
- * of an abandoned commitment from a registerChannel that was never
- * completed).
+ * set, the admin can remove a matching legacy pending commitment.
  */
-message ClprCloseChannelTransactionBody {
+message ClprDeleteChannelTransactionBody {
     /**
      * 32-byte Channel ID to close.
      */

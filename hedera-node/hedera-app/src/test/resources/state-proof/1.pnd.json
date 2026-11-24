@@ -1,23 +1,18 @@
 {
   "block": "1",
-  "blockHash": "bf8uIiwZm7Q7HuyWNUyu0Vm7BKaU3EtfQMpn3cWMr3DndK3EIVcXVbI9vdRe4unV",
-  "previousBlockHash": "uSoOcoQxNudtZLRHmr5xRGFJ6ulFlCpVkJGy66zOy79Eblzud7HXmWraO10BGNBe",
+  "blockHash": "3GsDyydMAZ3g3DK8pVWMdPsSxvB94cNTqb7gz5j1r6o=",
+  "previousBlockHash": "V345hVUmqBjgUXFO8KkmQkf77EAGcIVzjDXETX6F/R4=",
   "blockTimestamp": {
     "seconds": "1767744172",
     "nanos": 723579000
   },
-  "siblingHashesFromPrevBlockRoot": [
-    {
-      "siblingHash": "22Cc+zCK8yffvlToVTOO0ob7kxVwbgrI76ynandyPxy0JXM7MckEa7oMGiGSfn+9"
-    },
-    {
-      "siblingHash": "TtLoClaJllMWDEK+IUUVBU84Ln4gFyE4YAsdDmZzwsMwiPxgiFNqpa1R7XxkolT9"
-    },
-    {
-      "siblingHash": "oKwy15WJ3erRqyA8hGUOlH4nX0y3ZD3YmWkS9f88YkyQq+JZG3lS9rRGXLH3AZnD"
-    },
-    {
-      "siblingHash": "z352R/V4BwBvT1hw0iELW0A40ACyv6cRvO639KMnNGtQxh/aTlxoEQsDznCPuRz4"
-    }
-  ]
+  "siblingHashesFromPrevBlockRoot": [{
+    "siblingHash": "V345hVUmqBjgUXFO8KkmQkf77EAGcIVzjDXETX6F/R4="
+  }, {
+    "siblingHash": "K5ccplzJd60CPsPFElUSyEsWG2OBhKil3JfEys45rGE="
+  }, {
+    "siblingHash": "njj29c+usz2lPZatLuvs4dmsuUkHc0vYNYVnZrzRu9s="
+  }, {
+    "siblingHash": "7Oy2QhhK0Ug+ZzyDrQxsWTl2tEHQcvkKUyPPPL+3AZc="
+  }]
 }

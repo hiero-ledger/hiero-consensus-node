@@ -115,7 +115,7 @@ public final class CantonProofVerifier implements ClprVerifier {
     private static final long VPD_VERSION_V32 = 32;
 
     /** The fields of {@code Channel} that the verifier reads, by position. */
-    private static final int CHANNEL_FIELDS = 26;
+    private static final int CHANNEL_FIELDS = 29;
 
     private static final int CONNECTOR_ID_LENGTH = 32;
     private static final int CHANNEL_APP = 1;
@@ -127,13 +127,14 @@ public final class CantonProofVerifier implements ClprVerifier {
     private static final int CHANNEL_BUNDLED_STATUS = 17;
     private static final int CHANNEL_BUNDLED_RECEIVED_HASH = 24;
     private static final int CHANNEL_BUNDLED_MANIFEST_HASH = 25;
+    private static final int CHANNEL_WRITE_FIRST_MESSAGE_ID = 28;
 
     private static final byte[] MODULE_A = "Clpr".getBytes(StandardCharsets.UTF_8);
     private static final byte[] MODULE_B = "Service".getBytes(StandardCharsets.UTF_8);
     private static final byte[] ENTITY_CHANNEL = "Channel".getBytes(StandardCharsets.UTF_8);
     private static final byte[] ENTITY_CLPR_APP = "ClprApp".getBytes(StandardCharsets.UTF_8);
     private static final byte[] ENTITY_CHANNEL_CONFIG = "ChannelConfig".getBytes(StandardCharsets.UTF_8);
-    private static final byte[] CHOICE_OPEN_CHANNEL = "OpenChannel".getBytes(StandardCharsets.UTF_8);
+    private static final byte[] CHOICE_CREATE_CHANNEL = "CreateChannel".getBytes(StandardCharsets.UTF_8);
     private static final byte[] CHOICE_UPDATE_ENDPOINT_MANIFEST =
             "UpdateEndpointManifest".getBytes(StandardCharsets.UTF_8);
 
@@ -152,9 +153,13 @@ public final class CantonProofVerifier implements ClprVerifier {
             @NonNull byte[] operator,
             @NonNull byte[] serviceAddress) {}
 
-    /** The queue metadata after a write, and the manifest hash that the written channel version carried (empty if none). */
+    /**
+     * The queue metadata after a write, the manifest hash that the written channel version carried (empty if none),
+     * and {@code written}, the number of messages the write itself wrote
+     * ({@code nextMessageId - writeFirstMessageId}).
+     */
     public record WriteResult(
-            @NonNull ClprQueueMetadata metadata, @NonNull byte[] manifestHash) {}
+            @NonNull ClprQueueMetadata metadata, @NonNull byte[] manifestHash, long written) {}
 
     /**
      * The calling service's live outbound message {@code messageId} on a channel, as the reference reads it with
@@ -166,6 +171,9 @@ public final class CantonProofVerifier implements ClprVerifier {
         @Nullable
         ClprMessagePayload find(@NonNull byte[] channelId, long messageId);
     }
+
+    /** A payload that passed {@link #checkPayload}: the strictly parsed message, and whether it is a REPLY. */
+    public record CheckedPayload(@NonNull ClprMessagePayload payload, boolean isReply) {}
 
     private record ReadView(byte[] vcd, byte[] vpd, boolean v32, byte[] hash) {}
 
@@ -227,9 +235,9 @@ public final class CantonProofVerifier implements ClprVerifier {
     /**
      * Port of {@code CantonVerifier.verifyConfig}. {@code configProofBytes} = RLP {@code [serviceAddress, chainId,
      * configNanos, throttles, descriptor, verdict, [opening, createdIndex]]}. The verdict must carry the threshold of
-     * the declared mediator set, and the opening must reach the {@code ChannelConfig} that {@code ClprApp.OpenChannel}
+     * the declared mediator set, and the opening must reach the {@code ChannelConfig} that {@code ClprApp.CreateChannel}
      * created for this channel and this ledger, whose config time and throttles equal the declared ones; its app
-     * signs it, exercised {@code OpenChannel} and so must be a required confirmer of that view, and becomes the
+     * signs it, exercised {@code CreateChannel} and so must be a required confirmer of that view, and becomes the
      * anchor's app. {@code endpointManifestProofBytes} is empty (the manifest is then uninitialized: version 0, the
      * service address, no endpoints) or RLP {@code [verdict, opening, createdIndex, manifestPreimage]}.
      *
@@ -282,8 +290,11 @@ public final class CantonProofVerifier implements ClprVerifier {
                 service,
                 localChainId,
                 config);
-        final CantonAnchor.Anchor anchor = declared.withApp(
-                strictUtf8(channelConfig.app(), () -> CantonProofException.wrongContract("app is not valid UTF-8")));
+        final CantonAnchor.Anchor anchor = declared.withAppAndEndpoints(
+                strictUtf8(channelConfig.app(), () -> CantonProofException.wrongContract("app is not valid UTF-8")),
+                strictUtf8(
+                        channelConfig.endpoints(),
+                        () -> CantonProofException.wrongContract("endpoint party is not valid UTF-8")));
 
         ClprEndpointManifest manifest = ClprEndpointManifest.newBuilder()
                 .serviceAddress(Bytes.wrap(serviceAddress))
@@ -352,14 +363,18 @@ public final class CantonProofVerifier implements ClprVerifier {
     /** The config descriptor's anchor (without app, request id or pending upgrade) and its packed mediator set. */
     private record Descriptor(CantonAnchor.Anchor anchor, byte[] mediatorSet) {}
 
-    /** What {@link #readChannelConfig} reads: the manifest hash that the {@code ChannelConfig} carries and its app. */
-    private record ChannelConfig(byte[] manifestHash, byte[] app) {}
+    /**
+     * What {@link #readChannelConfig} reads: the manifest hash that the {@code ChannelConfig} carries, its app, and
+     * its CLPR endpoint party.
+     */
+    private record ChannelConfig(byte[] manifestHash, byte[] app, byte[] endpoints) {}
 
     /**
      * Opens a transaction down to a {@code ChannelConfig [operator, channelId, peerChainId, configTimeNanos,
-     * throttles, manifestHash, app]} of this channel, signed by its app, whose peer chain is {@code localChainId}.
-     * With {@code config} = {@code [configTimeNanos, 7 throttles]}, it must come from {@code ClprApp.OpenChannel},
-     * which its app exercised and so must approve, and carry these values; with {@code config} empty,
+     * throttles, manifestHash, app, endpoints]} of this channel, signed by its app, whose peer chain is
+     * {@code localChainId}, and whose CLPR endpoint party is neither the app nor the operator. With {@code config} =
+     * {@code [configTimeNanos, 7 throttles]}, it must come from {@code ClprApp.CreateChannel}, which its app
+     * exercised and so must approve, and carry these values; with {@code config} empty,
      * {@code Channel.UpdateEndpointManifest} is accepted too.
      */
     private static ChannelConfig readChannelConfig(
@@ -374,7 +389,7 @@ public final class CantonProofVerifier implements ClprVerifier {
         final byte[] vpd = opened.vpd();
         final boolean checkConfig = config.length != 0;
         final CantonProto.ParticipantData data = CantonProto.parseParticipantData(vpd, opened.vpdIsV32());
-        if (!isExercise(vpd, data, service, ENTITY_CLPR_APP, CHOICE_OPEN_CHANNEL)
+        if (!isExercise(vpd, data, service, ENTITY_CLPR_APP, CHOICE_CREATE_CHANNEL)
                 && (checkConfig || !isExercise(vpd, data, service, ENTITY_CHANNEL, CHOICE_UPDATE_ENDPOINT_MANIFEST))) {
             throw CantonProofException.wrongAction();
         }
@@ -385,14 +400,22 @@ public final class CantonProofVerifier implements ClprVerifier {
             throw CantonProofException.wrongContract("created index out of range");
         }
         final List<Range> fields =
-                openContract(vpd, data.createdCore().get(createdIndex), service, ENTITY_CHANNEL_CONFIG, 7, 1, 6);
+                openContract(vpd, data.createdCore().get(createdIndex), service, ENTITY_CHANNEL_CONFIG, 8, 1, 6);
         if (!CantonProto.equals(
                 vpd, CantonProto.stringValue(vpd, fields.get(2), CantonProto.VALUE_TEXT), localChainId)) {
             throw CantonProofException.wrongPeerChain();
         }
         final byte[] app = CantonProto.copy(vpd, CantonProto.stringValue(vpd, fields.get(6), CantonProto.VALUE_PARTY));
+        final byte[] endpoints =
+                CantonProto.copy(vpd, CantonProto.stringValue(vpd, fields.get(7), CantonProto.VALUE_PARTY));
         if (Arrays.equals(app, service.operator())) {
             throw CantonProofException.wrongContract("the operator is the channel config's app");
+        }
+        if (endpoints.length == 0) {
+            throw CantonProofException.wrongContract("the channel config has no CLPR endpoint party");
+        }
+        if (Arrays.equals(endpoints, app) || Arrays.equals(endpoints, service.operator())) {
+            throw CantonProofException.wrongContract("the CLPR endpoint party is the app or the operator");
         }
 
         if (checkConfig) {
@@ -417,7 +440,7 @@ public final class CantonProofVerifier implements ClprVerifier {
         if (manifestHash.length != 0 && manifestHash.length != 32) {
             throw CantonProofException.wrongContract("manifest hash is not 0 or 32 bytes");
         }
-        return new ChannelConfig(manifestHash, app);
+        return new ChannelConfig(manifestHash, app, endpoints);
     }
 
     /** Whether the view exercises {@code choice} of {@code Clpr.Service:entity} of the pinned package. */
@@ -434,7 +457,10 @@ public final class CantonProofVerifier implements ClprVerifier {
         return CantonProto.equals(vpd, data.exerciseTemplateId(), template);
     }
 
-    /** {@code [verdict, opening, createdIndex, manifestPreimage]}, reaching a {@code ChannelConfig} of this app. */
+    /**
+     * {@code [verdict, opening, createdIndex, manifestPreimage]}, reaching a {@code ChannelConfig} of this app and
+     * CLPR endpoint party.
+     */
     private static ClprEndpointManifest verifyConfigManifest(
             final byte[] proofBytes,
             final CantonAnchor.Anchor anchor,
@@ -457,6 +483,9 @@ public final class CantonProofVerifier implements ClprVerifier {
                 new BigInteger[0]);
         if (!Arrays.equals(channelConfig.app(), anchor.app().getBytes(StandardCharsets.UTF_8))) {
             throw CantonProofException.wrongContract("manifest's app is not the config's app");
+        }
+        if (!Arrays.equals(channelConfig.endpoints(), anchor.endpoints().getBytes(StandardCharsets.UTF_8))) {
+            throw CantonProofException.wrongContract("manifest's endpoint party is not the config's");
         }
         return decodeManifest(
                 CantonRlp.readBytes(f.get(MANIFEST_PREIMAGE_INDEX)),
@@ -634,6 +663,13 @@ public final class CantonProofVerifier implements ClprVerifier {
      * Port of {@code CantonVerifier.verifyBundle}. {@code proofBytes} = RLP {@code [verdict, opening, createdIndex,
      * mediatorSet, rotations, manifest, payloads]}.
      *
+     * <p><b>Replies.</b> {@code payloads} are the messages the bundle delivers, in id order, up to the last
+     * message of the proven write: from one write, or, when all are DATA, from several consecutive ones. When a
+     * payload is a REPLY, the payloads must be exactly the proven write's own messages (its
+     * {@code writeFirstMessageId} to {@code nextMessageId - 1}), else {@code RepliesFromAnotherWrite}, and the
+     * anchor's CLPR endpoint party must be a required confirmer of the write's view, else
+     * {@code RepliesNotConfirmedByEndpoints}.
+     *
      * <p><b>Rotations.</b> {@code rotations} is bundle field 4: empty ({@code 0x80} or {@code 0xc0}, as the
      * reference's {@code isEmpty}), or the topology rotations that {@link CantonTopologyVerifier#applyRotations}
      * applies to the anchor and the mediator set before the verdict is checked. A pending Logical Synchronizer
@@ -687,8 +723,26 @@ public final class CantonProofVerifier implements ClprVerifier {
             throw CantonProofException.approverMissing();
         }
         final List<ClprMessagePayload> messages = new ArrayList<>(payloads.size());
+        boolean replies = false;
         for (final byte[] payload : payloads) {
-            messages.add(checkPayload(payload, service.channelId(), app, outbound));
+            final CheckedPayload checked = checkPayload(payload, service.channelId(), app, outbound);
+            messages.add(checked.payload());
+            replies |= checked.isReply();
+        }
+        // The app's key alone can create a channel version that folds in any REPLY, and a co-signed write may
+        // consume that version. A genuine REPLY is written only by {@code Channel.WriteReplies}, whose controller is
+        // the endpoint party, so a bundle of REPLYs is one write's messages, confirmed by the endpoint party: a
+        // REPLY that the app folded in by itself could travel only in a bundle of its own, whose view lacks the
+        // endpoint party.
+        if (replies) {
+            if (payloads.size() != write.written()) {
+                throw CantonProofException.repliesFromAnotherWrite(
+                        payloads.size() + " payloads for a write of " + write.written());
+            }
+            if (!CantonProto.isRequiredConfirmer(
+                    opened.vcd(), current.endpoints().getBytes(StandardCharsets.UTF_8))) {
+                throw CantonProofException.repliesNotConfirmedByEndpoints();
+            }
         }
 
         final byte[] manifest = CantonRlp.readBytes(fields.get(BUNDLE_MANIFEST_INDEX));
@@ -945,6 +999,10 @@ public final class CantonProofVerifier implements ClprVerifier {
      * which holds the queue metadata after the write and the manifest hash that it carried. Any choice is accepted
      * (the app alone signs its channel, {@code ClprService} checks the ids and running hash, and
      * {@link #checkPayload} binds every message to the app).
+     *
+     * <p>{@code written} is {@code nextMessageId - writeFirstMessageId}: the messages the write itself wrote. Every
+     * channel version that is not a write sets {@code writeFirstMessageId} to its own {@code nextMessageId}, so
+     * {@code written} is zero for those.
      */
     @NonNull
     public static WriteResult readWrite(
@@ -962,14 +1020,18 @@ public final class CantonProofVerifier implements ClprVerifier {
         }
         final List<Range> channel =
                 created(vpd, data, createdIndex, service, ENTITY_CHANNEL, CHANNEL_FIELDS, CHANNEL_ID, CHANNEL_APP, app);
-        final ClprQueueMetadata metadata =
-                metadata(vpd, channel, CantonProto.uintValue(vpd, channel.get(CHANNEL_NEXT_MESSAGE_ID)));
+        final long next = CantonProto.uintValue(vpd, channel.get(CHANNEL_NEXT_MESSAGE_ID));
+        final long first = CantonProto.uintValue(vpd, channel.get(CHANNEL_WRITE_FIRST_MESSAGE_ID));
+        if (first > next) {
+            throw CantonProofException.wrongContract("the write starts after its end");
+        }
+        final ClprQueueMetadata metadata = metadata(vpd, channel, next);
         final byte[] manifestHash = CantonProto.hexValue(
                 vpd, CantonProto.stringValue(vpd, channel.get(CHANNEL_BUNDLED_MANIFEST_HASH), CantonProto.VALUE_TEXT));
         if (manifestHash.length != 0 && manifestHash.length != 32) {
             throw CantonProofException.wrongContract("manifest hash is not 0 or 32 bytes");
         }
-        return new WriteResult(metadata, manifestHash);
+        return new WriteResult(metadata, manifestHash, next - first);
     }
 
     /** The queue metadata after a write, from the channel version that it created. */
@@ -1102,11 +1164,16 @@ public final class CantonProofVerifier implements ClprVerifier {
      * {@code ClprService} decodes them, so a repeated field cannot show this check one sender and the service
      * another.
      *
+     * <p>A REPLY may only be {@code SUCCESS} or {@code APPLICATION_ERROR} (PBJ's {@code UNRECOGNIZED} included in
+     * the rejection): {@code ClprService} slashes the connector of the answered DATA message on
+     * {@code CONNECTOR_NOT_FOUND} and {@code CONNECTOR_UNDERFUNDED}, and on Canton the app chooses the answer to a
+     * message sent to it, so it could claim either status.
+     *
      * @param outbound the calling service's live outbound messages, to find the DATA message that a REPLY answers
-     * @return the strictly parsed payload, so callers need not parse it again
+     * @return the strictly parsed payload and whether it is a REPLY, so callers need not parse it again
      */
     @NonNull
-    public static ClprMessagePayload checkPayload(
+    public static CheckedPayload checkPayload(
             @NonNull final byte[] payload,
             @NonNull final byte[] channelId,
             @NonNull final byte[] app,
@@ -1125,18 +1192,21 @@ public final class CantonProofVerifier implements ClprVerifier {
                     || !Bytes.wrap(app).equals(decoded.message().sender())) {
                 throw CantonProofException.senderMismatch();
             }
-            return decoded;
+            return new CheckedPayload(decoded, false);
         }
         if (!decoded.hasMessageReply()) {
             throw CantonProofException.wrongMessageType();
         }
         final var reply = decoded.messageReply();
-        if (reply.status() == ClprMessageReplyStatus.APPLICATION_ERROR
-                && reply.messageReplyData().length() == 0) {
-            return decoded;
+        if (reply.status() != ClprMessageReplyStatus.SUCCESS
+                && reply.status() != ClprMessageReplyStatus.APPLICATION_ERROR) {
+            throw CantonProofException.replyStatusNotAllowed("status " + reply.status());
         }
-        checkReplyTarget(channelId, reply.messageId(), app, outbound);
-        return decoded;
+        if (reply.status() != ClprMessageReplyStatus.APPLICATION_ERROR
+                || reply.messageReplyData().length() != 0) {
+            checkReplyTarget(channelId, reply.messageId(), app, outbound);
+        }
+        return new CheckedPayload(decoded, true);
     }
 
     /**

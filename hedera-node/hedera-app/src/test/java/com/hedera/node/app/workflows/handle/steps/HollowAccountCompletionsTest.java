@@ -7,6 +7,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.UNIVERSAL_NOOP_FEE_CHARGING;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REMOVABLE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -247,6 +248,8 @@ public class HollowAccountCompletionsTest {
         final DispatchOptions<?> options = captor.getValue();
         assertEquals(DispatchOptions.Commit.WITH_PARENT, options.commit());
         assertEquals(UNIVERSAL_NOOP_FEE_CHARGING, options.customFeeCharging());
+        // A completion is replayed after a rollback, so its first record must be removed and not kept
+        assertEquals(REMOVABLE, options.reversingBehavior());
     }
 
     @Test

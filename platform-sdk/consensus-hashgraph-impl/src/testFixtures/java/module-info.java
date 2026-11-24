@@ -10,6 +10,7 @@ open module org.hiero.consensus.hashgraph.impl.test.fixtures {
     requires transitive org.hiero.consensus.hashgraph;
     requires transitive org.hiero.consensus.model.test.fixtures;
     requires transitive org.hiero.consensus.model;
+    requires transitive org.hiero.consensus.main.model;
     requires transitive org.hiero.consensus.utility.test.fixtures;
     requires transitive org.hiero.consensus.utility;
     requires transitive org.assertj.core;

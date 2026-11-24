@@ -728,8 +728,7 @@ public class BaseTranslator {
                         || parts.transactionIdOrThrow().scheduled()
                         || NODE_TSS_FUNCTIONS.contains(parts.functionality()))
                 && parts.parentConsensusTimestamp() == null) {
-            // Only preceding and user transactions get exchange rates in their receipts; note that
-            // auto-account creations are always preceding dispatches and so get exchange rates
+            // A functionality-specific translator may clear the rates, e.g. for a failed auto-creation.
             receiptBuilder.exchangeRate(activeRates);
         }
 

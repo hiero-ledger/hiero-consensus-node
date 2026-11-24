@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.yahcli.commands.clpr;
 
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCloseChannel;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprDeleteChannel;
 import static com.hedera.services.yahcli.config.ConfigUtils.configFrom;
 
 import com.hedera.services.yahcli.suites.ClprTxnSuite;
@@ -12,15 +12,15 @@ import picocli.CommandLine.Option;
 import picocli.CommandLine.ParentCommand;
 
 /**
- * Submits a {@code ClprCloseChannel} HAPI transaction to terminate an active
+ * Submits a {@code ClprDeleteChannel} HAPI transaction to request deletion of a
  * cross-ledger channel. Required input is the hex-encoded {@code --channel-id}; the
- * channel moves to {@code CLOSED} and stops accepting further bundles or messages.
+ * channel drains outstanding messages before reaching {@code CLOSED}.
  */
 @Command(
-        name = "close-channel",
+        name = "delete-channel",
         subcommands = {HelpCommand.class},
-        description = "Submits a ClprCloseChannel transaction.")
-public class CloseChannelCommand implements Callable<Integer> {
+        description = "Submits a ClprDeleteChannel transaction.")
+public class DeleteChannelCommand implements Callable<Integer> {
 
     @ParentCommand
     ClprCommand clprCommand;
@@ -35,9 +35,10 @@ public class CloseChannelCommand implements Callable<Integer> {
     @Override
     public Integer call() throws Exception {
         final var config = configFrom(clprCommand.getYahcli());
-        final var op = clprCloseChannel().channelId(ClprArgs.requiredBytes("channel-id", channelIdHex));
-        final var delegate = new ClprTxnSuite(config, "ClprCloseChannel", op);
+        final var op = clprDeleteChannel().channelId(ClprArgs.requiredBytes("channel-id", channelIdHex));
+        final var delegate = new ClprTxnSuite(config, "ClprDeleteChannel", op);
         delegate.runSuiteSync();
-        return ClprOutcome.reportTxn(config, delegate, op, "closed CLPR channel", "could not close CLPR channel");
+        return ClprOutcome.reportTxn(
+                config, delegate, op, "submitted CLPR channel deletion", "could not delete CLPR channel");
     }
 }

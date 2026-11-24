@@ -21,6 +21,7 @@ import java.lang.management.ManagementFactory;
  * <h2>A pass</h2>
  *
  * <pre>
+ * preparePass()            stores the previous pass, unless it was discarded, and clears the latencies of the last one
  * startPass()              reads the allocated bytes of all threads and the number of garbage collections
  * replay the inputs and drain the pipeline
  * record(latency)          once for every value that arrived
@@ -28,7 +29,7 @@ import java.lang.management.ManagementFactory;
  * discardSaturatedPass()   only if the pipeline did not keep up
  * </pre>
  *
- * <p>A pass counts once it has ended, unless it is discarded. Neither discard is an error: the next pass takes the
+ * <p>A pass is stored once it has ended, unless it is discarded. Neither discard is an error: the next pass takes the
  * discarded one's place.
  *
  * <ul>
@@ -54,26 +55,29 @@ public final class PipelineRecorder {
 
     /** Where the latest pass stands. */
     private enum State {
-        /** No pass has started, or the latest pass counts or was discarded. */
-        IDLE,
+        /** No pass is prepared: none has run yet, or the latest pass was stored or discarded. */
+        UNPREPARED,
+        /** The next pass is prepared and has not started. */
+        PREPARED,
         /** A pass has started and not ended. */
         RUNNING,
-        /** The latest pass has ended and counts, unless it is discarded. */
+        /** The latest pass has ended; the next {@link #preparePass()} or the end of the iteration stores it,
+         * unless {@link #discardSaturatedPass()} discards it. */
         ENDED,
         /** The latest pass has ended and was discarded because a garbage collection ran during it. */
         DISCARDED_FOR_GC
     }
 
-    /** The latencies of the passes that count. */
+    /** The latencies of the stored passes. */
     private final LatencyHistogram histogram = HistogramLayout.newHistogram();
 
     /** The latencies of the latest pass. */
     private final LatencyHistogram passHistogram = HistogramLayout.newHistogram();
 
     /** Where the latest pass stands. */
-    private State state = State.IDLE;
+    private State state = State.UNPREPARED;
 
-    /** The total bytes allocated by the passes that count. */
+    /** The total bytes allocated by the stored passes. */
     private long allocatedBytes;
 
     /** The bytes allocated by all threads at the start of the latest pass. */
@@ -94,20 +98,34 @@ public final class PipelineRecorder {
     PipelineRecorder() {}
 
     /**
-     * Starts a pass: counts the bytes all threads allocate and watches for garbage collections from now on. Call it
-     * right before the first input. The previous pass counts from now on, unless it was discarded.
+     * Prepares the next pass: the previous pass is stored, unless it was discarded, and the latencies of the next pass
+     * are reset. Call it before the pass, in a setup method, so that this work does not delay the start of
+     * the pass.
      *
      * @throws IllegalStateException if a pass is running
      */
-    public void startPass() {
+    public void preparePass() {
         if (state == State.RUNNING) {
-            throw new IllegalStateException("A pass is running; end it with endPass() before starting the next one");
+            throw new IllegalStateException("A pass is running; end it with endPass() before preparing the next one");
         }
-        countEndedPass();
+        storeEndedPassUnlessDiscarded();
         passHistogram.reset();
+        state = State.PREPARED;
+    }
+
+    /**
+     * Starts the prepared pass: counts the bytes all threads allocate and watches for garbage collections from now on.
+     * Call it right before the first measured input.
+     *
+     * @throws IllegalStateException if no pass is prepared
+     */
+    public void startPass() {
+        if (state != State.PREPARED) {
+            throw new IllegalStateException("No pass is prepared; call preparePass() before startPass()");
+        }
         state = State.RUNNING;
         gcCountAtStart = GarbageCollections.count();
-        // last, so that the work above is not counted
+        // allocated bytes are read last, so that the work above does not interfere
         allocatedBytesAtStart = THREAD_MX_BEAN.getTotalThreadAllocatedBytes();
     }
 
@@ -153,33 +171,33 @@ public final class PipelineRecorder {
      */
     public void discardSaturatedPass() {
         if (state != State.ENDED && state != State.DISCARDED_FOR_GC) {
-            throw new IllegalStateException("No pass to discard: it is running, or it counts or was discarded");
+            throw new IllegalStateException("No pass to discard: it is running, or it was stored or discarded");
         }
         saturationDiscardedPasses++;
-        state = State.IDLE;
+        state = State.UNPREPARED;
     }
 
     /**
-     * Ends the iteration: the pass that ended last counts, unless it was discarded. A pass that is still running, because
-     * the benchmark failed during it, does not count.
+     * Ends the iteration: the pass that ended last is stored, unless it was discarded. A pass that is still running,
+     * because the benchmark failed during it, is not stored.
      */
     void endIteration() {
-        countEndedPass();
+        storeEndedPassUnlessDiscarded();
     }
 
-    /** Adds the pass that ended last to the passes that count, unless it was discarded. */
-    private void countEndedPass() {
+    /** Stores the pass that ended last, unless it was discarded: adds its latencies and allocation to the stored ones. */
+    private void storeEndedPassUnlessDiscarded() {
         if (state == State.ENDED) {
             histogram.add(passHistogram);
             allocatedBytes += passAllocatedBytes;
-            state = State.IDLE;
+            state = State.UNPREPARED;
         }
     }
 
     /**
-     * Returns the histogram of the passes that count. The caller may read it, but must not modify it.
+     * Returns the histogram of the stored passes. The caller may read it, but must not modify it.
      *
-     * @return the histogram of the passes that count
+     * @return the histogram of the stored passes
      */
     @NonNull
     LatencyHistogram histogram() {
@@ -187,9 +205,9 @@ public final class PipelineRecorder {
     }
 
     /**
-     * Returns the total bytes allocated by the passes that count.
+     * Returns the total bytes allocated by the stored passes.
      *
-     * @return the total bytes allocated by the passes that count
+     * @return the total bytes allocated by the stored passes
      */
     long allocatedBytes() {
         return allocatedBytes;

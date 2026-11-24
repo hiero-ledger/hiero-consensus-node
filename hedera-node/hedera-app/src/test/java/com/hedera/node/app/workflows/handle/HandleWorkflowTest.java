@@ -80,6 +80,7 @@ import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifestConstruction;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
+import com.hedera.hapi.node.state.clpr.ClprThrottles;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.file.File;
@@ -210,10 +211,10 @@ import javax.inject.Provider;
 import org.apache.logging.log4j.LogManager;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
-import org.hiero.consensus.model.event.ConsensusEvent;
-import org.hiero.consensus.model.event.EventDescriptorWrapper;
-import org.hiero.consensus.model.hashgraph.Round;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.ConsensusEvent;
+import org.hiero.consensus.main.model.EventDescriptorWrapper;
+import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.main.model.Round;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 import org.hiero.consensus.platformstate.V0540PlatformStateSchema;
@@ -1238,10 +1239,7 @@ class HandleWorkflowTest {
                 .willReturn(construction);
 
         final var method = HandleWorkflow.class.getDeclaredMethod(
-                "initializeMissingClprSingletons",
-                com.swirlds.state.State.class,
-                Instant.class,
-                ClprMaintenanceReason.class);
+                "setUpClprSingletons", com.swirlds.state.State.class, Instant.class, ClprMaintenanceReason.class);
         method.setAccessible(true);
         method.invoke(subject, state, NOW, UPGRADE_INITIALIZATION);
 
@@ -1274,10 +1272,7 @@ class HandleWorkflowTest {
         given(state.getWritableStates(ClprService.NAME)).willReturn(clprStates);
         givenSubjectWith(mode, BlockStreamWriterMode.FILE, emptyList(), Map.of("contracts.chainId", "299"));
         final var method = HandleWorkflow.class.getDeclaredMethod(
-                "initializeMissingClprSingletons",
-                com.swirlds.state.State.class,
-                Instant.class,
-                ClprMaintenanceReason.class);
+                "setUpClprSingletons", com.swirlds.state.State.class, Instant.class, ClprMaintenanceReason.class);
         method.setAccessible(true);
         boundaryStateChangeListener.singletonUpdateChange(LEDGER_ID_STATE_ID, new ProtoBytes(Bytes.wrap("ledger-id")));
         final var pendingChange = boundaryStateChangeListener.allStateChanges().getFirst();
@@ -1308,6 +1303,68 @@ class HandleWorkflowTest {
         method.invoke(subject, state, NOW, UPGRADE_INITIALIZATION);
         assertTrue(boundaryStateChangeListener.allStateChanges().isEmpty());
         verify(blockStreamManager, times(1)).writeSavepointItems(any(), any());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        "hiero:localnet, 295, eip155:295",
+        "hiero:localnet, 297, eip155:297",
+        "hiero:mainnet, 295, eip155:295",
+        "'', 297, eip155:297",
+        "eip1550:123, 297, eip155:297",
+        "eip155:297, 297, eip155:297",
+        "eip155:456, 297, eip155:456"
+    })
+    void upgradeMigratesChainIdsOutsideTheEip155Namespace(
+            final String storedId, final String evmId, final String expectedId) throws Exception {
+        final var existing = ClprLedgerConfiguration.newBuilder()
+                .chainId(storedId)
+                .protocolVersion(1)
+                .timestamp(new Timestamp(1234, 5))
+                .serviceAddress(Bytes.wrap("service"))
+                .initialTrustAnchor(Bytes.wrap("anchor"))
+                .initialTrustAnchorId(Bytes.wrap("anchor-id"))
+                .throttles(ClprThrottles.newBuilder().maxQueueDepth(64).build())
+                .build();
+        final var ledger = clprSingleton(LEDGER_CONFIGURATION_STATE_ID, "LEDGER_CONFIGURATION", existing);
+        given(state.getWritableStates(ClprService.NAME))
+                .willReturn(MapWritableStates.builder()
+                        .state(ledger)
+                        .state(clprSingleton(
+                                ENDPOINT_MANIFEST_STATE_ID, "ENDPOINT_MANIFEST", ClprEndpointManifest.DEFAULT))
+                        .state(clprSingleton(
+                                ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID,
+                                "ENDPOINT_MANIFEST_CONSTRUCTION",
+                                ClprEndpointManifestConstruction.DEFAULT))
+                        .build());
+        givenSubjectWith(
+                BLOCKS,
+                BlockStreamWriterMode.FILE,
+                emptyList(),
+                Map.of("contracts.chainId", evmId, "clpr.enabled", "false"));
+        final var setup = HandleWorkflow.class.getDeclaredMethod(
+                "setUpClprSingletons", com.swirlds.state.State.class, Instant.class, ClprMaintenanceReason.class);
+        setup.setAccessible(true);
+        setup.invoke(subject, state, NOW, GENESIS_INITIALIZATION);
+        assertEquals(existing, ledger.get());
+        verify(blockStreamManager, never()).writeSavepointItems(any(), any());
+
+        setup.invoke(subject, state, NOW, UPGRADE_INITIALIZATION);
+        setup.invoke(subject, state, NOW, UPGRADE_INITIALIZATION);
+
+        final var expected = existing.copyBuilder().chainId(expectedId).build();
+        assertEquals(expected, ledger.get());
+        if (storedId.equals(expectedId)) {
+            verify(blockStreamManager, never()).writeSavepointItems(any(), any());
+        } else {
+            final ArgumentCaptor<List<BlockItem>> items = ArgumentCaptor.captor();
+            verify(blockStreamManager).writeSavepointItems(items.capture(), eq(NOW.minusNanos(100)));
+            assertEquals(UPGRADE_INITIALIZATION, reasonOf(items.getValue()));
+            final var changes = items.getValue().getLast().stateChangesOrThrow().stateChanges();
+            assertEquals(1, changes.size());
+            assertEquals(LEDGER_CONFIGURATION_STATE_ID, changes.getFirst().stateId());
+            assertEquals(expected, changes.getFirst().singletonUpdateOrThrow().clprLedgerConfigurationValueOrThrow());
+        }
     }
 
     @ParameterizedTest
@@ -1570,10 +1627,7 @@ class HandleWorkflowTest {
                 .willReturn(mock(WritableSingletonState.class));
 
         final var method = HandleWorkflow.class.getDeclaredMethod(
-                "initializeMissingClprSingletons",
-                com.swirlds.state.State.class,
-                Instant.class,
-                ClprMaintenanceReason.class);
+                "setUpClprSingletons", com.swirlds.state.State.class, Instant.class, ClprMaintenanceReason.class);
         method.setAccessible(true);
         method.invoke(subject, state, NOW, UPGRADE_INITIALIZATION);
 

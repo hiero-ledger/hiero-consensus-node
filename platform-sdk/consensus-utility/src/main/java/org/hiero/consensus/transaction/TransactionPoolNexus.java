@@ -17,9 +17,9 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.function.IntConsumer;
+import org.hiero.consensus.main.model.TimestampedTransaction;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.EventTransactionSupplier;
-import org.hiero.consensus.model.transaction.TimestampedTransaction;
 
 /**
  * Store a list of transactions created by self, both system and non-system, for wrapping in the next event to be

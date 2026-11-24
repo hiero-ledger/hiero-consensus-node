@@ -15,7 +15,7 @@ import com.swirlds.state.test.fixtures.MapWritableKVState;
 import com.swirlds.state.test.fixtures.MapWritableStates;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
-import org.hiero.consensus.model.hashgraph.Round;
+import org.hiero.consensus.main.model.Round;
 import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.roster.WritableRosterStore;

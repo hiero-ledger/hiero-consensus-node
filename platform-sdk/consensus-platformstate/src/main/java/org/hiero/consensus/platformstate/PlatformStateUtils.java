@@ -22,7 +22,7 @@ import java.util.List;
 import java.util.function.Consumer;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Mnemonics;
-import org.hiero.consensus.model.hashgraph.Round;
+import org.hiero.consensus.main.model.Round;
 
 /**
  * This class is an entry point for the platform state. Though the class itself is stateless, given an instance of

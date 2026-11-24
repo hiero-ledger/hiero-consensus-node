@@ -51,4 +51,27 @@ class ReadableBlockRecordStoreTest {
         // Then
         assertThat(result).isEqualTo(expectedBlockInfo);
     }
+
+    @Test
+    void votingDeadlinePassedOnlyWhenIncompleteAndLastBlockReachesDeadline() {
+        assertThat(storeWith(false, 10, 9).isVotingDeadlinePassed()).isFalse();
+        assertThat(storeWith(false, 10, 10).isVotingDeadlinePassed()).isTrue();
+        assertThat(storeWith(false, 10, 11).isVotingDeadlinePassed()).isTrue();
+        // Completed voting is never "past deadline"
+        assertThat(storeWith(true, 10, 11).isVotingDeadlinePassed()).isFalse();
+        // A zero deadline means none was set
+        assertThat(storeWith(false, 0, 11).isVotingDeadlinePassed()).isFalse();
+    }
+
+    private static ReadableBlockRecordStore storeWith(
+            final boolean votingComplete, final long deadline, final long lastBlockNumber) {
+        final var info = BlockInfo.newBuilder()
+                .lastBlockNumber(lastBlockNumber)
+                .votingComplete(votingComplete)
+                .votingCompletionDeadlineBlockNumber(deadline)
+                .build();
+        return new ReadableBlockRecordStore(new MapReadableStates(Map.of(
+                BLOCKS_STATE_ID,
+                new FunctionReadableSingletonState<>(BLOCKS_STATE_ID, BLOCKS_STATE_LABEL, () -> info))));
+    }
 }

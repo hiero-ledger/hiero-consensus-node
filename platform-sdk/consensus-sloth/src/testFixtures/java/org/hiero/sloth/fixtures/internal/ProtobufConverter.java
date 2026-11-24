@@ -4,7 +4,7 @@ package org.hiero.sloth.fixtures.internal;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.MarkerManager;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.sloth.fixtures.container.proto.LogEntry;
 import org.hiero.sloth.fixtures.logging.StructuredLog;
 

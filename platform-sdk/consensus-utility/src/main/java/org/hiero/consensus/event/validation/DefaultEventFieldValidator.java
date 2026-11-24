@@ -3,6 +3,7 @@ package org.hiero.consensus.event.validation;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
+import static org.hiero.consensus.main.model.ConsensusLayerConstants.DEFAULT_EVENT_DIGEST_TYPE;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_NEGATIVE_INFINITY;
 
 import com.hedera.hapi.platform.event.EventCore;
@@ -20,9 +21,7 @@ import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.throttle.RateLimitedLogger;
-import org.hiero.base.crypto.DigestType;
-import org.hiero.consensus.model.event.EventDescriptorWrapper;
-import org.hiero.consensus.model.event.EventHashFactory;
+import org.hiero.consensus.main.model.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 import org.hiero.consensus.transaction.TransactionLimits;
@@ -147,13 +146,12 @@ public class DefaultEventFieldValidator implements EventFieldValidator {
         final List<EventDescriptor> parents = gossipEvent.parents();
         for (int i = 0, parentSize = parents.size(); i < parentSize; i++) {
             final EventDescriptor parent = parents.get(i);
-            final DigestType expectedDigestType = EventHashFactory.getTypeForBirthRound(parent.birthRound());
-            if (parent.hash().length() != expectedDigestType.digestLength()) {
+            if (parent.hash().length() != DEFAULT_EVENT_DIGEST_TYPE.digestLength()) {
                 fieldLengthLogger.error(
                         EXCEPTION.getMarker(),
                         "Event parent descriptor has a hash that is the wrong length in event {}. Expected {}, but was {}",
                         gossipEvent,
-                        expectedDigestType.digestLength(),
+                        DEFAULT_EVENT_DIGEST_TYPE.digestLength(),
                         parent.hash().length());
                 fieldLengthAccumulator.update(1);
                 return false;

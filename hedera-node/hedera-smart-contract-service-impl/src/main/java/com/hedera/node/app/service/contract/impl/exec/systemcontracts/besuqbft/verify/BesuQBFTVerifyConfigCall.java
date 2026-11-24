@@ -36,7 +36,7 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
  * <p>Proof verification is delegated to
  * {@link BesuQbftVerifier#verifyConfigPayload(byte[])}. On success the proven
  * {@link ClprLedgerConfiguration} bytes are returned unchanged so that
- * {@code ClprCompleteChannelHandler} can seed Channel state from them directly.
+ * {@code ClprCreateChannelHandler} can seed Channel state from them directly.
  */
 public class BesuQBFTVerifyConfigCall extends AbstractCall {
     private static final Logger log = LogManager.getLogger(BesuQBFTVerifyConfigCall.class);

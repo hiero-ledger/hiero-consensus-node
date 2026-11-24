@@ -2,6 +2,7 @@
 package org.hiero.consensus.model.test.fixtures.event;
 
 import static org.hiero.base.crypto.Cryptography.DEFAULT_DIGEST_TYPE;
+import static org.hiero.consensus.main.model.ConsensusLayerConstants.DEFAULT_EVENT_DIGEST_TYPE;
 import static org.hiero.consensus.model.event.EventConstants.MINIMUM_ROUND_CREATED;
 
 import com.hedera.hapi.platform.event.EventConsensusData;
@@ -19,19 +20,17 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
-import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.SignatureType;
 import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
+import org.hiero.consensus.main.model.EventDescriptorWrapper;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.event.EventConstants;
-import org.hiero.consensus.model.event.EventDescriptorWrapper;
-import org.hiero.consensus.model.event.EventHashFactory;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
-import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A builder for creating event instances for testing purposes.
@@ -579,8 +578,7 @@ public class TestingEventBuilder {
 
         final PlatformEvent platformEvent = new PlatformEvent(unsignedEvent, Bytes.wrap(signature), origin);
 
-        final DigestType digestType = EventHashFactory.getTypeForBirthRound(birthRound);
-        platformEvent.setHash(hash != null ? hash : CryptoRandomUtils.randomHash(random, digestType));
+        platformEvent.setHash(hash != null ? hash : CryptoRandomUtils.randomHash(random, DEFAULT_EVENT_DIGEST_TYPE));
 
         platformEvent.setNGen(nGen);
         if (sequenceNumberOverride > EventConstants.SEQUENCE_NUMBER_UNDEFINED) {

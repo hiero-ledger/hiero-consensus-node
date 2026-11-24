@@ -655,7 +655,7 @@ public final class EthereumSyncCommitteeProofVerifier {
     /**
      * Verifies an optional endpoint-manifest advance (spec §4.9). When {@code manifestPreimage} is present the manifest
      * commitment ({@code keccak256(manifestPreimage)}) is proven at the shared endpoint-manifest commitment slot
-     * (slot 18, {@code ProofBytes.endpointManifestCommitmentSlot()}) against the already-authenticated account
+     * (slot 14, {@code ProofBytes.endpointManifestCommitmentSlot()}) against the already-authenticated account
      * {@code storageRoot32} — the same root the queue metadata was proven against — and the reconstructed manifest is
      * checked for the spec §4.8 invariants. Returns {@code null} when the bundle carries no manifest advance.
      *
@@ -804,7 +804,7 @@ public final class EthereumSyncCommitteeProofVerifier {
             final ClprEndpointManifest manifest = proveEndpointManifest(
                     proof.manifestPreimage(), proof.manifestStorageProof(), provenAccount, serviceAddress20);
             // Installing the peer's endpoints is a trust decision: record which proof vouched for them, with the
-            // commitment and block an operator can compare with the peer's slot 18.
+            // commitment and block an operator can compare with the peer's endpoint-manifest commitment slot.
             log.info(
                     "EthSyncCommitteeProofVerifier: endpoint manifest proven: version={} endpoints={} commitment=0x{}"
                             + " executionBlockHash=0x{} signatureSlot={} signerPeriod={} attestedSlot={}"
@@ -873,7 +873,7 @@ public final class EthereumSyncCommitteeProofVerifier {
     }
 
     /**
-     * Proves {@code manifestPreimage} against the endpoint-manifest commitment at slot 18
+     * Proves {@code manifestPreimage} against the endpoint-manifest commitment at slot 14
      * ({@code ProofBytes.endpointManifestCommitmentSlot()}) of the account's {@code storageRoot32}, and checks the
      * reconstructed manifest for the spec §4.8 invariants.
      *

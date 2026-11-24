@@ -2,7 +2,7 @@
 package org.hiero.consensus.model.test.fixtures.transaction;
 
 import java.util.Random;
-import org.hiero.consensus.model.transaction.Transaction;
+import org.hiero.consensus.main.model.Transaction;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 
 /**

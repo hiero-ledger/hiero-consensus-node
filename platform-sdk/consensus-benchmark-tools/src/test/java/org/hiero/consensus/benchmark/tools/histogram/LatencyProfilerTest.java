@@ -33,10 +33,12 @@ class LatencyProfilerTest {
         profiler.beforeIteration(null, null);
         final PipelineRecorder recorder = LatencyProfiler.pipelineRecorder();
         assertThat(LatencyProfiler.pipelineRecorder()).isSameAs(recorder);
+        recorder.preparePass();
         recorder.startPass();
         recorder.record(1_000);
         recorder.record(3_000);
         recorder.endPass();
+        recorder.preparePass();
         recorder.startPass();
         recorder.record(9_000);
         recorder.endPass();

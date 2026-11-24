@@ -22,7 +22,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.otter.fixtures.container.proto.EventMessage;
 import org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceInterface.NodeCommunicationServiceClient;
 import org.hiero.otter.fixtures.container.proto.SubscribeRequest;

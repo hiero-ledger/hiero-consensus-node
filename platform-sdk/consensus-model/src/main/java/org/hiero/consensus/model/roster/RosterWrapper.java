@@ -8,7 +8,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.stream.LongStream;
 import org.hiero.base.utility.Threshold;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * A wrapper around a {@link Roster} that provides additional functionality and convenience methods.

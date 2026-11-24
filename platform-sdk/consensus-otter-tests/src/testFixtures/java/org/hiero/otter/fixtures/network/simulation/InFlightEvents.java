@@ -5,8 +5,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.function.Function;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.node.NodeId;
 
 /**
  * The events that have been transmitted onto the simulated network but not yet delivered, held per directed connection
