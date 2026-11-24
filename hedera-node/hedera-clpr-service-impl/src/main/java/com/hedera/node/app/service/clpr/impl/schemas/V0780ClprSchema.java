@@ -63,12 +63,12 @@ public class V0780ClprSchema extends Schema<SemanticVersion> {
     /** Connectors state key */
     public static final String CONNECTORS_KEY = "CONNECTORS";
 
-    /** Pending connector commitments state ID */
-    public static final int PENDING_CONNECTOR_COMMITMENTS_STATE_ID =
-            StateKey.KeyOneOfType.CLPRSERVICE_I_PENDING_CONNECTOR_COMMITMENTS.protoOrdinal();
+    /** Connector registration history state ID */
+    public static final int CONNECTOR_REGISTRATION_HISTORY_STATE_ID =
+            StateKey.KeyOneOfType.CLPRSERVICE_I_CONNECTOR_REGISTRATION_HISTORY.protoOrdinal();
 
-    /** Pending connector commitments state key */
-    public static final String PENDING_CONNECTOR_COMMITMENTS_KEY = "PENDING_CONNECTOR_COMMITMENTS";
+    /** Connector registration history state key */
+    public static final String CONNECTOR_REGISTRATION_HISTORY_KEY = "CONNECTOR_REGISTRATION_HISTORY";
 
     /** Ledger configuration singleton state key */
     public static final String LEDGER_CONFIGURATION_KEY = "LEDGER_CONFIGURATION";
@@ -111,8 +111,8 @@ public class V0780ClprSchema extends Schema<SemanticVersion> {
                         ProtoBytes.PROTOBUF,
                         ProtoBytes.PROTOBUF),
                 StateDefinition.keyValue(
-                        PENDING_CONNECTOR_COMMITMENTS_STATE_ID,
-                        PENDING_CONNECTOR_COMMITMENTS_KEY,
+                        CONNECTOR_REGISTRATION_HISTORY_STATE_ID,
+                        CONNECTOR_REGISTRATION_HISTORY_KEY,
                         ProtoBytes.PROTOBUF,
                         ProtoBytes.PROTOBUF),
                 StateDefinition.keyValue(

@@ -323,7 +323,7 @@ DRAINED as part of initiating the close.
 
 ## 3.3 Connector Lifecycle
 
-### 3.3.1 `registerConnector`
+### 3.3.1 `registerConnector` (Hiero `createConnector`)
 
 - Requires initial balance and stake meeting minimum thresholds.
 - Channel must be ACTIVE.
@@ -336,7 +336,7 @@ DRAINED as part of initiating the close.
 - Withdrawal cannot exceed available balance; locked stake cannot be withdrawn while registered.
 - Only the Connector admin can perform these operations.
 
-### 3.3.3 `deregisterConnector`
+### 3.3.3 `deregisterConnector` (Hiero `deleteConnector`)
 
 - Returns remaining balance and locked stake.
 - Rejected if the Connector has unresolved in-flight messages.

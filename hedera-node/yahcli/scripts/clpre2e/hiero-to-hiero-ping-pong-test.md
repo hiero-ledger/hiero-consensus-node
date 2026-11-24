@@ -28,7 +28,7 @@ The protocol has three layers:
 - **Channel** — a bilateral agreement opened using both ledgers’ service and verifier addresses,
   chain IDs, and a shared salt.
 - **Connector** — the on-chain contract that authorises bundle relay for a given
-  channel. It is registered via commit/reveal, and can be slashed for
+  channel. Registered with an identity-key signature, and can be slashed for
   misbehaviour.
 
 ---
@@ -386,65 +386,27 @@ echo "PassThroughAuth on bob:   $PASSTHROUGH_B"
 
 ### Step 14 — Generate a connector identity
 
-**What this does:** Creates a cryptographic identity for the connector — the
-entity responsible for relaying bundles between the two chains. Connector registration uses a commit/reveal cycle. The connector ID is derived
-from the channel ID, binding this connector to the specific channel.
+The same public key and salt produce the same connector ID on both networks.
+Keep the companion key file available to sign each registration.
 
 ```bash
-./yahcli clpr generate-connector-identity \
-  --channel-id "$CHANNEL_ID" \
-  --out connector.json
-```
-
-Capture the values you will need:
-
-```bash
-CONNECTOR_COMMIT=$(jq -r .commitment connector.json)
+./yahcli clpr generate-connector-identity --out connector.json
 CONNECTOR_ID=$(jq -r .connectorId connector.json)
-echo "Connector commitment: $CONNECTOR_COMMIT"
-echo "Connector ID:         $CONNECTOR_ID"
 ```
 
----
+### Step 15 — Register the connector on both networks
 
-### Step 15 — Register the connector on both networks (commit phase)
-
-**What this does:** Submits the connector commitment to each network. Same
-principle as the channel's commit phase — locks in the hash before revealing
-the identity.
+Each registration binds the shared identity to its local PassThroughAuth contract
+and locks the payer's stake in tinybars.
 
 ```bash
-./yahcli -n alice -p 2 clpr register-connector --channel-id "$CHANNEL_ID" --commitment "$CONNECTOR_COMMIT"
-./yahcli -n bob   -p 2 clpr register-connector --channel-id "$CHANNEL_ID" --commitment "$CONNECTOR_COMMIT"
+./yahcli -n alice -p 2 clpr create-connector --identity connector.json \
+  --channel-id "$CHANNEL_ID" --connector-contract "$PASSTHROUGH_A" --locked-stake 100000000
+./yahcli -n bob -p 2 clpr create-connector --identity connector.json \
+  --channel-id "$CHANNEL_ID" --connector-contract "$PASSTHROUGH_B" --locked-stake 100000000
 ```
 
----
-
-### Step 16 — Complete the connector on both networks (reveal phase)
-
-**What this does:** Associates the connector identity with the PassThroughAuth
-contract and locks the stake. From this point, PassThroughAuth is the authorised
-connector for this channel. If it submits invalid bundles it can be slashed. The
-`--locked-stake` is denominated in tinybars and held by the CLPR staking account
-until the connector is deregistered.
-
-```bash
-./yahcli -n alice -p 2 clpr complete-connector \
-  --identity connector.json \
-  --connector-contract "$PASSTHROUGH_A" \
-  --locked-stake 100000000
-
-./yahcli -n bob -p 2 clpr complete-connector \
-  --identity connector.json \
-  --connector-contract "$PASSTHROUGH_B" \
-  --locked-stake 100000000
-```
-
-The CLPR channel + connector are now fully established on both chains.
-
----
-
-### Step 17 — Deploy PingPong on both networks
+### Step 16 — Deploy PingPong on both networks
 
 **What this does:** Deploys the [PingPong application contract](../../../test-clients/src/main/resources/contract/contracts/PingPong/PingPong.sol). PingPong is a CLPR
 application — it implements `onClprMessage` (receives cross-ledger messages and
@@ -471,7 +433,7 @@ echo "PingPong on bob:   $PINGPONG_B"
 
 ---
 
-### Step 18 — Encode the serve() call
+### Step 17 — Encode the serve() call
 
 **What this does:** Builds the ABI calldata for one `serve()` invocation on alice's
 PingPong. The on-chain signature is
@@ -492,7 +454,7 @@ Capture the ids (from steps 10 & 14), pick bob's PingPong as the target, and set
 CHANNEL_ID=$(jq -r .channelId channel.json)
 CONNECTOR_ID=$(jq -r .connectorId connector.json)
 
-# bob's PingPong (from step 17) as a 20-byte long-zero address, no 0x prefix
+# bob's PingPong (from step 16) as a 20-byte long-zero address, no 0x prefix
 TARGET_APP=$(printf '%040x' "${PINGPONG_B##*.}")
 # message payload, hex-encoded (no 0x)
 MESSAGE_DATA=$(printf '%s' "Hello world" | xxd -p -c 1000000 | tr -d '\n')
@@ -555,7 +517,7 @@ Each hop is logged on the side that runs the callback: bob's `onClprMessage`
 this is to **tail both logs live in one terminal** and **trigger the volley from
 another** — you watch the ping-pong bounce in real time.
 
-### Step 19 — Terminal A: start the live volley watcher
+### Step 18 — Terminal A: start the live volley watcher
 
 Open a **second terminal**, `cd` into `clpr-hiero-alice/hedera-node/yahcli`, and
 start the watcher. It follows both nodes' logs and prints one friendly line per
@@ -589,9 +551,9 @@ watch_volley
 
 `tail -n 0` means it shows only *new* activity, so start it **before** you serve.
 
-### Step 20 — Terminal B: kick off the volley
+### Step 19 — Terminal B: kick off the volley
 
-Back in your original terminal, run the serve from Step 18 (re-run it any time to
+Back in your original terminal, run the serve from Step 17 (re-run it any time to
 start a fresh volley):
 
 ```bash
@@ -673,5 +635,5 @@ grep -hE "step10 DATA ABI unwrap OK|onClprResponse dispatch SUCCESS" \
 
 Each `step10 DATA ABI unwrap OK … receivedMsgId=N` is bob's `onClprMessage` receiving a
 ping; each `onClprResponse dispatch SUCCESS` is alice re-serving. For the friendly live
-view, run `watch_volley` from [Step 19](#step-19--terminal-a-start-the-live-volley-watcher)
+view, run `watch_volley` from [Step 18](#step-19--terminal-a-start-the-live-volley-watcher)
 in a second terminal *before* you serve.

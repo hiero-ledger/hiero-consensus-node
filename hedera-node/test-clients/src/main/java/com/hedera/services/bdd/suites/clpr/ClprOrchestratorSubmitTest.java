@@ -7,9 +7,8 @@ import static com.hedera.services.bdd.junit.ContextRequirement.PROPERTY_OVERRIDE
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.CLPR;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCreateChannel;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterConnector;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCreateConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprUpdateLedgerConfiguration;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -42,7 +41,6 @@ import com.hederahashgraph.api.proto.java.ClprChannelStatus;
 import com.hederahashgraph.api.proto.java.ClprLedgerConfiguration;
 import com.hederahashgraph.api.proto.java.ClprMessage;
 import com.hederahashgraph.api.proto.java.ClprMessagePayload;
-import com.hederahashgraph.api.proto.java.ClprSignatureScheme;
 import java.util.List;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
@@ -107,15 +105,9 @@ public class ClprOrchestratorSubmitTest {
                                     .verifierContract(VERIFIER_CONTRACT)
                                     .configProofBytes(proofBytes.toByteArray())
                                     .payingWith(GENESIS),
-                            clprRegisterConnector()
-                                    .channelId(crypto.channelId())
-                                    .commitment(crypto.connectorCommitment())
-                                    .payingWith(GENESIS),
-                            clprCompleteConnector()
+                            clprCreateConnector()
                                     .connectorId(crypto.connectorId())
-                                    .publicKey(crypto.publicKey())
-                                    .signature(crypto.connectorSignature())
-                                    .signatureScheme(ClprSignatureScheme.ED25519)
+                                    .ed25519Identity(crypto.seed())
                                     .salt(crypto.connectorSalt())
                                     .channelId(crypto.channelId())
                                     .connectorContract(CONNECTOR_CONTRACT)

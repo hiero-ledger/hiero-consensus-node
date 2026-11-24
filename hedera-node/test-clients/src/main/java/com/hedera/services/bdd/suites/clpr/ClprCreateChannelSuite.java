@@ -6,10 +6,9 @@ import static com.hedera.services.bdd.junit.ContextRequirement.PROPERTY_OVERRIDE
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.CLPR;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCreateChannel;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprDeregisterConnector;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterConnector;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCreateConnector;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprDeleteConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
@@ -23,6 +22,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_CHANNEL_A
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_CONNECTOR_ALREADY_EXISTS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_INVALID_VERIFIER_CONTRACT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_NOT_ENABLED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -37,8 +37,8 @@ import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.SpecOperation;
+import com.hedera.services.bdd.spec.transactions.clpr.HapiClprCreateConnector;
 import com.hederahashgraph.api.proto.java.ClprLedgerConfiguration;
-import com.hederahashgraph.api.proto.java.ClprSignatureScheme;
 import com.hederahashgraph.api.proto.java.ClprThrottles;
 import com.hederahashgraph.api.proto.java.ContractID;
 import com.swirlds.state.spi.ReadableKVState;
@@ -81,8 +81,8 @@ public class ClprCreateChannelSuite {
     }
 
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
-    @DisplayName("Connector commitment cannot be re-registered while pending, active, or after deregistration")
-    final Stream<DynamicTest> connectorCommitmentCannotBeReRegistered() {
+    @DisplayName("A connector ID cannot be used twice on a channel, including after deletion")
+    final Stream<DynamicTest> connectorCannotBeRecreatedOnSameChannel() {
         return hapiTest(ClprChannelCrypto.withVerifier(VERIFIER, "hiero:testing", new byte[] {0, 0, 1}, crypto -> {
             return blockingOrder(
                     overriding("clpr.enabled", "true"),
@@ -96,48 +96,22 @@ public class ClprCreateChannelSuite {
                             .configProofBytes(defaultConfigProofBytes())
                             .payingWith(GENESIS)
                             .hasKnownStatus(SUCCESS),
-                    clprRegisterConnector()
-                            .channelId(crypto.channelId())
-                            .commitment(crypto.connectorCommitment())
+                    createConnector(crypto)
                             .payingWith(GENESIS)
-                            .hasKnownStatus(SUCCESS),
-                    // Pending reveal
-                    clprRegisterConnector()
-                            .channelId(crypto.channelId())
-                            .commitment(crypto.connectorCommitment())
-                            .payingWith(GENESIS)
-                            .hasKnownStatus(CLPR_CONNECTOR_ALREADY_EXISTS),
-                    clprCompleteConnector()
-                            .connectorId(crypto.connectorId())
-                            .publicKey(crypto.publicKey())
-                            .signature(crypto.connectorSignature())
-                            .signatureScheme(ClprSignatureScheme.ED25519)
-                            .salt(crypto.connectorSalt())
-                            .channelId(crypto.channelId())
-                            .connectorContract(CONNECTOR_CONTRACT)
-                            .adminKeyName(GENESIS)
-                            .lockedStake(LOCKED_STAKE)
-                            .payingWith(GENESIS)
-                            .hasKnownStatus(SUCCESS),
+                            .signedBy(GENESIS)
+                            .hasKnownStatus(INVALID_SIGNATURE),
+                    createConnector(crypto).payingWith(GENESIS).hasKnownStatus(SUCCESS),
                     // Connector exists
-                    clprRegisterConnector()
-                            .channelId(crypto.channelId())
-                            .commitment(crypto.connectorCommitment())
-                            .payingWith(GENESIS)
-                            .hasKnownStatus(CLPR_CONNECTOR_ALREADY_EXISTS),
-                    clprDeregisterConnector()
+                    createConnector(crypto).payingWith(GENESIS).hasKnownStatus(CLPR_CONNECTOR_ALREADY_EXISTS),
+                    clprDeleteConnector()
                             .channelId(crypto.channelId())
                             .connectorId(crypto.connectorId())
                             .adminKey(GENESIS)
                             .stakeRecipient(GENESIS)
                             .payingWith(GENESIS)
                             .hasKnownStatus(SUCCESS),
-                    // Connector deregistered: the commitment is never released
-                    clprRegisterConnector()
-                            .channelId(crypto.channelId())
-                            .commitment(crypto.connectorCommitment())
-                            .payingWith(GENESIS)
-                            .hasKnownStatus(CLPR_CONNECTOR_ALREADY_EXISTS));
+                    // Deleting the connector preserves its registration history
+                    createConnector(crypto).payingWith(GENESIS).hasKnownStatus(CLPR_CONNECTOR_ALREADY_EXISTS));
         }));
     }
 
@@ -280,6 +254,17 @@ public class ClprCreateChannelSuite {
      * Synthetic config proof bytes for the passthrough verifier path; spec refs §3.1
      * (verifyConfig contract) and §5.1.3 (createChannel consumes the verifier output).
      */
+    private static HapiClprCreateConnector createConnector(final ClprChannelCrypto crypto) {
+        return clprCreateConnector()
+                .connectorId(crypto.connectorId())
+                .ed25519Identity(crypto.seed())
+                .salt(crypto.connectorSalt())
+                .channelId(crypto.channelId())
+                .connectorContract(CONNECTOR_CONTRACT)
+                .adminKeyName(GENESIS)
+                .lockedStake(LOCKED_STAKE);
+    }
+
     private static byte[] defaultConfigProofBytes() {
         return ClprTestProofs.toConfigProofBytes(ClprLedgerConfiguration.newBuilder()
                 .setChainId("hiero:testing")

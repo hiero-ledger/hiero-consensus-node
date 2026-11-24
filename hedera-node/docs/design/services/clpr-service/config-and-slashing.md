@@ -38,7 +38,7 @@ derived from the network's HIP-26 EVM chain ID, `contracts.chainId`, as `eip155:
 
 |            Key            |            Default            | Network? |                                  Purpose                                   |
 |---------------------------|-------------------------------|----------|----------------------------------------------------------------------------|
-| `minLockedStake`          | `100 000 000` tinybars        | yes      | Required stake for `completeConnector`; transferred to `stakingAccount`.   |
+| `minLockedStake`          | `100 000 000` tinybars        | yes      | Required stake for `createConnector`; transferred to `stakingAccount`.     |
 | `stakingAccount`          | `0.0.803` (account num `803`) | yes      | Holds locked connector stake; created at genesis/upgrade if CLPR enabled.  |
 | `slashBasePenalty`        | `10 000 000` tinybars         | yes      | Base slash on first offence.                                               |
 | `slashMultiplier`         | `2`                           | yes      | Geometric escalation factor per repeat offence.                            |
@@ -188,7 +188,7 @@ new_locked_stake = max(0, connector.locked_stake − penalty)
 Returned `SlashResult(updatedConnector, penaltyAmount, banned)` is consumed by
 `ClprSubmitBundleHandler`, which also credits the submitting endpoint with
 `endpoint_payout`. If `banned`, the connector record stays in state but
-`deregisterConnector` is blocked while banned (per `ClprDeregisterConnectorHandler`).
+`deleteConnector` is blocked while banned (per `ClprDeleteConnectorHandler`).
 
 ### Which `ClprMessageReplyStatus` triggers a slash?
 

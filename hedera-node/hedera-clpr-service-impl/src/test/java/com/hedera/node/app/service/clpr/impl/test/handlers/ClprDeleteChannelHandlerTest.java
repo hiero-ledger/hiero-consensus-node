@@ -407,7 +407,13 @@ class ClprDeleteChannelHandlerTest {
         queueStore.put(CHANNEL_ID, 17L, queueValue(data));
         queueStore.put(CHANNEL_ID, 18L, queueValue(data));
         final var anotherChannel = COMMITMENT;
-        queueStore.put(anotherChannel, 2L, queueValue(largeReply));
+        final var otherRegistration = ClprConnector.newBuilder()
+                .channelId(anotherChannel)
+                .connectorId(connectorId)
+                .inFlightMessageCount(1)
+                .build();
+        connectorStore.put(otherRegistration);
+        queueStore.put(anotherChannel, 2L, queueValue(data));
         setupForceCloseContext();
 
         subject.handle(handleContext);
@@ -431,7 +437,9 @@ class ClprDeleteChannelHandlerTest {
         assertThat(queueStore.getMessage(CHANNEL_ID, 18L)).isNull();
         assertThat(connectorStore.getConnector(connectorKey).inFlightMessageCount())
                 .isZero();
-        assertThat(queueStore.getMessage(anotherChannel, 2L)).isEqualTo(queueValue(largeReply));
+        assertThat(queueStore.getMessage(anotherChannel, 2L)).isEqualTo(queueValue(data));
+        assertThat(connectorStore.getConnector(new ClprConnectorKey(anotherChannel, connectorId)))
+                .isEqualTo(otherRegistration);
         assertThat(commitmentStore.contains(COMMITMENT)).isTrue();
     }
 

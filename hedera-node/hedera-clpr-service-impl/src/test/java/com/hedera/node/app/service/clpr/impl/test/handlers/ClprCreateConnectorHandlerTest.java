@@ -2,21 +2,20 @@
 package com.hedera.node.app.service.clpr.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_CHANNEL_NOT_FOUND;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_COMMITMENT_MISMATCH;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_CONNECTOR_ALREADY_EXISTS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INSUFFICIENT_STAKE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INVALID_CONNECTOR_CONTRACT;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NOT_ENABLED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CONNECTORS_STATE_ID;
-import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.PENDING_CONNECTOR_COMMITMENTS_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CONNECTOR_REGISTRATION_HISTORY_STATE_ID;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -25,8 +24,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.TransactionID;
-import com.hedera.hapi.node.clpr.ClprCompleteConnectorTransactionBody;
-import com.hedera.hapi.node.clpr.ClprSignatureScheme;
+import com.hedera.hapi.node.clpr.ClprCreateConnectorTransactionBody;
 import com.hedera.hapi.node.state.clpr.ClprChannel;
 import com.hedera.hapi.node.state.clpr.ClprChannelStatus;
 import com.hedera.hapi.node.state.clpr.ClprConnector;
@@ -34,10 +32,12 @@ import com.hedera.hapi.node.state.clpr.ClprConnectorKey;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
+import com.hedera.node.app.hapi.utils.keys.Ed25519Utils;
 import com.hedera.node.app.service.clpr.impl.ReadableChannelStoreImpl;
+import com.hedera.node.app.service.clpr.impl.WritableConnectorRegistrationStore;
 import com.hedera.node.app.service.clpr.impl.WritableConnectorStore;
-import com.hedera.node.app.service.clpr.impl.WritablePendingConnectorCommitmentStore;
-import com.hedera.node.app.service.clpr.impl.handlers.ClprCompleteConnectorHandler;
+import com.hedera.node.app.service.clpr.impl.handlers.ClprCreateConnectorHandler;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.entityid.impl.AppEntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
@@ -46,6 +46,7 @@ import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -61,7 +62,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class ClprCompleteConnectorHandlerTest {
+class ClprCreateConnectorHandlerTest {
 
     private static final AccountID PAYER_ID =
             AccountID.newBuilder().shardNum(0).realmNum(0).accountNum(1001).build();
@@ -89,6 +90,11 @@ class ClprCompleteConnectorHandlerTest {
         0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42,
         0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42
     });
+    // Independent Keccak-256 vectors for SECRET_KEY (01..20) with an all-zero salt.
+    private static final Bytes ECDSA_CONNECTOR_ID =
+            Bytes.fromHex("6afec4c25e7ffd0d3622d40865460b80b36c98aa64538a13ef7083ccf288557b");
+    private static final Bytes ED25519_CONNECTOR_ID =
+            Bytes.fromHex("6b4d455e3f0dd81a3cb4762c36a2170b57d4ed7dda33c03c9a78950a88bf3336");
     private static final Bytes SALT = Bytes.wrap(new byte[32]);
 
     @Mock
@@ -109,27 +115,23 @@ class ClprCompleteConnectorHandlerTest {
     @Mock
     private TokenServiceApi tokenServiceApi;
 
-    private ClprCompleteConnectorHandler subject;
+    private ClprCreateConnectorHandler subject;
     private WritableConnectorStore connectorStore;
-    private WritablePendingConnectorCommitmentStore commitmentStore;
+    private WritableConnectorRegistrationStore registrations;
     private ReadableChannelStoreImpl channelStore;
 
-    private byte[] ecdsaPublicKey64;
-    private Bytes derivedConnectorId;
-    private Bytes ecdsaCommitment;
-    private Bytes ecdsaSignature;
+    private Key identityKey;
 
     @BeforeEach
     void setUp() {
         final var config = HederaTestConfigBuilder.createConfig();
         final EntityIdFactory idFactory = new AppEntityIdFactory(config);
-        subject = new ClprCompleteConnectorHandler(idFactory);
+        subject = new ClprCreateConnectorHandler(idFactory);
 
-        ecdsaPublicKey64 = ECDSASecp256k1.derivePublicKey(SECRET_KEY);
-        derivedConnectorId =
-                CryptoTestHelpers.computeConnectorId(CHANNEL_ID.toByteArray(), ecdsaPublicKey64, SALT.toByteArray());
-        ecdsaCommitment = CryptoTestHelpers.computeCommitment(derivedConnectorId.toByteArray(), ecdsaPublicKey64);
-        ecdsaSignature = CryptoTestHelpers.signEcdsa(SECRET_KEY, derivedConnectorId.toByteArray());
+        final var ecdsaPublicKey64 = ECDSASecp256k1.derivePublicKey(SECRET_KEY);
+        identityKey = Key.newBuilder()
+                .ecdsaSecp256k1(Bytes.wrap(MiscCryptoUtils.compressSecp256k1(ecdsaPublicKey64)))
+                .build();
 
         // Connectors state
         final var writableConnectors = MapWritableKVState.<ClprConnectorKey, ClprConnector>builder(
@@ -140,14 +142,14 @@ class ClprCompleteConnectorHandlerTest {
                 .thenReturn(writableConnectors);
         connectorStore = new WritableConnectorStore(writableStates);
 
-        // Pending connector commitments state
-        final var writableCommitments = MapWritableKVState.<ProtoBytes, ProtoBytes>builder(
-                        PENDING_CONNECTOR_COMMITMENTS_STATE_ID, "ClprService:PENDING_CONNECTOR_COMMITMENTS")
+        // Permanent channel-scoped registrations
+        final var writableRegistrations = MapWritableKVState.<ProtoBytes, ProtoBytes>builder(
+                        CONNECTOR_REGISTRATION_HISTORY_STATE_ID, "ClprService:CONNECTOR_REGISTRATION_HISTORY")
                 .build();
         lenient()
-                .when(writableStates.<ProtoBytes, ProtoBytes>get(PENDING_CONNECTOR_COMMITMENTS_STATE_ID))
-                .thenReturn(writableCommitments);
-        commitmentStore = new WritablePendingConnectorCommitmentStore(writableStates);
+                .when(writableStates.<ProtoBytes, ProtoBytes>get(CONNECTOR_REGISTRATION_HISTORY_STATE_ID))
+                .thenReturn(writableRegistrations);
+        registrations = new WritableConnectorRegistrationStore(writableStates);
 
         // Channels state — populated with one ACTIVE channel
         final var writableChannels = MapWritableKVState.<ProtoBytes, ClprChannel>builder(
@@ -197,22 +199,11 @@ class ClprCompleteConnectorHandlerTest {
     }
 
     @Test
-    @DisplayName("should reject when ecdsa public_key is not 64 bytes")
-    void rejectsWrongEcdsaKeyLength() throws PreCheckException {
+    @DisplayName("should reject a malformed compressed secp256k1 key")
+    void rejectsMalformedSecp256k1Key() throws PreCheckException {
         final var op = validOpBuilder()
-                .publicKey(Bytes.wrap(new byte[33]))
-                .signatureScheme(ClprSignatureScheme.ECDSA_SECP256K1)
+                .identityKey(Key.newBuilder().ecdsaSecp256k1(Bytes.wrap(new byte[33])))
                 .build();
-        lenient().when(pureChecksContext.body()).thenReturn(txnWith(op));
-        assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
-                .isInstanceOf(PreCheckException.class)
-                .has(responseCode(INVALID_TRANSACTION_BODY));
-    }
-
-    @Test
-    @DisplayName("should reject when signature is not 64 bytes")
-    void rejectsWrongSignatureLength() throws PreCheckException {
-        final var op = validOpBuilder().signature(Bytes.wrap(new byte[32])).build();
         lenient().when(pureChecksContext.body()).thenReturn(txnWith(op));
         assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
@@ -222,11 +213,9 @@ class ClprCompleteConnectorHandlerTest {
     @Test
     @DisplayName("should reject missing connector_contract")
     void rejectsMissingContract() throws PreCheckException {
-        final var op = ClprCompleteConnectorTransactionBody.newBuilder()
-                .connectorId(derivedConnectorId)
-                .publicKey(Bytes.wrap(ecdsaPublicKey64))
-                .signature(ecdsaSignature)
-                .signatureScheme(ClprSignatureScheme.ECDSA_SECP256K1)
+        final var op = ClprCreateConnectorTransactionBody.newBuilder()
+                .connectorId(ECDSA_CONNECTOR_ID)
+                .identityKey(identityKey)
                 .salt(SALT)
                 .channelId(CHANNEL_ID)
                 .adminKey(ADMIN_KEY)
@@ -242,11 +231,9 @@ class ClprCompleteConnectorHandlerTest {
     @Test
     @DisplayName("should reject missing admin_key")
     void rejectsMissingAdminKey() throws PreCheckException {
-        final var op = ClprCompleteConnectorTransactionBody.newBuilder()
-                .connectorId(derivedConnectorId)
-                .publicKey(Bytes.wrap(ecdsaPublicKey64))
-                .signature(ecdsaSignature)
-                .signatureScheme(ClprSignatureScheme.ECDSA_SECP256K1)
+        final var op = ClprCreateConnectorTransactionBody.newBuilder()
+                .connectorId(ECDSA_CONNECTOR_ID)
+                .identityKey(identityKey)
                 .salt(SALT)
                 .channelId(CHANNEL_ID)
                 .connectorContract(CONTRACT_ID)
@@ -266,40 +253,60 @@ class ClprCompleteConnectorHandlerTest {
         subject.pureChecks(pureChecksContext);
     }
 
+    @Test
+    void rejectsMismatchedConnectorId() {
+        final var op = validOpBuilder().connectorId(Bytes.wrap(new byte[32])).build();
+        when(pureChecksContext.body()).thenReturn(txnWith(op));
+        assertThatThrownBy(() -> subject.pureChecks(pureChecksContext)).has(responseCode(INVALID_TRANSACTION_BODY));
+    }
+
+    @Test
+    void rejectsNonCryptographicIdentityKey() {
+        final var op = validOpBuilder()
+                .identityKey(Key.newBuilder().contractID(CONTRACT_ID))
+                .build();
+        when(pureChecksContext.body()).thenReturn(txnWith(op));
+        assertThatThrownBy(() -> subject.pureChecks(pureChecksContext)).has(responseCode(INVALID_TRANSACTION_BODY));
+    }
+
+    @Test
+    void requiresIdentityKeyToSignRegistration() throws PreCheckException {
+        final var preHandle = mock(PreHandleContext.class);
+        when(preHandle.body()).thenReturn(validTxn());
+        subject.preHandle(preHandle);
+        verify(preHandle).requireKeyOrThrow(identityKey, INVALID_TRANSACTION_BODY);
+    }
+
+    @Test
+    void canCreateConnectorWithSameIdentityOnAnotherChannel() {
+        final var otherChannel = Bytes.wrap(new byte[32]);
+        final var channels = writableStates.<ProtoBytes, ClprChannel>get(CHANNELS_STATE_ID);
+        channels.put(
+                new ProtoBytes(otherChannel),
+                channels.get(new ProtoBytes(CHANNEL_ID))
+                        .copyBuilder()
+                        .channelId(otherChannel)
+                        .build());
+        setupSmartContractMock();
+        setupHandleContext(validTxn(), true);
+        subject.handle(handleContext);
+        setupHandleContext(txnWith(validOpBuilder().channelId(otherChannel).build()), true);
+        subject.handle(handleContext);
+        assertThat(connectorStore.getConnector(new ClprConnectorKey(CHANNEL_ID, ECDSA_CONNECTOR_ID)))
+                .isNotNull();
+        assertThat(connectorStore.getConnector(new ClprConnectorKey(otherChannel, ECDSA_CONNECTOR_ID)))
+                .isNotNull();
+    }
+
     // ── handle ────────────────────────────────────────────────────────────────
 
     @Test
     @DisplayName("should reject when CLPR not enabled")
     void rejectsWhenClprNotEnabled() {
-        commitmentStore.put(ecdsaCommitment);
         setupHandleContext(validTxn(), false);
         assertThatThrownBy(() -> subject.handle(handleContext))
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(CLPR_NOT_ENABLED));
-    }
-
-    @Test
-    @DisplayName("should reject when commitment not found")
-    void rejectsWhenCommitmentNotFound() {
-        // commitment NOT put
-        setupHandleContext(validTxn(), true);
-        assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
-                .has(responseCode(CLPR_COMMITMENT_MISMATCH));
-    }
-
-    @Test
-    @DisplayName("should reject when connectorId does not match re-derivation")
-    void rejectsWhenConnectorIdMismatch() {
-        final var wrongConnectorId = Bytes.wrap(new byte[32]); // all-zeros != derived
-        final var wrongCommitment =
-                CryptoTestHelpers.computeCommitment(wrongConnectorId.toByteArray(), ecdsaPublicKey64);
-        commitmentStore.put(wrongCommitment);
-        final var op = validOpBuilder().connectorId(wrongConnectorId).build();
-        setupHandleContext(txnWith(op), true);
-        assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
-                .has(responseCode(CLPR_COMMITMENT_MISMATCH));
     }
 
     @Test
@@ -311,17 +318,7 @@ class ClprCompleteConnectorHandlerTest {
             0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55,
             0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55
         });
-        final var connIdForMissing = CryptoTestHelpers.computeConnectorId(
-                missingChannelId.toByteArray(), ecdsaPublicKey64, SALT.toByteArray());
-        final var commitmentForMissing =
-                CryptoTestHelpers.computeCommitment(connIdForMissing.toByteArray(), ecdsaPublicKey64);
-        commitmentStore.put(commitmentForMissing);
-        final var sig = CryptoTestHelpers.signEcdsa(SECRET_KEY, connIdForMissing.toByteArray());
-        final var op = validOpBuilder()
-                .connectorId(connIdForMissing)
-                .channelId(missingChannelId)
-                .signature(sig)
-                .build();
+        final var op = validOpBuilder().channelId(missingChannelId).build();
         setupHandleContext(txnWith(op), true);
         assertThatThrownBy(() -> subject.handle(handleContext))
                 .isInstanceOf(HandleException.class)
@@ -331,9 +328,8 @@ class ClprCompleteConnectorHandlerTest {
     @Test
     @DisplayName("should reject when connector already exists")
     void rejectsWhenConnectorAlreadyExists() {
-        commitmentStore.put(ecdsaCommitment);
         connectorStore.put(ClprConnector.newBuilder()
-                .connectorId(derivedConnectorId)
+                .connectorId(ECDSA_CONNECTOR_ID)
                 .channelId(CHANNEL_ID)
                 .connectorContract(CONTRACT_ID)
                 .adminKey(ADMIN_KEY)
@@ -346,21 +342,8 @@ class ClprCompleteConnectorHandlerTest {
     }
 
     @Test
-    @DisplayName("should reject when signature is invalid")
-    void rejectsInvalidSignature() {
-        commitmentStore.put(ecdsaCommitment);
-        setupSmartContractMock();
-        final var op = validOpBuilder().signature(Bytes.wrap(new byte[64])).build();
-        setupHandleContext(txnWith(op), true);
-        assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
-                .has(responseCode(CLPR_INVALID_SIGNATURE));
-    }
-
-    @Test
     @DisplayName("should reject when connector_contract is not a deployed smart contract")
     void rejectsWhenContractNotFound() {
-        commitmentStore.put(ecdsaCommitment);
         lenient().when(accountStore.getContractById(CONTRACT_ID)).thenReturn(null);
         setupHandleContext(validTxn(), true);
         assertThatThrownBy(() -> subject.handle(handleContext))
@@ -371,7 +354,6 @@ class ClprCompleteConnectorHandlerTest {
     @Test
     @DisplayName("should reject when connector_contract account is not a smart contract")
     void rejectsWhenAccountIsNotSmartContract() {
-        commitmentStore.put(ecdsaCommitment);
         final var regularAccount = Account.newBuilder()
                 .accountId(CONTRACT_ACCOUNT_ID)
                 .smartContract(false)
@@ -386,7 +368,6 @@ class ClprCompleteConnectorHandlerTest {
     @Test
     @DisplayName("should reject when locked_stake is below minimum")
     void rejectsInsufficientStake() {
-        commitmentStore.put(ecdsaCommitment);
         setupSmartContractMock();
         final var op = validOpBuilder().lockedStake(MIN_LOCKED_STAKE - 1).build();
         setupHandleContext(txnWith(op), true);
@@ -398,7 +379,6 @@ class ClprCompleteConnectorHandlerTest {
     @Test
     @DisplayName("should reject when the payer is one tinybar short of the requested stake")
     void rejectsWhenPayerCannotCoverStake() {
-        commitmentStore.put(ecdsaCommitment);
         setupSmartContractMock();
         setupHandleContext(validTxn(), true);
         when(accountStore.getAccountById(PAYER_ID))
@@ -412,73 +392,66 @@ class ClprCompleteConnectorHandlerTest {
                 .has(responseCode(INSUFFICIENT_ACCOUNT_BALANCE));
 
         verifyNoInteractions(tokenServiceApi);
-        assertThat(connectorStore.getConnector(new ClprConnectorKey(CHANNEL_ID, derivedConnectorId)))
+        assertThat(connectorStore.getConnector(new ClprConnectorKey(CHANNEL_ID, ECDSA_CONNECTOR_ID)))
                 .isNull();
-        assertThat(commitmentStore.contains(ecdsaCommitment)).isTrue();
+        assertThat(registrations.contains(new ClprConnectorKey(CHANNEL_ID, ECDSA_CONNECTOR_ID)))
+                .isFalse();
     }
 
     @Test
-    @DisplayName("should register the connector when the payer balance exactly covers the stake")
-    void registersConnectorSuccessfully() {
-        commitmentStore.put(ecdsaCommitment);
+    @DisplayName("should create the connector when the payer balance exactly covers the stake")
+    void createsConnectorSuccessfully() {
         setupSmartContractMock();
         setupHandleContext(validTxn(), true);
 
         subject.handle(handleContext);
 
-        final var key = new ClprConnectorKey(CHANNEL_ID, derivedConnectorId);
+        final var key = new ClprConnectorKey(CHANNEL_ID, ECDSA_CONNECTOR_ID);
         final var connector = connectorStore.getConnector(key);
         assertThat(connector).isNotNull();
-        assertThat(connector.connectorId()).isEqualTo(derivedConnectorId);
+        assertThat(connector.connectorId()).isEqualTo(ECDSA_CONNECTOR_ID);
         assertThat(connector.channelId()).isEqualTo(CHANNEL_ID);
         assertThat(connector.connectorContract()).isEqualTo(CONTRACT_ID);
         assertThat(connector.lockedStake()).isEqualTo(VALID_STAKE);
         assertThat(connector.slashCount()).isZero();
-        assertThat(commitmentStore.contains(ecdsaCommitment)).isTrue();
+        assertThat(registrations.contains(key)).isTrue();
         verify(tokenServiceApi).transferFromTo(PAYER_ID, STAKING_ACCOUNT_ID, VALID_STAKE);
     }
 
     @Test
-    @DisplayName("should register connector with ED25519 signature scheme on success")
-    void registersConnectorWithEd25519Successfully() {
-        final var ed25519PublicKey = CryptoTestHelpers.deriveEd25519PublicKey(SECRET_KEY);
-        final var ed25519ConnectorId =
-                CryptoTestHelpers.computeConnectorId(CHANNEL_ID.toByteArray(), ed25519PublicKey, SALT.toByteArray());
-        final var ed25519Commitment =
-                CryptoTestHelpers.computeCommitment(ed25519ConnectorId.toByteArray(), ed25519PublicKey);
-        final var ed25519Signature = CryptoTestHelpers.signEd25519(SECRET_KEY, ed25519ConnectorId.toByteArray());
-
-        commitmentStore.put(ed25519Commitment);
+    @DisplayName("should create the connector with ED25519 signature scheme on success")
+    void createsConnectorWithEd25519Successfully() throws PreCheckException {
+        final var ed25519PublicKey = Ed25519Utils.extractEd25519PublicKey(Ed25519Utils.keyFrom(SECRET_KEY));
         setupSmartContractMock();
         final var op = validOpBuilder()
-                .connectorId(ed25519ConnectorId)
-                .publicKey(Bytes.wrap(ed25519PublicKey))
-                .signature(ed25519Signature)
-                .signatureScheme(ClprSignatureScheme.ED25519)
+                .connectorId(ED25519_CONNECTOR_ID)
+                .identityKey(Key.newBuilder().ed25519(Bytes.wrap(ed25519PublicKey)))
                 .build();
+        when(pureChecksContext.body()).thenReturn(txnWith(op));
+        subject.pureChecks(pureChecksContext);
         setupHandleContext(txnWith(op), true);
 
         subject.handle(handleContext);
 
-        final var connector = connectorStore.getConnector(new ClprConnectorKey(CHANNEL_ID, ed25519ConnectorId));
+        final var connector = connectorStore.getConnector(new ClprConnectorKey(CHANNEL_ID, ED25519_CONNECTOR_ID));
         assertThat(connector).isNotNull();
-        assertThat(connector.connectorId()).isEqualTo(ed25519ConnectorId);
+        assertThat(connector.connectorId()).isEqualTo(ED25519_CONNECTOR_ID);
         assertThat(connector.lockedStake()).isEqualTo(VALID_STAKE);
-        assertThat(commitmentStore.contains(ed25519Commitment)).isTrue();
+        assertThat(registrations.contains(new ClprConnectorKey(CHANNEL_ID, ED25519_CONNECTOR_ID)))
+                .isTrue();
         verify(tokenServiceApi).transferFromTo(PAYER_ID, STAKING_ACCOUNT_ID, VALID_STAKE);
     }
 
     @Test
     @DisplayName("should accept locked_stake exactly at minimum")
     void acceptsLockedStakeAtExactMinimum() {
-        commitmentStore.put(ecdsaCommitment);
         setupSmartContractMock();
         final var op = validOpBuilder().lockedStake(MIN_LOCKED_STAKE).build();
         setupHandleContext(txnWith(op), true);
 
         subject.handle(handleContext);
 
-        final var connector = connectorStore.getConnector(new ClprConnectorKey(CHANNEL_ID, derivedConnectorId));
+        final var connector = connectorStore.getConnector(new ClprConnectorKey(CHANNEL_ID, ECDSA_CONNECTOR_ID));
         assertThat(connector).isNotNull();
         assertThat(connector.lockedStake()).isEqualTo(MIN_LOCKED_STAKE);
         verify(tokenServiceApi).transferFromTo(PAYER_ID, STAKING_ACCOUNT_ID, MIN_LOCKED_STAKE);
@@ -486,12 +459,10 @@ class ClprCompleteConnectorHandlerTest {
 
     // ── helpers ───────────────────────────────────────────────────────────────
 
-    private ClprCompleteConnectorTransactionBody.Builder validOpBuilder() {
-        return ClprCompleteConnectorTransactionBody.newBuilder()
-                .connectorId(derivedConnectorId)
-                .publicKey(Bytes.wrap(ecdsaPublicKey64))
-                .signature(ecdsaSignature)
-                .signatureScheme(ClprSignatureScheme.ECDSA_SECP256K1)
+    private ClprCreateConnectorTransactionBody.Builder validOpBuilder() {
+        return ClprCreateConnectorTransactionBody.newBuilder()
+                .connectorId(ECDSA_CONNECTOR_ID)
+                .identityKey(identityKey)
                 .salt(SALT)
                 .channelId(CHANNEL_ID)
                 .connectorContract(CONTRACT_ID)
@@ -503,10 +474,10 @@ class ClprCompleteConnectorHandlerTest {
         return txnWith(validOpBuilder().build());
     }
 
-    private TransactionBody txnWith(final ClprCompleteConnectorTransactionBody op) {
+    private TransactionBody txnWith(final ClprCreateConnectorTransactionBody op) {
         return TransactionBody.newBuilder()
                 .transactionID(TransactionID.newBuilder().accountID(PAYER_ID))
-                .clprCompleteConnector(op)
+                .clprCreateConnector(op)
                 .build();
     }
 
@@ -532,8 +503,8 @@ class ClprCompleteConnectorHandlerTest {
         lenient().when(handleContext.configuration()).thenReturn(config);
         lenient().when(handleContext.storeFactory()).thenReturn(storeFactory);
         lenient()
-                .when(storeFactory.writableStore(WritablePendingConnectorCommitmentStore.class))
-                .thenReturn(commitmentStore);
+                .when(storeFactory.writableStore(WritableConnectorRegistrationStore.class))
+                .thenReturn(registrations);
         lenient().when(storeFactory.writableStore(WritableConnectorStore.class)).thenReturn(connectorStore);
         lenient().when(storeFactory.readableStore(ReadableAccountStore.class)).thenReturn(accountStore);
         lenient().when(storeFactory.serviceApi(TokenServiceApi.class)).thenReturn(tokenServiceApi);

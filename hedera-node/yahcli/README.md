@@ -946,10 +946,9 @@ ls -l connector.json.key*.bak     # backups of one key file
 Backups and `.key` files hold live private keys: protect them like keys, and keep them out of version control
 (`*.bak` is already in `.gitignore`; `*.key` is not yet — see `scripts/clpre2e/KEY-HYGIENE-KNOWN-GAPS.md`).
 
-The connector signer (`hedera-node/tools/sign-clpr-connector-identity.py`) reads the
-key only from `--key-file <path>`. They refuse a key file that is a symlink, or (unless `--allow-loose-key-file` /
-`ALLOW_LOOSE_KEY_FILE=1`) one that group/others can read or that you do not own, and they reject bundles that contain an
-inline `privateKey`.
+The connector identity tool (`hedera-node/tools/derive-clpr-connector-identity.py`) reads the
+key from `--key-file <path>` and rejects symlinks and bundles containing an inline `privateKey`.
+By default it requires a file owned by the caller with owner-only permissions.
 
 # Running `ivy` acceptance tests
 
@@ -1037,16 +1036,19 @@ with the peer administrator to close and clean up the other side separately.
 
 ### Connector lifecycle
 
-|   Phase    |           Command           |                Description                 |
-|------------|-----------------------------|--------------------------------------------|
-| Commit     | `clpr register-connector`   | Submits `ClprRegisterConnector` (Phase 1). |
-| Reveal     | `clpr complete-connector`   | Submits `ClprCompleteConnector` (Phase 2). |
-| Deregister | `clpr deregister-connector` | Removes the connector and unlocks stake.   |
+Generate an identity once, then use it to create a connector on each channel it serves.
+The connector ID is `keccak256(publicKey || salt)`. The identity key and the
+payer sign each create transaction, binding the channel, local contract, admin key,
+and stake. The admin key defaults to the identity key.
 
-`generate-connector-identity` produces the matching JSON bundle for `complete-connector`.
+```bash
+./yahcli clpr generate-connector-identity --out connector.json
+./yahcli clpr create-connector --identity connector.json --channel-id "$CHANNEL_ID" \
+  --connector-contract "$CONTRACT_ID" --locked-stake 100000000
+```
 
-`register-connector` requires `--channel-id <hex>` and `--commitment <hex>`, both 32 bytes.
-The channel must already exist. The connector identity remains hidden until `complete-connector`.
+The signer reads `connector.json.key` by default. Use `--key-file` to select another location.
+Use `clpr delete-connector` to unlock the stake. Each channel accepts a given connector ID once.
 
 ### Bundles and messages
 
