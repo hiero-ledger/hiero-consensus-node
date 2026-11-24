@@ -195,6 +195,10 @@ class HintsGenerationWeightsTest {
         assertEquals(Map.of(0L, 7L), weights.fullWeights());
         assertEquals(weights.fullWeights(), weights.schemeWeights());
         assertEquals(7, weights.totalWeight());
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> HintsGenerationWeights.forScheme(
+                        legacy.copyBuilder().preprocessingRosterWeight(6L).build()));
         assertEquals(new HintsGenerationWeights.ThresholdFraction(1, 2), weights.verificationFraction(2));
         assertThrows(
                 UnsupportedOperationException.class, () -> weights.fullWeights().put(1L, 3L));
@@ -234,6 +238,22 @@ class HintsGenerationWeightsTest {
         assertTrue(unsupported.getMessage().contains("legacy non-WRAPS"));
         assertTrue(unsupported.getMessage().contains("fresh-genesis migration"));
         assertEquals(7, HintsGenerationWeights.forScheme(HINTS).totalWeight());
+    }
+
+    @Test
+    void preprocessingTotalMustMatchTheCertifiedTargetBook() {
+        assertThrows(
+                HintsGenerationWeights.InvalidGenerationException.class,
+                () -> HintsGenerationWeights.from(
+                        HINTS.copyBuilder().preprocessingRosterWeight(7L).build(), HISTORY));
+        assertEquals(
+                10,
+                HintsGenerationWeights.from(
+                                HINTS.copyBuilder()
+                                        .preprocessingRosterWeight(10L)
+                                        .build(),
+                                HISTORY)
+                        .totalWeight());
     }
 
     @Test

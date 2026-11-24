@@ -35,8 +35,8 @@ enum ClprMaintenanceReason {
     GENESIS_INITIALIZATION = 1;
 
     /**
-     * Post-upgrade setup initialized CLPR singletons missing from the
-     * state of the prior software version.
+     * Post-upgrade setup initialized missing CLPR singletons or migrated
+     * the legacy chain ID in the ledger configuration.
      */
     UPGRADE_INITIALIZATION = 2;
 

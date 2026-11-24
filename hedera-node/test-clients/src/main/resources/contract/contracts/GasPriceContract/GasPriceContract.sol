@@ -6,7 +6,7 @@ contract GasPriceContract {
     uint256 public lastTxGasPrice;
 
     function updateGasPrice() public {
-        // tx.gasprice returns the gas price (in Wei) of the transaction that is currently executing.
+        // tx.gasprice returns the gas price (in tinybars on Hedera, not weibars) of the transaction that is currently executing.
         lastTxGasPrice = tx.gasprice;
     }
 

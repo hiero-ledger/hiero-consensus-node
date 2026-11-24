@@ -157,7 +157,7 @@ public class SlothApp implements ConsensusStateEventHandler {
             service.onRoundStart(state.getWritableStates(service.name()), round);
         }
 
-        for (final ConsensusEvent consensusEvent : round) {
+        for (final ConsensusEvent consensusEvent : round.getConsensusEvents()) {
             for (final SlothService service : allServices) {
                 service.onEventStart(state.getWritableStates(service.name()), consensusEvent);
             }

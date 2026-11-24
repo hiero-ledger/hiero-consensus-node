@@ -208,7 +208,7 @@ class EthereumVerifyBundleCallTest extends CallTestBase {
     @Test
     void returnsProvenManifestVersionIgnoringRelayedContent() {
         // The relayed content claims an inflated endpoint-manifest version; the sixth metadata member must carry the
-        // PROVEN Channel value (offset 16), not the relay's claim — otherwise a relay could suppress our manifest
+        // PROVEN Channel value (offset 15), not the relay's claim — otherwise a relay could suppress our manifest
         // re-pushes (spec §4.5, liveness).
         final var content =
                 content(metadata().copyBuilder().endpointManifestVersion(999L).build(), Bytes.EMPTY, Bytes.EMPTY);

@@ -3,6 +3,7 @@ package org.hiero.consensus.benchmark.tools.pipeline;
 
 import static java.util.Objects.requireNonNull;
 
+import com.swirlds.base.time.Time;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -88,8 +89,8 @@ import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
  *
  * <p>A timer has one exit point, attached when {@link Builder#exitPoint} is called, so the builder is used before the
  * wiring model starts. The exit point recognizes a value by its identity: the pipeline must hand on the object it got.
- * An optional predicate on the inputs selects the values that count; the others are ignored. A value that did not enter
- * in the running pass, or a counted value that arrives twice, is an error, which {@link #replay()} throws after the
+ * An optional predicate on the inputs selects the values whose latencies are recorded; the others are ignored. A value
+ * that did not enter in the running pass, or a recorded value that arrives twice, is an error, which {@link #replay()} throws after the
  * drain. Latencies to intermediate points are not supported, because percentiles of parts do not add up to percentiles
  * of the whole; a benchmark that needs a second exit point uses a second benchmark method.
  *
@@ -99,10 +100,12 @@ import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
  *   <li>{@link #prepare()}, in a per-invocation setup: calls {@link TimedInput#pristine()} on every replayed input and
  *       applies its value function, outside the measured time. The pipeline must be idle.</li>
  *   <li>{@link #replay()}, the benchmark method: hands each input to its entry point at its due time, on the calling
- *       thread, busy-waiting until then. The latency counts from the due time, so an entry point that holds the timer
- *       up counts. After the last input, it runs the drain, for example the pipeline's {@code flush()}.</li>
- *   <li>Once the drain returns, {@code replay()} records the latency of every counted value that arrived during the
- *       pass with {@link LatencyProfiler#pipelineRecorder()}. Values that never arrived are skipped;
+ *       thread, busy-waiting until then. The latency is measured from the due time, so the time an entry point holds
+ *       the timer up is part of it. After the last input, it runs the drain, for example the pipeline's {@code flush()}. With
+ *       {@link Builder#measureFrom}, the inputs before the first measured one fill the pipeline: they are replayed,
+ *       but nothing of theirs is measured.</li>
+ *   <li>Once the drain returns, {@code replay()} hands the latency of every recorded value that arrived during the
+ *       pass to {@link LatencyProfiler#pipelineRecorder()}. Values that never arrived are skipped;
  *       {@link #arrivals()} returns how many did, for the benchmark's exact check.</li>
  *   <li>If the pipeline did not keep up, {@code replay()} discards the pass (see below).</li>
  * </ol>
@@ -112,8 +115,8 @@ import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
  * <p>A pipeline that gets its inputs faster than it can process them falls behind: every input waits longer than the
  * one before, so the latencies depend on the length of the pass and say nothing about the pipeline. If the inputs come
  * a fraction ε faster than the pipeline's capacity, the latency grows by ε seconds per second of the pass. The timer
- * compares the median latency of the inputs due in the last quarter of the pass with that of the first quarter, and
- * divides the difference by the time between the quarters' centers. If that growth exceeds
+ * compares the median latency of the inputs due in the last quarter of the pass's measured part with that of the first
+ * quarter, and divides the difference by the time between the quarters' centers. If that growth exceeds
  * {@value #MAX_LATENCY_GROWTH} (1%), {@code replay()} discards the pass, which the profiler counts in
  * {@code measured.saturation.discardedPasses}, and {@link #saturated()} returns true. At the recorded rate, passes
  * discarded regularly mean that the pipeline no longer keeps up with production; with a speedup, that the speedup is
@@ -129,8 +132,9 @@ import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
  * <h2>Allocation and garbage collection</h2>
  *
  * <p>A pipeline allocates on its own threads, so {@link PipelineRecorder} counts the bytes all threads of the JVM
- * allocate during the pass, and {@code LatencyProfiler} reports them per counted value as {@code alloc.norm}. A pass
- * during which a garbage collection ran is discarded, as with {@link LatencyRecorder}.
+ * allocate during the pass's measured part, and {@code LatencyProfiler} reports them per recorded value as
+ * {@code alloc.norm}. A pass during whose measured part a garbage collection ran is discarded, as with
+ * {@link LatencyRecorder}.
  *
  * <h2>Threads</h2>
  *
@@ -166,8 +170,11 @@ public final class PipelineTimer {
     /** The time each replayed input is due, from the start of the pass. */
     private final long[] dueNanos;
 
-    /** Whether the value of each replayed input counts at the exit point. */
-    private final boolean[] counted;
+    /** Whether the latency of each replayed input's value is recorded. */
+    private final boolean[] recorded;
+
+    /** The position of the first measured input; the inputs before it fill the pipeline. */
+    private final int firstMeasured;
 
     /** Runs after the last input, until the pipeline is done. */
     private final Runnable drain;
@@ -178,8 +185,11 @@ public final class PipelineTimer {
     /** Receives the values at the exit point. */
     private final Output output;
 
-    /** The latency of each replayed input in the latest pass, or -1 for one that does not count or did not arrive. */
+    /** The latency of each replayed input in the latest pass, or -1 for one that is not recorded or did not arrive. */
     private final long[] passLatencies;
+
+    /** The clock of the due times and the arrivals. */
+    private final Time time;
 
     /** The recorder of the current iteration, or {@code null} before the first {@link #prepare()}. */
     @Nullable
@@ -188,7 +198,7 @@ public final class PipelineTimer {
     /** Whether {@link #prepare()} ran since the latest pass. */
     private boolean prepared;
 
-    /** The counted values that arrived in the latest pass, or -1 before the first pass. */
+    /** The recorded values that arrived in the latest pass, or -1 before the first pass. */
     private int arrivals = -1;
 
     /** Whether the latest pass failed the saturation check. */
@@ -196,23 +206,27 @@ public final class PipelineTimer {
 
     @SuppressWarnings("unchecked")
     private PipelineTimer(
-            @NonNull final List<TimedInput> inputs,
+            @NonNull final List<? extends TimedInput> inputs,
             @NonNull final List<Function<TimedInput, Object>> valueFunctions,
             @NonNull final List<Entry> entries,
             @NonNull final long[] dueNanos,
-            @NonNull final boolean[] counted,
+            @NonNull final boolean[] recorded,
+            final int firstMeasured,
             @NonNull final Runnable drain,
-            @NonNull final Output output) {
+            @NonNull final Output output,
+            @NonNull final Time time) {
         this.inputs = List.copyOf(inputs);
         this.valueFunctions = valueFunctions.toArray(new Function[0]);
         this.entries = entries.toArray(new Entry[0]);
         this.dueNanos = dueNanos;
-        this.counted = counted;
+        this.recorded = recorded;
+        this.firstMeasured = firstMeasured;
         this.drain = drain;
         this.output = output;
+        this.time = time;
         this.passValues = new Object[dueNanos.length];
         this.passLatencies = new long[dueNanos.length];
-        output.configure(counted);
+        output.configure(recorded, time);
     }
 
     /**
@@ -228,8 +242,10 @@ public final class PipelineTimer {
     }
 
     /**
-     * Prepares the next pass: gets an untouched instance of every replayed input ({@link TimedInput#pristine()}) and
-     * applies its value function. Call it before every pass, in a per-invocation setup, while the pipeline is idle; end
+     * Prepares the next pass: gets an untouched instance of every replayed input ({@link TimedInput#pristine()}),
+     * applies its value function, and prepares the profiler's {@link PipelineRecorder} for the pass
+     * ({@link PipelineRecorder#preparePass()}). Call it before every pass, in a per-invocation setup, while the
+     * pipeline is idle; end
      * that setup with {@link System#gc()}, so that the garbage of the preparation is not collected during the pass.
      *
      * @throws IllegalStateException if a value is {@code null} although it was not when the timer was built, or if two
@@ -252,16 +268,17 @@ public final class PipelineTimer {
             output.arrivalNanos.setPlain(i, NOT_ARRIVED);
         }
         recorder = LatencyProfiler.pipelineRecorder();
+        recorder.preparePass();
         prepared = true;
     }
 
     /**
      * Replays the inputs prepared by {@link #prepare()} into the pipeline at their due times, runs the drain, and
-     * records the latencies of the counted values with the profiler's {@link PipelineRecorder}. Discards the pass if
-     * the pipeline did not keep up (see the class description).
+     * hands the latencies of the recorded values to the profiler's {@link PipelineRecorder}. Discards the pass if the
+     * pipeline did not keep up (see the class description).
      *
      * @throws IllegalStateException if {@link #prepare()} did not run since the latest pass, or if the exit point saw a
-     * value that did not enter in this pass, or a counted value twice
+     * value that did not enter in this pass, or a recorded value twice
      */
     public void replay() {
         if (!prepared) {
@@ -270,16 +287,15 @@ public final class PipelineTimer {
         prepared = false;
         final PipelineRecorder passRecorder = requireNonNull(recorder);
         output.replaying = true;
-        passRecorder.startPass();
-        final long start = System.nanoTime();
+        final long start = time.nanoTime();
+        final long adjustedStart;
         try {
-            for (int i = 0; i < passValues.length; i++) {
-                final long due = start + dueNanos[i];
-                while (due - System.nanoTime() > 0) {
-                    Thread.onSpinWait();
-                }
-                entries[i].enter(passValues[i]);
-            }
+            replaySlice(0, firstMeasured, start);
+            passRecorder.startPass();
+            // how late the timer is for the first measured input; the measured part moves later by that much
+            final long overrun = Math.max(0, time.nanoTime() - (start + dueNanos[firstMeasured]));
+            adjustedStart = start + overrun;
+            replaySlice(firstMeasured, passValues.length, adjustedStart);
             drain.run();
         } finally {
             output.replaying = false;
@@ -289,11 +305,13 @@ public final class PipelineTimer {
         Arrays.fill(passValues, null);
         output.throwIfErrors();
 
+        // feed the latencies of the recorded values to the recorder, and count how many arrived; only inputs of the
+        // measured part are recorded, and they were due at adjustedStart plus their due times
         int arrived = 0;
         for (int i = 0; i < passValues.length; i++) {
             final long arrival = output.arrivalNanos.get(i);
-            if (counted[i] && arrival != NOT_ARRIVED) {
-                final long latency = arrival - (start + dueNanos[i]);
+            if (recorded[i] && arrival != NOT_ARRIVED) {
+                final long latency = arrival - (adjustedStart + dueNanos[i]);
                 passRecorder.record(latency);
                 passLatencies[i] = latency;
                 arrived++;
@@ -305,36 +323,58 @@ public final class PipelineTimer {
         passRecorder.endPass();
         arrivals = arrived;
 
-        saturated = latencyGrowth(dueNanos, passLatencies) > MAX_LATENCY_GROWTH;
+        saturated = latencyGrowth(dueNanos, passLatencies, firstMeasured) > MAX_LATENCY_GROWTH;
         if (saturated) {
             passRecorder.discardSaturatedPass();
         }
     }
 
     /**
-     * Computes how fast the latency grew during a pass: the median latency of the inputs due in the last quarter of the
-     * pass minus that of the first quarter, divided by the time between the quarters' centers.
+     * Hands the inputs at the given positions to their entry points, each at its due time.
+     *
+     * @param from the position of the first input
+     * @param to the position after the last input
+     * @param start the start of the pass, from which the due times are measured
+     */
+    private void replaySlice(final int from, final int to, final long start) {
+        for (int i = from; i < to; i++) {
+            final long due = start + dueNanos[i];
+            while (due - time.nanoTime() > 0) {
+                Thread.onSpinWait();
+            }
+            entries[i].enter(passValues[i]);
+        }
+    }
+
+    /**
+     * Computes how fast the latency grew during the measured part of a pass: the median latency of the inputs due in
+     * the last quarter of the measured part minus that of the first quarter, divided by the time between the quarters'
+     * centers.
      *
      * @param dueNanos the time each input was due, from the start of the pass, in ascending order
      * @param latencies the latency of each input, or a negative value for one without a latency
-     * @return the growth in seconds per second, or {@link Double#NaN} if the pass has no length or a quarter has fewer
-     * than {@link #MIN_LATENCIES_PER_QUARTER} latencies
+     * @param firstMeasured the position of the first measured input
+     * @return the growth in seconds per second, or {@link Double#NaN} if the measured part has no length or a quarter
+     * has fewer than {@link #MIN_LATENCIES_PER_QUARTER} latencies
      */
-    static double latencyGrowth(@NonNull final long[] dueNanos, @NonNull final long[] latencies) {
-        if (dueNanos.length == 0) {
+    static double latencyGrowth(
+            @NonNull final long[] dueNanos, @NonNull final long[] latencies, final int firstMeasured) {
+        if (firstMeasured >= dueNanos.length) {
             return Double.NaN;
         }
-        final long span = dueNanos[dueNanos.length - 1] - dueNanos[0];
+        final long measuredFirstDue = dueNanos[firstMeasured];
+        final long measuredLastDue = dueNanos[dueNanos.length - 1];
+        final long span = measuredLastDue - measuredFirstDue;
         if (span <= 0) {
             return Double.NaN;
         }
-        final long firstQuarterEnd = dueNanos[0] + span / 4;
-        final long lastQuarterStart = dueNanos[dueNanos.length - 1] - span / 4;
+        final long firstQuarterEnd = measuredFirstDue + span / 4;
+        final long lastQuarterStart = measuredLastDue - span / 4;
         final long[] first = new long[latencies.length];
         final long[] last = new long[latencies.length];
         int firstCount = 0;
         int lastCount = 0;
-        for (int i = 0; i < latencies.length; i++) {
+        for (int i = firstMeasured; i < latencies.length; i++) {
             if (latencies[i] >= 0) {
                 if (dueNanos[i] < firstQuarterEnd) {
                     first[firstCount++] = latencies[i];
@@ -353,9 +393,9 @@ public final class PipelineTimer {
     }
 
     /**
-     * Returns how many counted values arrived at the exit point in the latest pass.
+     * Returns how many recorded values arrived at the exit point in the latest pass.
      *
-     * @return the number of counted values that arrived
+     * @return the number of recorded values that arrived
      * @throws IllegalStateException if no pass has run
      */
     public int arrivals() {
@@ -396,11 +436,14 @@ public final class PipelineTimer {
         /** The position of each value of the current pass. */
         private final Map<Object, Integer> positions = new IdentityHashMap<>();
 
-        /** Whether the value at each position counts; set when the timer is built. */
-        private boolean[] counted = new boolean[0];
+        /** Whether the latency of the value at each position is recorded; set when the timer is built. */
+        private boolean[] recorded = new boolean[0];
 
         /** The arrival time of the value at each position, or {@link #NOT_ARRIVED}. */
         private AtomicLongArray arrivalNanos = new AtomicLongArray(0);
+
+        /** The clock of the arrivals; set when the timer is built. */
+        private Time time = Time.getCurrent();
 
         /** The first error. */
         private final AtomicReference<String> firstError = new AtomicReference<>();
@@ -408,14 +451,15 @@ public final class PipelineTimer {
         /** The number of errors. */
         private final AtomicLong errors = new AtomicLong();
 
-        void configure(@NonNull final boolean[] counted) {
-            this.counted = counted;
-            this.arrivalNanos = new AtomicLongArray(counted.length);
+        void configure(@NonNull final boolean[] recorded, @NonNull final Time time) {
+            this.recorded = recorded;
+            this.arrivalNanos = new AtomicLongArray(recorded.length);
+            this.time = time;
         }
 
         /** Notes the arrival of a value; runs on a pipeline thread. */
         void arrive(@NonNull final Object value) {
-            final long now = System.nanoTime();
+            final long now = time.nanoTime();
             if (!replaying) {
                 error("A value arrived outside a pass: " + describe(value));
                 return;
@@ -425,7 +469,7 @@ public final class PipelineTimer {
                 error("A value arrived that did not enter the pipeline in this pass: " + describe(value));
                 return;
             }
-            if (counted[position] && !arrivalNanos.compareAndSet(position, NOT_ARRIVED, now)) {
+            if (recorded[position] && !arrivalNanos.compareAndSet(position, NOT_ARRIVED, now)) {
                 error("The value of input " + position + " arrived twice");
             }
         }
@@ -465,12 +509,18 @@ public final class PipelineTimer {
         private Output output;
 
         @NonNull
-        private Predicate<? super I> counts = _ -> true;
+        private Predicate<? super I> recorded = _ -> true;
 
         private double speedup = 1;
 
         @Nullable
+        private Predicate<? super I> measureFrom;
+
+        @Nullable
         private Runnable drain;
+
+        @NonNull
+        private Time time = Time.getCurrent();
 
         private boolean built;
 
@@ -551,8 +601,8 @@ public final class PipelineTimer {
         }
 
         /**
-         * Attaches the exit point to a source of values, for example {@code wire::solderForMonitoring}; every value
-         * counts.
+         * Attaches the exit point to a source of values, for example {@code wire::solderForMonitoring}; the latency of
+         * every value is recorded.
          *
          * @param source attaches the consumer of the values that leave the pipeline
          * @param <T> the type of the values
@@ -565,20 +615,20 @@ public final class PipelineTimer {
         }
 
         /**
-         * Attaches the exit point to a source of values, for example {@code wire::solderForMonitoring}; only the values
-         * of the inputs the predicate accepts count.
+         * Attaches the exit point to a source of values, for example {@code wire::solderForMonitoring}; only the
+         * latencies of the values whose inputs the predicate accepts are recorded.
          *
          * @param source attaches the consumer of the values that leave the pipeline
-         * @param counts selects the inputs whose values count
+         * @param recorded selects the inputs whose latencies are recorded
          * @param <T> the type of the values
          * @return this builder
          * @throws IllegalStateException if the timer has an exit point already
          */
         @NonNull
         public <T> Builder<I> exitPoint(
-                @NonNull final Consumer<Consumer<T>> source, @NonNull final Predicate<? super I> counts) {
+                @NonNull final Consumer<Consumer<T>> source, @NonNull final Predicate<? super I> recorded) {
             requireNonNull(source);
-            requireNonNull(counts);
+            requireNonNull(recorded);
             if (output != null) {
                 throw new IllegalStateException(
                         "A timer has one exit point; a benchmark that needs a second one uses a second benchmark"
@@ -587,12 +637,13 @@ public final class PipelineTimer {
             final Output newOutput = new Output();
             source.accept(newOutput::arrive);
             this.output = newOutput;
-            this.counts = counts;
+            this.recorded = recorded;
             return this;
         }
 
         /**
-         * Attaches the exit point to an output wire, with {@link OutputWire#solderForMonitoring}; every value counts.
+         * Attaches the exit point to an output wire, with {@link OutputWire#solderForMonitoring}; the latency of every
+         * value is recorded.
          *
          * @param wire the output wire
          * @param <T> the type of the values
@@ -605,18 +656,19 @@ public final class PipelineTimer {
         }
 
         /**
-         * Attaches the exit point to an output wire, with {@link OutputWire#solderForMonitoring}; only the values of
-         * the inputs the predicate accepts count.
+         * Attaches the exit point to an output wire, with {@link OutputWire#solderForMonitoring}; only the latencies of
+         * the values whose inputs the predicate accepts are recorded.
          *
          * @param wire the output wire
-         * @param counts selects the inputs whose values count
+         * @param recorded selects the inputs whose latencies are recorded
          * @param <T> the type of the values
          * @return this builder
          * @throws IllegalStateException if the timer has an exit point already
          */
         @NonNull
-        public <T> Builder<I> exitPoint(@NonNull final OutputWire<T> wire, @NonNull final Predicate<? super I> counts) {
-            return exitPoint(wire::solderForMonitoring, counts);
+        public <T> Builder<I> exitPoint(
+                @NonNull final OutputWire<T> wire, @NonNull final Predicate<? super I> recorded) {
+            return exitPoint(wire::solderForMonitoring, recorded);
         }
 
         /**
@@ -637,6 +689,36 @@ public final class PipelineTimer {
         }
 
         /**
+         * Fills the pipeline before measuring it, so that a pipeline with state is measured in a state like that of a
+         * long run. The replayed inputs before the first input the predicate accepts fill the pipeline. They are
+         * replayed at their due times, but their latencies and arrivals are not recorded. Allocation and garbage
+         * collections are recorded from the first measured input on, including work the pipeline still does then on
+         * fill inputs.
+         *
+         * <p>Without this method, the whole pass is measured.
+         *
+         * @param first accepts the first measured input
+         * @return this builder
+         */
+        @NonNull
+        public Builder<I> measureFrom(@NonNull final Predicate<? super I> first) {
+            this.measureFrom = requireNonNull(first);
+            return this;
+        }
+
+        /**
+         * Sets the clock of the due times and the arrivals; the real clock if not called. Only tests need another one.
+         *
+         * @param time the clock
+         * @return this builder
+         */
+        @NonNull
+        Builder<I> time(@NonNull final Time time) {
+            this.time = requireNonNull(time);
+            return this;
+        }
+
+        /**
          * Sets what runs after the last input until the pipeline is done, for example the components' {@code flush()}
          * in the order the data flows. Required: a pipeline that is done when its last entry point returns registers
          * {@code () -> {}}.
@@ -652,11 +734,12 @@ public final class PipelineTimer {
 
         /**
          * Ends the configuration: keeps the inputs that have an entry point and a non-null value, and computes their
-         * due times and whether their values count.
+         * due times and whether their latencies are recorded.
          *
          * @return the timer
          * @throws IllegalStateException if the timer has no exit point or no drain, if this builder built a timer
-         * already, or if no input is replayed
+         * already, if no input is replayed, or, with {@link #measureFrom}, if it accepts no replayed input or no
+         * recorded input follows the one it accepts
          * @throws IllegalArgumentException if the inputs are not in the order of their times, or if an input has more
          * than one entry point
          */
@@ -673,10 +756,10 @@ public final class PipelineTimer {
                         "No drain; call drain(...), with () -> {} for a pipeline that is done when its last entry"
                                 + " point returns");
             }
-            final List<TimedInput> kept = new ArrayList<>();
+            final List<I> kept = new ArrayList<>();
             final List<Function<TimedInput, Object>> keptValues = new ArrayList<>();
             final List<Entry> keptEntries = new ArrayList<>();
-            final List<Boolean> keptCounted = new ArrayList<>();
+            final List<Boolean> keptRecorded = new ArrayList<>();
             Instant previous = null;
             for (int i = 0; i < inputs.size(); i++) {
                 final I input = requireNonNull(inputs.get(i), "Input " + i + " is null");
@@ -691,22 +774,52 @@ public final class PipelineTimer {
                     kept.add(input);
                     keptValues.add(registration.value());
                     keptEntries.add(registration.entry());
-                    keptCounted.add(counts.test(input));
+                    keptRecorded.add(recorded.test(input));
                 }
             }
             if (kept.isEmpty()) {
                 throw new IllegalStateException("No input has an entry point and a non-null value");
             }
+            final int firstMeasured = firstMeasured(kept);
             final Instant first = kept.getFirst().time();
             final long[] dueNanos = new long[kept.size()];
-            final boolean[] counted = new boolean[kept.size()];
+            final boolean[] recordedLatencies = new boolean[kept.size()];
+            boolean anyRecorded = false;
             for (int i = 0; i < kept.size(); i++) {
                 dueNanos[i] =
                         Math.round(Duration.between(first, kept.get(i).time()).toNanos() / speedup);
-                counted[i] = keptCounted.get(i);
+                recordedLatencies[i] = i >= firstMeasured && keptRecorded.get(i);
+                anyRecorded |= recordedLatencies[i];
+            }
+            if (measureFrom != null && !anyRecorded) {
+                throw new IllegalStateException(
+                        "No recorded input follows the first input that measureFrom(...) accepts, input "
+                                + firstMeasured + " of the replayed ones");
             }
             built = true;
-            return new PipelineTimer(kept, keptValues, keptEntries, dueNanos, counted, drain, output);
+            return new PipelineTimer(
+                    kept, keptValues, keptEntries, dueNanos, recordedLatencies, firstMeasured, drain, output, time);
+        }
+
+        /**
+         * Finds the first measured input: the first input that {@link #measureFrom} accepts, or the first input if it
+         * was not called.
+         *
+         * @param kept the replayed inputs
+         * @return the position of the first measured input among the replayed ones
+         * @throws IllegalStateException if {@link #measureFrom} accepts none of them
+         */
+        private int firstMeasured(@NonNull final List<I> kept) {
+            final Predicate<? super I> first = measureFrom;
+            if (first == null) {
+                return 0;
+            }
+            for (int i = 0; i < kept.size(); i++) {
+                if (first.test(kept.get(i))) {
+                    return i;
+                }
+            }
+            throw new IllegalStateException("measureFrom(...) accepts none of the replayed inputs");
         }
 
         @NonNull

@@ -49,6 +49,12 @@ public record HevmBlockValues(
         return blockTime.seconds();
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Hedera has no EIP-1559 base fee, so {@code BASEFEE} is always zero. Zero is the same in tinybars and
+     * weibars, so this value cannot reveal a unit mix-up, see {@code tx.gasprice} for a tinybar-valued opcode.
+     */
     @Override
     public Optional<Wei> getBaseFee() {
         return ZERO_BASE_FEE;

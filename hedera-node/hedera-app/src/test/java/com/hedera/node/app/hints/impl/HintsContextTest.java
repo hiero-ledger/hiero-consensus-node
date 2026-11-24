@@ -685,9 +685,12 @@ class HintsContextTest {
                 PREPROCESSED_KEYS,
                 List.of(new NodePartyId(1L, 1, 10L), new NodePartyId(2L, 2, 1L), new NodePartyId(3L, 3, 7L)));
         final var next = constructionWith(
-                5L,
-                NEXT_PREPROCESSED_KEYS,
-                List.of(new NodePartyId(1L, 1, 6L), new NodePartyId(2L, 2, 1L), new NodePartyId(3L, 3, 3L)));
+                        5L,
+                        NEXT_PREPROCESSED_KEYS,
+                        List.of(new NodePartyId(1L, 1, 6L), new NodePartyId(2L, 2, 1L), new NodePartyId(3L, 3, 3L)))
+                .copyBuilder()
+                .preprocessingRosterWeight(12L)
+                .build();
         final var oldHistory =
                 HintsGenerationTestUtils.historyFor(oldConstruction, Map.of(1L, 10L, 2L, 1L, 3L, 7L, 4L, 2L));
         final var nextHistory = HintsGenerationTestUtils.historyFor(next, Map.of(1L, 6L, 2L, 1L, 3L, 3L, 4L, 2L));
@@ -702,7 +705,7 @@ class HintsContextTest {
                 .willReturn(nextAggregate);
         given(library.verifyAggregate(oldAggregate, BLOCK_HASH, VERIFICATION_KEY, 5L, 9L))
                 .willReturn(true);
-        given(library.verifyAggregate(nextAggregate, BLOCK_HASH, NEXT_VERIFICATION_KEY, 3L, 5L))
+        given(library.verifyAggregate(nextAggregate, BLOCK_HASH, NEXT_VERIFICATION_KEY, 1L, 2L))
                 .willReturn(true);
         given(configuration.getConfigData(TssConfig.class)).willReturn(configWithValidateBlockSignatures(true));
         subject.setConstruction(oldConstruction, CRS_STATE, oldWeights);
@@ -729,7 +732,7 @@ class HintsContextTest {
         assertEquals(nextAggregate, afterRestart.future().join());
         verify(library).verifyAggregate(oldAggregate, BLOCK_HASH, VERIFICATION_KEY, 5L, 9L);
         verify(library, org.mockito.Mockito.times(2))
-                .verifyAggregate(nextAggregate, BLOCK_HASH, NEXT_VERIFICATION_KEY, 3L, 5L);
+                .verifyAggregate(nextAggregate, BLOCK_HASH, NEXT_VERIFICATION_KEY, 1L, 2L);
     }
 
     @Test

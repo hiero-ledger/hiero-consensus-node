@@ -15,18 +15,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
 class CantonProofExceptionTest {
-    private static final int ERROR_COUNT = 39;
-
-    static List<Method> factories() {
-        return Arrays.stream(CantonProofException.class.getDeclaredMethods())
-                .filter(m -> Modifier.isPublic(m.getModifiers()) && Modifier.isStatic(m.getModifiers()))
-                .filter(m -> m.getReturnType() == CantonProofException.class)
-                .toList();
-    }
-
-    private static String capitalized(final String name) {
-        return Character.toUpperCase(name.charAt(0)) + name.substring(1);
-    }
+    private static final int ERROR_COUNT = 42;
 
     @Test
     void hasExactlyTheExpectedFactories() {
@@ -61,5 +50,16 @@ class CantonProofExceptionTest {
         assertThat(CantonProofException.rootHashMismatch()).hasMessage("CantonVerifier: RootHashMismatch");
         assertThat(CantonProofException.cantonProtoMalformed("truncated"))
                 .hasMessage("CantonVerifier: CantonProtoMalformed: truncated");
+    }
+
+    static List<Method> factories() {
+        return Arrays.stream(CantonProofException.class.getDeclaredMethods())
+                .filter(m -> Modifier.isPublic(m.getModifiers()) && Modifier.isStatic(m.getModifiers()))
+                .filter(m -> m.getReturnType() == CantonProofException.class)
+                .toList();
+    }
+
+    private static String capitalized(final String name) {
+        return Character.toUpperCase(name.charAt(0)) + name.substring(1);
     }
 }
