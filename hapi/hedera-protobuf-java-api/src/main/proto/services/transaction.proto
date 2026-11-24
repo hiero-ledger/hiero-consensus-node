@@ -89,12 +89,10 @@ import "services/node_delete.proto";
 import "services/custom_fees.proto";
 
 import "services/clpr_update_ledger_configuration.proto";
-import "services/clpr_complete_channel.proto";
-import "services/clpr_register_channel.proto";
-import "services/clpr_close_channel.proto";
-import "services/clpr_register_connector.proto";
-import "services/clpr_deregister_connector.proto";
-import "services/clpr_complete_connector.proto";
+import "services/clpr_create_channel.proto";
+import "services/clpr_delete_channel.proto";
+import "services/clpr_create_connector.proto";
+import "services/clpr_delete_connector.proto";
 import "services/clpr_submit_bundle.proto";
 import "services/clpr_evict_peer_endpoint.proto";
 import "platform/event/state_signature_transaction.proto";
@@ -721,19 +719,9 @@ message TransactionBody {
         com.hedera.hapi.node.clpr.ClprUpdateLedgerConfigurationTransactionBody clprUpdateLedgerConfiguration = 82;
 
         /**
-         * Phase 1 (Commit): Claim a CLPR Channel ID. Creates in PENDING state.
-         */
-        com.hedera.hapi.node.clpr.ClprRegisterChannelTransactionBody clprRegisterChannel = 83;
-
-        /**
-         * Phase 2 (Reveal): Complete a PENDING Channel. Transitions to ACTIVE.
-         */
-        com.hedera.hapi.node.clpr.ClprCompleteChannelTransactionBody clprCompleteChannel = 84;
-
-        /**
          * Initiate graceful closure of a CLPR Channel.
          */
-        com.hedera.hapi.node.clpr.ClprCloseChannelTransactionBody clprCloseChannel = 85;
+        com.hedera.hapi.node.clpr.ClprDeleteChannelTransactionBody clprDeleteChannel = 85;
 
         /**
          * Submit a bundle of cross-ledger messages from a peer sync.
@@ -741,19 +729,14 @@ message TransactionBody {
         com.hedera.hapi.node.clpr.ClprSubmitBundleTransactionBody clprSubmitBundle = 86;
 
         /**
-         * Register a Connector on the CLPR Service.
+         * Create a Connector on the CLPR Service.
          */
-        com.hedera.hapi.node.clpr.ClprRegisterConnectorTransactionBody clprRegisterConnector = 88;
+        com.hedera.hapi.node.clpr.ClprCreateConnectorTransactionBody clprCreateConnector = 88;
 
         /**
          * Remove a Connector from the CLPR Service.
          */
-        com.hedera.hapi.node.clpr.ClprDeregisterConnectorTransactionBody clprDeregisterConnector = 89;
-
-        /**
-         * Phase 2 (Reveal): Complete a pending Connector commitment.
-         */
-        com.hedera.hapi.node.clpr.ClprCompleteConnectorTransactionBody clprCompleteConnector = 90;
+        com.hedera.hapi.node.clpr.ClprDeleteConnectorTransactionBody clprDeleteConnector = 89;
 
         /**
          * A node self-publishes its own CLPR endpoint into a manifest construction (see
@@ -772,6 +755,9 @@ message TransactionBody {
          * Requires the CLPR admin key.
          */
         com.hedera.hapi.node.clpr.ClprEvictPeerEndpointTransactionBody clprEvictPeerEndpoint = 93;
+
+        /** Create a channel with an ID bound to both ledgers and verifiers. */
+        com.hedera.hapi.node.clpr.ClprCreateChannelTransactionBody clprCreateChannel = 94;
     }
 
     /**

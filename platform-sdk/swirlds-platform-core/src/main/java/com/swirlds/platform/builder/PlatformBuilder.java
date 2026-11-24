@@ -35,7 +35,7 @@ import org.hiero.consensus.ConsensusLayerWiring;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.event.stream.config.EventConfig;
 import org.hiero.consensus.io.RecycleBin;
-import org.hiero.consensus.main.ConsensusLayerRosterInputs;
+import org.hiero.consensus.main.model.ConsensusLayerRosterInputs;
 import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.platformstate.PlatformStateUtils;

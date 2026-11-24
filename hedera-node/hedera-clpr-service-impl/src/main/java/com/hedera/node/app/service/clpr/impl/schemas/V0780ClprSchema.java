@@ -63,12 +63,12 @@ public class V0780ClprSchema extends Schema<SemanticVersion> {
     /** Connectors state key */
     public static final String CONNECTORS_KEY = "CONNECTORS";
 
-    /** Pending connector commitments state ID */
-    public static final int PENDING_CONNECTOR_COMMITMENTS_STATE_ID =
-            StateKey.KeyOneOfType.CLPRSERVICE_I_PENDING_CONNECTOR_COMMITMENTS.protoOrdinal();
+    /** Connector registration history state ID */
+    public static final int CONNECTOR_REGISTRATION_HISTORY_STATE_ID =
+            StateKey.KeyOneOfType.CLPRSERVICE_I_CONNECTOR_REGISTRATION_HISTORY.protoOrdinal();
 
-    /** Pending connector commitments state key */
-    public static final String PENDING_CONNECTOR_COMMITMENTS_KEY = "PENDING_CONNECTOR_COMMITMENTS";
+    /** Connector registration history state key */
+    public static final String CONNECTOR_REGISTRATION_HISTORY_KEY = "CONNECTOR_REGISTRATION_HISTORY";
 
     /** Ledger configuration singleton state key */
     public static final String LEDGER_CONFIGURATION_KEY = "LEDGER_CONFIGURATION";
@@ -88,6 +88,7 @@ public class V0780ClprSchema extends Schema<SemanticVersion> {
 
     private static final SemanticVersion VERSION =
             SemanticVersion.newBuilder().major(0).minor(78).patch(0).build();
+    private static final String EIP155_PREFIX = "eip155:";
 
     /** EVM address of the Hiero CLPR service contract: 0x000000000000000000000000000000000000016e */
     public static final Bytes CLPR_SERVICE_ADDRESS = CLPR_EVM_ADDRESS_BYTES;
@@ -110,8 +111,8 @@ public class V0780ClprSchema extends Schema<SemanticVersion> {
                         ProtoBytes.PROTOBUF,
                         ProtoBytes.PROTOBUF),
                 StateDefinition.keyValue(
-                        PENDING_CONNECTOR_COMMITMENTS_STATE_ID,
-                        PENDING_CONNECTOR_COMMITMENTS_KEY,
+                        CONNECTOR_REGISTRATION_HISTORY_STATE_ID,
+                        CONNECTOR_REGISTRATION_HISTORY_KEY,
                         ProtoBytes.PROTOBUF,
                         ProtoBytes.PROTOBUF),
                 StateDefinition.keyValue(
@@ -157,9 +158,6 @@ public class V0780ClprSchema extends Schema<SemanticVersion> {
                 writableStates.<ClprLedgerConfiguration>getSingleton(LEDGER_CONFIGURATION_STATE_ID);
         if (ledgerConfigurationState.get() == null) {
             final var clprConfig = configuration.getConfigData(ClprConfig.class);
-            // The CAIP-2 chain id is the network's HIP-26 EVM chain id in the eip155 namespace
-            final var chainId = "eip155:"
-                    + configuration.getConfigData(ContractsConfig.class).chainId();
             // Use seconds=1 as the initialization sentinel so timestamp is non-zero and
             // distinguishable from the proto default. The first admin update replaces it with
             // the actual consensus time.
@@ -168,7 +166,7 @@ public class V0780ClprSchema extends Schema<SemanticVersion> {
             // The trust anchor fields remain unset until the history ledger ID is established.
             // The first configuration update after that point populates them from consensus state.
             final var initialConfig = ClprLedgerConfiguration.newBuilder()
-                    .chainId(chainId)
+                    .chainId(configuredChainId(configuration))
                     .protocolVersion(clprConfig.protocolVersion())
                     .serviceAddress(CLPR_SERVICE_ADDRESS)
                     .timestamp(initializationTimestamp)
@@ -197,5 +195,34 @@ public class V0780ClprSchema extends Schema<SemanticVersion> {
             initialized = true;
         }
         return initialized;
+    }
+
+    /**
+     * Replaces a stored chain ID outside the {@code eip155} namespace with {@code eip155:<contracts.chainId>}.
+     *
+     * <p>HCN 0.79 seeded the default {@code hiero:localnet}; later versions derive the ID from the network's
+     * EVM chain ID. Only the chain ID changes. The timestamp is kept because CLPR was not enabled on
+     * production networks before 0.80, so no channel holds the earlier configuration.
+     *
+     * @param writableStates the CLPR writable states
+     * @param configuration the active application configuration
+     */
+    public static void migrateLegacyChainId(
+            @NonNull final WritableStates writableStates, @NonNull final Configuration configuration) {
+        requireNonNull(writableStates);
+        requireNonNull(configuration);
+
+        final var ledger = writableStates.<ClprLedgerConfiguration>getSingleton(LEDGER_CONFIGURATION_STATE_ID);
+        final var existing = ledger.get();
+        if (existing != null && !existing.chainId().startsWith(EIP155_PREFIX)) {
+            ledger.put(existing.copyBuilder()
+                    .chainId(configuredChainId(configuration))
+                    .build());
+        }
+    }
+
+    private static String configuredChainId(@NonNull final Configuration configuration) {
+        return EIP155_PREFIX
+                + configuration.getConfigData(ContractsConfig.class).chainId();
     }
 }

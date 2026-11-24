@@ -3,9 +3,9 @@ package org.hiero.consensus.event.creator.impl;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import org.hiero.consensus.main.model.QuiescenceCommand;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.main.model.QuiescenceCommand;
 
 /**
  * An object that creates new events.

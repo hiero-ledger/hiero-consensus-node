@@ -7,7 +7,7 @@ import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
 import java.util.Map;
-import org.hiero.consensus.main.ConsensusLayerRosterInputs;
+import org.hiero.consensus.main.model.ConsensusLayerRosterInputs;
 
 /**
  * A factory for creating fake Roster-related objects for tests and tools.

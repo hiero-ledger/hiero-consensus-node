@@ -42,7 +42,7 @@ import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.ConsensusLayerBuildingBlocks;
 import org.hiero.consensus.fakes.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.io.RecycleBinImpl;
-import org.hiero.consensus.main.ConsensusLayerRosterInputs;
+import org.hiero.consensus.main.model.ConsensusLayerRosterInputs;
 import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.pces.impl.common.PcesUtilities;

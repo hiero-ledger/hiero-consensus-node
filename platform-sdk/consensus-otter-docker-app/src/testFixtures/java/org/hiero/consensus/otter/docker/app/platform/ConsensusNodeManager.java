@@ -44,7 +44,7 @@ import org.hiero.consensus.metrics.platform.SnapshotEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.main.model.QuiescenceCommand;
-import org.hiero.consensus.main.ConsensusLayerRosterInputs;
+import org.hiero.consensus.main.model.ConsensusLayerRosterInputs;
 import org.hiero.consensus.otter.docker.app.metrics.ToFilePrometheusExporter;
 import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.roster.WritableRosterStore;

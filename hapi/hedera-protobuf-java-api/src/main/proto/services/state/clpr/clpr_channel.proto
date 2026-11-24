@@ -135,12 +135,8 @@ message ClprChannel {
     proto.Timestamp last_config_timestamp = 13;
 
     /**
-     * The ownership commitment hash used during registration (keccak256 of
-     * channel_id || public_key). The commitment stays in the pending-commitments
-     * store for as long as this Channel record exists, so re-registering it is
-     * rejected with CLPR_CHANNEL_ALREADY_EXISTS. Channel records are kept
-     * in every status, including CLOSED; only a PENDING Channel record is ever
-     * deleted (by closeChannel), and its commitment is deleted with it.
+     * Historical ownership commitment for a channel created with the two-step protocol.
+     * Channels created by createChannel leave this field empty.
      */
     bytes ownership_commitment = 14;
 
@@ -154,7 +150,7 @@ message ClprChannel {
 
     /**
      * Opaque signing-authority material for this Channel. Initialized from
-     * verifyConfig's initial_trust_anchor return at completeChannel and updated
+     * verifyConfig's initial_trust_anchor return at createChannel and updated
      * in-band when verifyBundle returns a non-empty new_trust_anchor. For Hiero TSS
      * this is the peer ledger_id, allowing a single generic verifier contract to
      * serve all Hiero networks. Verifiers with no rotating-authority concept store
@@ -165,7 +161,7 @@ message ClprChannel {
 
     /**
      * Opaque identifier for trust_anchor, returned by the verifier alongside
-     * new_trust_anchor (or initial_trust_anchor at completeChannel). Updated
+     * new_trust_anchor (or initial_trust_anchor at createChannel). Updated
      * atomically with each trust_anchor write. Propagated in ClprQueueMetadata so
      * endpoints can identify which signing authority is installed on the remote
      * ledger without exchanging the full trust anchor bytes. Empty bytes when
@@ -175,7 +171,7 @@ message ClprChannel {
 
     /**
      * Opaque channel identity: {@code abi.encodePacked(bytes32 channelId, bytes serviceAddress)}.
-     * Assembled once at {@code completeChannel} from the Java-known channelId and the
+     * Assembled once at {@code createChannel} from the Java-known channelId and the
      * proven serviceAddress. Passed unchanged to every {@code verifyBundle} call.
      */
     bytes channel_context = 18;
@@ -183,16 +179,16 @@ message ClprChannel {
     // --- Peer Endpoint Manifest ---
 
     /**
-     * Cached peer endpoint manifest. Initialized at completeChannel from the
+     * Cached peer endpoint manifest. Initialized at createChannel from the
      * ClprEndpointManifest returned by verifyConfig; refreshed automatically
      * through manifest-update bundle payloads (spec §4.2 Step 1b). Empty until
-     * completeChannel succeeds.
+     * createChannel succeeds.
      */
     ClprEndpointManifest endpoint_manifest = 19;
 
     /**
      * Version of the cached peer manifest.
-     * 0 = uninitialized (PENDING); >= 1 after completeChannel.
+     * 0 = uninitialized (PENDING); >= 1 after channel activation.
      */
     uint64 endpoint_manifest_version = 20;
 
@@ -207,4 +203,7 @@ message ClprChannel {
      * strictly later source block.
      */
     bool peer_manifest_recovered = 22;
+
+    /** The 32-byte salt used to derive a channel opened with ClprCreateChannel. */
+    bytes salt = 23;
 }

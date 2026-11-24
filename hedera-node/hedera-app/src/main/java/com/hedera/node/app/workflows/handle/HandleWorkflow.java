@@ -351,7 +351,7 @@ public class HandleWorkflow {
             systemTransactions.doGenesisSetup(genesisEventTime, state, (states, entityStates, action) -> {
                 if (states.contains(V0780ClprSchema.LEDGER_CONFIGURATION_STATE_ID)) {
                     // Stage the CLPR service's initialization so its writes have a transaction owner.
-                    initializeMissingClprSingletons(state, genesisEventTime, GENESIS_INITIALIZATION);
+                    setUpClprSingletons(state, genesisEventTime, GENESIS_INITIALIZATION);
                 } else {
                     doStreamingAllChanges(states, entityStates, action);
                 }
@@ -647,9 +647,9 @@ public class HandleWorkflow {
         }
         if (type == POST_UPGRADE_TRANSACTION) {
             try {
-                initializeMissingClprSingletons(state, consensusNow, UPGRADE_INITIALIZATION);
+                setUpClprSingletons(state, consensusNow, UPGRADE_INITIALIZATION);
             } catch (Exception e) {
-                logger.error("Failed to initialize CLPR singletons on upgrade", e);
+                logger.error("Failed to set up CLPR singletons on upgrade", e);
             }
             // Node add/delete is adopted at the upgrade boundary. Self-publication handles cert/port/IP
             // and added nodes (they re-publish on restart), but a removed node cannot self-report — so
@@ -1430,19 +1430,26 @@ public class HandleWorkflow {
     }
 
     /**
-     * Seeds CLPR state for genesis or upgrade, with an informational transaction for block replay and indexing.
+     * Seeds missing CLPR state and migrates the legacy chain ID on upgrade. An informational
+     * transaction records the changes for block replay and indexing.
      * Initialization runs at handle time, after network configuration properties have taken effect.
      *
      * @param state the state to initialize the singletons in
      * @param before the first event or user transaction that must follow the initialization
      * @param reason whether this is genesis or upgrade initialization
      */
-    private void initializeMissingClprSingletons(
+    private void setUpClprSingletons(
             @NonNull final State state, @NonNull final Instant before, @NonNull final ClprMaintenanceReason reason) {
         clprMaintenanceTransactions.perform(
                 state.getWritableStates(ClprService.NAME),
                 before,
-                states -> V0780ClprSchema.initializeSingletons(states, configProvider.getConfiguration()),
+                states -> {
+                    final var configuration = configProvider.getConfiguration();
+                    if (reason == UPGRADE_INITIALIZATION) {
+                        V0780ClprSchema.migrateLegacyChainId(states, configuration);
+                    }
+                    V0780ClprSchema.initializeSingletons(states, configuration);
+                },
                 reason);
     }
 

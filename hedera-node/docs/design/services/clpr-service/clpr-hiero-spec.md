@@ -16,49 +16,24 @@ The Hiero CLPR Service is deployed at EVM address `0x000000000000000000000000000
 (decimal `366`). This is a Hiero system-contract address following the standard Hedera
 numbering scheme.
 
-**Why this matters:** the service address is bound into the connector registration
-signature: `ECDSA(keccak256(connector_id ‖ service_address))` (spec §6.3 callout).
-Any Hiero connector contract must use `0x000000000000000000000000000000000000016e`
-as the `service_address` value when computing the binding.
-
 The address is a constant `CLPR_EVM_ADDRESS` in `ClprSystemContract`. It is also
 set in `LEDGER_CONFIGURATION.service_address` at genesis (via `V0650ClprSchema`).
 
 **Canonical spec note:** this address is Hiero-specific and must not appear in the
 canonical spec. Peer ledgers on non-Hiero platforms will have their own service
-address, and a connector's binding must use the service address of the *destination*
-ledger.
+address.
 
 ---
 
-## E-2. Signature schemes on `completeChannel`
+## E-2. Connector identity keys on `createConnector`
 
-Hiero supports two signature schemes for connector registration
-(`clpr_complete_channel.proto`, `ClprSignatureScheme` enum):
+The payer and the connector identity key sign the full transaction. The
+`identity_key` field in `clpr_create_connector.proto` accepts a HAPI Ed25519 key
+or a compressed ECDSA secp256k1 key. The connector ID is `keccak256(publicKey || salt)`
+with a 32-byte salt. For Ed25519, the input is the raw 32-byte public key. For
+secp256k1, it is the 64-byte uncompressed coordinates `x || y` without a prefix.
 
-- **`ECDSA_SECP256K1`** — matches the secp256k1 keys commonly used by EVM-derived
-  chains and by Hiero EVM accounts.
-- **`ED25519`** — matches the Ed25519 keys used by many native Hedera accounts.
-
-Both are verified through `CryptographyProvider.verifySync`.
-
-### Key and signature length conventions
-
-|     Scheme      |             Public key encoding             | Public key length | Signature length |
-|-----------------|---------------------------------------------|-------------------|------------------|
-| ECDSA secp256k1 | Uncompressed `x ‖ y` — **no** `0x04` prefix | 64 bytes          | 64 bytes         |
-| Ed25519         | Raw key bytes                               | 32 bytes          | 64 bytes         |
-
-For ECDSA, the 64-byte signature contains `r ‖ s` without a recovery byte. This is
-sufficient for signature verification. It is NOT sufficient for address recovery (which
-would require the recovery byte); signature verification uses the supplied public key
-directly rather than recovering a key from the signature.
-
-**Canonical spec note:** spec §6.2 lists no `signatureScheme` parameter to
-`completeChannel`. Per the drift review (S-11), the canonical spec should document
-"ledger-specific; consult your platform docs" for the signature scheme. Hiero's choice
-to support both schemes is additive; a peer connecting to Hiero should consult this
-document to determine acceptable key types.
+Channel creation verifies the peer configuration and the derived channel ID.
 
 See also: [C-6 in DRIFT-REVIEW-2026-05.md](DRIFT-REVIEW-2026-05.md#c-6) for the
 outstanding endpoint-signature verification work that will build on these conventions.
@@ -130,7 +105,7 @@ See [C-6 in DRIFT-REVIEW-2026-05.md](DRIFT-REVIEW-2026-05.md#c-6) for the plan.
 ## E-5. `PrivilegesVerifier`-based admin gating
 
 The treasury (by default `0.0.2`), system admin (by default `0.0.50`), and configured
-`accounts.clprAdmin` payer can submit `closeChannel`, `evictPeerEndpoint`, and
+`accounts.clprAdmin` payer can submit `deleteChannel`, `evictPeerEndpoint`, and
 `updateLedgerConfiguration`.
 See [privileged transactions](../../../privileged-transactions.md#authorization-privileges-for-clpr-transactions).
 
@@ -170,7 +145,7 @@ to the storage it has paid for — either at registration time (locked stake det
 slot count) or through a rent model. This aligns with Hiero's broader paid-storage
 model. The flat percentage quota is a placeholder until that paid-storage model is
 implemented. **Future work:** tie slot quota to locked stake or a separate storage
-payment at `completeConnector` time; consider consistency with the EVM implementation's
+payment at `createConnector` time; consider consistency with the EVM implementation's
 approach to the same problem.
 
 **Canonical spec note:** the canonical spec does not define per-connector queue quotas.

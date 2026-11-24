@@ -9,7 +9,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * The verified peer state returned from {@link ClprVerifier#verifyConfig}. Bundles the
  * verified {@link ClprLedgerConfiguration} and the initial peer {@link ClprEndpointManifest}
  * per spec §4.8 - both are attested by the peer's initial trust anchor and stored on the
- * newly-registered Channel at {@code completeChannel} time.
+ * newly opened channel at {@code createChannel} time.
  */
 public record VerifiedConfig(
         @NonNull ClprLedgerConfiguration config, @NonNull ClprEndpointManifest manifest) {}

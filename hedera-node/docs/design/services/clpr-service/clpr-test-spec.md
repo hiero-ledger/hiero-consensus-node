@@ -30,7 +30,7 @@ implementation concerns for the teams that build the harnesses.
 CLPR testing builds on three existing Hiero test paradigms and introduces a fourth:
 
 **HAPI Tests.** Black-box tests that submit transactions to an embedded Hiero network and verify state
-mutations. CLPR extends this with new transaction types (`registerChannel`, `sendMessage`, `submitBundle`,
+mutations. CLPR extends this with new transaction types (`createChannel`, `sendMessage`, `submitBundle`,
 etc.) and with multi-network support — the HAPI test framework has already been extended on a separate branch
 to stand up two Hiero networks simultaneously (the ShipOfTheseusTest demonstrates complete roster rotation
 on both sides while maintaining CLPR communication). HAPI tests cannot run block nodes, mirror nodes, or
@@ -210,48 +210,32 @@ require multi-network infrastructure.
 
 ## 3.2 Channel Lifecycle
 
-### 3.2.1 `registerChannel` (Commit Phase)
+### 3.2.1 `createChannel`
 
-- Channel ID must be exactly 32 bytes.
-- Verifier contract must be a deployed smart contract. If it does not exist, registration fails.
-- Handler calls `verifyConfig(config_proof_bytes)` on the verifier to obtain verified peer configuration.
-  If verification fails, registration fails.
-- Duplicate Channel ID is rejected.
-- Initial Channel status is **PENDING** (not ACTIVE). Queue metadata is initialized: `next_message_id = 1`,
-  `acked_message_id = 0`, both running hashes are 32 bytes of zeros.
-- Registration (commit phase) is permissionless — no special key required, no ECDSA signature.
-- The verifier is immutable after registration; its address and code fingerprint are stored on the Channel.
-- A PENDING Channel cannot be used for messaging (`sendMessage` and `submitBundle` are rejected).
+- The expected channel ID and salt are each 32 bytes.
+- The selected verifier must authenticate the peer configuration and endpoint manifest.
+- Deriving the ID on either ledger must produce the same result using the agreed salt and both endpoint identities.
+- An ID mismatch, invalid proof, or duplicate ID must leave channel state intact.
+- A successful call creates an ACTIVE channel and stores the verifier and verified peer configuration.
 
-### 3.2.1a `completeChannel` (Reveal Phase)
+### 3.2.1b `deleteChannel` on PENDING Channels
 
-- Channel must exist and be in PENDING state.
-- Handler verifies `keccak256(channel_id || public_key)` matches the stored ownership commitment.
-  The channel_id is an arbitrary 32-byte value chosen by the registrant.
-  The public key encoding is platform-specific (e.g., 64-byte uncompressed x||y for ECDSA secp256k1).
-- Signature is verified over the completion data. Invalid signatures are rejected. The signature scheme
-  is platform-specific (e.g., ECDSA secp256k1 on Hiero and Ethereum).
-- Transitions the Channel from PENDING to ACTIVE.
-- Completion is permissionless — no special key required (beyond the ECDSA proof of key ownership).
-
-### 3.2.1b `closeChannel` on PENDING Channels
-
-- Admin can call `closeChannel` on a PENDING Channel to clean up abandoned claims.
+- Admin can call `deleteChannel` on a PENDING Channel to clean up abandoned claims.
 - The PENDING Channel is deleted immediately (no drain phase needed).
 - Non-admin callers cannot close a PENDING Channel.
 
 ### 3.2.2 Channel Status Transitions
 
-For tests that assert a persisted CLOSING state after `closeChannel`, keep at least one outbound
+For tests that assert a persisted CLOSING state after `deleteChannel`, keep at least one outbound
 Data Message unacknowledged. Also cover an already acknowledged outbound queue, which can reach
 DRAINED as part of initiating the close.
 
 - ACTIVE → PAUSED automatically when a response ordering violation is detected during `submitBundle`
   processing. No admin action triggers this transition.
-- ACTIVE → CLOSING via `closeChannel` (admin key required).
+- ACTIVE → CLOSING via `deleteChannel` (admin key required).
 - PAUSED → ACTIVE automatically when the next bundle contains correctly ordered responses (if admin
   hasn't closed). No admin action triggers this transition.
-- PAUSED → CLOSING via `closeChannel` (admin key required). The Channel drains once the peer
+- PAUSED → CLOSING via `deleteChannel` (admin key required). The Channel drains once the peer
   fixes the response ordering.
 - ACTIVE/PAUSED → CLOSING when verified peer metadata reports CLOSING, DRAINED, or CLOSED.
 - CLOSING → DRAINED automatically when the peer acknowledges all outbound Data Messages.
@@ -268,7 +252,7 @@ DRAINED as part of initiating the close.
 - Outbound syncs continue (queued messages still flow to the peer).
 - `nextResponseExpectedId` does not advance.
 - Auto-resumes when the next bundle has correctly ordered responses — no admin intervention required.
-- Admin MAY close a PAUSED Channel (`closeChannel` transitions to CLOSING). The Channel cannot
+- Admin MAY close a PAUSED Channel (`deleteChannel` transitions to CLOSING). The Channel cannot
   drain until the peer fixes the ordering; once fixed, inbound messages are dispatched normally
   and queues drain without returning to ACTIVE or accepting new local `sendMessage` calls.
 
@@ -305,10 +289,10 @@ DRAINED as part of initiating the close.
 
 ### 3.2.6 Invalid Transition Rejection
 
-- `closeChannel` on a CLOSING or CLOSED channel is rejected.
-- `closeChannel` on an ACTIVE or PAUSED channel succeeds (use an unacknowledged outbound Data
+- `deleteChannel` on a CLOSING or CLOSED channel is rejected.
+- `deleteChannel` on an ACTIVE or PAUSED channel succeeds (use an unacknowledged outbound Data
   Message to assert a persisted CLOSING state).
-- **Current Hiero behavior:** `closeChannel` on a DRAINED Channel succeeds and transitions it to
+- **Current Hiero behavior:** `deleteChannel` on a DRAINED Channel succeeds and transitions it to
   CLOSED without checking acknowledgements. Cover both a fully acknowledged outbound queue and one with
   unacknowledged Response Messages, including recovery when the peer's close-notification cannot be delivered.
   **Canonical inconsistency:** [§2.1.1](https://github.com/LFDT-CLPR/clpr-spec/blob/945082d69e65dd0fd9e9bdf8d59cb8121579f6fd/clpr-service-spec.md#211-channel-status-transitions),
@@ -321,7 +305,7 @@ DRAINED as part of initiating the close.
 
 ## 3.3 Connector Lifecycle
 
-### 3.3.1 `registerConnector`
+### 3.3.1 `registerConnector` (Hiero `createConnector`)
 
 - Requires initial balance and stake meeting minimum thresholds.
 - Channel must be ACTIVE.
@@ -334,7 +318,7 @@ DRAINED as part of initiating the close.
 - Withdrawal cannot exceed available balance; locked stake cannot be withdrawn while registered.
 - Only the Connector admin can perform these operations.
 
-### 3.3.3 `deregisterConnector`
+### 3.3.3 `deregisterConnector` (Hiero `deleteConnector`)
 
 - Returns remaining balance and locked stake.
 - Rejected if the Connector has unresolved in-flight messages.
@@ -622,7 +606,7 @@ rejected, inbound bundles with out-of-order responses are rejected, outbound syn
 queued messages continue syncing.
 - Auto-resume: submit a bundle with correctly ordered responses. Verify the Channel transitions back
 to ACTIVE and normal operation resumes.
-- With at least one outbound Data Message still unacknowledged, close the Channel via `closeChannel`.
+- With at least one outbound Data Message still unacknowledged, close the Channel via `deleteChannel`.
 Verify the Channel transitions to CLOSING, the
 `ClprQueueMetadata.status` carries the Channel status and propagates to the peer, and new local
 `sendMessage` calls are rejected on each side after it starts closing. Inbound Data Messages still
@@ -681,7 +665,7 @@ each verifier and verify accept/reject behavior.
 
 ### 4.2.3 Gas Cost Profiling
 
-Measure and record Ethereum gas costs for: `registerChannel`, `registerConnector`, `sendMessage`,
+Measure and record Ethereum gas costs for: `openChannel`, `registerConnector`, `sendMessage`,
 `submitBundle`, `closeChannel`. Verify that costs are within acceptable bounds for production deployment.
 Verify that `max_sync_bytes` is calibrated to keep bundle submission within Ethereum block gas limits.
 
@@ -721,7 +705,7 @@ Connector balances.
 
 ### 4.4.1 Hub-and-Spoke
 
-Deploy three networks: Hiero as hub, Ethereum and a second Hiero as spokes. Register Channels
+Deploy three networks: Hiero as hub, Ethereum and a second Hiero as spokes. Open channels
 Hub↔Spoke1 and Hub↔Spoke2. Send messages on both Channels simultaneously. Verify that traffic on one
 Channel does not affect the other — independent queues, independent Connectors, independent throughput.
 
@@ -862,7 +846,7 @@ enqueued, bundles can be submitted, and responses are correctly ordered. No admi
 
 ### 5.4.4 Admin Closes a PAUSED Channel
 
-While a Channel is PAUSED and has an unacknowledged outbound Data Message, call `closeChannel`.
+While a Channel is PAUSED and has an unacknowledged outbound Data Message, call `deleteChannel`.
 Verify the Channel transitions to CLOSING. Submit a bundle with out-of-order responses and verify it is
 not processed: no dispatch, no acknowledgement update, and no running-hash advance (the ordering violation
 persists even in CLOSING). Then submit a bundle with correctly ordered responses and valid Data Messages:
@@ -871,7 +855,7 @@ new local `sendMessage` calls; it drains through DRAINED → CLOSED normally.
 
 ### 5.4.5 CLOSING Propagation via Metadata
 
-Call `closeChannel` on an ACTIVE Channel with an unacknowledged outbound Data Message.
+Call `deleteChannel` on an ACTIVE Channel with an unacknowledged outbound Data Message.
 Verify: the Channel transitions to CLOSING, the
 `ClprQueueMetadata.status` carries the Channel status, the peer sees the status during the next sync and
 transitions its side to CLOSING as well. Verify new local sends are rejected on both sides after each
@@ -1197,7 +1181,7 @@ verifier and new endpoints is operational.
 
 ### 8.3.1 Close Affected Channel
 
-Admin closes a Channel whose verifier is suspected of being compromised via `closeChannel`.
+Admin closes a Channel whose verifier is suspected of being compromised via `deleteChannel`.
 Keep an outbound Data Message unacknowledged to exercise CLOSING. Verify
 the Channel transitions to CLOSING and rejects new local sends. Inbound messages continue normal
 dispatch, charging, and response processing during CLOSING and DRAINED; graceful close does not provide

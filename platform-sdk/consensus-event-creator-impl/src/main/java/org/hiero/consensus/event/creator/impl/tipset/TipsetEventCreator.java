@@ -31,12 +31,12 @@ import org.hiero.consensus.event.creator.config.EventCreationConfig;
 import org.hiero.consensus.event.creator.impl.EventCreator;
 import org.hiero.consensus.main.model.EventDescriptorWrapper;
 import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.main.model.QuiescenceCommand;
 import org.hiero.consensus.main.model.TimestampedTransaction;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.main.model.QuiescenceCommand;
 import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.transaction.EventTransactionSupplier;
 
