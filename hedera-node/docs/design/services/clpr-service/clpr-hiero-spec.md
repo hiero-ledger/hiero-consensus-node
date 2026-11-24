@@ -315,6 +315,9 @@ Hiero reserves 114 bytes for sync framing and 2 KiB for the separately encoded v
 including the trust anchor, channel context and ABI padding. Each native or compact proof fits
 both the peer's wire budget and the smaller of the local consensus calldata limit and 128 KiB.
 At default settings the largest proof is 126 KiB. Sync resumes at the first unreceived message.
+When a queued head and a new manifest cannot fit in one proof, the sender sends the head with
+the channel receipt first. A later proof can install the manifest once the receiver has drained its DATA.
+A native sender can send the manifest alone when it has no deliverable queued head.
 Prevalidation checks the complete encoded call against the receiver's configured calldata limit.
 Hiero caps new DATA and replies at 64 KiB. For a single message, the sender reserves
 23 KiB for the native TSS signature, both Merkle paths and framing. It also reserves the
@@ -325,7 +328,8 @@ state reduces this allowance by one byte. When an application result exceeds the
 its effects roll back. If even the minimum reply cannot fit, inbound DATA receives the
 minimum error reply without dispatching the application.
 Channel completion and authenticated anchor or manifest growth must leave space for a
-15-byte terminal reply when the channel exceeds 17 KiB. If growth lowers the payload
+15-byte terminal reply when the channel exceeds 17 KiB. The relay rejects a proof that
+fails this structural check before it pays to submit the transaction. If growth lowers the payload
 budget, the sender checks unreceived queue entries against the new budget. The peer
 can acknowledge entries in the same bundle. When an entry exceeds the budget or more
 than 1,000 entries still need checking, the update can be retried after delivery advances.
@@ -402,7 +406,9 @@ connectorDebit = networkGasFee + endpointCompensation
 ```
 
 The connector's worst-case gas reimbursement and compensation are transferred before
-the callback. Unused gas reimbursement is returned afterward. Response callbacks use
+the callback. Unused gas reimbursement is returned afterward. If an oversized or malformed
+return rolls back the application, the finalized child throttle usage still counts toward consensus
+capacity for subsequent callbacks and transactions. Response callbacks use
 the same gas payment and reimbursement path without the DATA compensation. An absent
 or underfunded originating connector causes best-effort response delivery to be skipped.
 Reverted callbacks still pay for gas consumed. Gas is reported before rollback clears stream-builder results. A pre-execution failure

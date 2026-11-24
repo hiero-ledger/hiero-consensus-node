@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.clpr;
 
+import static com.hedera.hapi.platform.state.SingletonType.CONGESTIONTHROTTLESERVICE_I_THROTTLE_USAGE_SNAPSHOTS;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.pbjToProto;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.protoToPbj;
 import static com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator.VERIFIABLE_SYNC_BYTES;
@@ -51,9 +52,11 @@ import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.clpr.ClprMessageKey;
 import com.hedera.hapi.node.state.clpr.ClprMessageValue;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
+import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshots;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.service.clpr.ClprService;
 import com.hedera.node.app.service.token.TokenService;
+import com.hedera.node.app.throttle.CongestionThrottleService;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -66,6 +69,7 @@ import com.hederahashgraph.api.proto.java.ClprMessageReply;
 import com.hederahashgraph.api.proto.java.ClprMessageReplyStatus;
 import com.hederahashgraph.api.proto.java.ClprThrottles;
 import java.math.BigInteger;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
@@ -307,6 +311,84 @@ public class ClprApplicationOutcomeEmbeddedTest {
                         assertTrue(
                                 observedGas > 7_000_000L && observedGas < 15_000_000L,
                                 () -> "gas left in application callback: " + observedGas);
+                    } finally {
+                        writeConfig(spec, originalConfig);
+                    }
+                }));
+    }
+
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {
+                "clpr.enabled",
+                "clpr.messageExecutionCost",
+                "clpr.endpointMarginPercent",
+                "clpr.verifierGasLimit",
+                "contracts.throttle.throttleByGas",
+                "contracts.maxGasPerSecBackend",
+                "contracts.maxRefundPercentOfGasLimit"
+            })
+    final Stream<DynamicTest> rolledBackCallbackRetainsConsensusGasInEitherOrder() {
+        final long verifierGas = 8_000_000L;
+        final long callbackGas = 1_000_000L;
+        return hapiTest(
+                overriding("clpr.verifierGasLimit", Long.toString(verifierGas)),
+                overriding("contracts.maxGasPerSecBackend", "15000000"),
+                overriding("contracts.throttle.throttleByGas", "true"),
+                overriding("contracts.maxRefundPercentOfGasLimit", "0"),
+                withOpContext((spec, log) -> {
+                    final var originalConfig = readConfig(spec);
+                    try {
+                        allRunFor(spec, setup(callbackGas));
+                        for (final boolean oversizedFirst : List.of(true, false)) {
+                            final var channelId = Bytes.wrap(new ClprChannelCrypto().channelId());
+                            seedChannel(spec, channelId, 256, List.of());
+                            final var fitting = data(
+                                    spec,
+                                    MESSAGE_ARGS
+                                            .encode(Tuple.of(BigInteger.ZERO, 0, false))
+                                            .array());
+                            final var oversized = data(
+                                    spec,
+                                    MESSAGE_ARGS
+                                            .encode(Tuple.of(BigInteger.valueOf(512), 0, false))
+                                            .array());
+                            final var messages =
+                                    oversizedFirst ? List.of(oversized, fitting) : List.of(fitting, oversized);
+                            // Start each bundle with the previous transaction's gas drained from the bucket.
+                            spec.sleepConsensusTime(Duration.ofSeconds(2));
+                            allRunFor(
+                                    spec,
+                                    clprSubmitBundle()
+                                            .channelId(channelId.toByteArray())
+                                            .bundlePayload(
+                                                    toBundleProofBytes(ACTIVE, 0, 0, ZERO_HASH, messages, ZERO_HASH))
+                                            .endpointNodeId(0L)
+                                            .payingWith(GENESIS));
+                            for (int i = 0; i < messages.size(); i++) {
+                                final var status = queueValue(spec, channelId, i + 1)
+                                        .payloadOrThrow()
+                                        .messageReplyOrThrow()
+                                        .status();
+                                assertEquals(
+                                        messages.get(i) == oversized
+                                                ? com.hedera.hapi.node.state.clpr.ClprMessageReplyStatus
+                                                        .APPLICATION_ERROR
+                                                : com.hedera.hapi.node.state.clpr.ClprMessageReplyStatus.SUCCESS,
+                                        status);
+                            }
+                            final var usage = spec.embeddedStateOrThrow()
+                                    .getReadableStates(CongestionThrottleService.NAME)
+                                    .<ThrottleUsageSnapshots>getSingleton(
+                                            CONGESTIONTHROTTLESERVICE_I_THROTTLE_USAGE_SNAPSHOTS.protoOrdinal())
+                                    .get();
+                            // With refunds disabled, the verifier and both dispatched callbacks consume their full
+                            // grants.
+                            assertEquals(
+                                    verifierGas + 2 * callbackGas,
+                                    usage.gasThrottleOrThrow().used(),
+                                    "oversized callback first: " + oversizedFirst);
+                        }
                     } finally {
                         writeConfig(spec, originalConfig);
                     }

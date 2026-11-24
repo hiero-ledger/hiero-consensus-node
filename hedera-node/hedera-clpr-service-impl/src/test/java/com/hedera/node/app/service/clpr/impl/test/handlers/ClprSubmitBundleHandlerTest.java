@@ -1632,7 +1632,7 @@ class ClprSubmitBundleHandlerTest {
         assertThat(response.payload().messageReplyOrThrow().status())
                 .isEqualTo(ClprMessageReplyStatus.APPLICATION_ERROR);
         assertThat(response.payload().messageReplyOrThrow().messageReplyData()).isEqualTo(Bytes.EMPTY);
-        verify(applicationStack).rollback();
+        verify(applicationStack).rollbackPreservingThrottleUsage();
         verify(applicationStack, never()).commit();
     }
 
@@ -1670,7 +1670,7 @@ class ClprSubmitBundleHandlerTest {
         assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1).payloadOrThrow()).isEqualTo(replyPayload(1));
         verify(applicationStack).createSavepoint();
         verify(applicationStack).commit();
-        verify(applicationStack, never()).rollback();
+        verify(applicationStack, never()).rollbackPreservingThrottleUsage();
     }
 
     @ParameterizedTest
@@ -1715,7 +1715,7 @@ class ClprSubmitBundleHandlerTest {
         order.verify(tokenServiceApi).transferFromTo(CONNECTOR_CONTRACT_ACCOUNT, PAYER_ID, WORST_CASE_CHARGE + 800);
         order.verify(applicationStack).createSavepoint();
         order.verify(handleContext).dispatch(any(DispatchOptions.class));
-        order.verify(applicationStack).rollback();
+        order.verify(applicationStack).rollbackPreservingThrottleUsage();
         // The 100 gas reported during dispatch is still billed after rollback: 800 reserved, 600 returned.
         order.verify(tokenServiceApi).transferFromTo(PAYER_ID, CONNECTOR_CONTRACT_ACCOUNT, 600L);
         verify(applicationStack, never()).commit();
@@ -1808,7 +1808,7 @@ class ClprSubmitBundleHandlerTest {
                 verify(applicationStack).commit();
             } else {
                 assertApplicationErrorResponse();
-                verify(applicationStack).rollback();
+                verify(applicationStack).rollbackPreservingThrottleUsage();
             }
         }
 

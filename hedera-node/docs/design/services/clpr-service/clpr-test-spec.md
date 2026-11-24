@@ -568,11 +568,12 @@ DRAINED as part of initiating the close.
   even a channel-only proof exceed this allowance. Size `max_sync_bytes` for the largest supported
   cached manifest and Merkle paths as well as the complete message payload. Exercise both native and
   compact proofs at that size, and verify oversized proofs are never sent.
-- A native proof may carry a requested manifest alone when the head and manifest cannot fit together.
-  A duplicate verified manifest returns `CLPR_NO_PROGRESS`. A compact Hiero proof always includes
-  the channel leaf. If the manifest crowds out a fitting head, the compact sender sends the head
-  first and retries the manifest later. An unfit head must never result in a channel-only offer
-  attesting a queue tip ahead of the receiver.
+- If a requested manifest crowds out a fitting queued head, both native and compact senders deliver
+  the head with its channel receipt first. Verify that the receiver can acknowledge its outstanding
+  DATA and then install the larger manifest. A native proof can carry the manifest alone when no
+  queued head fits. Compact proofs always include the channel leaf. An unfit head must never result
+  in a channel-only offer attesting a queue tip ahead of the receiver. A duplicate verified manifest
+  returns `CLPR_NO_PROGRESS`.
 - Against a 4 MiB peer, queue two maximum-size DATA messages and a successor. Verify that separate
   prefixes deliver all three in order and that their terminal replies reach the source application.
 

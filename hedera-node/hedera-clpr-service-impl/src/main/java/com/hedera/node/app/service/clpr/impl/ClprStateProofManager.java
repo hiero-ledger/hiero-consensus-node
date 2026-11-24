@@ -645,30 +645,23 @@ public class ClprStateProofManager {
         final var proofBuilder = StateProof.newBuilder().signedBlockProof(tssProof);
 
         // ── Endpoint manifest singleton leaf (spec §4.9) ──────────────────────────
+        StateProof standaloneManifest = null;
         if (includeEndpointManifest) {
             addEndpointManifest(allPaths, binaryState, channelId, extendedSibs, digest);
             if (nativeProof && allPaths.size() > 1) {
                 allPaths.add(ClprProofTimestamp.pathFor(allPaths.getLast(), tsBytes, digest));
+                standaloneManifest = proofBuilder
+                        .paths(List.copyOf(allPaths.subList(1, allPaths.size())))
+                        .build();
             }
             if (allPaths.size() > 1
                     && payloadSize.applyAsLong(proofBuilder.paths(allPaths).build()) > maxBundlePayloadBytes) {
-                // A native manifest and its timestamp travel together, including in a standalone proof.
-                final var manifestPaths = allPaths.subList(1, allPaths.size());
-                if (nativeProof) {
-                    final var manifestOnly = proofBuilder.paths(manifestPaths).build();
-                    if (payloadSize.applyAsLong(manifestOnly) <= maxBundlePayloadBytes) {
-                        return new BundleProof(StateProof.PROTOBUF.toBytes(manifestOnly), 0, firstMessageId - 1);
-                    }
-                }
-                manifestPaths.clear();
-                log.warn(
-                        "Endpoint manifest cannot fit in a supported proof (channel={} maxSyncBytes={} maxBundlePayloadBytes={})",
-                        channelId,
-                        maxSyncBytes,
-                        maxBundlePayloadBytes);
+                // The channel carries the receipt. Try the queue before falling back to a standalone manifest.
+                allPaths.subList(1, allPaths.size()).clear();
             }
         }
         boolean hasManifestPath = allPaths.size() > 1;
+        boolean headTooLarge = false;
 
         // Spec §1.1 sender-side cap: the serialized ClprSyncPayload envelope MUST NOT exceed
         // the peer's max_sync_bytes. We trim the message tail as we append paths so we never
@@ -714,11 +707,10 @@ public class ClprStateProofManager {
                     .paths(allPaths)
                     .signedBlockProof(tssProof)
                     .build());
-            // Compact Hiero verifiers require a channel leaf. If the manifest crowds out the
-            // head, send DATA first and retry the manifest with the channel on a later sync.
-            if (!nativeProof && id == firstMessageId && hasManifestPath && candidateSize > maxBundlePayloadBytes) {
+            // A receipt or terminal reply can release the space the peer needs to install our manifest.
+            if (id == firstMessageId && hasManifestPath && candidateSize > maxBundlePayloadBytes) {
                 log.debug("Deferring endpoint manifest to fit queued head (channel={} messageId={})", channelId, id);
-                allPaths.remove(1);
+                allPaths.subList(1, allPaths.size() - 1).clear();
                 hasManifestPath = false;
                 candidateSize =
                         payloadSize.applyAsLong(proofBuilder.paths(allPaths).build());
@@ -727,15 +719,8 @@ public class ClprStateProofManager {
                 // Drop the last path and stop appending — it will be re-attempted next tick.
                 allPaths.removeLast();
                 messageLeafCount--;
-                if (id == firstMessageId && hasManifestPath) {
-                    // Without a message leaf the channel would attest its queue tip, ahead of the
-                    // receiver. Send only the manifest so the receiver can accept it at its current ID.
-                    allPaths.removeFirst();
-                    log.debug(
-                            "[CLPR-BUNDLE-BUILD] sending endpoint manifest before head message {} conn={}",
-                            id,
-                            channelId);
-                } else if (id == firstMessageId) {
+                if (id == firstMessageId) {
+                    headTooLarge = true;
                     // No message can advance the queue with this proof's overhead and peer limit.
                     // A channel-only proof would claim the queue tip ahead of the receiver.
                     log.warn(
@@ -748,7 +733,6 @@ public class ClprStateProofManager {
                             candidateSize,
                             maxSyncBytes,
                             maxBundlePayloadBytes);
-                    return null;
                 } else {
                     log.debug(
                             "buildBundleStateProof: trimmed at message {} to stay within the proof budget "
@@ -784,7 +768,12 @@ public class ClprStateProofManager {
         // bundle when the manifest will actually be carried.
         // Skip only when there are no messages, no permitted channel-only proof, and no manifest to send.
         if (messageLeafCount == 0) {
-            if (!allowPureAck && !hasManifestPath) {
+            if (!hasManifestPath
+                    && standaloneManifest != null
+                    && payloadSize.applyAsLong(standaloneManifest) <= maxBundlePayloadBytes) {
+                return new BundleProof(StateProof.PROTOBUF.toBytes(standaloneManifest), 0, firstMessageId - 1);
+            }
+            if (headTooLarge || (!allowPureAck && !hasManifestPath)) {
                 log.debug(
                         "[CLPR-BUNDLE-BUILD] no queued messages and no manifest to push; skipping initiator "
                                 + "bundle conn={} firstMessageId={}",

@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.clpr;
 
+import static com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess.BLOCK_STREAM_ACCESS;
+import static com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess.computeMapFromUpdates;
 import static com.hedera.node.app.info.DiskStartupNetworks.OVERRIDE_NETWORK_JSON;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.DATA_CONFIG_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.WORKING_DIR;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.allNodes;
@@ -53,9 +57,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.protobuf.ByteString;
+import com.hedera.hapi.block.stream.output.MapChangeKey;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.info.DiskStartupNetworks;
 import com.hedera.node.internal.network.Network;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNode;
@@ -464,34 +470,43 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                 .toList();
     }
 
-    /**
-     * Awaits the receiver-side Step 1b log line proving {@code peer} applied the manifest at version
-     * {@code version} — carried in a bundle proof or a recovery bundle — and that it advertises every port in
-     * {@code ports}. Deferred, so it reads the peer's log as it is when it runs.
-     */
+    /** Waits for the receiver's committed channel to contain the rotated manifest and expected ports. */
     static DynamicTest awaitManifestAppliedOnPeer(
-            final SubProcessNetwork peer, final AtomicLong version, final Supplier<List<Integer>> ports) {
-        return deferred(
-                "Await manifest application on " + peer.name(),
-                () -> networkHapiTest(
-                                "Await Step 1b manifest application on " + peer.name(),
-                                peer,
-                                withOpContext((spec, opLog) -> {
-                                    final var line = new StringBuilder("applying new endpoint manifest.*version=\\d+->"
-                                            + version.get() + " .*endpoints=");
-                                    ports.get()
-                                            .forEach(port -> line.append("(?=.*:")
-                                                    .append(port)
-                                                    .append("\\b)"));
-                                    awaitLogLine(peer, Pattern.compile(line.toString()), MANIFEST_APPEAR_TIMEOUT);
-                                    opLog.info(
-                                            "Peer {} applied manifest version {} with ports {}",
-                                            peer.name(),
-                                            version.get(),
-                                            ports.get());
-                                }))
-                        .findFirst()
-                        .orElseThrow());
+            final SubProcessNetwork peer,
+            final byte[] channelId,
+            final AtomicLong version,
+            final Supplier<List<Integer>> ports) {
+        return DynamicTest.dynamicTest("Check committed manifest on " + peer.name(), () -> {
+            final var blocksDir = peer.nodes().getFirst().getExternalPath(BLOCK_STREAMS_DIR);
+            final var key = Bytes.wrap(channelId);
+            final var expectedPorts = ports.get();
+            final var deadline = Instant.now().plus(MANIFEST_APPEAR_TIMEOUT);
+            long lastVersion = 0;
+            List<Integer> lastPorts = List.of();
+            do {
+                final var channels = computeMapFromUpdates(
+                        BLOCK_STREAM_ACCESS.readBlocksIgnoringMarkersAndReadErrors(blocksDir),
+                        MapChangeKey::protoBytesKeyOrThrow,
+                        change -> Map.entry(
+                                change.keyOrThrow().protoBytesKeyOrThrow(),
+                                change.valueOrThrow().clprChannelValueOrThrow()),
+                        CHANNELS_STATE_ID);
+                final var channel = channels.get(key);
+                if (channel != null && channel.hasEndpointManifest()) {
+                    lastVersion = channel.endpointManifestVersion();
+                    lastPorts = channel.endpointManifestOrThrow().endpoints().stream()
+                            .map(endpoint -> endpoint.serviceEndpointOrThrow().port())
+                            .toList();
+                    if (lastVersion >= version.get() && lastPorts.containsAll(expectedPorts)) {
+                        return;
+                    }
+                }
+                sleepFor(POLL_INTERVAL);
+            } while (Instant.now().isBefore(deadline));
+            throw new AssertionError("Peer " + peer.name() + " expected manifest version " + version.get()
+                    + " with ports " + expectedPorts + ", last committed version " + lastVersion
+                    + " with ports " + lastPorts);
+        });
     }
 
     /**

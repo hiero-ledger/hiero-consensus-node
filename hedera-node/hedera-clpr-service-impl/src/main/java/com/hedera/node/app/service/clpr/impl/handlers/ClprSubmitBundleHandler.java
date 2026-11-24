@@ -708,6 +708,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                         final var applicationStack = context.savepointStack();
                         applicationStack.createSavepoint();
                         boolean commitApplication = false;
+                        boolean childFinalized = false;
                         try {
                             log.debug(
                                     "[ClprSubmitBundle] step10 DATA dispatch ENTER conn={} receivedMsgId={} "
@@ -723,6 +724,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                     NOOP_SIGNED_TX_CUSTOMIZER,
                                     callbackMetadata(gasUsage),
                                     ON));
+                            childFinalized = true;
                             log.debug(
                                     "[ClprSubmitBundle] step10 DATA dispatch RETURNED conn={} receivedMsgId={} "
                                             + "target={} status={}",
@@ -836,6 +838,8 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                             try {
                                 if (commitApplication) {
                                     applicationStack.commit();
+                                } else if (childFinalized) {
+                                    applicationStack.rollbackPreservingThrottleUsage();
                                 } else {
                                     applicationStack.rollback();
                                 }

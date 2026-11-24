@@ -190,6 +190,7 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
                                         // B applies it (Step 1b), and it carries A's new node's endpoint
                                         awaitManifestAppliedOnPeer(
                                                 ledgerB,
+                                                crypto.channelId,
                                                 aVersionRotated,
                                                 () -> tlsPorts(HAPI_TLS_PORT_A, addedNodeIds)),
                                         awaitReceivedMessage(ledgerB, crypto.channelId, 1),
@@ -266,6 +267,7 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
                                         // proof of it, and B applies it. B never reaches A's old nodes, all gone.
                                         awaitManifestAppliedOnPeer(
                                                 ledgerB,
+                                                crypto.channelId,
                                                 aVersionTurnedOver,
                                                 () -> tlsPorts(HAPI_TLS_PORT_A, addedNodeIds)),
                                         // B -> A reaches only A's new nodes; then A -> B
@@ -363,6 +365,7 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
                                                         ResponseCodeEnum.SUCCESS)),
                                         awaitManifestAppliedOnPeer(
                                                 ledgerA,
+                                                crypto.channelId,
                                                 bVersionTurnedOver,
                                                 () -> tlsPorts(HAPI_TLS_PORT_B, addedNodeIdsB)),
                                         // Automatic recovery (spec §8.1.2): A now reaches B's new nodes, and B's view
@@ -371,6 +374,7 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
                                         sendMessages(ledgerA, crypto, "callerA2", "post-turnover"),
                                         awaitManifestAppliedOnPeer(
                                                 ledgerB,
+                                                crypto.channelId,
                                                 aVersionTurnedOver,
                                                 () -> tlsPorts(HAPI_TLS_PORT_A, addedNodeIdsA)),
                                         deferredAwaitReceivedMessage(ledgerB, crypto, 1),

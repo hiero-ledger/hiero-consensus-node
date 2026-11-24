@@ -336,7 +336,7 @@ public class ClprBundleValidator {
         return updated;
     }
 
-    /** Defer only a known capacity failure. Ordering and missing slots require consistent consensus state. */
+    /** Reject an unusable projected channel and defer known backpressure. Consensus decides inconclusive slot reads. */
     public void prevalidateCapacity(
             @NonNull final ClprChannel channel,
             @NonNull final ValidatedBundle bundle,
@@ -355,7 +355,7 @@ public class ClprBundleValidator {
                 validateReplies(channel, bundle, queue, capacity);
             }
         } catch (final PreCheckException e) {
-            if (e.responseCode() == CLPR_QUEUE_FULL) {
+            if (e.responseCode() == CLPR_QUEUE_FULL || e.responseCode() == CLPR_BUNDLE_VERIFICATION_FAILED) {
                 throw e;
             }
         }

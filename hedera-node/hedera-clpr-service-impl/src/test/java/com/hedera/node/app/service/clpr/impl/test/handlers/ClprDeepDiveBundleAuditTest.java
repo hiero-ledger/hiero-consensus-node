@@ -721,7 +721,7 @@ class ClprDeepDiveBundleAuditTest {
         assertThat(response.payload().messageReplyOrThrow().status())
                 .isEqualTo(ClprMessageReplyStatus.APPLICATION_ERROR);
         assertThat(response.payload().messageReplyOrThrow().messageReplyData()).isEqualTo(Bytes.EMPTY);
-        verify(applicationStack).rollback();
+        verify(applicationStack).rollbackPreservingThrottleUsage();
         verify(applicationStack, never()).commit();
     }
 

@@ -42,6 +42,7 @@ import com.hedera.hapi.node.state.clpr.ClprBundleContent;
 import com.hedera.hapi.node.state.clpr.ClprChannel;
 import com.hedera.hapi.node.state.clpr.ClprChannelStatus;
 import com.hedera.hapi.node.state.clpr.ClprControlMessage;
+import com.hedera.hapi.node.state.clpr.ClprEndpoint;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.clpr.ClprMessage;
@@ -397,6 +398,29 @@ class ClprBundlePrevalidatorTest {
         when(queue.get(new ClprMessageKey(CHANNEL_ID, 2)))
                 .thenReturn(ClprMessageValue.newBuilder().payload(dataPayload()).build());
         subject.validate(PAYLOAD, configuration);
+    }
+
+    @Test
+    void rejectsAnUnsendableSuccessorAnchorBeforeGossipEvenWithAnEmptyQueue() {
+        final var jumbo = mock(JumboTransactionsConfig.class);
+        when(configuration.getConfigData(JumboTransactionsConfig.class)).thenReturn(jumbo);
+        when(jumbo.ethereumMaxCallDataSize()).thenReturn(64 * 1024);
+        final var channel = CHANNEL.copyBuilder()
+                .nextMessageId(1)
+                .peerThrottles(ClprThrottles.newBuilder().maxSyncBytes(4 * 1024 * 1024))
+                .endpointManifest(ClprEndpointManifest.newBuilder()
+                        .endpoints(ClprEndpoint.newBuilder()
+                                .tlsCertificate(Bytes.wrap(new byte[15 * 1024]))
+                                .build()))
+                .build();
+        when(channels.get(new ProtoBytes(CHANNEL_ID))).thenReturn(channel);
+        givenLocalReturn(ClprBundleContent.newBuilder()
+                .newTrustAnchor(Bytes.wrap(new byte[32 * 1024]))
+                .newTrustAnchorId(Bytes.fromHex("02"))
+                .build());
+
+        assertRejected(PAYLOAD, CLPR_BUNDLE_VERIFICATION_FAILED);
+        verifyNoInteractions(queue);
     }
 
     private static Bytes encodedVerifierCall() {
