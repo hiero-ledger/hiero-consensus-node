@@ -6,7 +6,7 @@ import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
-import org.hiero.consensus.model.quiescence.QuiescenceCommand;
+import org.hiero.consensus.main.model.QuiescenceCommand;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TestEnvironment;

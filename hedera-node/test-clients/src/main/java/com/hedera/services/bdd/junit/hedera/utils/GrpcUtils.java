@@ -220,22 +220,18 @@ public class GrpcUtils {
                 clients.getTokenSvcStub(nodeAccountId, false, false).claimAirdrop(transaction);
             case AtomicBatch ->
                 clients.getUtilSvcStub(nodeAccountId, false, false).atomicBatch(transaction);
-            case ClprRegisterChannel ->
-                clients.getClprSvcStub(nodeAccountId, false, false).registerChannel(transaction);
-            case ClprCompleteChannel ->
-                clients.getClprSvcStub(nodeAccountId, false, false).completeChannel(transaction);
-            case ClprCloseChannel ->
-                clients.getClprSvcStub(nodeAccountId, false, false).closeChannel(transaction);
+            case ClprCreateChannel ->
+                clients.getClprSvcStub(nodeAccountId, false, false).createChannel(transaction);
+            case ClprDeleteChannel ->
+                clients.getClprSvcStub(nodeAccountId, false, false).deleteChannel(transaction);
             case ClprEvictPeerEndpoint ->
                 clients.getClprSvcStub(nodeAccountId, false, false).evictPeerEndpoint(transaction);
             case ClprSubmitBundle ->
                 clients.getClprSvcStub(nodeAccountId, false, false).submitBundle(transaction);
-            case ClprRegisterConnector ->
-                clients.getClprSvcStub(nodeAccountId, false, false).registerConnector(transaction);
-            case ClprCompleteConnector ->
-                clients.getClprSvcStub(nodeAccountId, false, false).completeConnector(transaction);
-            case ClprDeregisterConnector ->
-                clients.getClprSvcStub(nodeAccountId, false, false).deregisterConnector(transaction);
+            case ClprCreateConnector ->
+                clients.getClprSvcStub(nodeAccountId, false, false).createConnector(transaction);
+            case ClprDeleteConnector ->
+                clients.getClprSvcStub(nodeAccountId, false, false).deleteConnector(transaction);
             case ClprUpdateLedgerConfiguration ->
                 clients.getClprSvcStub(nodeAccountId, false, false).updateLedgerConfiguration(transaction);
             case StateSignatureTransaction,

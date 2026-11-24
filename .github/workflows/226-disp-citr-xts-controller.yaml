@@ -804,7 +804,7 @@ jobs:
       - report-success
       - report-failure
       - report-xts-result
-    if: ${{ always() && github.event.repository.visibility == 'public' }}
+    if: ${{ always() && github.event.repository.visibility == 'public' && !github.event.repository.fork }}
     uses: ./.github/workflows/865-call-publish-run-metrics.yaml
     with:
       context: >-

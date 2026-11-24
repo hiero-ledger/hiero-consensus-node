@@ -31,7 +31,7 @@ import org.hiero.base.crypto.SignatureVerifier;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.roster.test.fixtures.RandomRosterEntryBuilder;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.state.signed.SignedStateInvalidException;

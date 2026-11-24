@@ -24,7 +24,7 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.platform.system.Platform;
 import java.lang.reflect.Field;
 import java.time.InstantSource;
-import org.hiero.consensus.transaction.TransactionPoolNexus;
+import org.hiero.consensus.adapter.transaction.TransactionPoolNexus;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InOrder;

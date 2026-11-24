@@ -10,7 +10,7 @@ import org.apache.logging.log4j.core.config.Node;
 import org.apache.logging.log4j.core.config.plugins.Plugin;
 import org.apache.logging.log4j.core.config.plugins.PluginAttribute;
 import org.apache.logging.log4j.core.config.plugins.PluginFactory;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.sloth.fixtures.logging.StructuredLog;
 import org.hiero.sloth.fixtures.logging.internal.AbstractInMemoryAppender;
 import org.hiero.sloth.fixtures.logging.internal.InMemorySubscriptionManager;

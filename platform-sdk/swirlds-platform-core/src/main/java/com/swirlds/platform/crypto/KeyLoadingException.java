@@ -2,7 +2,7 @@
 package com.swirlds.platform.crypto;
 
 import org.hiero.consensus.crypto.KeyCertPurpose;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * Thrown when an issue occurs while loading keys from pfx files

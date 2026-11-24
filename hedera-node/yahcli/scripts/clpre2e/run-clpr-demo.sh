@@ -4,11 +4,8 @@
 #
 # End-to-end runbook for every yahcli command added on the add-yahcli-commands branch,
 # exercised against TWO local Hiero networks ("ledger A" and "ledger B"). The script
-# does NOT generate real cryptographic material -- commit/reveal payloads and signatures
-# are static placeholder bytes, so the precheck path of every command runs, but the
-# handler-side signature/proof checks on complete-channel / complete-connector /
-# submit-bundle will (correctly) reject the placeholder values. That is expected for a
-# smoke test; the value here is exercising the wire path of every command on both ledgers.
+# generates a connector identity for registration. Channel proofs and bundle payloads
+# use placeholders so the smoke test can exercise the wire paths on both ledgers.
 #
 # Prerequisites
 # -------------
@@ -57,11 +54,11 @@ INIT_CODE_FILE="${INIT_CODE_FILE:-${YAHCLI_DIR}/src/main/resources/Multipurpose.
 
 # Static placeholders. Override via env vars to plug in real cryptographic material.
 # 32-byte hashes / ids
-COMMITMENT_CHANNEL_HEX="${COMMITMENT_CHANNEL_HEX:-1111111111111111111111111111111111111111111111111111111111111111}"
-COMMITMENT_CONNECTOR_HEX="${COMMITMENT_CONNECTOR_HEX:-2222222222222222222222222222222222222222222222222222222222222222}"
+CHANNEL_SALT_HEX="${CHANNEL_SALT_HEX:-0000000000000000000000000000000000000000000000000000000000000000}"
+PEER_VERIFIER_HEX="${PEER_VERIFIER_HEX:-000000000000000000000000000000000000016e}"
+VERIFIER_CONTRACT="${VERIFIER_CONTRACT:-0.0.366}"
+CONFIG_PROOF_HEX="${CONFIG_PROOF_HEX:-00}"
 CHANNEL_ID_HEX="${CHANNEL_ID_HEX:-3333333333333333333333333333333333333333333333333333333333333333}"
-CONNECTOR_ID_HEX="${CONNECTOR_ID_HEX:-4444444444444444444444444444444444444444444444444444444444444444}"
-SALT_HEX="${SALT_HEX:-5555555555555555555555555555555555555555555555555555555555555555}"
 # 32-byte ED25519 public key
 PUBLIC_KEY_HEX="${PUBLIC_KEY_HEX:-6666666666666666666666666666666666666666666666666666666666666666}"
 # 64-byte ED25519 signature
@@ -71,7 +68,7 @@ PEER_LEDGER_ID_A="${PEER_LEDGER_ID_A:-deadbeefdeadbeefdeadbeefdeadbeefdeadbeefde
 PEER_LEDGER_ID_B="${PEER_LEDGER_ID_B:-feedfacefeedfacefeedfacefeedfacefeedfacefeedfacefeedfacefeedface}"
 # Hex-encoded message id for the submit-bundle smoke.
 BUNDLE_PAYLOAD_HEX="${BUNDLE_PAYLOAD_HEX:-deadbeef}"
-# Account that receives returned stake on deregister-connector (must also sign).
+# Account that receives returned stake on delete-connector (must also sign).
 STAKE_RECIPIENT="${STAKE_RECIPIENT:-0.0.2}"
 # Gas to use for contract create / call.
 STEP_GAS="${STEP_GAS:-200000}"
@@ -154,24 +151,19 @@ run_on_network() {
     print_header "Network ${net} (ledger configuration: $(basename "${cfg}"))"
 
     # 1) Push the ledger's own ClprLedgerConfiguration.
-    print_step "[1/11] update-ledger-configuration"
+    print_step "[1/10] update-ledger-configuration"
     run_yahcli "update-ledger-configuration on ${net}" \
         -n "${net}" clpr update-ledger-configuration --config-file "${cfg}"
 
     # 2) Read it back to confirm it landed.
-    print_step "[2/11] get-ledger-configuration"
+    print_step "[2/10] get-ledger-configuration"
     run_yahcli "get-ledger-configuration on ${net}" \
         -n "${net}" clpr get-ledger-configuration --json --include-defaults
 
-    # 3) Phase 1 of the two-phase commit/reveal for a channel.
-    print_step "[3/11] register-channel (commit)"
-    run_yahcli "register-channel on ${net}" \
-        -n "${net}" clpr register-channel --commitment "${COMMITMENT_CHANNEL_HEX}"
-
-    # 4) Deploy the verifier first so we can pass its id into complete-channel.
+    # 3) Deploy the verifier first so we can pass its id into create-channel.
     #    --immutable: no admin key, so peers can trust the verifier won't be swapped out.
     #    --memo: shows up in mirror-node lookups; useful when several verifiers coexist.
-    print_step "[4/11] contracts deploy-clpr-verifier"
+    print_step "[3/10] contracts deploy-clpr-verifier"
     run_yahcli "deploy-clpr-verifier on ${net}" \
         -n "${net}" contracts deploy-clpr-verifier \
             --ledger-id "${peer_ledger_id}" \
@@ -179,67 +171,60 @@ run_on_network() {
             --memo "${VERIFIER_MEMO}" \
             --immutable
 
-    # 5) Phase 2 reveal. Signature/public-key are placeholders so this will be rejected by
-    #    the handler; that's fine for a smoke test.
-    print_step "[5/11] complete-channel (reveal, placeholder signature)"
-    run_yahcli "complete-channel on ${net}" \
-        -n "${net}" clpr complete-channel \
-            --channel-id "${CHANNEL_ID_HEX}" \
-            --public-key "${PUBLIC_KEY_HEX}" \
-            --signature "${SIGNATURE_HEX}" \
-            --signature-scheme ED25519
+    # This smoke test intentionally supplies a placeholder proof.
+    print_step "[4/10] create-channel"
+    run_yahcli "create-channel on ${net}" \
+        -n "${net}" clpr create-channel --channel-id "${CHANNEL_ID_HEX}" \
+            --salt "${CHANNEL_SALT_HEX}" --peer-verifier "${PEER_VERIFIER_HEX}" \
+            --verifier-contract "${VERIFIER_CONTRACT}" --config-proof-hex "${CONFIG_PROOF_HEX}"
 
-    # 6) Phase 1 of the connector commit/reveal.
-    print_step "[6/11] register-connector (commit)"
-    run_yahcli "register-connector on ${net}" \
-        -n "${net}" clpr register-connector --channel-id "${CHANNEL_ID_HEX}" --commitment "${COMMITMENT_CONNECTOR_HEX}"
+    print_step "[5/10] generate connector identity"
+    run_yahcli "generate connector identity on ${net}" \
+        -n "${net}" clpr generate-connector-identity --out "${identity_dir}/${net}.json"
 
-    # 7) Phase 2 reveal for the connector.
-    print_step "[7/11] complete-connector (reveal, placeholder signature)"
-    run_yahcli "complete-connector on ${net}" \
-        -n "${net}" clpr complete-connector \
-            --connector-id "${CONNECTOR_ID_HEX}" \
-            --public-key "${PUBLIC_KEY_HEX}" \
-            --signature "${SIGNATURE_HEX}" \
-            --signature-scheme ED25519 \
-            --salt "${SALT_HEX}" \
-            --channel-id "${CHANNEL_ID_HEX}" \
-            --locked-stake 0
+    print_step "[6/10] register connector"
+    run_yahcli "create-connector on ${net}" \
+        -n "${net}" clpr create-connector --identity "${identity_dir}/${net}.json" \
+            --channel-id "${CHANNEL_ID_HEX}" --connector-contract "${CONNECTOR_CONTRACT:-0.0.1010}" \
+            --locked-stake 100000000
 
-    # 8) Generic contract create (Multipurpose.bin, no constructor args).
-    print_step "[8/11] contracts create (Multipurpose.bin)"
+    # 7) Generic contract create (Multipurpose.bin, no constructor args).
+    print_step "[7/10] contracts create (Multipurpose.bin)"
     run_yahcli "contracts create on ${net}" \
         -n "${net}" contracts create \
             --init-code-file "${INIT_CODE_FILE}" \
             --gas "${STEP_GAS}" \
             --immutable
 
-    # 9) Call the verifier with empty calldata (the EVM-level fallback path) just to
+    # 8) Call the verifier with empty calldata (the EVM-level fallback path) just to
     #    exercise `contracts call`. The contract has no fallback, so this is expected
     #    to revert -- precheck still runs.
-    print_step "[9/11] contracts call (empty calldata, fallback)"
+    print_step "[8/10] contracts call (empty calldata, fallback)"
     run_yahcli "contracts call on ${net}" \
         -n "${net}" contracts call \
             --contract-id "0.0.1010" \
             --gas "${STEP_GAS}"
 
-    # 10) Submit a placeholder bundle. Will fail handler validation (no real connector).
-    print_step "[10/11] submit-bundle (placeholder payload)"
+    # 9) Submit a placeholder bundle. Will fail handler validation (no real connector).
+    print_step "[9/10] submit-bundle (placeholder payload)"
     run_yahcli "submit-bundle on ${net}" \
         -n "${net}" clpr submit-bundle \
             --channel-id "${CHANNEL_ID_HEX}" \
             --bundle-payload "${BUNDLE_PAYLOAD_HEX}"
 
-    # 11) Teardown: deregister the connector then close the channel.
-    print_step "[11/11] deregister-connector and close-channel"
-    run_yahcli "deregister-connector on ${net}" \
-        -n "${net}" clpr deregister-connector \
+    # 10) Teardown: deregister the connector then close the channel.
+    print_step "[10/10] delete-connector and delete-channel"
+    run_yahcli "delete-connector on ${net}" \
+        -n "${net}" clpr delete-connector \
             --channel-id "${CHANNEL_ID_HEX}" \
-            --connector-id "${CONNECTOR_ID_HEX}" \
+            --connector-id "$(jq -r .connectorId "${identity_dir}/${net}.json")" \
             --stake-recipient "${STAKE_RECIPIENT}"
-    run_yahcli "close-channel on ${net}" \
-        -n "${net}" clpr close-channel --channel-id "${CHANNEL_ID_HEX}"
+    run_yahcli "delete-channel on ${net}" \
+        -n "${net}" clpr delete-channel --channel-id "${CHANNEL_ID_HEX}"
 }
+
+identity_dir=$(mktemp -d)
+trap 'rm -rf "${identity_dir}"' EXIT
 
 # ----- drive both networks ---------------------------------------------------
 

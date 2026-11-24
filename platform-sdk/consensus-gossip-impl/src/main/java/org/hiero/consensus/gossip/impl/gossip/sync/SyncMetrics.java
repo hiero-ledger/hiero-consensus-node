@@ -26,6 +26,7 @@ import org.hiero.consensus.gossip.impl.gossip.shadowgraph.ShadowgraphSynchronize
 import org.hiero.consensus.gossip.impl.gossip.shadowgraph.SyncPhase;
 import org.hiero.consensus.gossip.impl.gossip.shadowgraph.SyncResult;
 import org.hiero.consensus.gossip.impl.network.PeerInfo;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.metrics.RunningAverageMetric;
 import org.hiero.consensus.metrics.extensions.CountPerSecond;
 import org.hiero.consensus.metrics.extensions.PhaseTimer;
@@ -34,7 +35,6 @@ import org.hiero.consensus.metrics.statistics.AverageAndMax;
 import org.hiero.consensus.metrics.statistics.AverageStat;
 import org.hiero.consensus.metrics.statistics.MaxStat;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Interface to update relevant sync statistics

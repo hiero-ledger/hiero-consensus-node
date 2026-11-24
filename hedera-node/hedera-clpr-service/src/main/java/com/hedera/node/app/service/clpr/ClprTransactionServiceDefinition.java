@@ -12,7 +12,7 @@ import java.util.Set;
 
 /**
  * Defines the CLPR transaction-accepting gRPC service. This service handles standard HAPI
- * transactions for cross-ledger protocol operations such as registering channels,
+ * transactions for cross-ledger protocol operations such as creating channels,
  * submitting bundles, and managing connectors.
  *
  * <p>Each method accepts a {@link Transaction} and returns a {@link TransactionResponse},
@@ -25,14 +25,12 @@ public final class ClprTransactionServiceDefinition implements RpcServiceDefinit
     public static final ClprTransactionServiceDefinition INSTANCE = new ClprTransactionServiceDefinition();
 
     private static final Set<RpcMethodDefinition<?, ?>> methods = Set.of(
-            new RpcMethodDefinition<>("registerChannel", Transaction.class, TransactionResponse.class),
-            new RpcMethodDefinition<>("completeChannel", Transaction.class, TransactionResponse.class),
-            new RpcMethodDefinition<>("closeChannel", Transaction.class, TransactionResponse.class),
+            new RpcMethodDefinition<>("createChannel", Transaction.class, TransactionResponse.class),
+            new RpcMethodDefinition<>("deleteChannel", Transaction.class, TransactionResponse.class),
             new RpcMethodDefinition<>("evictPeerEndpoint", Transaction.class, TransactionResponse.class),
             new RpcMethodDefinition<>("submitBundle", Transaction.class, TransactionResponse.class),
-            new RpcMethodDefinition<>("registerConnector", Transaction.class, TransactionResponse.class),
-            new RpcMethodDefinition<>("completeConnector", Transaction.class, TransactionResponse.class),
-            new RpcMethodDefinition<>("deregisterConnector", Transaction.class, TransactionResponse.class),
+            new RpcMethodDefinition<>("createConnector", Transaction.class, TransactionResponse.class),
+            new RpcMethodDefinition<>("deleteConnector", Transaction.class, TransactionResponse.class),
             new RpcMethodDefinition<>("updateLedgerConfiguration", Transaction.class, TransactionResponse.class),
             new RpcMethodDefinition<>("getLedgerConfiguration", Query.class, Response.class),
             new RpcMethodDefinition<>("getEndpointManifest", Query.class, Response.class));

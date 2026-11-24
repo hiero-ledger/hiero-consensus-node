@@ -6,6 +6,7 @@ open module org.hiero.consensus.model.test.fixtures {
     exports org.hiero.consensus.model.test.fixtures.transaction;
 
     requires transitive com.hedera.pbj.runtime;
+    requires transitive org.hiero.consensus.main.model;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.utility.test.fixtures;
     requires transitive com.hedera.node.hapi;

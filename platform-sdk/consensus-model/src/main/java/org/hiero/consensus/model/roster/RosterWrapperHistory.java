@@ -4,6 +4,7 @@ package org.hiero.consensus.model.roster;
 import com.hedera.hapi.node.state.roster.Roster;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import org.hiero.consensus.main.model.ConsensusLayerRosterInputs;
 
 /**
  * A {@code RosterWrapperHistory} is a utility class that allows for efficient lookup of the appropriate {@link RosterWrapper} for a given round number.

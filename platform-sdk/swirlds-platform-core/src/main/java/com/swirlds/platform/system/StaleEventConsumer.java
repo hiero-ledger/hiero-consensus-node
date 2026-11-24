@@ -2,7 +2,7 @@
 package com.swirlds.platform.system;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.consensus.model.event.Event;
+import org.hiero.consensus.main.model.Event;
 
 /**
  * A consumer that will be called when a stale self event is detected

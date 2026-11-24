@@ -11,6 +11,7 @@ open module org.hiero.consensus.pces.noop.impl.test.fixtures {
     requires transitive com.swirlds.metrics.api;
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.metrics;
+    requires transitive org.hiero.consensus.main.model;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.pces;
     requires transitive org.hiero.consensus.status.monitor;

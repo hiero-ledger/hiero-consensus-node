@@ -13,7 +13,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.transaction.TransactionPoolNexus;
+import org.hiero.consensus.adapter.transaction.TransactionPoolNexus;
 import org.hiero.sloth.fixtures.SlothTransactionType;
 import org.hiero.sloth.fixtures.TransactionFactory;
 import org.hiero.sloth.fixtures.network.transactions.SlothTransaction;
@@ -111,12 +111,11 @@ public class SlothTransactionGenerator {
     }
 
     private void generateAndSubmit(@NonNull final SlothTransactionType type) {
-        final SlothTransaction tx =
-                switch (type) {
-                    case EMPTY -> TransactionFactory.createEmptyTransaction(nonceGenerator.incrementAndGet());
-                    case BENCHMARK ->
-                        TransactionFactory.createBenchmarkTransaction(nonceGenerator.incrementAndGet(), time.now());
-                };
+        final SlothTransaction tx = switch (type) {
+            case EMPTY -> TransactionFactory.createEmptyTransaction(nonceGenerator.incrementAndGet());
+            case BENCHMARK ->
+                TransactionFactory.createBenchmarkTransaction(nonceGenerator.incrementAndGet(), time.now());
+        };
         if (transactionPool.submitApplicationTransaction(Bytes.wrap(tx.toByteArray()))) {
             generatedCount.incrementAndGet();
         }

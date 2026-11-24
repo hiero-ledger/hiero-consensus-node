@@ -201,7 +201,7 @@ public class SeiVerifyBundleCall extends AbstractCall {
             @NonNull final SeiCometBftProofVerifier.VerifiedBundle verified) {
         // Metadata absent (a state-update-only bundle) → the zero-nextMessageId sentinel, with full
         // 32-byte zero hashes so it encodes against the bytes32 fields. Otherwise the proven queue state,
-        // with endpointManifestVersion sourced from the PROVEN Channel slot (offset 16) rather than the
+        // with endpointManifestVersion sourced from the PROVEN Channel slot (offset 15) rather than the
         // relayed content — a relay could otherwise inflate it to suppress our manifest re-pushes (spec §4.5).
         final ClprQueueMetadata meta = outContent.metadata();
         final Tuple metaTuple = meta == null

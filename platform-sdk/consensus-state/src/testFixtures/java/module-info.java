@@ -8,7 +8,8 @@ open module org.hiero.consensus.state.test.fixtures {
     requires transitive com.swirlds.state.impl;
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
-    requires transitive org.hiero.consensus.model;
+    requires transitive org.hiero.consensus.main.model;
+    requires org.hiero.consensus.model;
     requires transitive org.hiero.consensus.state;
     requires com.swirlds.config.api;
     requires com.swirlds.config.extensions.test.fixtures;

@@ -13,8 +13,8 @@ import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.framework.validation.ConsensusRoundValidator;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.framework.validation.RoundInternalEqualityValidation;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.result.ConsensusRoundSubscriber;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 

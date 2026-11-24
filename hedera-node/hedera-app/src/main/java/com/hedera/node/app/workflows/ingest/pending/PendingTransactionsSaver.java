@@ -11,7 +11,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.transaction.TransactionPoolNexus;
+import org.hiero.consensus.adapter.transaction.TransactionPoolNexus;
 
 /**
  * Drains user transactions from the transaction pool at a freeze and saves them for the next start.

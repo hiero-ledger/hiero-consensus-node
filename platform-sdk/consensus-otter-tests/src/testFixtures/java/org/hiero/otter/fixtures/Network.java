@@ -10,7 +10,7 @@ import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
-import org.hiero.consensus.model.quiescence.QuiescenceCommand;
+import org.hiero.consensus.main.model.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.monitoring.FallenBehindStatus;
 import org.hiero.consensus.test.fixtures.WeightGenerator;

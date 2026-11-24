@@ -242,7 +242,7 @@ public class ClprServiceApiImpl implements ClprServiceApi {
                 .build();
         channelWriteStore.put(updatedChannel);
 
-        // Step 12: Increment in-flight counter so deregister is blocked until a terminal reply arrives.
+        // Step 12: Increment in-flight counter so connector deletion is blocked until a terminal reply arrives.
         connectorStore.put(connector
                 .copyBuilder()
                 .inFlightMessageCount(connector.inFlightMessageCount() + 1)

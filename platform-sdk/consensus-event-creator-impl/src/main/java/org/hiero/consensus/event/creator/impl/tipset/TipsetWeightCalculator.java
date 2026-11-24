@@ -19,9 +19,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.throttle.RateLimitedLogger;
 import org.hiero.consensus.event.creator.config.EventCreationConfig;
-import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.main.model.EventDescriptorWrapper;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.RosterWrapper;
 
 /**

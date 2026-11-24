@@ -66,6 +66,8 @@ jobs:
     runs-on: hl-cn-default-lin-sm
     needs:
       - build-commit-artifact
+    # Starts a workflow in the public repository, so it runs only there: never in a private repository or a fork.
+    if: ${{ github.event.repository.visibility == 'public' && !github.event.repository.fork }}
     steps:
       - name: Prepare Runner
         id: prepare-runner
@@ -105,6 +107,8 @@ jobs:
     runs-on: hl-cn-default-lin-sm
     needs:
       - build-commit-artifact
+    # Starts a workflow in the public repository, so it runs only there: never in a private repository or a fork.
+    if: ${{ github.event.repository.visibility == 'public' && !github.event.repository.fork }}
     steps:
       - name: Prepare Runner
         id: prepare-runner

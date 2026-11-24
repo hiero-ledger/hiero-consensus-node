@@ -797,18 +797,14 @@
           "baseFee": 10000000,
           "extras": []
         },
+
         {
-          "name": "ClprRegisterChannel",
+          "name": "ClprCreateChannel",
           "baseFee": 10000000,
           "extras": []
         },
         {
-          "name": "ClprCompleteChannel",
-          "baseFee": 10000000,
-          "extras": []
-        },
-        {
-          "name": "ClprCloseChannel",
+          "name": "ClprDeleteChannel",
           "baseFee": 10000000,
           "extras": []
         },
@@ -823,17 +819,12 @@
           "extras": []
         },
         {
-          "name": "ClprRegisterConnector",
+          "name": "ClprCreateConnector",
           "baseFee": 10000000,
           "extras": []
         },
         {
-          "name": "ClprCompleteConnector",
-          "baseFee": 10000000,
-          "extras": []
-        },
-        {
-          "name": "ClprDeregisterConnector",
+          "name": "ClprDeleteConnector",
           "baseFee": 10000000,
           "extras": []
         },

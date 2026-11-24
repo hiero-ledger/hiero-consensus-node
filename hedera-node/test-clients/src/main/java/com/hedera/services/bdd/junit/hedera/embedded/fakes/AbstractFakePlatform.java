@@ -14,8 +14,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import org.hiero.base.crypto.Signature;
 import org.hiero.base.crypto.SignatureType;
-import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.quiescence.QuiescenceCommand;
+import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.main.model.QuiescenceCommand;
 
 public abstract class AbstractFakePlatform implements Platform {
     private static final Signature TOY_SIGNATURE = new Signature(SignatureType.RSA, new byte[384]);

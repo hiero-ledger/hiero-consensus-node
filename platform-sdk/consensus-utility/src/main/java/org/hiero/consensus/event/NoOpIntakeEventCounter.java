@@ -3,7 +3,7 @@ package org.hiero.consensus.event;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * A no-op implementation of {@link IntakeEventCounter}.
