@@ -404,6 +404,17 @@ public class EvmClprVerifier implements ClprVerifier {
                     verifierContract,
                     result.status(),
                     evmResultSummary(result));
+            if (result.status() == INSUFFICIENT_GAS) {
+                log.warn(
+                        "Verifier dispatch ran out of gas: contract={} gasLimit={} callDataBytes={} payer={}"
+                                + " (translated to {}); clpr.verifierGasLimit may be too low for this proof",
+                        verifierContract,
+                        gasLimit,
+                        callData.length,
+                        context.payer(),
+                        failureCode);
+                throw new HandleException(failureCode);
+            }
             if (result.status() != SUCCESS) {
                 log.debug(
                         "Verifier dispatchRaw failed: contract={} status={} (translated to {}) payer={} gasLimit={}",
