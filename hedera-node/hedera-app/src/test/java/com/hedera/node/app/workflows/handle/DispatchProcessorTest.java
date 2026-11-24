@@ -825,7 +825,7 @@ class DispatchProcessorTest {
     @ParameterizedTest
     @EnumSource(
             value = HederaFunctionality.class,
-            names = {"CRYPTO_TRANSFER", "CLPR_COMPLETE_CHANNEL", "CLPR_SUBMIT_BUNDLE"})
+            names = {"CRYPTO_TRANSFER", "CLPR_CREATE_CHANNEL", "CLPR_SUBMIT_BUNDLE"})
     void unexpectedFailureBeforeExecutionWaivesServiceFeeAndRaisesAlert(final HederaFunctionality functionality) {
         givenUnexpectedFailure(functionality, new IllegalStateException("Unexpected failure before execution"));
         final var logs = new LogCaptor(LogManager.getLogger(DispatchProcessor.class));
@@ -843,7 +843,7 @@ class DispatchProcessorTest {
     @ParameterizedTest
     @EnumSource(
             value = HederaFunctionality.class,
-            names = {"CRYPTO_TRANSFER", "CLPR_COMPLETE_CHANNEL", "CLPR_SUBMIT_BUNDLE"})
+            names = {"CRYPTO_TRANSFER", "CLPR_CREATE_CHANNEL", "CLPR_SUBMIT_BUNDLE"})
     void unexpectedFailureReplaysExecutedChargesAfterRollbackWithoutServiceFee(
             final HederaFunctionality functionality) {
         final var failure = new RollbackAwareException(

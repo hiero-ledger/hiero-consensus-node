@@ -33,7 +33,7 @@ import org.hiero.base.file.FileUtils;
 import org.hiero.base.io.SelfSerializable;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.scratchpad.Scratchpad;
 import org.hiero.consensus.scratchpad.ScratchpadType;
 

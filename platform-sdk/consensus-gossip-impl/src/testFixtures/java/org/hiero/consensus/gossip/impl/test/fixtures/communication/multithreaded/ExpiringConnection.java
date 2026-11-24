@@ -7,7 +7,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.hiero.consensus.gossip.impl.gossip.sync.SyncInputStream;
 import org.hiero.consensus.gossip.impl.gossip.sync.SyncOutputStream;
 import org.hiero.consensus.gossip.impl.network.Connection;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * Wraps another connection, but returns true for {@link #connected()} only the specified number of times

@@ -151,7 +151,7 @@ public class ClprStateProofManager {
      * {@code ClprLedgerConfiguration} singleton in the latest sealed state.
      *
      * <p>Returned bytes are suitable as input to the peer's
-     * {@code ClprCompleteChannel} {@code config_proof_bytes} whenever the verifier contract
+     * {@code ClprCreateChannel} {@code config_proof_bytes} whenever the verifier contract
      * on that channel knows how to parse a {@code StateProof} (e.g. one that delegates to
      * the CLPR system contract precompile's {@code verifyConfig(bytes,bytes32)} operation).
      *

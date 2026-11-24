@@ -5,19 +5,21 @@ import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHAN
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.CLPR;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteConnector;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterChannel;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCreateChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprSubmitBundle;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprUpdateLedgerConfiguration;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.clpr.HapiClprUpdateLedgerConfiguration.defaultThrottles;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
+import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.CLPR_SERVICE_ADDRESS_20;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_VERIFIER_CONFIG_FAILED;
@@ -51,7 +53,7 @@ import org.junit.jupiter.api.Tag;
 
 /**
  * End-to-end HAPI coverage for the built-in Ethereum sync-committee verifier system contract
- * (EVM address {@code 0x171}): from channel completion via a protobuf config payload through a
+ * (EVM address {@code 0x171}): from opening a channel via a protobuf config payload through a
  * self-submitted bundle that the verifier proves with SSZ + Merkle-Patricia proofs.
  *
  * <p>The payloads are produced by {@link SyncCommitteeProofs}, which re-derives the wire bytes
@@ -78,22 +80,29 @@ public class ClprEthSyncCommitteeVerifierSuite {
             overrides = {"clpr.verifierGasLimit"})
     @DisplayName("Eth verifier: self-submitted single-message bundle")
     final Stream<DynamicTest> completesChannelAndDeliversBundle() {
-        final var crypto = new ClprChannelCrypto();
-        final var payload = firstMessage(crypto);
-        final var content = SyncCommitteeProofs.singleMessageBundleContent(payload);
+        return hapiTest(sourcingContextual(networkSpec -> {
+            final var localChain = "eip155:" + networkSpec.startupProperties().getLong("contracts.chainId");
+            final var crypto = new ClprChannelCrypto(
+                    localChain,
+                    asSolidityAddress(ETH_VERIFIER),
+                    SyncCommitteeProofs.CHAIN_ID,
+                    SyncCommitteeProofs.serviceAddress());
+            final var payload = firstMessage(crypto);
+            final var content = SyncCommitteeProofs.singleMessageBundleContent(payload);
 
-        return hapiTest(flattened(
-                setupChannelWithEthereumVerifier(crypto, SyncCommitteeProofs.configPayload()),
-                clprSubmitBundle()
-                        .channelId(crypto.channelId())
-                        .bundlePayload(SyncCommitteeProofs.bundlePayload(crypto.channelId(), content))
-                        .endpointNodeId(0L)
-                        .payingWith(GENESIS),
-                // The proven bundle delivered message #1, so receivedMessageId advances 0 -> 1.
-                withOpContext((spec, opLog) -> {
-                    final var conn = readChannelFromState(spec, crypto);
-                    assertEquals(1L, conn.receivedMessageId(), "receivedMessageId should advance to 1");
-                })));
+            return blockingOrder(flattened(
+                    setupChannelWithEthereumVerifier(crypto, SyncCommitteeProofs.configPayload()),
+                    clprSubmitBundle()
+                            .channelId(crypto.channelId())
+                            .bundlePayload(SyncCommitteeProofs.bundlePayload(crypto.channelId(), content))
+                            .endpointNodeId(0L)
+                            .payingWith(GENESIS),
+                    // The proven bundle delivered message #1, so receivedMessageId advances 0 -> 1.
+                    withOpContext((spec, opLog) -> {
+                        final var conn = readChannelFromState(spec, crypto);
+                        assertEquals(1L, conn.receivedMessageId(), "receivedMessageId should advance to 1");
+                    })));
+        }));
     }
 
     @LeakyEmbeddedHapiTest(
@@ -101,20 +110,28 @@ public class ClprEthSyncCommitteeVerifierSuite {
             overrides = {"clpr.verifierGasLimit"})
     @DisplayName("Eth verifier: minimal-preset (32-member) channel delivers a self-submitted bundle")
     final Stream<DynamicTest> completesMinimalPresetChannelAndDeliversBundle() {
-        final var crypto = new ClprChannelCrypto();
-        final var content = SyncCommitteeProofs.singleMessageBundleContent(firstMessage(crypto));
+        return hapiTest(sourcingContextual(networkSpec -> {
+            final var localChain = "eip155:" + networkSpec.startupProperties().getLong("contracts.chainId");
+            final var crypto = new ClprChannelCrypto(
+                    localChain,
+                    asSolidityAddress(ETH_VERIFIER),
+                    SyncCommitteeProofs.CHAIN_ID,
+                    SyncCommitteeProofs.serviceAddress());
+            final var content = SyncCommitteeProofs.singleMessageBundleContent(firstMessage(crypto));
 
-        return hapiTest(flattened(
-                setupChannelWithEthereumVerifier(crypto, SyncCommitteeProofs.configPayload(Preset.MINIMAL)),
-                clprSubmitBundle()
-                        .channelId(crypto.channelId())
-                        .bundlePayload(SyncCommitteeProofs.bundlePayload(Preset.MINIMAL, crypto.channelId(), content))
-                        .endpointNodeId(0L)
-                        .payingWith(GENESIS),
-                withOpContext((spec, opLog) -> {
-                    final var conn = readChannelFromState(spec, crypto);
-                    assertEquals(1L, conn.receivedMessageId(), "receivedMessageId should advance to 1");
-                })));
+            return blockingOrder(flattened(
+                    setupChannelWithEthereumVerifier(crypto, SyncCommitteeProofs.configPayload(Preset.MINIMAL)),
+                    clprSubmitBundle()
+                            .channelId(crypto.channelId())
+                            .bundlePayload(
+                                    SyncCommitteeProofs.bundlePayload(Preset.MINIMAL, crypto.channelId(), content))
+                            .endpointNodeId(0L)
+                            .payingWith(GENESIS),
+                    withOpContext((spec, opLog) -> {
+                        final var conn = readChannelFromState(spec, crypto);
+                        assertEquals(1L, conn.receivedMessageId(), "receivedMessageId should advance to 1");
+                    })));
+        }));
     }
 
     @LeakyEmbeddedHapiTest(
@@ -122,24 +139,29 @@ public class ClprEthSyncCommitteeVerifierSuite {
             overrides = {"clpr.verifierGasLimit"})
     @DisplayName("Eth verifier: peer serviceAddress not 20 bytes → CLPR_VERIFIER_CONFIG_FAILED")
     final Stream<DynamicTest> rejectsConfigWithBadServiceAddress() {
-        final var crypto = new ClprChannelCrypto();
-        return hapiTest(
-                // Two 512-key committees make the verifier calldata ~50 KB, whose EIP-7623 floor exceeds the
-                // 2M default verifier gas (#28392).
-                overriding("clpr.verifierGasLimit", "5000000"),
-                clprUpdateLedgerConfiguration()
-                        .configuration(localLedgerConfig())
-                        .payingWith(GENESIS),
-                clprRegisterChannel().ownershipCommitment(crypto.commitment()).payingWith(GENESIS),
-                clprCompleteChannel()
-                        .channelId(crypto.channelId())
-                        .publicKey(crypto.publicKey())
-                        .signature(crypto.signature())
-                        .signatureScheme(ClprSignatureScheme.ED25519)
-                        .verifierContractId(ETH_VERIFIER)
-                        .configProofBytes(SyncCommitteeProofs.configPayloadBadServiceAddress())
-                        .payingWith(GENESIS)
-                        .hasKnownStatus(CLPR_VERIFIER_CONFIG_FAILED));
+        return hapiTest(sourcingContextual(networkSpec -> {
+            final var localChain = "eip155:" + networkSpec.startupProperties().getLong("contracts.chainId");
+            final var crypto = new ClprChannelCrypto(
+                    localChain,
+                    asSolidityAddress(ETH_VERIFIER),
+                    SyncCommitteeProofs.CHAIN_ID,
+                    SyncCommitteeProofs.serviceAddress());
+            return blockingOrder(
+                    // Two 512-key committees make the verifier calldata ~50 KB, whose EIP-7623 floor exceeds the
+                    // 2M default verifier gas (#28392).
+                    overriding("clpr.verifierGasLimit", "5000000"),
+                    clprUpdateLedgerConfiguration()
+                            .configuration(localLedgerConfig())
+                            .payingWith(GENESIS),
+                    clprCreateChannel()
+                            .channelId(crypto.channelId())
+                            .salt(crypto.salt())
+                            .peerVerifier(crypto.peerVerifier())
+                            .verifierContractId(ETH_VERIFIER)
+                            .configProofBytes(SyncCommitteeProofs.configPayloadBadServiceAddress())
+                            .payingWith(GENESIS)
+                            .hasKnownStatus(CLPR_VERIFIER_CONFIG_FAILED));
+        }));
     }
 
     @LeakyEmbeddedHapiTest(
@@ -147,17 +169,24 @@ public class ClprEthSyncCommitteeVerifierSuite {
             overrides = {"clpr.verifierGasLimit"})
     @DisplayName("Eth verifier: tampered bundle account proof → CLPR_BUNDLE_VERIFICATION_FAILED")
     final Stream<DynamicTest> rejectsTamperedBundle() {
-        final var crypto = new ClprChannelCrypto();
-        final var content = SyncCommitteeProofs.singleMessageBundleContent(firstMessage(crypto));
+        return hapiTest(sourcingContextual(networkSpec -> {
+            final var localChain = "eip155:" + networkSpec.startupProperties().getLong("contracts.chainId");
+            final var crypto = new ClprChannelCrypto(
+                    localChain,
+                    asSolidityAddress(ETH_VERIFIER),
+                    SyncCommitteeProofs.CHAIN_ID,
+                    SyncCommitteeProofs.serviceAddress());
+            final var content = SyncCommitteeProofs.singleMessageBundleContent(firstMessage(crypto));
 
-        return hapiTest(flattened(
-                setupChannelWithEthereumVerifier(crypto, SyncCommitteeProofs.configPayload()),
-                clprSubmitBundle()
-                        .channelId(crypto.channelId())
-                        .bundlePayload(SyncCommitteeProofs.tamperedBundlePayload(crypto.channelId(), content))
-                        .endpointNodeId(0L)
-                        .payingWith(GENESIS)
-                        .hasKnownStatus(CLPR_BUNDLE_VERIFICATION_FAILED)));
+            return blockingOrder(flattened(
+                    setupChannelWithEthereumVerifier(crypto, SyncCommitteeProofs.configPayload()),
+                    clprSubmitBundle()
+                            .channelId(crypto.channelId())
+                            .bundlePayload(SyncCommitteeProofs.tamperedBundlePayload(crypto.channelId(), content))
+                            .endpointNodeId(0L)
+                            .payingWith(GENESIS)
+                            .hasKnownStatus(CLPR_BUNDLE_VERIFICATION_FAILED)));
+        }));
     }
 
     /**
@@ -174,35 +203,43 @@ public class ClprEthSyncCommitteeVerifierSuite {
             overrides = {"clpr.verifierGasLimit"})
     @DisplayName("Eth verifier: bundle signed over another signing root → CLPR_BUNDLE_VERIFICATION_FAILED")
     final Stream<DynamicTest> rejectsBundleSignedOverWrongSigningRoot() {
-        final var crypto = new ClprChannelCrypto();
-        final var content = SyncCommitteeProofs.singleMessageBundleContent(firstMessage(crypto));
+        return hapiTest(sourcingContextual(networkSpec -> {
+            final var localChain = "eip155:" + networkSpec.startupProperties().getLong("contracts.chainId");
+            final var crypto = new ClprChannelCrypto(
+                    localChain,
+                    asSolidityAddress(ETH_VERIFIER),
+                    SyncCommitteeProofs.CHAIN_ID,
+                    SyncCommitteeProofs.serviceAddress());
+            final var content = SyncCommitteeProofs.singleMessageBundleContent(firstMessage(crypto));
 
-        return hapiTest(flattened(
-                setupChannelWithEthereumVerifier(crypto, SyncCommitteeProofs.configPayload()),
-                clprSubmitBundle()
-                        .channelId(crypto.channelId())
-                        .bundlePayload(SyncCommitteeProofs.wrongSigningRootBundlePayload(crypto.channelId(), content))
-                        .endpointNodeId(0L)
-                        .payingWith(GENESIS)
-                        .hasKnownStatus(CLPR_BUNDLE_VERIFICATION_FAILED),
-                withOpContext((spec, opLog) -> {
-                    final var conn = readChannelFromState(spec, crypto);
-                    assertThat(conn.receivedMessageId())
-                            .as("the rejected bundle must not deliver message #1")
-                            .isZero();
-                }),
-                // The same bundle signed over the correct root passes, so only the signature caused the rejection.
-                clprSubmitBundle()
-                        .channelId(crypto.channelId())
-                        .bundlePayload(SyncCommitteeProofs.bundlePayload(crypto.channelId(), content))
-                        .endpointNodeId(0L)
-                        .payingWith(GENESIS),
-                withOpContext((spec, opLog) -> {
-                    final var conn = readChannelFromState(spec, crypto);
-                    assertThat(conn.receivedMessageId())
-                            .as("the correctly signed bundle must deliver message #1")
-                            .isEqualTo(1L);
-                })));
+            return blockingOrder(flattened(
+                    setupChannelWithEthereumVerifier(crypto, SyncCommitteeProofs.configPayload()),
+                    clprSubmitBundle()
+                            .channelId(crypto.channelId())
+                            .bundlePayload(
+                                    SyncCommitteeProofs.wrongSigningRootBundlePayload(crypto.channelId(), content))
+                            .endpointNodeId(0L)
+                            .payingWith(GENESIS)
+                            .hasKnownStatus(CLPR_BUNDLE_VERIFICATION_FAILED),
+                    withOpContext((spec, opLog) -> {
+                        final var conn = readChannelFromState(spec, crypto);
+                        assertThat(conn.receivedMessageId())
+                                .as("the rejected bundle must not deliver message #1")
+                                .isZero();
+                    }),
+                    // The same bundle signed over the correct root passes, so only the signature caused the rejection.
+                    clprSubmitBundle()
+                            .channelId(crypto.channelId())
+                            .bundlePayload(SyncCommitteeProofs.bundlePayload(crypto.channelId(), content))
+                            .endpointNodeId(0L)
+                            .payingWith(GENESIS),
+                    withOpContext((spec, opLog) -> {
+                        final var conn = readChannelFromState(spec, crypto);
+                        assertThat(conn.receivedMessageId())
+                                .as("the correctly signed bundle must deliver message #1")
+                                .isEqualTo(1L);
+                    })));
+        }));
     }
 
     /**
@@ -221,46 +258,54 @@ public class ClprEthSyncCommitteeVerifierSuite {
             overrides = {"clpr.verifierGasLimit"})
     @DisplayName("Eth verifier: rotation bundle updates trust anchor; new-committee bundle succeeds")
     final Stream<DynamicTest> completesChannelAfterCommitteeRotation() {
-        final var crypto = new ClprChannelCrypto();
-        final var payload1 = firstMessage(crypto);
-        final var payload2 = secondMessage(crypto);
-        final var rotationContent = SyncCommitteeProofs.singleMessageBundleContent(payload1);
-        final var postRotationContent = SyncCommitteeProofs.twoMessageBundleContent(payload1, payload2);
+        return hapiTest(sourcingContextual(networkSpec -> {
+            final var localChain = "eip155:" + networkSpec.startupProperties().getLong("contracts.chainId");
+            final var crypto = new ClprChannelCrypto(
+                    localChain,
+                    asSolidityAddress(ETH_VERIFIER),
+                    SyncCommitteeProofs.CHAIN_ID,
+                    SyncCommitteeProofs.serviceAddress());
+            final var payload1 = firstMessage(crypto);
+            final var payload2 = secondMessage(crypto);
+            final var rotationContent = SyncCommitteeProofs.singleMessageBundleContent(payload1);
+            final var postRotationContent = SyncCommitteeProofs.twoMessageBundleContent(payload1, payload2);
 
-        return hapiTest(flattened(
-                setupChannelWithEthereumVerifier(crypto, SyncCommitteeProofs.configPayload()),
-                // Step 1: rotation bundle — delivers message #1 and proves nextCommittee.
-                clprSubmitBundle()
-                        .channelId(crypto.channelId())
-                        .bundlePayload(SyncCommitteeProofs.rotationBundlePayload(crypto.channelId(), rotationContent))
-                        .endpointNodeId(0L)
-                        .payingWith(GENESIS),
-                withOpContext((spec, opLog) -> {
-                    final var conn = readChannelFromState(spec, crypto);
-                    assertEquals(1L, conn.receivedMessageId(), "receivedMessageId should advance to 1");
-                    assertEquals(
-                            Bytes.wrap(SyncCommitteeProofs.trustAnchorIdAfterRotation()),
-                            conn.trustAnchorId(),
-                            "trust anchor id should be the period after the configured one");
-                }),
-                // Step 2: post-rotation bundle — delivers message #2 using the updated trust anchor.
-                clprSubmitBundle()
-                        .channelId(crypto.channelId())
-                        .bundlePayload(
-                                SyncCommitteeProofs.postRotationBundlePayload(crypto.channelId(), postRotationContent))
-                        .endpointNodeId(0L)
-                        .payingWith(GENESIS),
-                withOpContext((spec, opLog) -> {
-                    final var conn = readChannelFromState(spec, crypto);
-                    assertEquals(
-                            2L,
-                            conn.receivedMessageId(),
-                            "receivedMessageId should advance to 2 after post-rotation bundle");
-                })));
+            return blockingOrder(flattened(
+                    setupChannelWithEthereumVerifier(crypto, SyncCommitteeProofs.configPayload()),
+                    // Step 1: rotation bundle — delivers message #1 and proves nextCommittee.
+                    clprSubmitBundle()
+                            .channelId(crypto.channelId())
+                            .bundlePayload(
+                                    SyncCommitteeProofs.rotationBundlePayload(crypto.channelId(), rotationContent))
+                            .endpointNodeId(0L)
+                            .payingWith(GENESIS),
+                    withOpContext((spec, opLog) -> {
+                        final var conn = readChannelFromState(spec, crypto);
+                        assertEquals(1L, conn.receivedMessageId(), "receivedMessageId should advance to 1");
+                        assertEquals(
+                                Bytes.wrap(SyncCommitteeProofs.trustAnchorIdAfterRotation()),
+                                conn.trustAnchorId(),
+                                "trust anchor id should be the period after the configured one");
+                    }),
+                    // Step 2: post-rotation bundle — delivers message #2 using the updated trust anchor.
+                    clprSubmitBundle()
+                            .channelId(crypto.channelId())
+                            .bundlePayload(SyncCommitteeProofs.postRotationBundlePayload(
+                                    crypto.channelId(), postRotationContent))
+                            .endpointNodeId(0L)
+                            .payingWith(GENESIS),
+                    withOpContext((spec, opLog) -> {
+                        final var conn = readChannelFromState(spec, crypto);
+                        assertEquals(
+                                2L,
+                                conn.receivedMessageId(),
+                                "receivedMessageId should advance to 2 after post-rotation bundle");
+                    })));
+        }));
     }
 
     /**
-     * completeChannel with a proof of the peer endpoint manifest supplied as the config path's
+     * createChannel with a proof of the peer endpoint manifest supplied as the config path's
      * {@code endpoint_manifest_proof_bytes} (a sync-committee proof of the manifest commitment, spec §4.8).
      * Exercises 0, 1, and N (3) manifest endpoints — each on a fresh channel — and asserts the resulting
      * Channel's {@code endpoint_manifest_version >= 1} and that its stored endpoints match the proven manifest.
@@ -268,40 +313,44 @@ public class ClprEthSyncCommitteeVerifierSuite {
     @LeakyEmbeddedHapiTest(
             reason = NEEDS_STATE_ACCESS,
             overrides = {"clpr.verifierGasLimit"})
-    @DisplayName("Eth verifier: completeChannel installs the config endpoint manifest (0, 1, N endpoints)")
-    final Stream<DynamicTest> completeChannelInstallsConfigManifest() {
-        final int[] endpointCounts = {0, 1, 3};
-        final List<SpecOperation> ops = new ArrayList<>();
-        // Two 512-key committees make the verifier calldata ~50 KB, whose EIP-7623 floor exceeds the 2M
-        // default verifier gas (#28392).
-        ops.add(overriding("clpr.verifierGasLimit", "5000000"));
-        ops.add(clprUpdateLedgerConfiguration()
-                .configuration(localLedgerConfig())
-                .payingWith(GENESIS));
-        for (final int count : endpointCounts) {
-            final var crypto = new ClprChannelCrypto();
-            ops.add(clprRegisterChannel()
-                    .ownershipCommitment(crypto.commitment())
+    @DisplayName("Eth verifier: createChannel installs the config endpoint manifest (0, 1, N endpoints)")
+    final Stream<DynamicTest> createChannelInstallsConfigManifest() {
+        return hapiTest(sourcingContextual(networkSpec -> {
+            final var localChain = "eip155:" + networkSpec.startupProperties().getLong("contracts.chainId");
+            final int[] endpointCounts = {0, 1, 3};
+            final List<SpecOperation> ops = new ArrayList<>();
+            // Two 512-key committees make the verifier calldata ~50 KB, whose EIP-7623 floor exceeds the 2M
+            // default verifier gas (#28392).
+            ops.add(overriding("clpr.verifierGasLimit", "5000000"));
+            ops.add(clprUpdateLedgerConfiguration()
+                    .configuration(localLedgerConfig())
                     .payingWith(GENESIS));
-            ops.add(clprCompleteChannel()
-                    .channelId(crypto.channelId())
-                    .publicKey(crypto.publicKey())
-                    .signature(crypto.signature())
-                    .signatureScheme(ClprSignatureScheme.ED25519)
-                    .verifierContractId(ETH_VERIFIER)
-                    .configProofBytes(SyncCommitteeProofs.configPayload())
-                    .endpointManifestProofBytes(
-                            SyncCommitteeProofs.configManifestProof(SyncCommitteeProofs.manifestBytes(1L, count)))
-                    .payingWith(GENESIS));
-            ops.add(withOpContext((spec, opLog) -> {
-                final var conn = readChannelFromState(spec, crypto);
-                assertEquals(ClprChannelStatus.ACTIVE, conn.status(), "channel should be ACTIVE");
-                assertEquals(1L, conn.endpointManifestVersion(), "endpoint_manifest_version should be the proven 1");
-                assertTrue(conn.endpointManifestVersion() >= 1L, "endpoint_manifest_version should be >= 1");
-                assertManifestEndpoints(conn, count);
-            }));
-        }
-        return hapiTest(ops.toArray(SpecOperation[]::new));
+            for (final int count : endpointCounts) {
+                final var crypto = new ClprChannelCrypto(
+                        localChain,
+                        asSolidityAddress(ETH_VERIFIER),
+                        SyncCommitteeProofs.CHAIN_ID,
+                        SyncCommitteeProofs.serviceAddress());
+                ops.add(clprCreateChannel()
+                        .channelId(crypto.channelId())
+                        .salt(crypto.salt())
+                        .peerVerifier(crypto.peerVerifier())
+                        .verifierContractId(ETH_VERIFIER)
+                        .configProofBytes(SyncCommitteeProofs.configPayload())
+                        .endpointManifestProofBytes(
+                                SyncCommitteeProofs.configManifestProof(SyncCommitteeProofs.manifestBytes(1L, count)))
+                        .payingWith(GENESIS));
+                ops.add(withOpContext((spec, opLog) -> {
+                    final var conn = readChannelFromState(spec, crypto);
+                    assertEquals(ClprChannelStatus.ACTIVE, conn.status(), "channel should be ACTIVE");
+                    assertEquals(
+                            1L, conn.endpointManifestVersion(), "endpoint_manifest_version should be the proven 1");
+                    assertTrue(conn.endpointManifestVersion() >= 1L, "endpoint_manifest_version should be >= 1");
+                    assertManifestEndpoints(conn, count);
+                }));
+            }
+            return blockingOrder(ops.toArray(SpecOperation[]::new));
+        }));
     }
 
     /**
@@ -315,36 +364,43 @@ public class ClprEthSyncCommitteeVerifierSuite {
             overrides = {"clpr.verifierGasLimit"})
     @DisplayName("Eth verifier: bundle carrying a higher-version manifest updates the Channel via Step-1b")
     final Stream<DynamicTest> bundleAdvancesEndpointManifest() {
-        final var crypto = new ClprChannelCrypto();
-        final var content = SyncCommitteeProofs.singleMessageBundleContent(firstMessage(crypto));
-        final byte[] advanceManifest = SyncCommitteeProofs.manifestBytes(2L, 2);
+        return hapiTest(sourcingContextual(networkSpec -> {
+            final var localChain = "eip155:" + networkSpec.startupProperties().getLong("contracts.chainId");
+            final var crypto = new ClprChannelCrypto(
+                    localChain,
+                    asSolidityAddress(ETH_VERIFIER),
+                    SyncCommitteeProofs.CHAIN_ID,
+                    SyncCommitteeProofs.serviceAddress());
+            final var content = SyncCommitteeProofs.singleMessageBundleContent(firstMessage(crypto));
+            final byte[] advanceManifest = SyncCommitteeProofs.manifestBytes(2L, 2);
 
-        return hapiTest(flattened(
-                // completeChannel with an empty endpoint_manifest_proof_bytes returns the uninitialized manifest
-                // (version 0, no endpoints), so the channel opens at manifest version 0.
-                setupChannelWithEthereumVerifier(crypto, SyncCommitteeProofs.configPayload()),
-                withOpContext((spec, opLog) -> {
-                    final var conn = readChannelFromState(spec, crypto);
-                    assertEquals(0L, conn.endpointManifestVersion(), "channel opens at uninitialized manifest v0");
-                    assertManifestEndpoints(conn, 0);
-                }),
-                clprSubmitBundle()
-                        .channelId(crypto.channelId())
-                        .bundlePayload(SyncCommitteeProofs.bundlePayloadWithManifest(
-                                crypto.channelId(), content, advanceManifest))
-                        .endpointNodeId(0L)
-                        .payingWith(GENESIS),
-                withOpContext((spec, opLog) -> {
-                    final var conn = readChannelFromState(spec, crypto);
-                    assertEquals(1L, conn.receivedMessageId(), "bundle delivered message #1");
-                    assertEquals(2L, conn.endpointManifestVersion(), "manifest advanced to v2 via Step-1b");
-                    assertManifestEndpoints(conn, 2);
-                })));
+            return blockingOrder(flattened(
+                    // createChannel with an empty endpoint_manifest_proof_bytes returns the uninitialized manifest
+                    // (version 0, no endpoints), so the channel opens at manifest version 0.
+                    setupChannelWithEthereumVerifier(crypto, SyncCommitteeProofs.configPayload()),
+                    withOpContext((spec, opLog) -> {
+                        final var conn = readChannelFromState(spec, crypto);
+                        assertEquals(0L, conn.endpointManifestVersion(), "channel opens at uninitialized manifest v0");
+                        assertManifestEndpoints(conn, 0);
+                    }),
+                    clprSubmitBundle()
+                            .channelId(crypto.channelId())
+                            .bundlePayload(SyncCommitteeProofs.bundlePayloadWithManifest(
+                                    crypto.channelId(), content, advanceManifest))
+                            .endpointNodeId(0L)
+                            .payingWith(GENESIS),
+                    withOpContext((spec, opLog) -> {
+                        final var conn = readChannelFromState(spec, crypto);
+                        assertEquals(1L, conn.receivedMessageId(), "bundle delivered message #1");
+                        assertEquals(2L, conn.endpointManifestVersion(), "manifest advanced to v2 via Step-1b");
+                        assertManifestEndpoints(conn, 2);
+                    })));
+        }));
     }
 
     /**
      * A proven manifest whose {@code service_address} does not match the config's service address violates spec §4.8,
-     * so the Ethereum verifier rejects it inside {@code verifyConfig} and completeChannel reverts with
+     * so the Ethereum verifier rejects it inside {@code verifyConfig} and createChannel reverts with
      * {@code CLPR_VERIFIER_CONFIG_FAILED}.
      */
     @LeakyEmbeddedHapiTest(
@@ -352,24 +408,29 @@ public class ClprEthSyncCommitteeVerifierSuite {
             overrides = {"clpr.verifierGasLimit"})
     @DisplayName("Eth verifier: manifest service_address mismatch → CLPR_VERIFIER_CONFIG_FAILED")
     final Stream<DynamicTest> rejectsManifestWithMismatchedServiceAddress() {
-        final var crypto = new ClprChannelCrypto();
-        return hapiTest(
-                overriding("clpr.verifierGasLimit", "5000000"),
-                clprUpdateLedgerConfiguration()
-                        .configuration(localLedgerConfig())
-                        .payingWith(GENESIS),
-                clprRegisterChannel().ownershipCommitment(crypto.commitment()).payingWith(GENESIS),
-                clprCompleteChannel()
-                        .channelId(crypto.channelId())
-                        .publicKey(crypto.publicKey())
-                        .signature(crypto.signature())
-                        .signatureScheme(ClprSignatureScheme.ED25519)
-                        .verifierContractId(ETH_VERIFIER)
-                        .configProofBytes(SyncCommitteeProofs.configPayload())
-                        .endpointManifestProofBytes(SyncCommitteeProofs.configManifestProof(
-                                SyncCommitteeProofs.manifestBytesBadServiceAddress()))
-                        .payingWith(GENESIS)
-                        .hasKnownStatus(CLPR_VERIFIER_CONFIG_FAILED));
+        return hapiTest(sourcingContextual(networkSpec -> {
+            final var localChain = "eip155:" + networkSpec.startupProperties().getLong("contracts.chainId");
+            final var crypto = new ClprChannelCrypto(
+                    localChain,
+                    asSolidityAddress(ETH_VERIFIER),
+                    SyncCommitteeProofs.CHAIN_ID,
+                    SyncCommitteeProofs.serviceAddress());
+            return blockingOrder(
+                    overriding("clpr.verifierGasLimit", "5000000"),
+                    clprUpdateLedgerConfiguration()
+                            .configuration(localLedgerConfig())
+                            .payingWith(GENESIS),
+                    clprCreateChannel()
+                            .channelId(crypto.channelId())
+                            .salt(crypto.salt())
+                            .peerVerifier(crypto.peerVerifier())
+                            .verifierContractId(ETH_VERIFIER)
+                            .configProofBytes(SyncCommitteeProofs.configPayload())
+                            .endpointManifestProofBytes(SyncCommitteeProofs.configManifestProof(
+                                    SyncCommitteeProofs.manifestBytesBadServiceAddress()))
+                            .payingWith(GENESIS)
+                            .hasKnownStatus(CLPR_VERIFIER_CONFIG_FAILED));
+        }));
     }
 
     // ── Helpers ──
@@ -399,16 +460,14 @@ public class ClprEthSyncCommitteeVerifierSuite {
             clprUpdateLedgerConfiguration().configuration(localLedgerConfig()).payingWith(GENESIS),
             uploadInitCode(CONNECTOR_CONTRACT),
             contractCreate(CONNECTOR_CONTRACT),
-            clprRegisterChannel().ownershipCommitment(crypto.commitment()).payingWith(GENESIS),
-            clprCompleteChannel()
+            clprCreateChannel()
                     .channelId(crypto.channelId())
-                    .publicKey(crypto.publicKey())
-                    .signature(crypto.signature())
-                    .signatureScheme(ClprSignatureScheme.ED25519)
+                    .salt(crypto.salt())
+                    .peerVerifier(crypto.peerVerifier())
                     .verifierContractId(ETH_VERIFIER)
                     .configProofBytes(ledgerConfigPayload)
                     .payingWith(GENESIS),
-            // completeChannel seeds an ACTIVE channel with the verifier-derived trust anchor.
+            // createChannel seeds an ACTIVE channel with the verifier-derived trust anchor.
             withOpContext((spec, opLog) -> {
                 final var conn = readChannelFromState(spec, crypto);
                 assertEquals(ClprChannelStatus.ACTIVE, conn.status(), "channel should be ACTIVE");

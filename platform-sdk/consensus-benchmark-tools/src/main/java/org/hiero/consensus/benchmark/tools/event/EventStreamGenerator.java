@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.benchmark.tools.event;
 
+import static org.hiero.consensus.main.model.ConsensusLayerConstants.DEFAULT_EVENT_DIGEST_TYPE;
+
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -15,20 +17,18 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.SignatureType;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.crypto.PbjStreamHasher;
 import org.hiero.consensus.crypto.PlatformSigner;
-import org.hiero.consensus.model.event.EventDescriptorWrapper;
-import org.hiero.consensus.model.event.EventHashFactory;
+import org.hiero.consensus.main.model.EventDescriptorWrapper;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.RosterWrapper;
 
 /**
@@ -68,11 +68,6 @@ import org.hiero.consensus.model.roster.RosterWrapper;
  * the hasher, the signer, and the gossip streams, so the events stay the same when the event creator or the consensus
  * code changes. The received events pass internal validation ({@code DefaultEventFieldValidator}) as long as their
  * transactions stay within the transaction limits.
- *
- * <p>The hash type, SHA-384 or SHA-256, follows the static cutover setting of {@link EventHashFactory}, which is
- * SHA-384 unless something in the JVM changes it. The same arguments give the same events only under the same setting.
- * A benchmark sets it explicitly in its trial setup, before it generates the events: for example,
- * {@code EventHashFactory.initialize(0)} hashes every event with SHA-256.
  *
  * <p>The birth rounds and creation times are fixed values that make the events valid; they are not taken from
  * production data.
@@ -272,9 +267,8 @@ public final class EventStreamGenerator {
     @NonNull
     private static EventDescriptorWrapper madeUpParent(@NonNull final NodeId creator, @NonNull final Random random) {
         final long birthRound = BIRTH_ROUND - random.nextInt(2);
-        final DigestType digestType = EventHashFactory.getTypeForBirthRound(birthRound);
-        final byte[] hash = new byte[digestType.digestLength()];
+        final byte[] hash = new byte[DEFAULT_EVENT_DIGEST_TYPE.digestLength()];
         random.nextBytes(hash);
-        return new EventDescriptorWrapper(new Hash(hash, digestType), creator, birthRound);
+        return new EventDescriptorWrapper(new Hash(hash, DEFAULT_EVENT_DIGEST_TYPE), creator, birthRound);
     }
 }

@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.gossip.impl.gossip.rpc;
 
+import static org.hiero.consensus.main.model.ConsensusLayerConstants.DEFAULT_EVENT_DIGEST_TYPE;
+
 import com.hedera.hapi.platform.message.GossipEventWindow;
 import com.hedera.hapi.platform.message.GossipSyncData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.model.event.EventHashFactory;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 
 /**
@@ -33,7 +34,7 @@ public record SyncData(EventWindow eventWindow, List<Hash> tipHashes, boolean do
                 gossipWindow.ancientThreshold(),
                 gossipWindow.expiredThreshold());
         final var tips = syncData.tips().stream()
-                .map(it -> EventHashFactory.hash(it.toByteArray()))
+                .map(it -> new Hash(it.toByteArray(), DEFAULT_EVENT_DIGEST_TYPE))
                 .collect(Collectors.toList());
         return new SyncData(eventWindow, tips, syncData.skipSendingEvents());
     }

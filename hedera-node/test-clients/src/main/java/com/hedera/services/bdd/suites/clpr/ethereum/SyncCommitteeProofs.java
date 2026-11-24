@@ -59,7 +59,7 @@ public final class SyncCommitteeProofs {
     /** The keccak256 of the CLPR service contract's code: pinned by the config, carried by every account proof. */
     private static final byte[] CODE_HASH = generateBytes(32, 0x77);
 
-    static final String CHAIN_ID = "eip155:1";
+    public static final String CHAIN_ID = "eip155:1";
 
     /** The sync-committee period of the initial trust anchor. */
     private static final long CONFIG_PERIOD = 1_135L;
@@ -77,12 +77,12 @@ public final class SyncCommitteeProofs {
     private static final long EXECUTION_BLOCK_HASH_GINDEX = 2856L;
 
     /** ClprService storage layout: the {@code _channels} mapping slot and the proven Channel member offsets. */
-    private static final int CHANNELS_BASE_SLOT = 15;
+    private static final int CHANNELS_BASE_SLOT = 11;
 
-    private static final int[] CHANNEL_SLOT_OFFSETS = {1, 2, 4, 5, 16};
+    private static final int[] CHANNEL_SLOT_OFFSETS = {1, 2, 4, 5, 15};
 
-    /** EVM storage slot of the {@code ClprEndpointManifest} commitment on the CLPR service contract (slot 18). */
-    private static final int MANIFEST_COMMITMENT_SLOT_INDEX = 0x12;
+    /** EVM storage slot of the {@code ClprEndpointManifest} commitment on the CLPR service contract (slot 14). */
+    private static final int MANIFEST_COMMITMENT_SLOT_INDEX = 14;
 
     /** Positions of the Channel slot proofs and of the manifest proof in a delivery. */
     private static final int DELIVERY_INDEX_STORAGE_PROOF = 7;
@@ -233,7 +233,7 @@ public final class SyncCommitteeProofs {
      * {@code [attestedHeader, signatureSlot, syncAggregate, nonSignerProofs, finalizedExecution, finalityBranch,
      * accountProof, manifestStorageProof, manifestPreimage]}. It is a delivery signed by the initial committee in the
      * configured period, without the Channel slots and the bundle content: its CLPR service storage commits
-     * {@code keccak256(manifestBytes)} at slot 18.
+     * {@code keccak256(manifestBytes)} at slot {@value #MANIFEST_COMMITMENT_SLOT_INDEX}.
      */
     public static byte[] configManifestProof(final byte[] manifestBytes) {
         final Delivery delivery = new Delivery(
@@ -252,7 +252,7 @@ public final class SyncCommitteeProofs {
     /**
      * A manifest whose {@code service_address} is a valid 20-byte address that nonetheless differs from the config's
      * {@link #SERVICE_ADDRESS}. The verifier enforces spec §4.8 (manifest service_address == config service_address),
-     * so a config whose manifest proof carries it makes completeChannel revert with {@code CLPR_VERIFIER_CONFIG_FAILED}.
+     * so a config whose manifest proof carries it makes createChannel revert with {@code CLPR_VERIFIER_CONFIG_FAILED}.
      */
     public static byte[] manifestBytesBadServiceAddress() {
         return manifest(1L, generateBytes(20, 0x66), 1).toByteArray();
@@ -400,7 +400,7 @@ public final class SyncCommitteeProofs {
 
     /**
      * A bundle that also carries an endpoint-manifest update (spec §4.9). The manifest commitment
-     * ({@code keccak256(manifestBytes)}) is proven at slot 18 in the SAME storage trie — under the SAME account storage
+     * ({@code keccak256(manifestBytes)}) is proven at slot 14 in the SAME storage trie — under the SAME account storage
      * root — as the Channel slots, so the single account proof commits to both.
      */
     public static byte[] bundlePayloadWithManifest(
@@ -580,7 +580,7 @@ public final class SyncCommitteeProofs {
 
     /**
      * The storage keys a bundle for {@code channelId} must prove, in the order {@link #computeSlotValues} fills: the
-     * five Channel fields {@code keccak256(channelId ‖ uint256(15)) + {1, 2, 4, 5, 16}} and, when at least one
+     * five Channel fields {@code keccak256(channelId ‖ uint256(11)) + {1, 2, 4, 5, 15}} and, when at least one
      * message has been sent, the running-hash slot of the last one. The verifier derives that last key from the proven
      * {@code nextMessageId}, so the two must agree.
      *
@@ -644,7 +644,7 @@ public final class SyncCommitteeProofs {
         slotValues[1] = packedReceivedMessageIdSlot(metadata.getReceivedMessageId());
         slotValues[2] = leftPad32(metadata.getSentRunningHash().toByteArray());
         slotValues[3] = leftPad32(metadata.getReceivedRunningHash().toByteArray());
-        // Slot +16: endpointManifestVersion, a lone uint64 in the low 8 bytes.
+        // Slot +15: endpointManifestVersion, a lone uint64 in the low 8 bytes.
         slotValues[4] = new byte[32];
         putUint64BigEndian(slotValues[4], 24, metadata.getEndpointManifestVersion());
         if (hasLastMessage) {
@@ -1139,6 +1139,10 @@ public final class SyncCommitteeProofs {
      * Generates a deterministic byte array of specified length based on a seed value.
      * Each byte is calculated as {@code (byte) (seed + i * 31)}, where {@code i} is the byte index.
      */
+    public static byte[] serviceAddress() {
+        return SERVICE_ADDRESS.clone();
+    }
+
     private static byte[] generateBytes(final int length, final int seed) {
         final byte[] out = new byte[length];
         for (int i = 0; i < length; i++) {

@@ -11,7 +11,7 @@ import java.util.List;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.CryptographyException;
 import org.hiero.base.crypto.SigningSchema;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * A wrapper around a {@link RosterEntry} that provides additional functionality and convenience methods.

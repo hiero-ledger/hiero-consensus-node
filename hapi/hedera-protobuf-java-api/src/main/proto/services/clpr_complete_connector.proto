@@ -8,7 +8,22 @@ option java_package = "com.hederahashgraph.api.proto.java";
 option java_multiple_files = true;
 
 import "services/basic_types.proto";
-import "services/clpr_complete_channel.proto";
+
+/**
+ * Signature scheme used for the ownership proof in connector activation.
+ */
+enum ClprSignatureScheme {
+    /**
+     * ECDSA secp256k1. Public key is 64 bytes (uncompressed x||y without
+     * 0x04 prefix). Signature is 64 bytes (r[32] || s[32]).
+     */
+    ECDSA_SECP256K1 = 0;
+
+    /**
+     * Ed25519. Public key is 32 bytes. Signature is 64 bytes.
+     */
+    ED25519 = 1;
+}
 
 /**
  * Phase 2 (Reveal): Complete a pending connector commitment.

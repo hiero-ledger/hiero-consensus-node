@@ -591,7 +591,7 @@ Peer endpoints come from the peer ledger's **endpoint manifest**. There is no en
 its endpoints, each with a service endpoint and TLS CA certificate. The peer's manifest is proven and cached on the
 Channel record (`Channel.endpoint_manifest` / `endpoint_manifest_version`):
 
-- at `completeChannel`, from the proven manifest returned by `verifyConfig`, retaining the declared-order
+- at `createChannel`, from the proven manifest returned by `verifyConfig`, retaining the declared-order
   prefix that fits both this ledger's `max_peer_endpoints` and the 16,384-byte serialized manifest ceiling;
 - mid-life, when a `submitBundle` verifier response carries a `new_endpoint_manifest` whose version strictly
   advances the stored one, applying the same count and byte bounds.
@@ -1008,7 +1008,7 @@ close-notification bundle carrying CLOSED status and the final acknowledgement p
 [the canonical endpoint close-notification obligation](https://github.com/LFDT-CLPR/clpr-spec/blob/945082d69e65dd0fd9e9bdf8d59cb8121579f6fd/clpr-service-spec.md#34-endpoint-close-notification-obligation).
 The endpoint retries until the peer accepts the bundle or rejects it because its Channel is already CLOSED.
 The peer can then complete its DRAINED → CLOSED transition using the final acknowledgement. If delivery is
-permanently unavailable, the peer's admin may use the DRAINED → CLOSED recovery path (`ClprCloseChannel` on the
+permanently unavailable, the peer's admin may use the DRAINED → CLOSED recovery path (`ClprDeleteChannel` on the
 DRAINED Channel). That path does not check acknowledgements, so Response Messages without a proven
 acknowledgement may be left undelivered.
 

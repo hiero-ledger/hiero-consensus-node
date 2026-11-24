@@ -10,6 +10,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifestConstruction;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
@@ -27,6 +28,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -156,5 +160,48 @@ class V0780ClprSchemaTest {
         verify(configurationState, never()).put(org.mockito.ArgumentMatchers.any());
         verify(manifestState, never()).put(org.mockito.ArgumentMatchers.any());
         verify(constructionState, never()).put(org.mockito.ArgumentMatchers.any());
+    }
+
+    @ParameterizedTest
+    @CsvSource({"hiero:localnet, eip155:299", "hiero:mainnet, eip155:299", "'', eip155:299"})
+    void migratesChainIdOutsideEip155Namespace(final String storedId, final String expectedId) {
+        given(writableStates.<ClprLedgerConfiguration>getSingleton(LEDGER_CONFIGURATION_STATE_ID))
+                .willReturn(configurationState);
+        final var existing = ClprLedgerConfiguration.newBuilder()
+                .chainId(storedId)
+                .protocolVersion(1)
+                .timestamp(Timestamp.newBuilder().seconds(1L).build())
+                .throttles(ClprThrottles.newBuilder().maxQueueDepth(64).build())
+                .build();
+        given(configurationState.get()).willReturn(existing);
+
+        V0780ClprSchema.migrateLegacyChainId(writableStates, configuration);
+
+        verify(configurationState)
+                .put(existing.copyBuilder().chainId(expectedId).build());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"eip155:299", "eip155:456"})
+    void keepsChainIdInEip155Namespace(final String storedId) {
+        given(writableStates.<ClprLedgerConfiguration>getSingleton(LEDGER_CONFIGURATION_STATE_ID))
+                .willReturn(configurationState);
+        given(configurationState.get())
+                .willReturn(
+                        ClprLedgerConfiguration.newBuilder().chainId(storedId).build());
+
+        V0780ClprSchema.migrateLegacyChainId(writableStates, configuration);
+
+        verify(configurationState, never()).put(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void doesNotMigrateMissingLedgerConfiguration() {
+        given(writableStates.<ClprLedgerConfiguration>getSingleton(LEDGER_CONFIGURATION_STATE_ID))
+                .willReturn(configurationState);
+
+        V0780ClprSchema.migrateLegacyChainId(writableStates, configuration);
+
+        verify(configurationState, never()).put(org.mockito.ArgumentMatchers.any());
     }
 }

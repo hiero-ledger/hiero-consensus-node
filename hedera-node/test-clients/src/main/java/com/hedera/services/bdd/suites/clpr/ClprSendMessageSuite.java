@@ -5,9 +5,8 @@ import static com.hedera.services.bdd.junit.ContextRequirement.PROPERTY_OVERRIDE
 import static com.hedera.services.bdd.junit.TestTags.CLPR;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteConnector;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterChannel;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCreateChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprUpdateLedgerConfiguration;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
@@ -15,6 +14,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.clpr.HapiClprUpdateLedgerConfiguration.defaultThrottles;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -49,58 +49,56 @@ public class ClprSendMessageSuite {
 
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
     final Stream<DynamicTest> sendMessageOnActiveChannelSucceeds() {
-        final var crypto = new ClprChannelCrypto();
-        return hapiTest(
-                overriding("clpr.minLockedStake", String.valueOf(MIN_LOCKED_STAKE)),
-                clprUpdateLedgerConfiguration()
-                        .configuration(defaultLedgerConfig())
-                        .payingWith(GENESIS),
-                uploadInitCode(VERIFIER_CONTRACT),
-                contractCreate(VERIFIER_CONTRACT),
-                uploadInitCode(CONNECTOR_CONTRACT),
-                contractCreate(CONNECTOR_CONTRACT),
-                uploadInitCode(CLPR_CONTRACT),
-                contractCreate(CLPR_CONTRACT),
-                cryptoCreate("caller").balance(ONE_HUNDRED_HBARS),
-                // §5.1 commit-reveal channel setup
-                clprRegisterChannel().ownershipCommitment(crypto.commitment()).payingWith(GENESIS),
-                clprCompleteChannel()
-                        .channelId(crypto.channelId())
-                        .publicKey(crypto.publicKey())
-                        .signature(crypto.signature())
-                        .signatureScheme(ClprSignatureScheme.ED25519)
-                        .verifierContract(VERIFIER_CONTRACT)
-                        .configProofBytes(toConfigProofBytes(defaultLedgerConfig()))
-                        .payingWith(GENESIS),
-                // §6.3 commit-reveal connector setup — the actual proto API migration.
-                clprRegisterConnector()
-                        .channelId(crypto.channelId())
-                        .commitment(crypto.connectorCommitment())
-                        .payingWith(GENESIS),
-                clprCompleteConnector()
-                        .connectorId(crypto.connectorId())
-                        .publicKey(crypto.publicKey())
-                        .signature(crypto.connectorSignature())
-                        .signatureScheme(ClprSignatureScheme.ED25519)
-                        .salt(crypto.connectorSalt())
-                        .channelId(crypto.channelId())
-                        .connectorContract(CONNECTOR_CONTRACT)
-                        .adminKeyName(GENESIS)
-                        .lockedStake(MIN_LOCKED_STAKE)
-                        .payingWith(GENESIS),
-                // sendMessage(channelId, connectorId, target, data) — connectorId is the
-                // 32-byte keccak hash from ChannelCrypto (spec §6.3 deriveConnectorId).
-                contractCall(
-                                CLPR_CONTRACT,
-                                SEND_MESSAGE,
-                                crypto.channelId(),
-                                crypto.connectorId(),
-                                new byte[] {10, 20, 30},
-                                new byte[] {1, 2, 3, 4, 5})
-                        .gas(GAS_TO_OFFER)
-                        .payingWith("caller")
-                        .via("sendMsgTxn"),
-                getTxnRecord("sendMsgTxn").logged());
+        return hapiTest(ClprChannelCrypto.withVerifier(
+                VERIFIER_CONTRACT, "hiero:testing", CLPR_SERVICE_ADDRESS_20, crypto -> {
+                    return blockingOrder(
+                            overriding("clpr.minLockedStake", String.valueOf(MIN_LOCKED_STAKE)),
+                            clprUpdateLedgerConfiguration()
+                                    .configuration(defaultLedgerConfig())
+                                    .payingWith(GENESIS),
+                            uploadInitCode(CONNECTOR_CONTRACT),
+                            contractCreate(CONNECTOR_CONTRACT),
+                            uploadInitCode(CLPR_CONTRACT),
+                            contractCreate(CLPR_CONTRACT),
+                            cryptoCreate("caller").balance(ONE_HUNDRED_HBARS),
+                            // §5.1 commit-reveal channel setup
+                            clprCreateChannel()
+                                    .channelId(crypto.channelId())
+                                    .salt(crypto.salt())
+                                    .peerVerifier(crypto.peerVerifier())
+                                    .verifierContract(VERIFIER_CONTRACT)
+                                    .configProofBytes(toConfigProofBytes(defaultLedgerConfig()))
+                                    .payingWith(GENESIS),
+                            // §6.3 commit-reveal connector setup — the actual proto API migration.
+                            clprRegisterConnector()
+                                    .channelId(crypto.channelId())
+                                    .commitment(crypto.connectorCommitment())
+                                    .payingWith(GENESIS),
+                            clprCompleteConnector()
+                                    .connectorId(crypto.connectorId())
+                                    .publicKey(crypto.publicKey())
+                                    .signature(crypto.connectorSignature())
+                                    .signatureScheme(ClprSignatureScheme.ED25519)
+                                    .salt(crypto.connectorSalt())
+                                    .channelId(crypto.channelId())
+                                    .connectorContract(CONNECTOR_CONTRACT)
+                                    .adminKeyName(GENESIS)
+                                    .lockedStake(MIN_LOCKED_STAKE)
+                                    .payingWith(GENESIS),
+                            // sendMessage(channelId, connectorId, target, data) — connectorId is the
+                            // 32-byte keccak hash from ChannelCrypto (spec §6.3 deriveConnectorId).
+                            contractCall(
+                                            CLPR_CONTRACT,
+                                            SEND_MESSAGE,
+                                            crypto.channelId(),
+                                            crypto.connectorId(),
+                                            new byte[] {10, 20, 30},
+                                            new byte[] {1, 2, 3, 4, 5})
+                                    .gas(GAS_TO_OFFER)
+                                    .payingWith("caller")
+                                    .via("sendMsgTxn"),
+                            getTxnRecord("sendMsgTxn").logged());
+                }));
     }
 
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
@@ -139,39 +137,37 @@ public class ClprSendMessageSuite {
 
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
     final Stream<DynamicTest> sendMessageWithMissingConnectorReverts() {
-        final var crypto = new ClprChannelCrypto();
-        return hapiTest(
-                clprUpdateLedgerConfiguration()
-                        .configuration(defaultLedgerConfig())
-                        .payingWith(GENESIS),
-                uploadInitCode(VERIFIER_CONTRACT),
-                contractCreate(VERIFIER_CONTRACT),
-                uploadInitCode(CONNECTOR_CONTRACT),
-                contractCreate(CONNECTOR_CONTRACT),
-                uploadInitCode(CLPR_CONTRACT),
-                contractCreate(CLPR_CONTRACT),
-                cryptoCreate("caller").balance(ONE_HUNDRED_HBARS),
-                // Create ACTIVE channel but do NOT register any connector
-                clprRegisterChannel().ownershipCommitment(crypto.commitment()).payingWith(GENESIS),
-                clprCompleteChannel()
-                        .channelId(crypto.channelId())
-                        .publicKey(crypto.publicKey())
-                        .signature(crypto.signature())
-                        .signatureScheme(ClprSignatureScheme.ED25519)
-                        .verifierContract(VERIFIER_CONTRACT)
-                        .configProofBytes(toConfigProofBytes(defaultLedgerConfig()))
-                        .payingWith(GENESIS),
-                // Send message with unregistered connector — should revert
-                contractCall(
-                                CLPR_CONTRACT,
-                                SEND_MESSAGE,
-                                crypto.channelId(),
-                                new byte[32],
-                                new byte[] {10, 20, 30},
-                                new byte[] {1, 2, 3})
-                        .gas(GAS_TO_OFFER)
-                        .payingWith("caller")
-                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED));
+        return hapiTest(ClprChannelCrypto.withVerifier(
+                VERIFIER_CONTRACT, "hiero:testing", CLPR_SERVICE_ADDRESS_20, crypto -> {
+                    return blockingOrder(
+                            clprUpdateLedgerConfiguration()
+                                    .configuration(defaultLedgerConfig())
+                                    .payingWith(GENESIS),
+                            uploadInitCode(CONNECTOR_CONTRACT),
+                            contractCreate(CONNECTOR_CONTRACT),
+                            uploadInitCode(CLPR_CONTRACT),
+                            contractCreate(CLPR_CONTRACT),
+                            cryptoCreate("caller").balance(ONE_HUNDRED_HBARS),
+                            // Create ACTIVE channel but do NOT register any connector
+                            clprCreateChannel()
+                                    .channelId(crypto.channelId())
+                                    .salt(crypto.salt())
+                                    .peerVerifier(crypto.peerVerifier())
+                                    .verifierContract(VERIFIER_CONTRACT)
+                                    .configProofBytes(toConfigProofBytes(defaultLedgerConfig()))
+                                    .payingWith(GENESIS),
+                            // Send message with unregistered connector — should revert
+                            contractCall(
+                                            CLPR_CONTRACT,
+                                            SEND_MESSAGE,
+                                            crypto.channelId(),
+                                            new byte[32],
+                                            new byte[] {10, 20, 30},
+                                            new byte[] {1, 2, 3})
+                                    .gas(GAS_TO_OFFER)
+                                    .payingWith("caller")
+                                    .hasKnownStatus(CONTRACT_REVERT_EXECUTED));
+                }));
     }
 
     // ---- Helpers ----a

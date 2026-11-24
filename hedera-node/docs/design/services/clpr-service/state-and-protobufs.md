@@ -14,9 +14,8 @@ Transaction bodies (one body per HAPI tx):
 
 |                   File                   |                 Functionality                 |
 |------------------------------------------|-----------------------------------------------|
-| `clpr_register_channel.proto`            | `CLPR_REGISTER_CHANNEL`                       |
-| `clpr_complete_channel.proto`            | `CLPR_COMPLETE_CHANNEL`                       |
-| `clpr_close_channel.proto`               | `CLPR_CLOSE_CHANNEL`                          |
+| `clpr_create_channel.proto`              | `CLPR_CREATE_CHANNEL`                         |
+| `clpr_delete_channel.proto`              | `CLPR_DELETE_CHANNEL`                         |
 | `clpr_register_connector.proto`          | `CLPR_REGISTER_CONNECTOR`                     |
 | `clpr_complete_connector.proto`          | `CLPR_COMPLETE_CONNECTOR`                     |
 | `clpr_deregister_connector.proto`        | `CLPR_DEREGISTER_CONNECTOR`                   |

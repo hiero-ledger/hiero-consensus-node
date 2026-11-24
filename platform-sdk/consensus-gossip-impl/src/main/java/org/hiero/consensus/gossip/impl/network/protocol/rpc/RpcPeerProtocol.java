@@ -49,7 +49,7 @@ import org.hiero.consensus.gossip.impl.network.NetworkMetrics;
 import org.hiero.consensus.gossip.impl.network.NetworkProtocolException;
 import org.hiero.consensus.gossip.impl.network.protocol.PeerProtocol;
 import org.hiero.consensus.io.counting.ByteCounter;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 
 /**

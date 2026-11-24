@@ -2,6 +2,7 @@
 package org.hiero.consensus.model.event;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.main.model.EventDescriptorWrapper;
 import org.hiero.consensus.model.sequence.map.SequenceMap;
 
 /**

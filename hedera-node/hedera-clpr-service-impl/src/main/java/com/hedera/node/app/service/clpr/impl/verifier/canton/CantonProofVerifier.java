@@ -134,7 +134,7 @@ public final class CantonProofVerifier implements ClprVerifier {
     private static final byte[] ENTITY_CHANNEL = "Channel".getBytes(StandardCharsets.UTF_8);
     private static final byte[] ENTITY_CLPR_APP = "ClprApp".getBytes(StandardCharsets.UTF_8);
     private static final byte[] ENTITY_CHANNEL_CONFIG = "ChannelConfig".getBytes(StandardCharsets.UTF_8);
-    private static final byte[] CHOICE_OPEN_CHANNEL = "OpenChannel".getBytes(StandardCharsets.UTF_8);
+    private static final byte[] CHOICE_CREATE_CHANNEL = "CreateChannel".getBytes(StandardCharsets.UTF_8);
     private static final byte[] CHOICE_UPDATE_ENDPOINT_MANIFEST =
             "UpdateEndpointManifest".getBytes(StandardCharsets.UTF_8);
 
@@ -235,9 +235,9 @@ public final class CantonProofVerifier implements ClprVerifier {
     /**
      * Port of {@code CantonVerifier.verifyConfig}. {@code configProofBytes} = RLP {@code [serviceAddress, chainId,
      * configNanos, throttles, descriptor, verdict, [opening, createdIndex]]}. The verdict must carry the threshold of
-     * the declared mediator set, and the opening must reach the {@code ChannelConfig} that {@code ClprApp.OpenChannel}
+     * the declared mediator set, and the opening must reach the {@code ChannelConfig} that {@code ClprApp.CreateChannel}
      * created for this channel and this ledger, whose config time and throttles equal the declared ones; its app
-     * signs it, exercised {@code OpenChannel} and so must be a required confirmer of that view, and becomes the
+     * signs it, exercised {@code CreateChannel} and so must be a required confirmer of that view, and becomes the
      * anchor's app. {@code endpointManifestProofBytes} is empty (the manifest is then uninitialized: version 0, the
      * service address, no endpoints) or RLP {@code [verdict, opening, createdIndex, manifestPreimage]}.
      *
@@ -373,7 +373,7 @@ public final class CantonProofVerifier implements ClprVerifier {
      * Opens a transaction down to a {@code ChannelConfig [operator, channelId, peerChainId, configTimeNanos,
      * throttles, manifestHash, app, endpoints]} of this channel, signed by its app, whose peer chain is
      * {@code localChainId}, and whose CLPR endpoint party is neither the app nor the operator. With {@code config} =
-     * {@code [configTimeNanos, 7 throttles]}, it must come from {@code ClprApp.OpenChannel}, which its app
+     * {@code [configTimeNanos, 7 throttles]}, it must come from {@code ClprApp.CreateChannel}, which its app
      * exercised and so must approve, and carry these values; with {@code config} empty,
      * {@code Channel.UpdateEndpointManifest} is accepted too.
      */
@@ -389,7 +389,7 @@ public final class CantonProofVerifier implements ClprVerifier {
         final byte[] vpd = opened.vpd();
         final boolean checkConfig = config.length != 0;
         final CantonProto.ParticipantData data = CantonProto.parseParticipantData(vpd, opened.vpdIsV32());
-        if (!isExercise(vpd, data, service, ENTITY_CLPR_APP, CHOICE_OPEN_CHANNEL)
+        if (!isExercise(vpd, data, service, ENTITY_CLPR_APP, CHOICE_CREATE_CHANNEL)
                 && (checkConfig || !isExercise(vpd, data, service, ENTITY_CHANNEL, CHOICE_UPDATE_ENDPOINT_MANIFEST))) {
             throw CantonProofException.wrongAction();
         }

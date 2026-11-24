@@ -48,7 +48,7 @@ import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.io.RecycleBinImpl;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 import org.hiero.consensus.state.config.StateConfig;
 import org.hiero.consensus.state.config.StateConfig_;

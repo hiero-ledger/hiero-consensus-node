@@ -18,8 +18,10 @@ import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Hashable;
+import org.hiero.consensus.main.model.ConsensusEvent;
+import org.hiero.consensus.main.model.EventDescriptorWrapper;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 
 /**

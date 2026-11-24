@@ -48,7 +48,7 @@ public final class ClprGasAccounting {
         parentPayer = context.payer();
         final long maximum = Math.max(
                 0, context.configuration().getConfigData(ContractsConfig.class).maxGasPerTransaction());
-        totalGas = context.body() != null && context.body().hasClprCompleteChannel()
+        totalGas = context.body() != null && context.body().hasClprCreateChannel()
                 ? Math.min(
                         maximum,
                         Math.max(
@@ -89,7 +89,7 @@ public final class ClprGasAccounting {
     /** Prepays the whole transaction allowance from the original payer before any EVM work. */
     public boolean reserveParentGas() {
         if (prepaid) return true;
-        final long billableGas = context.body() != null && context.body().hasClprCompleteChannel()
+        final long billableGas = context.body() != null && context.body().hasClprCreateChannel()
                 ? Math.min(totalGas, MAX_BILLED_VERIFIER_GAS)
                 : totalGas;
         final long fee = costForGas(billableGas);

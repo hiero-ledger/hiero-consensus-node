@@ -17,7 +17,7 @@ import static org.mockito.BDDMockito.lenient;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.TransactionID;
-import com.hedera.hapi.node.clpr.ClprCloseChannelTransactionBody;
+import com.hedera.hapi.node.clpr.ClprDeleteChannelTransactionBody;
 import com.hedera.hapi.node.state.clpr.ClprChannel;
 import com.hedera.hapi.node.state.clpr.ClprChannelStatus;
 import com.hedera.hapi.node.state.clpr.ClprConnector;
@@ -34,13 +34,14 @@ import com.hedera.node.app.service.clpr.impl.WritableChannelStore;
 import com.hedera.node.app.service.clpr.impl.WritableConnectorStore;
 import com.hedera.node.app.service.clpr.impl.WritableMessageQueueStore;
 import com.hedera.node.app.service.clpr.impl.WritablePendingCommitmentStore;
-import com.hedera.node.app.service.clpr.impl.handlers.ClprCloseChannelHandler;
+import com.hedera.node.app.service.clpr.impl.handlers.ClprDeleteChannelHandler;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.spi.WritableStates;
@@ -53,7 +54,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class ClprCloseChannelHandlerTest {
+class ClprDeleteChannelHandlerTest {
 
     private static final AccountID PAYER_ID =
             AccountID.newBuilder().shardNum(0).realmNum(0).accountNum(1001).build();
@@ -75,7 +76,7 @@ class ClprCloseChannelHandlerTest {
     @Mock
     private WritableStates writableStates;
 
-    private ClprCloseChannelHandler subject;
+    private ClprDeleteChannelHandler subject;
     private WritableChannelStore channelStore;
     private WritablePendingCommitmentStore commitmentStore;
     private WritableConnectorStore connectorStore;
@@ -84,7 +85,7 @@ class ClprCloseChannelHandlerTest {
 
     @BeforeEach
     void setUp() {
-        subject = new ClprCloseChannelHandler();
+        subject = new ClprDeleteChannelHandler();
 
         writableChannels = MapWritableKVState.<ProtoBytes, ClprChannel>builder(
                         CHANNELS_STATE_ID, "ClprService:CHANNELS")
@@ -124,7 +125,7 @@ class ClprCloseChannelHandlerTest {
     @Test
     @DisplayName("should reject when channel_id is not 32 bytes")
     void rejectsWrongChannelIdLength() {
-        final var op = ClprCloseChannelTransactionBody.newBuilder()
+        final var op = ClprDeleteChannelTransactionBody.newBuilder()
                 .channelId(Bytes.wrap(new byte[16]))
                 .build();
         given(pureChecksContext.body()).willReturn(txnWith(op));
@@ -143,7 +144,7 @@ class ClprCloseChannelHandlerTest {
 
     @Test
     void rejectsForceCloseWithAnOwnershipCommitment() {
-        final var op = ClprCloseChannelTransactionBody.newBuilder()
+        final var op = ClprDeleteChannelTransactionBody.newBuilder()
                 .channelId(CHANNEL_ID)
                 .ownershipCommitment(COMMITMENT)
                 .forceClose(true)
@@ -327,10 +328,9 @@ class ClprCloseChannelHandlerTest {
     @Test
     @DisplayName("should delete abandoned pending commitment when no channel record exists")
     void adminClearsAbandonedCommitment() {
-        // Only a pending commitment exists — registerChannel was submitted but
-        // completeChannel was never called.
+        // Only a legacy pending commitment exists.
         commitmentStore.put(COMMITMENT);
-        final var op = ClprCloseChannelTransactionBody.newBuilder()
+        final var op = ClprDeleteChannelTransactionBody.newBuilder()
                 .channelId(CHANNEL_ID)
                 .ownershipCommitment(COMMITMENT)
                 .build();
@@ -346,7 +346,7 @@ class ClprCloseChannelHandlerTest {
     @Test
     @DisplayName("should reject when no channel and no matching pending commitment")
     void rejectsWhenNeitherChannelNorCommitmentFound() {
-        final var op = ClprCloseChannelTransactionBody.newBuilder()
+        final var op = ClprDeleteChannelTransactionBody.newBuilder()
                 .channelId(CHANNEL_ID)
                 .ownershipCommitment(COMMITMENT)
                 .build();
@@ -368,7 +368,7 @@ class ClprCloseChannelHandlerTest {
     }
 
     @Test
-    void forceClosePurgesPendingSlotsInBoundedBatches() {
+    void forceClosePurgesPendingSlotsInBoundedBatches() throws ParseException {
         final var connectorId = COMMITMENT;
         final var connectorKey = new ClprConnectorKey(CHANNEL_ID, connectorId);
         connectorStore.put(ClprConnector.newBuilder()
@@ -376,7 +376,11 @@ class ClprCloseChannelHandlerTest {
                 .connectorId(connectorId)
                 .inFlightMessageCount(2)
                 .build());
-        final var initial = ClprChannel.newBuilder()
+        // A channel opened before force-close stores its 32-byte salt at protobuf field 23.
+        final var opened = ClprChannel.PROTOBUF.parse(Bytes.fromHex("ba0120").append(COMMITMENT));
+        assertThat(opened.salt()).isEqualTo(COMMITMENT);
+        assertThat(opened.queuePurgeCursor()).isZero();
+        final var initial = opened.copyBuilder()
                 .channelId(CHANNEL_ID)
                 .status(ClprChannelStatus.CLOSING)
                 .ownershipCommitment(COMMITMENT)
@@ -498,7 +502,7 @@ class ClprCloseChannelHandlerTest {
     // ========== Helper methods ==========
 
     private void setupForceCloseContext() {
-        setupHandleContext(txnWith(ClprCloseChannelTransactionBody.newBuilder()
+        setupHandleContext(txnWith(ClprDeleteChannelTransactionBody.newBuilder()
                 .channelId(CHANNEL_ID)
                 .forceClose(true)
                 .build()));
@@ -551,16 +555,16 @@ class ClprCloseChannelHandlerTest {
     }
 
     private TransactionBody validTxn() {
-        final var op = ClprCloseChannelTransactionBody.newBuilder()
+        final var op = ClprDeleteChannelTransactionBody.newBuilder()
                 .channelId(CHANNEL_ID)
                 .build();
         return txnWith(op);
     }
 
-    private TransactionBody txnWith(final ClprCloseChannelTransactionBody op) {
+    private TransactionBody txnWith(final ClprDeleteChannelTransactionBody op) {
         return TransactionBody.newBuilder()
                 .transactionID(TransactionID.newBuilder().accountID(PAYER_ID))
-                .clprCloseChannel(op)
+                .clprDeleteChannel(op)
                 .build();
     }
 }

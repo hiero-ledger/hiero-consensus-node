@@ -9,7 +9,7 @@ import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.MESS
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.CLPR;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCloseChannel;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprDeleteChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprSubmitBundle;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
@@ -99,7 +99,7 @@ public class ClprForceCloseEmbeddedTest {
                     queue.put(new ClprMessageKey(channelId, 18), data);
                     queue.put(new ClprMessageKey(otherChannelId, 1), reply);
                 })),
-                clprCloseChannel()
+                clprDeleteChannel()
                         .channelId(channelId.toByteArray())
                         .forceClose(true)
                         .payingWith("forceCloseCivilian")
@@ -110,7 +110,7 @@ public class ClprForceCloseEmbeddedTest {
                                 .getReadableStates(ClprService.NAME)
                                 .<ProtoBytes, ClprChannel>get(CHANNELS_STATE_ID)
                                 .get(new ProtoBytes(channelId)))),
-                clprCloseChannel()
+                clprDeleteChannel()
                         .channelId(channelId.toByteArray())
                         .forceClose(true)
                         .payingWith("forceCloseAdmin"),
@@ -121,13 +121,13 @@ public class ClprForceCloseEmbeddedTest {
                         .endpointNodeId(0L)
                         .payingWith(GENESIS)
                         .hasKnownStatus(CLPR_INVALID_CHANNEL_STATUS),
-                clprCloseChannel()
+                clprDeleteChannel()
                         .channelId(channelId.toByteArray())
                         .forceClose(true)
                         .payingWith(GENESIS),
                 assertCleanup(initial, otherChannel, connectorKey, reply, 19, 0),
                 // A completed cleanup is an idempotent SUCCESS, with no further state changes.
-                clprCloseChannel()
+                clprDeleteChannel()
                         .channelId(channelId.toByteArray())
                         .forceClose(true)
                         .payingWith("forceCloseAdmin"),

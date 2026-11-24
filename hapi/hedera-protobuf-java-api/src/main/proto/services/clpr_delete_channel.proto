@@ -18,9 +18,7 @@ option java_multiple_files = true;
  * through CLOSING -> DRAINED -> CLOSED.
  *
  * When no Channel exists for channel_id and ownership_commitment is
- * set, the matching entry in PENDING_COMMITMENTS is deleted (admin sweep
- * of an abandoned commitment from a registerChannel that was never
- * completed).
+ * set, the admin can remove a matching legacy pending commitment.
  *
  * With force_close set, immediately closes an established channel and
  * discards a bounded batch of unacknowledged messages from its outbound
@@ -32,7 +30,7 @@ option java_multiple_files = true;
  * Force-close is local: the CLOSED channel stops syncing, so the peer is not
  * notified. The peer's administrator must separately close and clean up its side.
  */
-message ClprCloseChannelTransactionBody {
+message ClprDeleteChannelTransactionBody {
     /**
      * 32-byte Channel ID to close.
      */

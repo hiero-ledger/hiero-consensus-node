@@ -41,7 +41,6 @@ PROTOCOL_VERSION="${PROTOCOL_VERSION:-1}"
 VERIFIER_CONTRACT="${VERIFIER_CONTRACT:-0.0.368}"
 PASS_THROUGH_AUTH="${PASS_THROUGH_AUTH:-${REPO_ROOT}/hedera-node/test-clients/src/main/resources/contract/contracts/PassThroughAuth/PassThroughAuth.bin}"
 CONFIG_LOCAL="${CONFIG_LOCAL:-${YAHCLI_DIR}/ledger-config.json}"
-CHANNEL_FILE="${SCRIPT_DIR}/.bridge/sei-channel.json"
 CONNECTOR_FILE="${SCRIPT_DIR}/.bridge/sei-connector.json"
 SEI_CONFIG_JSON="${SCRIPT_DIR}/.bridge/sei-ledger-config.json"
 SEI_CONFIG_PAYLOAD="${SCRIPT_DIR}/.bridge/sei-config-payload.bin"
@@ -67,13 +66,8 @@ die() { printf "${RED}     FAIL${RESET} %s\n" "$*" >&2; exit 1; }
 
 # Identity keys come from files (never from env vars or the command line). Unset = the well-known
 # dev defaults that match the clpr-smart-contracts scripts.
-if [[ -n "${PEER_PK:-}" || -n "${CONNECTOR_PK:-}" ]]; then
-    die "PEER_PK / CONNECTOR_PK are no longer supported; put each key in a 0600 file and set PEER_PK_FILE / CONNECTOR_PK_FILE"
-fi
-if [[ -n "${PEER_PK_FILE:-}" ]]; then
-    PEER_PK_HEX="$(kf_read_key_file "${PEER_PK_FILE}")" || die "bad PEER_PK_FILE"
-else
-    PEER_PK_HEX="0x00000000000000000000000000000000000000000000000000000000000a11ce"
+if [[ -n "${CONNECTOR_PK:-}" ]]; then
+    die "Use CONNECTOR_PK_FILE to supply the connector key"
 fi
 if [[ -n "${CONNECTOR_PK_FILE:-}" ]]; then
     CONNECTOR_PK_HEX="$(kf_read_key_file "${CONNECTOR_PK_FILE}")" || die "bad CONNECTOR_PK_FILE"
@@ -172,7 +166,6 @@ done
 [[ -f "${PASS_THROUGH_AUTH}" ]] || die "missing PassThroughAuth.bin at ${PASS_THROUGH_AUTH}"
 [[ -f "${TOOLS_DIR}/build-sei-config-payload.py" ]] || die "missing ${TOOLS_DIR}/build-sei-config-payload.py"
 [[ -f "${TOOLS_DIR}/sign-clpr-connector-identity.py" ]] || die "missing ${TOOLS_DIR}/sign-clpr-connector-identity.py"
-[[ -x "${SCRIPT_DIR}/gen-channel-identity.sh" ]] || die "missing gen-channel-identity.sh"
 SMART_CONTRACTS_REPO="$(resolve_smart_contracts_repo)" || die "clpr-smart-contracts repo not found"
 
 echo "  JAVA_HOME            : ${JAVA_HOME:-(system default)}"
@@ -258,26 +251,14 @@ CONFIG_PROOF_HEX="$(echo "${PAYLOAD_OUT}" | awk '/^sei_ledger_configuration_payl
 note "config-proof payload: ${SEI_CONFIG_PAYLOAD}"
 note "config-proof hex (${#CONFIG_PROOF_HEX} chars): ${CONFIG_PROOF_HEX:0:60}..."
 
-header "[4/10] generate channel identity"
-kf_write_key_file "${CHANNEL_FILE}.key" "${PEER_PK_HEX}"
-"${SCRIPT_DIR}/gen-channel-identity.sh" \
-    --channel-id "${CHANNEL_ID}" \
-    --key-file "${CHANNEL_FILE}.key" \
-    --out "${CHANNEL_FILE}" >/dev/null
-CHANNEL_COMMIT="$(jq -r '.ownershipCommitment' "${CHANNEL_FILE}")"
-[[ -n "${CHANNEL_COMMIT}" && "${CHANNEL_COMMIT}" != "null" ]] || die "no ownershipCommitment in ${CHANNEL_FILE}"
-note "ownershipCommitment: ${CHANNEL_COMMIT}"
-
-header "[5/10] register-channel on ${NET}"
-yh "register-channel" "${LOG_DIR}/04-register-conn.log" \
+# Use the same salt and EVM-side verifier used when the EVM channel was opened.
+: "${CHANNEL_SALT:?Set CHANNEL_SALT to the EVM channel salt (32-byte hex)}"
+: "${EVM_VERIFIER_ADDRESS:?Set EVM_VERIFIER_ADDRESS to the verifier on the EVM ledger (20-byte hex)}"
+header "create-channel on ${NET} via verifier ${VERIFIER_CONTRACT}"
+yh_allow_status "CLPR_CHANNEL_ALREADY_EXISTS" "create-channel" "${LOG_DIR}/05-complete-conn.log" \
     -n "${NET}" -p "${PAYER}" \
-    clpr register-channel --commitment "${CHANNEL_COMMIT}"
-
-header "[6/10] complete-channel on ${NET} via verifier ${VERIFIER_CONTRACT}"
-yh_allow_status "CLPR_CHANNEL_ALREADY_EXISTS" "complete-channel" "${LOG_DIR}/05-complete-conn.log" \
-    -n "${NET}" -p "${PAYER}" \
-    clpr complete-channel \
-        --identity "${CHANNEL_FILE}" \
+    clpr create-channel \
+        --channel-id "${CHANNEL_ID}" --salt "${CHANNEL_SALT}" --peer-verifier "${EVM_VERIFIER_ADDRESS}" \
         --verifier-contract "${VERIFIER_CONTRACT}" \
         --config-proof-hex "${CONFIG_PROOF_HEX}"
 
@@ -336,7 +317,6 @@ cat <<EOF
     Network            : ${NET}
     Sei verifier       : ${VERIFIER_CONTRACT}
     Connector contract : ${CONNECTOR_CONTRACT}
-    Channel bundle  : ${CHANNEL_FILE}
     Connector bundle   : ${CONNECTOR_FILE}
 
   Per-step logs        : ${LOG_DIR}/

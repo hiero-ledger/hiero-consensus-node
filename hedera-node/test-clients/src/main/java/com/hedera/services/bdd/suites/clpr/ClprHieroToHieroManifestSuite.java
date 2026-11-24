@@ -117,7 +117,7 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
     @DisplayName("Manifest-enabled round-trip (HAPI TLS): both ledgers self-derive manifests, complete a "
             + "TLS channel, and exchange messages both ways")
     Stream<DynamicTest> manifestEnabledRoundTrip(final SubProcessNetwork ledgerA, final SubProcessNetwork ledgerB) {
-        final var crypto = new ClprCrypto();
+        final var crypto = new ClprCrypto(ledgerA, ledgerB);
         return multiNetworkHapiTest(
                 "manifestEnabledRoundTrip",
                 Stream.concat(
@@ -167,7 +167,7 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
             + "proof while B keeps syncing through A's remaining node, and no messages are lost")
     Stream<DynamicTest> partialRotationPropagatesToPeer(
             final SubProcessNetwork ledgerA, final SubProcessNetwork ledgerB) {
-        final var crypto = new ClprCrypto();
+        final var crypto = new ClprCrypto(ledgerA, ledgerB);
         final AtomicLong aVersionBaseline = new AtomicLong();
         final AtomicLong aVersionRotated = new AtomicLong();
         final List<Long> addedNodeIds = new ArrayList<>();
@@ -240,7 +240,7 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
             + "recovers A's manifest automatically from A's next bundle, with no gRPC to A's old nodes")
     Stream<DynamicTest> completeTurnoverOneSideRecoversAutomatically(
             final SubProcessNetwork ledgerA, final SubProcessNetwork ledgerB) {
-        final var crypto = new ClprCrypto();
+        final var crypto = new ClprCrypto(ledgerA, ledgerB);
         // A's manifest version B cached at connection time; the recovery is expressed relative to it
         final AtomicLong aVersionBaseline = new AtomicLong();
         final AtomicLong aVersionTurnedOver = new AtomicLong();
@@ -317,7 +317,7 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
             + "automatically from A's next bundle")
     Stream<DynamicTest> simultaneousTurnoverBothSidesRecoverIndependently(
             final SubProcessNetwork ledgerA, final SubProcessNetwork ledgerB) {
-        final var crypto = new ClprCrypto();
+        final var crypto = new ClprCrypto(ledgerA, ledgerB);
         final AtomicLong aVersionBaseline = new AtomicLong();
         final AtomicLong bVersionBaseline = new AtomicLong();
         final AtomicLong aVersionTurnedOver = new AtomicLong();

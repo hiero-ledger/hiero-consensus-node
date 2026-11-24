@@ -18,7 +18,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerConfiguration;
 import org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerType;

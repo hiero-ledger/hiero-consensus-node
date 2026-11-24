@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.yahcli.commands.clpr;
 
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCloseChannel;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprDeleteChannel;
 import static com.hedera.services.yahcli.config.ConfigUtils.configFrom;
 
 import com.hedera.services.yahcli.suites.ClprTxnSuite;
@@ -12,14 +12,14 @@ import picocli.CommandLine.Option;
 import picocli.CommandLine.ParentCommand;
 
 /**
- * Submits a {@code ClprCloseChannel} HAPI transaction to initiate graceful closure
+ * Submits a {@code ClprDeleteChannel} HAPI transaction to initiate graceful closure
  * or explicitly force-close a cross-ledger channel.
  */
 @Command(
-        name = "close-channel",
+        name = "delete-channel",
         subcommands = {HelpCommand.class},
-        description = "Submits a ClprCloseChannel transaction.")
-public class CloseChannelCommand implements Callable<Integer> {
+        description = "Submits a ClprDeleteChannel transaction.")
+public class DeleteChannelCommand implements Callable<Integer> {
 
     @ParentCommand
     ClprCommand clprCommand;
@@ -41,10 +41,10 @@ public class CloseChannelCommand implements Callable<Integer> {
     @Override
     public Integer call() throws Exception {
         final var config = configFrom(clprCommand.getYahcli());
-        final var op = clprCloseChannel()
+        final var op = clprDeleteChannel()
                 .channelId(ClprArgs.requiredBytes("channel-id", channelIdHex))
                 .forceClose(forceClose);
-        final var delegate = new ClprTxnSuite(config, "ClprCloseChannel", op);
+        final var delegate = new ClprTxnSuite(config, "ClprDeleteChannel", op);
         delegate.runSuiteSync();
         final var successAction = forceClose
                 ? "force-close cleanup request accepted; SUCCESS does not confirm cleanup is complete. "

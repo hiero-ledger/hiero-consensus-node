@@ -4,7 +4,7 @@ package com.hedera.services.bdd.suites.clpr;
 import static com.hedera.node.app.hapi.utils.MiscCryptoUtils.keccak256DigestOf;
 import static com.hedera.services.bdd.junit.TestTags.MULTINETWORK;
 import static com.hedera.services.bdd.spec.HapiSpec.networkHapiTest;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCloseChannel;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprDeleteChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprUpdateLedgerConfiguration;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
@@ -64,13 +64,13 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
      * can't cascade across peers. Re-enable the close tests after those land. See
      * {@code clpr-service-spec.md} §2.1.1 and §4.2 step 5b.
      */
-    private static final String CLOSE_CHANNEL_DISABLED_REASON =
+    private static final String DELETE_CHANNEL_DISABLED_REASON =
             "Disabled: §4.2 step 5b close handshake collapses; peer stuck";
 
     @MultiNetworkHapiTest({@Network("ledgerA"), @Network("ledgerB")})
     @DisplayName("One-way: message from ledger A arrives on ledger B")
     Stream<DynamicTest> oneWayDelivery(final SubProcessNetwork ledgerA, final SubProcessNetwork ledgerB) {
-        final var crypto = new ClprCrypto();
+        final var crypto = new ClprCrypto(ledgerA, ledgerB);
         final int portA = ledgerA.nodes().getFirst().getGrpcPort();
         final int portB = ledgerB.nodes().getFirst().getGrpcPort();
 
@@ -103,7 +103,7 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
     @MultiNetworkHapiTest({@Network("ledgerA"), @Network("ledgerB")})
     @DisplayName("Round-trip: SourceApplication on A receives onClprResponse callback with EchoApplication's payload")
     Stream<DynamicTest> fullRoundTrip(final SubProcessNetwork ledgerA, final SubProcessNetwork ledgerB) {
-        final var crypto = new ClprCrypto();
+        final var crypto = new ClprCrypto(ledgerA, ledgerB);
         final int portA = ledgerA.nodes().getFirst().getGrpcPort();
         final int portB = ledgerB.nodes().getFirst().getGrpcPort();
 
@@ -216,7 +216,7 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
     @MultiNetworkHapiTest({@Network("ledgerA"), @Network("ledgerB")})
     @DisplayName("Multi-message: five sequential messages from ledger A arrive on ledger B")
     Stream<DynamicTest> multipleSequentialMessages(final SubProcessNetwork ledgerA, final SubProcessNetwork ledgerB) {
-        final var crypto = new ClprCrypto();
+        final var crypto = new ClprCrypto(ledgerA, ledgerB);
         final int portA = ledgerA.nodes().getFirst().getGrpcPort();
         final int portB = ledgerB.nodes().getFirst().getGrpcPort();
 
@@ -252,14 +252,14 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
                                 awaitAckedMessage(ledgerA, crypto.channelId, messageCount))));
     }
 
-    @Disabled(CLOSE_CHANNEL_DISABLED_REASON)
+    @Disabled(DELETE_CHANNEL_DISABLED_REASON)
     @MultiNetworkHapiTest({@Network("ledgerA"), @Network("ledgerB")})
     @DisplayName("Send rejected after admin close: post-close sendMessage on A reverts")
     Stream<DynamicTest> sendRejectedAfterClose(final SubProcessNetwork ledgerA, final SubProcessNetwork ledgerB) {
-        // After clprCloseChannel, the local channel is no longer ACTIVE (CLOSING / DRAINED).
+        // After clprDeleteChannel, the local channel is no longer ACTIVE (CLOSING / DRAINED).
         // The ClprServiceApiImpl.sendMessage path rejects with CLPR_INVALID_CHANNEL_STATUS,
         // which surfaces through the Solidity require() as CONTRACT_REVERT_EXECUTED.
-        final var crypto = new ClprCrypto();
+        final var crypto = new ClprCrypto(ledgerA, ledgerB);
         final int portA = ledgerA.nodes().getFirst().getGrpcPort();
         final int portB = ledgerB.nodes().getFirst().getGrpcPort();
 
@@ -274,7 +274,7 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
                                         uploadInitCode(CLPR_CONTRACT),
                                         contractCreate(CLPR_CONTRACT),
                                         // Admin closes the channel on A.
-                                        clprCloseChannel()
+                                        clprDeleteChannel()
                                                 .channelId(crypto.channelId)
                                                 .payingWith(GENESIS),
                                         // Subsequent send must revert — channel is no longer ACTIVE.
@@ -292,17 +292,17 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
                                 .orElseThrow())));
     }
 
-    @Disabled(CLOSE_CHANNEL_DISABLED_REASON)
+    @Disabled(DELETE_CHANNEL_DISABLED_REASON)
     @MultiNetworkHapiTest({@Network("ledgerA"), @Network("ledgerB")})
     @DisplayName("Close handshake from ACTIVE: A→CLOSING propagates to B via drain handshake")
-    Stream<DynamicTest> closeChannelDrainHandshakeFromActive(
+    Stream<DynamicTest> deleteChannelDrainHandshakeFromActive(
             final SubProcessNetwork ledgerA, final SubProcessNetwork ledgerB) {
-        final var crypto = new ClprCrypto();
+        final var crypto = new ClprCrypto(ledgerA, ledgerB);
         final int portA = ledgerA.nodes().getFirst().getGrpcPort();
         final int portB = ledgerB.nodes().getFirst().getGrpcPort();
 
         return multiNetworkHapiTest(
-                "closeChannelDrainHandshakeFromActive",
+                "deleteChannelDrainHandshakeFromActive",
                 Stream.concat(
                         setupBothNetworks(ledgerA, ledgerB, portA, portB, crypto),
                         Stream.of(
@@ -330,7 +330,7 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
                                 networkHapiTest(
                                                 "Admin closes channel on A",
                                                 ledgerA,
-                                                clprCloseChannel()
+                                                clprDeleteChannel()
                                                         .channelId(crypto.channelId)
                                                         .payingWith(GENESIS)
                                                         .hasKnownStatus(SUCCESS))
@@ -360,7 +360,7 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
         //
         // This test depends on multiple sendMessage calls per side in the same outbound bundle, and round-trips overlap
         // across sync boundaries.
-        final var crypto = new ClprCrypto();
+        final var crypto = new ClprCrypto(ledgerA, ledgerB);
         final int portA = ledgerA.nodes().getFirst().getGrpcPort();
         final int portB = ledgerB.nodes().getFirst().getGrpcPort();
         final int messagesPerSide = 4;
@@ -434,7 +434,7 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
         // to the peer's, while the peer's received_message_id runs ahead of the replies it has shipped. Both
         // ledgers therefore ack through only the replies each bundle carries (ClprSubmitBundleHandler Step 8) and
         // pick up the rest from later bundles, with the lagging-ack replay overlap on top.
-        final var crypto = new ClprCrypto();
+        final var crypto = new ClprCrypto(ledgerA, ledgerB);
         final int portA = ledgerA.nodes().getFirst().getGrpcPort();
         final int portB = ledgerB.nodes().getFirst().getGrpcPort();
         final int messagesPerSide = 5;
@@ -472,7 +472,7 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
         //
         // Post-fix, OutboundQueue is backed by the channelStore directly and is in sync
         // with every enqueue, so all N replies land at consecutive slots.
-        final var crypto = new ClprCrypto();
+        final var crypto = new ClprCrypto(ledgerA, ledgerB);
         final int portA = ledgerA.nodes().getFirst().getGrpcPort();
         final int portB = ledgerB.nodes().getFirst().getGrpcPort();
         final int messageCount = 4;
@@ -509,7 +509,7 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
                                 awaitAckedMessage(ledgerA, crypto.channelId, messageCount))));
     }
 
-    @Disabled(CLOSE_CHANNEL_DISABLED_REASON)
+    @Disabled(DELETE_CHANNEL_DISABLED_REASON)
     @MultiNetworkHapiTest({@Network("ledgerA"), @Network("ledgerB")})
     @DisplayName("Regression: in-flight bundle round-trips cleanly while channel is closing")
     Stream<DynamicTest> bundleRoundTripDuringCloseHandshake(
@@ -522,7 +522,7 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
         // Post-fix, the lazy enqueue is gated on currentStatus ∈ {ACTIVE, PAUSED}; CLOSING /
         // DRAINED / CLOSED skip it. This test exercises the close handshake under traffic to
         // ensure the drain completes cleanly without phantom control-message growth.
-        final var crypto = new ClprCrypto();
+        final var crypto = new ClprCrypto(ledgerA, ledgerB);
         final int portA = ledgerA.nodes().getFirst().getGrpcPort();
         final int portB = ledgerB.nodes().getFirst().getGrpcPort();
 
@@ -553,7 +553,7 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
                                 // 2. Close the channel on A — A enters CLOSING and will drain.
                                 networkHapiTest(
                                                 ledgerA,
-                                                clprCloseChannel()
+                                                clprDeleteChannel()
                                                         .channelId(crypto.channelId)
                                                         .payingWith(GENESIS)
                                                         .hasKnownStatus(SUCCESS))
@@ -582,7 +582,7 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
         // Also guards ClprSubmitBundleHandler Step 8: B receives all 9 over a few cycles, so each of its truncated
         // reply bundles acks more of A's Data messages than it carries replies for. A must ack through only the
         // replies present and take the rest from later bundles; pausing instead would stall A's ack below 9.
-        final var crypto = new ClprCrypto();
+        final var crypto = new ClprCrypto(ledgerA, ledgerB);
         final int portA = ledgerA.nodes().getFirst().getGrpcPort();
         final int portB = ledgerB.nodes().getFirst().getGrpcPort();
         final int capPerBundle = 4;
@@ -643,7 +643,7 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
         // (quota bumped to 100%) and 3 atomic sends from A, the depth check passes on every
         // send, B's replies use reserved capacity, the round-trip completes,
         // and both channels stay ACTIVE.
-        final var crypto = new ClprCrypto();
+        final var crypto = new ClprCrypto(ledgerA, ledgerB);
         final int portA = ledgerA.nodes().getFirst().getGrpcPort();
         final int portB = ledgerB.nodes().getFirst().getGrpcPort();
         final int tightQueueDepth = 4;
@@ -685,13 +685,13 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
                                 awaitAckedMessage(ledgerA, crypto.channelId, messageCount))));
     }
 
-    @Disabled(CLOSE_CHANNEL_DISABLED_REASON)
+    @Disabled(DELETE_CHANNEL_DISABLED_REASON)
     @MultiNetworkHapiTest({@Network("ledgerA"), @Network("ledgerB")})
     @DisplayName("Close while multi-message bundle is in flight: 5 messages drain cleanly to non-ACTIVE")
     Stream<DynamicTest> closeWhileMultiMessageBundleInFlight(
             final SubProcessNetwork ledgerA, final SubProcessNetwork ledgerB) {
         // Spec §4.2 step 5a peer-state cascade applied mid-loop: A enqueues 5 messages
-        // atomically, then immediately submits clprCloseChannel. Depending on whether the
+        // atomically, then immediately submits clprDeleteChannel. Depending on whether the
         // close lands before or after A's first sync tick:
         //   (a) Tick first → all 5 ship while ACTIVE → B processes normally → A drains to CLOSED.
         //   (b) Close first → A transitions ACTIVE → CLOSING before the bundle ships → bundle
@@ -700,7 +700,7 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
         // Either outcome is spec-correct. The assertion tolerates both: 5 messages received on B
         // AND both sides reach non-ACTIVE. Extends bundleRoundTripDuringCloseHandshake (N=1) to
         // N=5 to stress the close-during-loop interaction with multi-slot bundles.
-        final var crypto = new ClprCrypto();
+        final var crypto = new ClprCrypto(ledgerA, ledgerB);
         final int portA = ledgerA.nodes().getFirst().getGrpcPort();
         final int portB = ledgerB.nodes().getFirst().getGrpcPort();
         final int messageCount = 5;
@@ -724,7 +724,7 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
                                                                 BigInteger.valueOf(messageCount))
                                                         .gas(GAS)
                                                         .payingWith("callerA"),
-                                                clprCloseChannel()
+                                                clprDeleteChannel()
                                                         .channelId(crypto.channelId)
                                                         .payingWith(GENESIS)
                                                         .hasKnownStatus(SUCCESS))
@@ -755,7 +755,7 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
         //      ticks than burst 1 took.
         // Observable: total time to receive all 12 messages, plus B's running hash matching all
         // the way through (no CLPR_RUNNING_HASH_MISMATCH from a misplaced ConfigUpdate slot).
-        final var crypto = new ClprCrypto();
+        final var crypto = new ClprCrypto(ledgerA, ledgerB);
         final int portA = ledgerA.nodes().getFirst().getGrpcPort();
         final int portB = ledgerB.nodes().getFirst().getGrpcPort();
         final int initialCap = 2;

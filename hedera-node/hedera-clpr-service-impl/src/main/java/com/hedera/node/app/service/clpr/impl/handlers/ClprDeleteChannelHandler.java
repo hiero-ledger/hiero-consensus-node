@@ -29,7 +29,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * Handler for {@link HederaFunctionality#CLPR_CLOSE_CHANNEL} transactions.
+ * Handler for {@link HederaFunctionality#CLPR_DELETE_CHANNEL} transactions.
  *
  * <p>Three cases:
  * <ol>
@@ -46,19 +46,19 @@ import org.apache.logging.log4j.Logger;
  * outbound queue in bounded batches. Requires an authorized CLPR admin payer.
  */
 @Singleton
-public final class ClprCloseChannelHandler extends AbstractClprHandler {
-    private static final Logger log = LogManager.getLogger(ClprCloseChannelHandler.class);
+public final class ClprDeleteChannelHandler extends AbstractClprHandler {
+    private static final Logger log = LogManager.getLogger(ClprDeleteChannelHandler.class);
 
     // A legacy slot can be several MiB. Limit how many slots a cleanup transaction reads.
     private static final int MAX_PURGE_SLOTS = 16;
 
     @Inject
-    public ClprCloseChannelHandler() {}
+    public ClprDeleteChannelHandler() {}
 
     @Override
     public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
         requireNonNull(context);
-        final var op = context.body().clprCloseChannelOrThrow();
+        final var op = context.body().clprDeleteChannelOrThrow();
         validateTruePreCheck(op.channelId().length() == CHANNEL_ID_LENGTH, INVALID_TRANSACTION_BODY);
         validateTruePreCheck(!op.forceClose() || op.ownershipCommitment().length() == 0, INVALID_TRANSACTION_BODY);
     }
@@ -71,7 +71,7 @@ public final class ClprCloseChannelHandler extends AbstractClprHandler {
 
     @Override
     protected void doHandle(@NonNull final HandleContext context) throws HandleException {
-        final var op = context.body().clprCloseChannelOrThrow();
+        final var op = context.body().clprDeleteChannelOrThrow();
         final var storeFactory = context.storeFactory();
         final var channelStore = storeFactory.writableStore(WritableChannelStore.class);
         if (op.forceClose()) {

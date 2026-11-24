@@ -15,6 +15,7 @@ module org.hiero.consensus.event.intake.concurrent {
     requires com.hedera.pbj.runtime;
     requires com.swirlds.logging;
     requires org.hiero.base.concurrent;
+    requires org.hiero.consensus.main.model;
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
 
