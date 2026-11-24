@@ -47,7 +47,7 @@ jobs:
   validate-input:
     name: Validate Input
     runs-on: hl-cn-default-lin-sm
-    if: ${{ !github.event.repository.fork }}
+    if: ${{ github.event.repository.visibility == 'public' && !github.event.repository.fork }}
     outputs:
       version: ${{ steps.resolve.outputs.version }}
     steps:
