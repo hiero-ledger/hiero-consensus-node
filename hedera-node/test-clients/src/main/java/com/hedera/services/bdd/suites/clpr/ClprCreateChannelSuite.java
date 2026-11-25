@@ -41,6 +41,7 @@ import com.hedera.services.bdd.spec.transactions.clpr.HapiClprCreateConnector;
 import com.hederahashgraph.api.proto.java.ClprLedgerConfiguration;
 import com.hederahashgraph.api.proto.java.ClprThrottles;
 import com.hederahashgraph.api.proto.java.ContractID;
+import com.hederahashgraph.api.proto.java.Timestamp;
 import com.swirlds.state.spi.ReadableKVState;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
@@ -73,6 +74,9 @@ public class ClprCreateChannelSuite {
                             .channelId(crypto.channelId())
                             .salt(crypto.salt())
                             .peerVerifier(crypto.peerVerifier())
+                            .trustAnchor(crypto.peerTrustAnchor())
+                            .localConfigTimestamp(crypto.localConfigTimestamp())
+                            .localTrustAnchorHash(crypto.localTrustAnchorHash())
                             .verifierContract(VERIFIER)
                             .configProofBytes(defaultConfigProofBytes())
                             .payingWith("registrant")
@@ -92,6 +96,9 @@ public class ClprCreateChannelSuite {
                             .channelId(crypto.channelId())
                             .salt(crypto.salt())
                             .peerVerifier(crypto.peerVerifier())
+                            .trustAnchor(crypto.peerTrustAnchor())
+                            .localConfigTimestamp(crypto.localConfigTimestamp())
+                            .localTrustAnchorHash(crypto.localTrustAnchorHash())
                             .verifierContract(VERIFIER)
                             .configProofBytes(defaultConfigProofBytes())
                             .payingWith(GENESIS)
@@ -124,6 +131,9 @@ public class ClprCreateChannelSuite {
                             .channelId(crypto.channelId())
                             .salt(crypto.salt())
                             .peerVerifier(crypto.peerVerifier())
+                            .trustAnchor(crypto.peerTrustAnchor())
+                            .localConfigTimestamp(crypto.localConfigTimestamp())
+                            .localTrustAnchorHash(crypto.localTrustAnchorHash())
                             .verifierContract(VERIFIER)
                             .configProofBytes(defaultConfigProofBytes())
                             .payingWith(GENESIS)
@@ -132,6 +142,9 @@ public class ClprCreateChannelSuite {
                             .channelId(crypto.channelId())
                             .salt(crypto.salt())
                             .peerVerifier(crypto.peerVerifier())
+                            .trustAnchor(crypto.peerTrustAnchor())
+                            .localConfigTimestamp(crypto.localConfigTimestamp())
+                            .localTrustAnchorHash(crypto.localTrustAnchorHash())
                             .verifierContract(VERIFIER)
                             .configProofBytes(defaultConfigProofBytes())
                             .payingWith(GENESIS)
@@ -152,6 +165,9 @@ public class ClprCreateChannelSuite {
                     .channelId(crypto.channelId())
                     .salt(crypto.salt())
                     .peerVerifier(crypto.peerVerifier())
+                    .trustAnchor(crypto.peerTrustAnchor())
+                    .localConfigTimestamp(crypto.localConfigTimestamp())
+                    .localTrustAnchorHash(crypto.localTrustAnchorHash())
                     .verifierContractId(bogusContractId)
                     .configProofBytes(defaultConfigProofBytes())
                     .payingWith(GENESIS)
@@ -167,12 +183,16 @@ public class ClprCreateChannelSuite {
         final var seiByAddress = ContractID.newBuilder()
                 .setEvmAddress(ByteString.copyFrom(seiAddress))
                 .build();
-        final var crypto = new ClprChannelCrypto("eip155:298", seiAddress, "hiero:testing", new byte[] {0, 0, 1});
+        // The verifier is rejected before the channel ID is checked
+        final var crypto = new ClprChannelCrypto();
         return hapiTest(Stream.of(seiByNumber, seiByAddress)
                 .map(verifier -> clprCreateChannel()
                         .channelId(crypto.channelId())
                         .salt(crypto.salt())
                         .peerVerifier(crypto.peerVerifier())
+                        .trustAnchor(crypto.peerTrustAnchor())
+                        .localConfigTimestamp(crypto.localConfigTimestamp())
+                        .localTrustAnchorHash(crypto.localTrustAnchorHash())
                         .verifierContractId(verifier)
                         .configProofBytes(defaultConfigProofBytes())
                         .payingWith(GENESIS)
@@ -191,6 +211,9 @@ public class ClprCreateChannelSuite {
                         .channelId(new byte[32])
                         .salt(new byte[32])
                         .peerVerifier(new byte[20])
+                        .trustAnchor(new byte[] {1})
+                        .localConfigTimestamp(Timestamp.getDefaultInstance())
+                        .localTrustAnchorHash(new byte[32])
                         .verifierContractId(
                                 ContractID.newBuilder().setContractNum(366).build())
                         .configProofBytes(defaultConfigProofBytes())
@@ -211,6 +234,9 @@ public class ClprCreateChannelSuite {
                             .channelId(crypto.channelId())
                             .salt(crypto.salt())
                             .peerVerifier(crypto.peerVerifier())
+                            .trustAnchor(crypto.peerTrustAnchor())
+                            .localConfigTimestamp(crypto.localConfigTimestamp())
+                            .localTrustAnchorHash(crypto.localTrustAnchorHash())
                             .verifierContract(VERIFIER)
                             .configProofBytes(defaultConfigProofBytes())
                             .payingWith(GENESIS)

@@ -90,13 +90,17 @@ message ClprUpdateLedgerConfigurationTransactionBody {
 
 ```protobuf
 // Any payer can open a channel after the verifier authenticates the peer configuration.
+// channel_id = keccak256(lo ‖ hi ‖ salt) over the sorted legs; see README "Opening a channel".
 message ClprCreateChannelTransactionBody {
   bytes channel_id = 1;
   bytes salt = 2;
-  proto.ContractID verifier_contract = 3;
-  bytes peer_verifier = 4;
+  proto.ContractID verifier_contract = 3;     // this ledger's verifier for the peer
+  bytes peer_verifier = 4;                    // the peer's verifier for this ledger
   bytes config_proof_bytes = 5;
   bytes endpoint_manifest_proof_bytes = 6;
+  bytes trust_anchor = 7;                     // must equal the proven peer initial_trust_anchor
+  proto.Timestamp local_config_timestamp = 8; // version of the local config the peer holds; may be older than the current one
+  bytes local_trust_anchor_hash = 9;          // must equal keccak256(local initial_trust_anchor)
 }
 
 // Initiates close of a Channel.
@@ -965,7 +969,7 @@ because Hiero verifiers are deployed as EVM smart contracts.
 
 ## 11.5 Signature Verification
 
-The local verifier authenticates the peer configuration during channel opening. The handler derives the channel ID from both endpoint identities and the agreed salt.
+The local verifier authenticates the peer configuration during channel opening. The handler derives the channel ID from one leg per direction and the agreed salt. Each leg commits to the source ledger's identity, configuration timestamp and initial trust anchor, and to the destination's verifier.
 
 - **Endpoint signature:** Signed payload is `keccak256(channel_id || proof_bytes)`. The signer's public key
   is recovered via ecrecover and matched against `ecdsa_signing_key` entries in the Channel's endpoint roster.
@@ -1055,7 +1059,7 @@ separate reply status: inbound Data Messages are dispatched normally in CLOSING 
 
 ### F-4: Channel ID derivation
 
-Both parties derive the same ID from their chain IDs, service addresses, verifier addresses, and a shared salt. See [Opening a channel](README.md#opening-a-channel).
+Both parties derive the same ID from two sorted legs and a shared salt. Each leg commits to the source ledger's chain ID, service address, configuration timestamp and initial trust anchor, and to the destination's verifier. See [Opening a channel](README.md#opening-a-channel).
 
 ### F-5: Response Message to Non-Contract Senders
 

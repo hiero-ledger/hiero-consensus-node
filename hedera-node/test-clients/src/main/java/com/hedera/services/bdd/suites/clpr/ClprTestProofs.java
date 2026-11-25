@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.state.clpr.ClprChannelStatus.fromProtobufOrdi
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.protoToPbj;
 
 import com.esaulpaugh.headlong.abi.Function;
+import com.google.protobuf.ByteString;
 import com.hedera.hapi.block.stream.MerklePath;
 import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.node.state.clpr.ClprChannel;
@@ -17,6 +18,8 @@ import com.hederahashgraph.api.proto.java.ClprChannelStatus;
 import com.hederahashgraph.api.proto.java.ClprEndpointManifest;
 import com.hederahashgraph.api.proto.java.ClprLedgerConfiguration;
 import com.hederahashgraph.api.proto.java.ClprMessagePayload;
+import com.hederahashgraph.api.proto.java.Timestamp;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
@@ -42,7 +45,30 @@ final class ClprTestProofs {
             "verifyConfig(bytes,bytes32,bytes)",
             "(bytes,string,bytes,uint96,(uint32,uint64,uint64,uint32,uint64,uint32,uint32),bytes,bytes,(uint64,bytes,(string,uint32,bytes,bytes)[]))");
 
+    /** Configuration timestamp given to synthetic peer configurations that do not set one. */
+    static final Timestamp PEER_CONFIG_TIMESTAMP =
+            Timestamp.newBuilder().setSeconds(1_000L).build();
+
+    /** Initial trust anchor given to synthetic peer configurations that do not set one. */
+    static final byte[] PEER_TRUST_ANCHOR = "clpr-test-peer-trust-anchor".getBytes(StandardCharsets.UTF_8);
+
     private ClprTestProofs() {}
+
+    /**
+     * Returns the configuration with {@link #PEER_CONFIG_TIMESTAMP} and {@link #PEER_TRUST_ANCHOR} filled in where
+     * unset. Both values are part of the channel ID, so the proof and the derived ID must use the same ones.
+     */
+    static ClprLedgerConfiguration withPeerIdentity(final ClprLedgerConfiguration config) {
+        final var builder = config.toBuilder();
+        if (!config.hasTimestamp()) {
+            builder.setTimestamp(PEER_CONFIG_TIMESTAMP);
+        }
+        if (config.getInitialTrustAnchor().isEmpty()) {
+            builder.setInitialTrustAnchor(ByteString.copyFrom(PEER_TRUST_ANCHOR))
+                    .setInitialTrustAnchorId(ByteString.copyFrom(PEER_TRUST_ANCHOR));
+        }
+        return builder.build();
+    }
 
     /**
      * Decodes the {@link com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration} carried by a config
@@ -84,10 +110,12 @@ final class ClprTestProofs {
      * unwraps the first StateValue field and returns those raw bytes; {@code EvmClprVerifier}
      * then parses them as PBJ {@code ClprLedgerConfiguration}. This matches the protocol
      * §3.1 contract (proof bytes → proven config) without performing any cryptographic
-     * verification — fine for tests, not safe in production.
+     * verification — fine for tests, not safe in production. An unset timestamp or trust anchor is filled in
+     * by {@link #withPeerIdentity}.
      */
     static byte[] toConfigProofBytes(final ClprLedgerConfiguration config) {
-        final var pbjLedgerConfig = protoToPbj(config, com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration.class);
+        final var pbjLedgerConfig =
+                protoToPbj(withPeerIdentity(config), com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration.class);
         final var stateValue = StateValue.newBuilder()
                 .clprServiceILedgerConfiguration(pbjLedgerConfig)
                 .build();

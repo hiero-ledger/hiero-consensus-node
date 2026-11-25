@@ -2,11 +2,21 @@
 
 ## Opening a channel
 
-Submit `proto.ClprService/createChannel` with the expected channel ID, a 32-byte salt, the local verifier contract, the peer verifier address in its native byte encoding, and the peer configuration and endpoint-manifest proofs. The local verifier authenticates the peer chain ID and service address. The first successful open creates the channel in ACTIVE state. Both ledgers must use the same salt.
+Submit `proto.ClprService/createChannel` with the expected channel ID, a 32-byte salt, the local verifier contract, the peer's verifier for this ledger (`peer_verifier`, in its native byte encoding), the peer configuration and endpoint-manifest proofs, and the peer's initial trust anchor (`trust_anchor`). The local verifier authenticates the peer chain ID, service address, configuration timestamp and initial trust anchor; `trust_anchor` must equal the proven anchor. The first successful open creates the channel in ACTIVE state. Both ledgers must use the same salt.
 
-To compute the ID, hash each side's UTF-8 CAIP-2 chain ID, service address bytes, and verifier address bytes independently with Keccak-256. Concatenate the three hashes for each side in that order. Sort the two 96-byte results in unsigned lexicographic order, concatenate them, append the raw salt, and hash the resulting 224 bytes with Keccak-256. Hiero uses the 20-byte service address at 0x16e and its verifier's canonical 20-byte EVM address.
+The channel ID commits to one leg per direction ([CLPR spec #11](https://github.com/LFDT-CLPR/clpr-spec/issues/11#issuecomment-7114293686), [#19](https://github.com/LFDT-CLPR/clpr-spec/issues/19)):
 
-This release retires channel register and complete transactions. Connector registration still uses register and complete.
+```
+leg(S→D)   = keccak256(keccak256(chain_id_S) ‖ keccak256(service_address_S) ‖ enc(config_timestamp_S)
+                       ‖ keccak256(initial_trust_anchor_S) ‖ keccak256(verifier_D))
+channel_id = keccak256(lo ‖ hi ‖ salt)
+```
+
+`enc` is `abi.encode(uint96 nanosSinceEpoch)`, a 32-byte big-endian word. `verifier_D` is the verifier on D for S. The two legs are sorted in unsigned lexicographic order into `lo` and `hi`; equal legs are rejected. Hiero uses the 20-byte service address at 0x16e and its verifier's canonical 20-byte EVM address.
+
+On ledger L with peer P, the peer leg uses the proven peer configuration, `keccak256(trust_anchor)` and L's verifier. The local leg uses L's chain ID and service address from state, and the required `local_config_timestamp`, `local_trust_anchor_hash` and `peer_verifier`. `local_config_timestamp` is the version of L's configuration that P holds. It is not compared with L's current configuration: an older value is valid, and L stores it as `last_config_timestamp`, so its newer configuration reaches P as a ConfigUpdate. `local_trust_anchor_hash` must equal `keccak256` of L's initial trust anchor.
+
+This release retires the channel and connector register and complete transactions; each is created with one transaction.
 
 This directory describes how the **Cross-Ledger Permissioned Routing (CLPR)** protocol is
 manifested in the Hiero (Hedera) consensus node. It is intended to be loaded by humans and AI

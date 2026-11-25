@@ -11,6 +11,7 @@ import com.hederahashgraph.api.proto.java.ClprCreateChannelTransactionBody;
 import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Key;
+import com.hederahashgraph.api.proto.java.Timestamp;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import java.util.List;
 import java.util.Optional;
@@ -29,6 +30,9 @@ public class HapiClprCreateChannel extends HapiTxnOp<HapiClprCreateChannel> {
     private Optional<ContractID> verifierContractId = Optional.empty();
     private byte[] configProofBytes;
     private byte[] endpointManifestProofBytes;
+    private byte[] trustAnchor;
+    private Timestamp localConfigTimestamp;
+    private byte[] localTrustAnchorHash;
 
     public HapiClprCreateChannel() {}
 
@@ -73,6 +77,24 @@ public class HapiClprCreateChannel extends HapiTxnOp<HapiClprCreateChannel> {
         return this;
     }
 
+    /** Sets the peer's initial trust anchor, which must equal the one in the proven peer configuration. */
+    public HapiClprCreateChannel trustAnchor(final byte[] trustAnchor) {
+        this.trustAnchor = trustAnchor;
+        return this;
+    }
+
+    /** Sets the local configuration timestamp the peer holds; the ledger uses its current one when unset. */
+    public HapiClprCreateChannel localConfigTimestamp(final Timestamp localConfigTimestamp) {
+        this.localConfigTimestamp = localConfigTimestamp;
+        return this;
+    }
+
+    /** Sets the optional hash of the trust anchor the peer holds for the local ledger. */
+    public HapiClprCreateChannel localTrustAnchorHash(final byte[] localTrustAnchorHash) {
+        this.localTrustAnchorHash = localTrustAnchorHash;
+        return this;
+    }
+
     @Override
     public HederaFunctionality type() {
         return ClprCreateChannel;
@@ -106,6 +128,15 @@ public class HapiClprCreateChannel extends HapiTxnOp<HapiClprCreateChannel> {
                             }
                             if (endpointManifestProofBytes != null) {
                                 b.setEndpointManifestProofBytes(ByteString.copyFrom(endpointManifestProofBytes));
+                            }
+                            if (trustAnchor != null) {
+                                b.setTrustAnchor(ByteString.copyFrom(trustAnchor));
+                            }
+                            if (localConfigTimestamp != null) {
+                                b.setLocalConfigTimestamp(localConfigTimestamp);
+                            }
+                            if (localTrustAnchorHash != null) {
+                                b.setLocalTrustAnchorHash(ByteString.copyFrom(localTrustAnchorHash));
                             }
                         });
         return b -> b.setClprCreateChannel(opBody);

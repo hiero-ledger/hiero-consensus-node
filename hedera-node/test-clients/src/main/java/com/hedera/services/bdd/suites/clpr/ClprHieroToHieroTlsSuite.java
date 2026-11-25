@@ -53,7 +53,7 @@ public class ClprHieroToHieroTlsSuite extends HieroToHieroBase {
     @DisplayName("given HAPI TLS on both ledgers, when A sends a message, then it reaches B over the HAPI TLS port")
     Stream<DynamicTest> givenHapiTlsOnBothLedgers_whenASendsMessage_thenItReachesBOverHapiTlsPort(
             final SubProcessNetwork ledgerA, final SubProcessNetwork ledgerB) {
-        final var crypto = new ClprCrypto(ledgerA, ledgerB);
+        final var crypto = new ClprCrypto();
 
         return multiNetworkHapiTest(
                 "tlsOneWayDelivery",

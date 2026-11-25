@@ -92,15 +92,15 @@ public class ClprSubmitBundleSuite {
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
     final Stream<DynamicTest> rejectsMalformedPayload() {
         return hapiTest(ClprChannelCrypto.withVerifier(
-                VERIFIER_CONTRACT, "hiero:testing", CLPR_SERVICE_ADDRESS_20, crypto -> {
+                VERIFIER_CONTRACT, "hiero:testing", CLPR_SERVICE_ADDRESS_20, defaultLedgerConfig(), crypto -> {
                     return blockingOrder(
-                            clprUpdateLedgerConfiguration()
-                                    .configuration(defaultLedgerConfig())
-                                    .payingWith(GENESIS),
                             clprCreateChannel()
                                     .channelId(crypto.channelId())
                                     .salt(crypto.salt())
                                     .peerVerifier(crypto.peerVerifier())
+                                    .trustAnchor(crypto.peerTrustAnchor())
+                                    .localConfigTimestamp(crypto.localConfigTimestamp())
+                                    .localTrustAnchorHash(crypto.localTrustAnchorHash())
                                     .verifierContract(VERIFIER_CONTRACT)
                                     .configProofBytes(toConfigProofBytes(defaultLedgerConfig()))
                                     .payingWith(GENESIS),
@@ -117,7 +117,7 @@ public class ClprSubmitBundleSuite {
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
     final Stream<DynamicTest> successfulEmptyBundle() {
         return hapiTest(ClprChannelCrypto.withVerifier(
-                VERIFIER_CONTRACT, "hiero:testing", CLPR_SERVICE_ADDRESS_20, crypto -> {
+                VERIFIER_CONTRACT, "hiero:testing", CLPR_SERVICE_ADDRESS_20, defaultLedgerConfig(), crypto -> {
                     // Empty bundle: no messages, next_message_id=1 (same as channel initial state)
                     final var bundle = ClprBundleContent.newBuilder()
                             .setMetadata(ClprQueueMetadata.newBuilder()
@@ -128,13 +128,13 @@ public class ClprSubmitBundleSuite {
                                     .build())
                             .build();
                     return blockingOrder(
-                            clprUpdateLedgerConfiguration()
-                                    .configuration(defaultLedgerConfig())
-                                    .payingWith(GENESIS),
                             clprCreateChannel()
                                     .channelId(crypto.channelId())
                                     .salt(crypto.salt())
                                     .peerVerifier(crypto.peerVerifier())
+                                    .trustAnchor(crypto.peerTrustAnchor())
+                                    .localConfigTimestamp(crypto.localConfigTimestamp())
+                                    .localTrustAnchorHash(crypto.localTrustAnchorHash())
                                     .verifierContract(VERIFIER_CONTRACT)
                                     .configProofBytes(toConfigProofBytes(defaultLedgerConfig()))
                                     .payingWith(GENESIS),
@@ -149,7 +149,7 @@ public class ClprSubmitBundleSuite {
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
     final Stream<DynamicTest> successfulSingleMessageBundle() {
         return hapiTest(ClprChannelCrypto.withVerifier(
-                VERIFIER_CONTRACT, "hiero:testing", CLPR_SERVICE_ADDRESS_20, crypto -> {
+                VERIFIER_CONTRACT, "hiero:testing", CLPR_SERVICE_ADDRESS_20, defaultLedgerConfig(), crypto -> {
                     // Build a single data message and compute running hash
                     final var dataPayload = ClprMessagePayload.newBuilder()
                             .setMessage(ClprMessage.newBuilder()
@@ -161,13 +161,13 @@ public class ClprSubmitBundleSuite {
                             .build();
                     return blockingOrder(
                             overriding("clpr.minLockedStake", "100"),
-                            clprUpdateLedgerConfiguration()
-                                    .configuration(defaultLedgerConfig())
-                                    .payingWith(GENESIS),
                             clprCreateChannel()
                                     .channelId(crypto.channelId())
                                     .salt(crypto.salt())
                                     .peerVerifier(crypto.peerVerifier())
+                                    .trustAnchor(crypto.peerTrustAnchor())
+                                    .localConfigTimestamp(crypto.localConfigTimestamp())
+                                    .localTrustAnchorHash(crypto.localTrustAnchorHash())
                                     .verifierContract(VERIFIER_CONTRACT)
                                     .configProofBytes(toConfigProofBytes(defaultLedgerConfig()))
                                     .payingWith(GENESIS),
@@ -197,7 +197,7 @@ public class ClprSubmitBundleSuite {
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
     final Stream<DynamicTest> drainedChannelStillAcceptsBundles() {
         return hapiTest(ClprChannelCrypto.withVerifier(
-                VERIFIER_CONTRACT, "hiero:testing", CLPR_SERVICE_ADDRESS_20, crypto -> {
+                VERIFIER_CONTRACT, "hiero:testing", CLPR_SERVICE_ADDRESS_20, defaultLedgerConfig(), crypto -> {
                     // One "hello" message per bundle so neither hits the EmptyBundle rejection
                     // (spec §4.2 step 1a — no messages, no rotation, no ack progress).
                     final var helloMessage = ClprMessagePayload.newBuilder()
@@ -232,13 +232,13 @@ public class ClprSubmitBundleSuite {
                             .addMessages(helloMessage)
                             .build();
                     return blockingOrder(
-                            clprUpdateLedgerConfiguration()
-                                    .configuration(defaultLedgerConfig())
-                                    .payingWith(GENESIS),
                             clprCreateChannel()
                                     .channelId(crypto.channelId())
                                     .salt(crypto.salt())
                                     .peerVerifier(crypto.peerVerifier())
+                                    .trustAnchor(crypto.peerTrustAnchor())
+                                    .localConfigTimestamp(crypto.localConfigTimestamp())
+                                    .localTrustAnchorHash(crypto.localTrustAnchorHash())
                                     .verifierContract(VERIFIER_CONTRACT)
                                     .configProofBytes(toConfigProofBytes(defaultLedgerConfig()))
                                     .payingWith(GENESIS),
@@ -264,7 +264,7 @@ public class ClprSubmitBundleSuite {
         // (peerState == CLOSED satisfies the same guard as CLOSING/DRAINED per the handler's
         // step-10 check: peerState ∈ {CLOSING, DRAINED, CLOSED} && localStatus == ACTIVE.)
         return hapiTest(ClprChannelCrypto.withVerifier(
-                VERIFIER_CONTRACT, "hiero:testing", CLPR_SERVICE_ADDRESS_20, crypto -> {
+                VERIFIER_CONTRACT, "hiero:testing", CLPR_SERVICE_ADDRESS_20, defaultLedgerConfig(), crypto -> {
                     final var closedPeerBundle = ClprBundleContent.newBuilder()
                             .setMetadata(ClprQueueMetadata.newBuilder()
                                     .setNextMessageId(2)
@@ -283,9 +283,6 @@ public class ClprSubmitBundleSuite {
                             .build();
                     return blockingOrder(
                             overriding("clpr.minLockedStake", "100"),
-                            clprUpdateLedgerConfiguration()
-                                    .configuration(defaultLedgerConfig())
-                                    .payingWith(GENESIS),
                             uploadInitCode(CONNECTOR_CONTRACT),
                             contractCreate(CONNECTOR_CONTRACT),
                             uploadInitCode(CLPR_CONTRACT),
@@ -295,6 +292,9 @@ public class ClprSubmitBundleSuite {
                                     .channelId(crypto.channelId())
                                     .salt(crypto.salt())
                                     .peerVerifier(crypto.peerVerifier())
+                                    .trustAnchor(crypto.peerTrustAnchor())
+                                    .localConfigTimestamp(crypto.localConfigTimestamp())
+                                    .localTrustAnchorHash(crypto.localTrustAnchorHash())
                                     .verifierContract(VERIFIER_CONTRACT)
                                     .configProofBytes(toConfigProofBytes(defaultLedgerConfig()))
                                     .payingWith(GENESIS),
@@ -337,7 +337,7 @@ public class ClprSubmitBundleSuite {
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
     final Stream<DynamicTest> configPropagatedOnSubmitBundleAfterConfigUpdate() {
         return hapiTest(ClprChannelCrypto.withVerifier(
-                VERIFIER_CONTRACT, "hiero:testing", CLPR_SERVICE_ADDRESS_20, crypto -> {
+                VERIFIER_CONTRACT, "hiero:testing", CLPR_SERVICE_ADDRESS_20, defaultLedgerConfig(), crypto -> {
                     // Empty bundle — no messages, just triggers lazy config propagation
                     final var bundle = ClprBundleContent.newBuilder()
                             .setMetadata(ClprQueueMetadata.newBuilder()
@@ -357,13 +357,13 @@ public class ClprSubmitBundleSuite {
                             .build();
                     return blockingOrder(
                             // Initial config
-                            clprUpdateLedgerConfiguration()
-                                    .configuration(defaultLedgerConfig())
-                                    .payingWith(GENESIS),
                             clprCreateChannel()
                                     .channelId(crypto.channelId())
                                     .salt(crypto.salt())
                                     .peerVerifier(crypto.peerVerifier())
+                                    .trustAnchor(crypto.peerTrustAnchor())
+                                    .localConfigTimestamp(crypto.localConfigTimestamp())
+                                    .localTrustAnchorHash(crypto.localTrustAnchorHash())
                                     .verifierContract(VERIFIER_CONTRACT)
                                     .configProofBytes(toConfigProofBytes(defaultLedgerConfig()))
                                     .payingWith(GENESIS),

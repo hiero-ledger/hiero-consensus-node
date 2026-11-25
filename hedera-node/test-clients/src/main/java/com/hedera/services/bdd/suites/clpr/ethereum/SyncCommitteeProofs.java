@@ -19,6 +19,7 @@ import com.hederahashgraph.api.proto.java.EthereumPosBeaconBlockHeader;
 import com.hederahashgraph.api.proto.java.EthereumPosLedgerConfigurationPayload;
 import com.hederahashgraph.api.proto.java.EthereumPosSyncAggregate;
 import com.hederahashgraph.api.proto.java.EthereumPosSyncCommittee;
+import com.hederahashgraph.api.proto.java.Timestamp;
 import java.math.BigInteger;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -63,6 +64,9 @@ public final class SyncCommitteeProofs {
 
     /** The sync-committee period of the initial trust anchor. */
     private static final long CONFIG_PERIOD = 1_135L;
+
+    /** Timestamp of the peer configuration in the config payload. */
+    private static final long CONFIG_TIMESTAMP_SECONDS = 1_700_000_000L;
 
     /** Members that do not sign the bundles, so every bundle exercises the non-signer proofs. */
     private static final int[] NON_SIGNERS = {3, 17};
@@ -205,6 +209,8 @@ public final class SyncCommitteeProofs {
         return ClprLedgerConfiguration.newBuilder()
                 .setChainId(CHAIN_ID)
                 .setServiceAddress(ByteString.copyFrom(serviceAddress))
+                // Part of the channel ID, so the peer configuration must carry one
+                .setTimestamp(Timestamp.newBuilder().setSeconds(CONFIG_TIMESTAMP_SECONDS))
                 .setThrottles(ClprThrottles.newBuilder()
                         .setMaxMessagesPerBundle(100)
                         .setMaxMessagePayloadBytes(65536)

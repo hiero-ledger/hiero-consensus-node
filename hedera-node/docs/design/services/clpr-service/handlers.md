@@ -40,7 +40,7 @@ side-effects.
 
 ### `ClprCreateChannelHandler`
 
-Any payer can open a channel in one transaction. The selected verifier authenticates the peer configuration and endpoint manifest. The handler derives the channel ID from both ledgers’ chain IDs, service addresses, verifier addresses, and the shared 32-byte salt. If the ID matches the submitted ID and the channel is new, the handler stores the active channel and schedules synchronization with its verified endpoints.
+Any payer can open a channel in one transaction. The selected verifier authenticates the peer configuration and endpoint manifest. The handler checks that `trust_anchor` equals the proven peer initial trust anchor and that `local_trust_anchor_hash` equals the hash of the local initial trust anchor, then derives the channel ID from one leg per direction and the shared 32-byte salt (see [Opening a channel](README.md#opening-a-channel)). Each leg commits to the source ledger's chain ID, service address, configuration timestamp and initial trust anchor, and to the destination's verifier. The local leg uses the required `local_config_timestamp`, which is not compared with the current local configuration and becomes the channel's `last_config_timestamp`. If the ID matches the submitted ID and the channel is new, the handler stores the active channel and schedules synchronization with its verified endpoints.
 
 ### `ClprDeleteChannelHandler` — admin close
 

@@ -279,13 +279,18 @@ note "config-proof hex (${#CONFIG_PROOF_HEX} chars): ${CONFIG_PROOF_HEX:0:60}...
 # Use the same salt and EVM-side verifier used when the EVM channel was opened.
 : "${CHANNEL_SALT:?Set CHANNEL_SALT to the EVM channel salt (32-byte hex)}"
 : "${EVM_VERIFIER_ADDRESS:?Set EVM_VERIFIER_ADDRESS to the verifier on the EVM ledger (20-byte hex)}"
+: "${PEER_TRUST_ANCHOR:?Set PEER_TRUST_ANCHOR to the initial trust anchor the verifier derives from the config payload (hex)}"
+: "${LOCAL_CONFIG_TIMESTAMP:?Set LOCAL_CONFIG_TIMESTAMP to the Hiero configuration timestamp the EVM channel committed to (<seconds>[.<nanos>])}"
+: "${LOCAL_TRUST_ANCHOR_HASH:?Set LOCAL_TRUST_ANCHOR_HASH to keccak256 of the Hiero trust anchor the EVM channel committed to (hex)}"
 header "[4/7] create-channel on ${NET} via verifier ${VERIFIER_CONTRACT}"
 yh_allow_status "CLPR_CHANNEL_ALREADY_EXISTS" "create-channel" "${LOG_DIR}/05-complete-conn.log" \
     -n "${NET}" -p "${PAYER}" \
     clpr create-channel \
         --channel-id "${CHANNEL_ID}" --salt "${CHANNEL_SALT}" --peer-verifier "${EVM_VERIFIER_ADDRESS}" \
         --verifier-contract "${VERIFIER_CONTRACT}" \
-        --config-proof-hex "${CONFIG_PROOF_HEX}"
+        --config-proof-hex "${CONFIG_PROOF_HEX}" \
+        --trust-anchor "${PEER_TRUST_ANCHOR}" \
+        --local-config-timestamp "${LOCAL_CONFIG_TIMESTAMP}" --local-trust-anchor-hash "${LOCAL_TRUST_ANCHOR_HASH}"
 
 header "[5/7] generate connector identity"
 # Public-only stub (no key material); the private key goes to ${CONNECTOR_FILE}.key (0600).

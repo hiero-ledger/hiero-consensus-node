@@ -470,6 +470,9 @@ public class ClprDisabledSuite {
                         .channelId(crypto.channelId())
                         .salt(crypto.salt())
                         .peerVerifier(crypto.peerVerifier())
+                        .trustAnchor(crypto.peerTrustAnchor())
+                        .localConfigTimestamp(crypto.localConfigTimestamp())
+                        .localTrustAnchorHash(crypto.localTrustAnchorHash())
                         .verifierContract(VERIFIER_CONTRACT)
                         .configProofBytes(toConfigProofBytes(ledgerConfig())));
         txns.put(

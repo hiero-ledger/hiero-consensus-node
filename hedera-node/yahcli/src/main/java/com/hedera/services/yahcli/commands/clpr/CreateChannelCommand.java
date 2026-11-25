@@ -4,7 +4,9 @@ package com.hedera.services.yahcli.commands.clpr;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCreateChannel;
 import static com.hedera.services.yahcli.config.ConfigUtils.configFrom;
 
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.services.yahcli.suites.ClprTxnSuite;
+import java.nio.file.Path;
 import java.util.concurrent.Callable;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.HelpCommand;
@@ -32,6 +34,38 @@ public class CreateChannelCommand implements Callable<Integer> {
 
     @Option(names = "--peer-verifier", required = true, description = "Verifier address on the peer ledger in hex.")
     String peerVerifierHex;
+
+    @Option(
+            names = "--trust-anchor",
+            description = "Peer initial trust anchor in hex. Must equal the anchor in the proven peer configuration. "
+                    + "Defaults to the anchor in --peer-config.")
+    String trustAnchorHex;
+
+    @Option(
+            names = "--peer-config",
+            paramLabel = "<path>",
+            description = "Peer configuration file written by `get-ledger-configuration --out`. Supplies the peer "
+                    + "trust anchor and, without --config-proof or --config-proof-hex, the configuration proof.")
+    String peerConfigFile;
+
+    @Option(
+            names = "--local-config",
+            paramLabel = "<path>",
+            description = "Local configuration file written by `get-ledger-configuration --out` when the channel ID "
+                    + "was generated. Supplies the local configuration timestamp and trust anchor hash.")
+    String localConfigFile;
+
+    @Option(
+            names = "--local-config-timestamp",
+            description = "Version of the local configuration the peer holds, as <seconds>[.<nanos>]. "
+                    + "Overrides --local-config.")
+    String localConfigTimestamp;
+
+    @Option(
+            names = "--local-trust-anchor-hash",
+            description = "keccak256 of the trust anchor the peer holds for the local ledger, in hex. Must match the "
+                    + "local initial trust anchor. Overrides --local-config.")
+    String localTrustAnchorHashHex;
 
     @Option(
             names = {"--verifier-contract"},
@@ -85,12 +119,45 @@ public class CreateChannelCommand implements Callable<Integer> {
                 .salt(ClprArgs.requiredBytes("salt", saltHex))
                 .peerVerifier(ClprArgs.requiredBytes("peer-verifier", peerVerifierHex))
                 .verifierContractId(ClprArgs.parseContractId(verifierContract));
-        final var configProofBytes = ClprArgs.optionalBytesFromFileOrHex(
+        final var peerConfig = peerConfigFile == null || peerConfigFile.isBlank()
+                ? null
+                : ClprLedgerConfigFile.read(Path.of(peerConfigFile));
+        var configProofBytes = ClprArgs.optionalBytesFromFileOrHex(
                 "config-proof", configProofFile, "config-proof-hex", configProofHex);
+        if (configProofBytes == null && peerConfig != null) {
+            configProofBytes = peerConfig.stateProof();
+        }
         if (configProofBytes == null) {
-            throw new IllegalArgumentException("Either --config-proof or --config-proof-hex is required");
+            throw new IllegalArgumentException(
+                    "One of --config-proof, --config-proof-hex or --peer-config is required");
         }
         op.configProofBytes(configProofBytes);
+        final var trustAnchor = trustAnchorHex != null
+                ? ClprArgs.parseHex(trustAnchorHex)
+                : peerConfig == null ? null : peerConfig.initialTrustAnchor();
+        if (trustAnchor == null || trustAnchor.length == 0) {
+            throw new IllegalArgumentException("A peer trust anchor is required: pass --trust-anchor or --peer-config");
+        }
+        op.trustAnchor(trustAnchor);
+        final var localConfig = localConfigFile == null || localConfigFile.isBlank()
+                ? null
+                : ClprLedgerConfigFile.read(Path.of(localConfigFile));
+        final var timestamp = localConfigTimestamp != null
+                ? ClprLedgerConfigFile.parseTimestamp(localConfigTimestamp)
+                : localConfig == null ? null : localConfig.timestamp();
+        if (timestamp == null) {
+            throw new IllegalArgumentException(
+                    "A local configuration timestamp is required: pass --local-config or --local-config-timestamp");
+        }
+        op.localConfigTimestamp(timestamp);
+        if (localTrustAnchorHashHex != null) {
+            op.localTrustAnchorHash(ClprArgs.parseHex(localTrustAnchorHashHex));
+        } else if (localConfig != null) {
+            op.localTrustAnchorHash(MiscCryptoUtils.keccak256DigestOf(localConfig.initialTrustAnchor()));
+        } else {
+            throw new IllegalArgumentException(
+                    "A local trust anchor hash is required: pass --local-config or --local-trust-anchor-hash");
+        }
 
         final var endpointManifestProofBytes = ClprArgs.optionalBytesFromFileOrHex(
                 "endpoint-manifest-proof",

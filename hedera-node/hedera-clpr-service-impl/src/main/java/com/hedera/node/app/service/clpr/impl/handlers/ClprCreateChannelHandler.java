@@ -54,7 +54,8 @@ import org.slf4j.LoggerFactory;
 /**
  * Handles {@link com.hedera.hapi.node.base.HederaFunctionality#CLPR_CREATE_CHANNEL} transactions.
  *
- * <p>Verifies the peer configuration and binds both ledger identities and verifiers to the channel ID.
+ * <p>Verifies the peer configuration and derives the channel ID from one leg per direction. Each leg binds the
+ * source ledger's identity, configuration timestamp and initial trust anchor to the destination's verifier.
  */
 @Singleton
 public final class ClprCreateChannelHandler extends AbstractClprHandler {
@@ -139,6 +140,15 @@ public final class ClprCreateChannelHandler extends AbstractClprHandler {
         validateTruePreCheck(op.salt().length() == 32, INVALID_TRANSACTION_BODY);
         validateTruePreCheck(op.hasVerifierContract(), INVALID_TRANSACTION_BODY);
         validateTruePreCheck(op.configProofBytes().length() > 0, INVALID_TRANSACTION_BODY);
+        validateTruePreCheck(op.trustAnchor().length() > 0, INVALID_TRANSACTION_BODY);
+        final var localTimestamp = op.localConfigTimestamp();
+        validateTruePreCheck(
+                localTimestamp != null
+                        && localTimestamp.seconds() >= 0
+                        && localTimestamp.nanos() >= 0
+                        && localTimestamp.nanos() <= 999_999_999,
+                INVALID_TRANSACTION_BODY);
+        validateTruePreCheck(op.localTrustAnchorHash().length() == CHANNEL_ID_LENGTH, INVALID_TRANSACTION_BODY);
     }
 
     @Override
@@ -214,14 +224,32 @@ public final class ClprCreateChannelHandler extends AbstractClprHandler {
                 .readableStore(ReadableLedgerConfigurationStore.class)
                 .getConfiguration();
         validateTrue(!localConfig.chainId().isEmpty() && !peerConfig.chainId().isEmpty(), CLPR_VERIFIER_CONFIG_FAILED);
-        final var expectedId = ClprChannelId.derive(
-                localConfig.chainId(),
-                CLPR_EVM_ADDRESS_BYTES,
-                verifierAddress,
+        // The peer configuration timestamp is hashed into the channel ID, so reject invalid ones first
+        validateTrue(peerConfig.timestamp() != null, CLPR_VERIFIER_CONFIG_FAILED);
+        validateTimestamp(peerConfig.timestamp(), CLPR_VERIFIER_CONFIG_FAILED);
+        // The supplied peer anchor must be the one the peer published in its proven configuration
+        validateTrue(op.trustAnchor().equals(peerConfig.initialTrustAnchor()), CLPR_VERIFIER_CONFIG_FAILED);
+        // The peer learns this ledger's anchor from its configuration, so the supplied hash must match the local one.
+        // Before the ledger id exists the anchor is empty; the peer then cannot create its side of the channel.
+        validateTrue(
+                op.localTrustAnchorHash().equals(MiscCryptoUtils.keccak256DigestOf(localConfig.initialTrustAnchor())),
+                CLPR_VERIFIER_CONFIG_FAILED);
+        // The peer may hold an older local configuration; a newer one reaches it as a ConfigUpdate
+        final var localConfigTimestamp = op.localConfigTimestampOrThrow();
+        final var peerToLocal = ClprChannelId.leg(
                 peerConfig.chainId(),
                 peerConfig.serviceAddress(),
-                op.peerVerifier(),
-                op.salt());
+                peerConfig.timestamp(),
+                MiscCryptoUtils.keccak256DigestOf(op.trustAnchor()),
+                verifierAddress);
+        final var localToPeer = ClprChannelId.leg(
+                localConfig.chainId(),
+                CLPR_EVM_ADDRESS_BYTES,
+                localConfigTimestamp,
+                op.localTrustAnchorHash(),
+                op.peerVerifier());
+        validateTrue(!peerToLocal.equals(localToPeer), INVALID_TRANSACTION_BODY);
+        final var expectedId = ClprChannelId.derive(peerToLocal, localToPeer, op.salt());
         validateTrue(expectedId.equals(op.channelId()), INVALID_TRANSACTION_BODY);
         final var peerManifest = verifiedConfig.manifest();
         // The authoritative peer-endpoint source is the ClprEndpointManifest, mirroring
@@ -295,9 +323,6 @@ public final class ClprCreateChannelHandler extends AbstractClprHandler {
                 rawPeerLimit,
                 truncatedPeerEndpoints.size());
 
-        // Reject peer configs with a semantically invalid timestamp
-        validateTimestamp(peerConfig.timestamp(), CLPR_VERIFIER_CONFIG_FAILED);
-
         // Seed Channel.trust_anchor / trust_anchor_id from the verified config's
         // initial_trust_anchor / initial_trust_anchor_id. For Hiero TSS this is the peer
         // ledger_id (populated by the source ledger on its config). createChannel is the
@@ -316,7 +341,7 @@ public final class ClprCreateChannelHandler extends AbstractClprHandler {
                 .sentRunningHash(ZERO_HASH)
                 .receivedMessageId(0L)
                 .receivedRunningHash(ZERO_HASH)
-                .lastConfigTimestamp(toTimestamp(context.consensusNow()))
+                .lastConfigTimestamp(localConfigTimestamp)
                 .salt(op.salt())
                 .trustAnchor(peerConfig.initialTrustAnchor())
                 .trustAnchorId(peerConfig.initialTrustAnchorId())

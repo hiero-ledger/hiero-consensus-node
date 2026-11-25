@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.clpr;
 
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.protoToPbj;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
 import static com.hedera.services.bdd.junit.ContextRequirement.PROPERTY_OVERRIDES;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
@@ -9,7 +8,6 @@ import static com.hedera.services.bdd.junit.TestTags.CLPR;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCreateChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCreateConnector;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprUpdateLedgerConfiguration;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
@@ -24,15 +22,11 @@ import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.protobuf.ByteString;
-import com.hedera.hapi.block.stream.MerklePath;
-import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.node.state.clpr.ClprBundleRequest;
 import com.hedera.hapi.node.state.clpr.ClprBundleResponse;
 import com.hedera.hapi.node.state.clpr.ClprChannel;
 import com.hedera.hapi.node.state.clpr.ClprStreamingSyncPayload;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
-import com.hedera.hapi.platform.state.StateItem;
-import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.node.app.service.clpr.ClprService;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
@@ -71,7 +65,7 @@ public class ClprOrchestratorSubmitTest {
     @DisplayName("Inbound gRPC sync reaches ClprSubmitBundleHandler")
     final Stream<DynamicTest> inboundSyncReachesHandler() {
         return hapiTest(ClprChannelCrypto.withVerifier(
-                VERIFIER_CONTRACT, "hiero:embedded", CLPR_SERVICE_ADDRESS_20, crypto -> {
+                VERIFIER_CONTRACT, "hiero:embedded", CLPR_SERVICE_ADDRESS_20, buildLedgerConfig(), crypto -> {
                     final var proofBytes = buildProofBytes();
                     // A verified message referencing an unknown remote connector; the bundle itself is valid, so it
                     // passes
@@ -93,15 +87,15 @@ public class ClprOrchestratorSubmitTest {
                             // ClprSubmitBundle transaction — submitted by the node and paying with its
                             // own account — can cover gas for the verifier contract dispatch.
                             cryptoTransfer(tinyBarsFromTo(GENESIS, "3", 100_000_000_000L)),
-                            clprUpdateLedgerConfiguration()
-                                    .configuration(buildLedgerConfig())
-                                    .payingWith(GENESIS),
                             uploadInitCode(CONNECTOR_CONTRACT),
                             contractCreate(CONNECTOR_CONTRACT),
                             clprCreateChannel()
                                     .channelId(crypto.channelId())
                                     .salt(crypto.salt())
                                     .peerVerifier(crypto.peerVerifier())
+                                    .trustAnchor(crypto.peerTrustAnchor())
+                                    .localConfigTimestamp(crypto.localConfigTimestamp())
+                                    .localTrustAnchorHash(crypto.localTrustAnchorHash())
                                     .verifierContract(VERIFIER_CONTRACT)
                                     .configProofBytes(proofBytes.toByteArray())
                                     .payingWith(GENESIS),
@@ -157,17 +151,7 @@ public class ClprOrchestratorSubmitTest {
     }
 
     private static Bytes buildProofBytes() {
-        final ClprLedgerConfiguration ledgerConfig = buildLedgerConfig();
-        final var stateValue = StateValue.newBuilder()
-                .clprServiceILedgerConfiguration(
-                        protoToPbj(ledgerConfig, com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration.class))
-                .build();
-        final var stateItem = StateItem.newBuilder().value(stateValue).build();
-        final var leaf = StateItem.PROTOBUF.toBytes(stateItem);
-        final var path = MerklePath.newBuilder().stateItemLeaf(leaf).build();
-        final var proofBytes =
-                StateProof.PROTOBUF.toBytes(StateProof.newBuilder().paths(path).build());
-        return proofBytes;
+        return Bytes.wrap(ClprTestProofs.toConfigProofBytes(buildLedgerConfig()));
     }
 
     private static ClprLedgerConfiguration buildLedgerConfig() {

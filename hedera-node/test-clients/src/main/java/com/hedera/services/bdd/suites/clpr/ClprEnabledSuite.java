@@ -537,6 +537,10 @@ public class ClprEnabledSuite {
                         .channelId(crypto.channelId())
                         .salt(crypto.salt())
                         .peerVerifier(crypto.peerVerifier())
+                        .trustAnchor(crypto.peerTrustAnchor())
+                        // The configuration update above is newer than the one the ID commits to
+                        .localConfigTimestamp(crypto.localConfigTimestamp())
+                        .localTrustAnchorHash(crypto.localTrustAnchorHash())
                         .verifierContract(VERIFIER_CONTRACT)
                         .configProofBytes(toConfigProofBytes(ledgerConfig())));
         txns.put(

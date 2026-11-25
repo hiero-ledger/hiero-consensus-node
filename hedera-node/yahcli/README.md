@@ -1004,21 +1004,23 @@ exercising a cross-ledger flow.
 
 ### Channels
 
-Use `clpr generate-channel-identity` once for the pair of ledgers. Supply each ledger’s CAIP-2 chain ID, service address, and the verifier it uses for the other ledger. Addresses are hex. A Hiero CLPR service uses `000000000000000000000000000000000000016e`. Supply `--salt` to reuse an agreed 32-byte salt. Otherwise the command generates one.
+Use `clpr generate-channel-identity` once for the pair of ledgers. The channel ID commits to one leg per direction. Each leg binds a ledger's chain ID, service address, configuration timestamp and initial trust anchor to the verifier for that ledger on the other side. Pass each ledger's `get-ledger-configuration --out` file with `--local-config` and `--peer-config`, plus the verifier each ledger uses for the other. Addresses are hex. A Hiero ledger's verifier is the CLPR system contract `000000000000000000000000000000000000016e`. For a ledger without such a file, pass `--<side>-chain-id`, `--<side>-service`, `--<side>-config-timestamp` (`<seconds>[.<nanos>]`) and `--<side>-trust-anchor` instead; these also override the file. Supply `--salt` to reuse an agreed 32-byte salt. Otherwise the command generates one.
 
 ```sh
-yahcli clpr generate-channel-identity --local-chain-id "$CHAIN_A" --local-service "$SERVICE_A" \
-  --local-verifier "$VERIFIER_A" --peer-chain-id "$CHAIN_B" --peer-service "$SERVICE_B" \
-  --peer-verifier "$VERIFIER_B" --out channel.json
+yahcli clpr generate-channel-identity --local-config config-a.json --local-verifier "$VERIFIER_A" \
+  --peer-config config-b.json --peer-verifier "$VERIFIER_B" --out channel.json
 ```
 
-Use the output ID and salt on both ledgers. For each Hiero ledger, submit its verifier contract ID, the other ledger’s verifier address, and proofs fetched from the other ledger.
+Use the output ID and salt on both ledgers. For each Hiero ledger, submit its verifier contract ID, the other ledger's verifier address, the other ledger's configuration file (for its trust anchor) and proofs fetched from the other ledger.
 
 ```sh
 yahcli -n "$NETWORK_A" clpr create-channel --channel-id "$(jq -r .channelId channel.json)" \
   --salt "$(jq -r .salt channel.json)" --verifier-contract "$LOCAL_CONTRACT_ID" \
-  --peer-verifier "$VERIFIER_B" --config-proof peer-config.bin --endpoint-manifest-proof peer-manifest.bin
+  --peer-verifier "$VERIFIER_B" --peer-config config-b.json --local-config config-a.json \
+  --config-proof peer-config.bin --endpoint-manifest-proof peer-manifest.bin
 ```
+
+Pass the same configuration files used to generate the channel ID. `--peer-config` supplies the peer's initial trust anchor, and `--local-config` supplies the local configuration timestamp and trust anchor hash, both of which the transaction requires. Without files, use `--trust-anchor <hex>`, `--local-config-timestamp <seconds>[.<nanos>]` and `--local-trust-anchor-hash <hex>`. The local timestamp may be older than the ledger's current configuration; the newer configuration then reaches the peer as a ConfigUpdate.
 
 Admin may close a channel with `clpr delete-channel --channel-id <hex>`.
 
