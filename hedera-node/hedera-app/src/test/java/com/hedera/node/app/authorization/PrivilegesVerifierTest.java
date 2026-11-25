@@ -881,6 +881,38 @@ class PrivilegesVerifierTest {
     }
 
     @Test
+    void systemDeleteAndUndeleteOfTwentyByteLongZeroEvmAddressAreStillSystemEntities()
+            throws InvalidProtocolBufferException {
+        // given:
+        final var contractId = ContractID.newBuilder()
+                .setEvmAddress(ByteString.copyFrom(asEvmAddress(123)))
+                .build();
+        var deleteTxn = treasuryTxn()
+                .setSystemDelete(SystemDeleteTransactionBody.newBuilder().setContractID(contractId));
+        var undeleteTxn = treasuryTxn()
+                .setSystemUndelete(SystemUndeleteTransactionBody.newBuilder().setContractID(contractId));
+        // expect:
+        assertEquals(SystemOpAuthorization.IMPERMISSIBLE, subject.authForTestCase(accessor(deleteTxn)));
+        assertEquals(SystemOpAuthorization.IMPERMISSIBLE, subject.authForTestCase(accessor(undeleteTxn)));
+    }
+
+    @Test
+    void systemDeleteAndUndeleteOfTwentyByteNonLongZeroEvmAddressAreNotSystemEntities()
+            throws InvalidProtocolBufferException {
+        // given:
+        final var contractId = ContractID.newBuilder()
+                .setEvmAddress(ByteString.fromHex("abcd1234abcd1234abcd1234abcd1234abcd1234"))
+                .build();
+        var deleteTxn = sysDeleteTxn()
+                .setSystemDelete(SystemDeleteTransactionBody.newBuilder().setContractID(contractId));
+        var undeleteTxn = sysUndeleteTxn()
+                .setSystemUndelete(SystemUndeleteTransactionBody.newBuilder().setContractID(contractId));
+        // expect:
+        assertEquals(SystemOpAuthorization.AUTHORIZED, subject.authForTestCase(accessor(deleteTxn)));
+        assertEquals(SystemOpAuthorization.AUTHORIZED, subject.authForTestCase(accessor(undeleteTxn)));
+    }
+
+    @Test
     void twentyByteLongZeroAliasIsStillRecognizedAsSystemEntity() throws InvalidProtocolBufferException {
         // given:
         var txn = civilianTxn()
