@@ -88,7 +88,7 @@ public class NodeDeathReconnectBlockNodeSuite implements LifecycleTest {
     // Pinned to the testnet (cutover) values: the only configuration this scenario has been validated with
     @HapiTest
     @HapiBlockNode(
-            networkSize = 2,
+            networkSize = 3,
             blockNodeConfigs = {
                 @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL),
                 @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.REAL),
@@ -98,7 +98,7 @@ public class NodeDeathReconnectBlockNodeSuite implements LifecycleTest {
                 @SubProcessNodeConfig(
                         nodeId = 0,
                         blockNodeIds = {0, 1, 2},
-                        blockNodePriorities = {0, 0, 0},
+                        blockNodePriorities = {0, 1, 2},
                         applicationPropertiesOverrides = {
                             "blockStream.buffer.maxBlocks", "15",
                             "blockStream.streamMode", "BLOCKS",
@@ -110,8 +110,21 @@ public class NodeDeathReconnectBlockNodeSuite implements LifecycleTest {
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 1,
-                        blockNodeIds = {0, 1, 2},
-                        blockNodePriorities = {0, 0, 0},
+                        blockNodeIds = {1, 2, 0},
+                        blockNodePriorities = {0, 1, 2},
+                        applicationPropertiesOverrides = {
+                            "blockStream.buffer.maxBlocks", "15",
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.writerMode", "GRPC",
+                            "blockStream.enableCutover", "true",
+                            "blockStream.streamWrappedRecordBlocks", "false",
+                            "blockStream.buffer.isBufferPersistenceEnabled", "true",
+                            "tss.forceMockSignatures", "false"
+                        }),
+                @SubProcessNodeConfig(
+                        nodeId = 2,
+                        blockNodeIds = {2, 0, 1},
+                        blockNodePriorities = {0, 1, 2},
                         applicationPropertiesOverrides = {
                             "blockStream.buffer.maxBlocks", "15",
                             "blockStream.streamMode", "BLOCKS",

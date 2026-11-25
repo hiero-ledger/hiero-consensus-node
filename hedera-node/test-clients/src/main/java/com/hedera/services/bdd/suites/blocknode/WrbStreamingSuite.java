@@ -36,13 +36,17 @@ public class WrbStreamingSuite {
 
     @HapiTest
     @HapiBlockNode(
-            networkSize = 1,
-            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
+            networkSize = 3,
+            blockNodeConfigs = {
+                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR),
+                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.SIMULATOR),
+                @BlockNodeConfig(nodeId = 2, mode = BlockNodeMode.SIMULATOR)
+            },
             subProcessNodeConfigs = {
                 @SubProcessNodeConfig(
                         nodeId = 0,
-                        blockNodeIds = {0},
-                        blockNodePriorities = {0},
+                        blockNodeIds = {0, 1, 2},
+                        blockNodePriorities = {0, 1, 2},
                         applicationPropertiesOverrides = {
                             // Wrapped record blocks only exist in the pre-cutover world
                             "blockStream.streamMode", "BOTH",
@@ -54,8 +58,41 @@ public class WrbStreamingSuite {
                             // Forces votingBlockNumInitialized() so WRB emission fires without
                             // waiting for migration voting; matches the unit-test pattern in
                             // BlockRecordManagerImplWrappedRecordFileBlockHashesTest.
-                            "blockStream.jumpstart.blockNum", "1",
-                            "blockStream.buffer.minAcksRequiredPerBlock", "1"
+                            "blockStream.jumpstart.blockNum", "1"
+                        }),
+                @SubProcessNodeConfig(
+                        nodeId = 1,
+                        blockNodeIds = {1, 2, 0},
+                        blockNodePriorities = {0, 1, 2},
+                        applicationPropertiesOverrides = {
+                            // Wrapped record blocks only exist in the pre-cutover world
+                            "blockStream.streamMode", "BOTH",
+                            "blockStream.streamWrappedRecordBlocks", "true",
+                            "blockStream.enableCutover", "false",
+                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
+                            "tss.forceMockSignatures", "true",
+                            "hedera.recordStream.liveWritePrevWrappedRecordHashes", "true",
+                            // Forces votingBlockNumInitialized() so WRB emission fires without
+                            // waiting for migration voting; matches the unit-test pattern in
+                            // BlockRecordManagerImplWrappedRecordFileBlockHashesTest.
+                            "blockStream.jumpstart.blockNum", "1"
+                        }),
+                @SubProcessNodeConfig(
+                        nodeId = 2,
+                        blockNodeIds = {2, 0, 1},
+                        blockNodePriorities = {0, 1, 2},
+                        applicationPropertiesOverrides = {
+                            // Wrapped record blocks only exist in the pre-cutover world
+                            "blockStream.streamMode", "BOTH",
+                            "blockStream.streamWrappedRecordBlocks", "true",
+                            "blockStream.enableCutover", "false",
+                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
+                            "tss.forceMockSignatures", "true",
+                            "hedera.recordStream.liveWritePrevWrappedRecordHashes", "true",
+                            // Forces votingBlockNumInitialized() so WRB emission fires without
+                            // waiting for migration voting; matches the unit-test pattern in
+                            // BlockRecordManagerImplWrappedRecordFileBlockHashesTest.
+                            "blockStream.jumpstart.blockNum", "1"
                         })
             })
     @Order(0)
@@ -106,13 +143,17 @@ public class WrbStreamingSuite {
 
     @HapiTest
     @HapiBlockNode(
-            networkSize = 1,
-            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
+            networkSize = 3,
+            blockNodeConfigs = {
+                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR),
+                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.SIMULATOR),
+                @BlockNodeConfig(nodeId = 2, mode = BlockNodeMode.SIMULATOR)
+            },
             subProcessNodeConfigs = {
                 @SubProcessNodeConfig(
                         nodeId = 0,
-                        blockNodeIds = {0},
-                        blockNodePriorities = {0},
+                        blockNodeIds = {0, 1, 2},
+                        blockNodePriorities = {0, 1, 2},
                         applicationPropertiesOverrides = {
                             "blockStream.streamMode", "BOTH",
                             "blockStream.enableCutover", "false",
@@ -123,8 +164,39 @@ public class WrbStreamingSuite {
                             // never forwarded to the block node.
                             "hedera.recordStream.liveWritePrevWrappedRecordHashes", "true",
                             "blockStream.jumpstart.blockNum", "1",
-                            "blockStream.streamWrappedRecordBlocks", "false",
-                            "blockStream.buffer.minAcksRequiredPerBlock", "1"
+                            "blockStream.streamWrappedRecordBlocks", "false"
+                        }),
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {1, 2, 0},
+                        blockNodePriorities = {0, 1, 2},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BOTH",
+                            "blockStream.enableCutover", "false",
+                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
+                            "tss.forceMockSignatures", "true",
+                            "blockStream.writerMode", "FILE",
+                            // WRB build path on but streaming flag off: items computed locally,
+                            // never forwarded to the block node.
+                            "hedera.recordStream.liveWritePrevWrappedRecordHashes", "true",
+                            "blockStream.jumpstart.blockNum", "1",
+                            "blockStream.streamWrappedRecordBlocks", "false"
+                        }),
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {2, 0, 1},
+                        blockNodePriorities = {0, 1, 2},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BOTH",
+                            "blockStream.enableCutover", "false",
+                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
+                            "tss.forceMockSignatures", "true",
+                            "blockStream.writerMode", "FILE",
+                            // WRB build path on but streaming flag off: items computed locally,
+                            // never forwarded to the block node.
+                            "hedera.recordStream.liveWritePrevWrappedRecordHashes", "true",
+                            "blockStream.jumpstart.blockNum", "1",
+                            "blockStream.streamWrappedRecordBlocks", "false"
                         })
             })
     @Order(1)

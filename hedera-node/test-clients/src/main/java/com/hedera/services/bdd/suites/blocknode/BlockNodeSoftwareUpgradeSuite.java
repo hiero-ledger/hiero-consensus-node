@@ -62,92 +62,64 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                         blockNodeIds = {0, 1, 2},
                         blockNodePriorities = {0, 1, 1},
                         applicationPropertiesOverrides = {
-                            "blockStream.streamMode",
-                            "BLOCKS",
-                            "blockStream.writerMode",
-                            "GRPC",
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.writerMode", "GRPC",
                             /*
-                            "tss.hintsEnabled",
-                            "true",
-                            "tss.historyEnabled",
-                            "true",*/
-                            "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk",
-                            "false",
-                            "blockStream.buffer.isBufferPersistenceEnabled",
-                            "true",
-                            "blockNode.blockNodeStatusTimeout",
-                            "10s",
-                            "tss.forceMockSignatures",
-                            "false"
+                            "tss.hintsEnabled", "true",
+                            "tss.historyEnabled", "true",
+                            */
+                            "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", "false",
+                            "blockStream.buffer.isBufferPersistenceEnabled", "true",
+                            "blockNode.blockNodeStatusTimeout", "10s",
+                            "tss.forceMockSignatures", "false"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 1,
-                        blockNodeIds = {0, 1, 2},
+                        blockNodeIds = {1, 2, 0},
                         blockNodePriorities = {0, 1, 1},
                         applicationPropertiesOverrides = {
-                            "blockStream.streamMode",
-                            "BLOCKS",
-                            "blockStream.writerMode",
-                            "GRPC",
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.writerMode", "GRPC",
                             /*
-                            "tss.hintsEnabled",
-                            "true",
-                            "tss.historyEnabled",
-                            "true",*/
-                            "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk",
-                            "false",
-                            "blockStream.buffer.isBufferPersistenceEnabled",
-                            "true",
-                            "blockNode.blockNodeStatusTimeout",
-                            "10s",
-                            "tss.forceMockSignatures",
-                            "false"
+                            "tss.hintsEnabled", "true",
+                            "tss.historyEnabled", "true",
+                            */
+                            "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", "false",
+                            "blockStream.buffer.isBufferPersistenceEnabled", "true",
+                            "blockNode.blockNodeStatusTimeout", "10s",
+                            "tss.forceMockSignatures", "false"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 2,
-                        blockNodeIds = {0, 1, 2},
+                        blockNodeIds = {2, 0, 1},
                         blockNodePriorities = {0, 1, 1},
                         applicationPropertiesOverrides = {
-                            "blockStream.streamMode",
-                            "BLOCKS",
-                            "blockStream.writerMode",
-                            "GRPC",
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.writerMode", "GRPC",
                             /*
-                            "tss.hintsEnabled",
-                            "true",
-                            "tss.historyEnabled",
-                            "true",*/
-                            "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk",
-                            "false",
-                            "blockStream.buffer.isBufferPersistenceEnabled",
-                            "true",
-                            "blockNode.blockNodeStatusTimeout",
-                            "10s",
-                            "tss.forceMockSignatures",
-                            "false"
+                            "tss.hintsEnabled", "true",
+                            "tss.historyEnabled", "true",
+                            */
+                            "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", "false",
+                            "blockStream.buffer.isBufferPersistenceEnabled", "true",
+                            "blockNode.blockNodeStatusTimeout", "10s",
+                            "tss.forceMockSignatures", "false"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 3,
                         blockNodeIds = {0, 1, 2},
                         blockNodePriorities = {0, 1, 1},
                         applicationPropertiesOverrides = {
-                            "blockStream.streamMode",
-                            "BLOCKS",
-                            "blockStream.writerMode",
-                            "GRPC",
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.writerMode", "GRPC",
                             /*
-                            "tss.hintsEnabled",
-                            "true",
-                            "tss.historyEnabled",
-                            "true",*/
-                            "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk",
-                            "false",
-                            "blockStream.buffer.isBufferPersistenceEnabled",
-                            "true",
-                            "blockNode.blockNodeStatusTimeout",
-                            "10s",
-                            "tss.forceMockSignatures",
-                            "false"
+                            "tss.hintsEnabled", "true",
+                            "tss.historyEnabled", "true",
+                            */
+                            "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", "false",
+                            "blockStream.buffer.isBufferPersistenceEnabled", "true",
+                            "blockNode.blockNodeStatusTimeout", "10s",
+                            "tss.forceMockSignatures", "false"
                         }),
             })
     @Order(0)
