@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.handlers;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.EMPTY_EVM_HOOK_STORAGE_UPDATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOO_MANY_EVM_HOOK_STORAGE_UPDATES;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
@@ -26,6 +28,8 @@ import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import java.util.Collections;
 import java.util.List;
@@ -64,6 +68,9 @@ public class HookStoreHandlerTest {
     @Mock
     private TokenServiceApi tokenServiceApi;
 
+    @Mock
+    private PureChecksContext pureChecksContext;
+
     private static final HookId HOOK_ID = HookId.newBuilder()
             .entityId(HookEntityId.newBuilder()
                     .accountId(AccountID.newBuilder().accountNum(1001).build())
@@ -100,6 +107,30 @@ public class HookStoreHandlerTest {
 
         verify(evmHookStore).updateStorage(HOOK_ID, updates);
         verify(tokenServiceApi).updateHookStorageSlots(HOOK_ID.entityIdOrThrow().accountIdOrThrow(), 3, false);
+    }
+
+    @Test
+    void mappingUpdateWithoutEntriesIsRejectedInPureChecks() {
+        given(pureChecksContext.body())
+                .willReturn(TransactionBody.newBuilder()
+                        .hookStore(storeOp(List.of(mappingUpdate(0))))
+                        .build());
+
+        assertThatThrownBy(() -> new HookStoreHandler().pureChecks(pureChecksContext))
+                .isInstanceOf(PreCheckException.class)
+                .extracting(e -> ((PreCheckException) e).responseCode())
+                .isEqualTo(EMPTY_EVM_HOOK_STORAGE_UPDATE);
+    }
+
+    @Test
+    void mappingUpdateWithEntriesPassesPureChecks() {
+        given(pureChecksContext.body())
+                .willReturn(TransactionBody.newBuilder()
+                        .hookStore(storeOp(List.of(mappingUpdate(1))))
+                        .build());
+
+        assertThatCode(() -> new HookStoreHandler().pureChecks(pureChecksContext))
+                .doesNotThrowAnyException();
     }
 
     private void givenHandleOf(final List<EvmHookStorageUpdate> updates, final int maxHookStoreUpdates) {

@@ -110,6 +110,8 @@ public class HookStoreHandler implements TransactionHandler {
             } else if (update.hasMappingEntries()) {
                 final var mappingEntries = update.mappingEntriesOrThrow();
                 validateWord(mappingEntries.mappingSlot());
+                // A mapping update without entries writes nothing, so it is as empty as an unset update
+                validateFalsePreCheck(mappingEntries.entries().isEmpty(), EMPTY_EVM_HOOK_STORAGE_UPDATE);
                 for (final var entry : mappingEntries.entries()) {
                     validateEntry(entry);
                 }
