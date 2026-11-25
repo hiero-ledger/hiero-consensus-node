@@ -180,4 +180,17 @@ public record ContractsConfig(
         boolean useBonnevilleEVM,
 
         @ConfigProperty(value = "maxInitcodeSize", defaultValue = "49152") @NetworkProperty
-        int maxInitcodeSize) {}
+        int maxInitcodeSize) {
+
+    /**
+     * Returns the most gas a single contract call can request, the limit the EVM enforces with
+     * {@code MAX_GAS_LIMIT_EXCEEDED}. This is {@link #maxGasPerTransaction()}, lowered to {@link #maxGasPerSec()}
+     * when the gas throttle is on ({@link #throttleThrottleByGas()}): the ingest gas throttle reserves a call's
+     * whole gas limit from a bucket that holds {@code maxGasPerSec} gas, so a larger call could never be admitted.
+     *
+     * @return the effective per-transaction gas limit
+     */
+    public long effectiveMaxGasPerTransaction() {
+        return throttleThrottleByGas() ? Math.min(maxGasPerTransaction, maxGasPerSec) : maxGasPerTransaction;
+    }
+}

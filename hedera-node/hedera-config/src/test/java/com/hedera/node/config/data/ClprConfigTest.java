@@ -63,11 +63,11 @@ class ClprConfigTest {
     }
 
     @Test
-    void verifierGasLimitDoesNotExceedMaxGasPerTransaction() {
+    void verifierGasLimitDoesNotExceedEffectiveMaxGasPerTransaction() {
         final var configuration = HederaTestConfigBuilder.createConfig();
-        // EvmClprVerifier rejects a verifier dispatch above contracts.maxGasPerTransaction
-        assertThat(configuration.getConfigData(ClprConfig.class).verifierGasLimit())
-                .isLessThanOrEqualTo(
-                        configuration.getConfigData(ContractsConfig.class).maxGasPerTransaction());
+        // EvmClprVerifier rejects a verifier dispatch above the EVM's effective per-transaction gas limit
+        final ClprConfig clprConfig = configuration.getConfigData(ClprConfig.class);
+        final ContractsConfig contractsConfig = configuration.getConfigData(ContractsConfig.class);
+        assertThat(clprConfig.verifierGasLimit()).isLessThanOrEqualTo(contractsConfig.effectiveMaxGasPerTransaction());
     }
 }

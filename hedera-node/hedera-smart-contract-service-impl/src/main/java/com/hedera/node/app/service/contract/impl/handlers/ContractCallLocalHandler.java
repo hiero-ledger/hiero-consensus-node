@@ -9,7 +9,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_GAS_LIMIT_EXCEEDED;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.EVM_ADDRESS_LENGTH_AS_INT;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isLongZeroAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
-import static com.hedera.node.app.service.contract.impl.utils.ValidationUtils.getMaxGasLimit;
 import static com.hedera.node.app.spi.validation.Validations.mustExist;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
@@ -87,7 +86,8 @@ public class ContractCallLocalHandler extends PaidQueryHandler {
         final ContractCallLocalQuery op = query.contractCallLocalOrThrow();
         final var requestedGas = op.gas();
         validateTruePreCheck(requestedGas >= 0, CONTRACT_NEGATIVE_GAS);
-        final var maxGasLimit = getMaxGasLimit(context.configuration().getConfigData(ContractsConfig.class));
+        final ContractsConfig contractsConfig = context.configuration().getConfigData(ContractsConfig.class);
+        final var maxGasLimit = contractsConfig.effectiveMaxGasPerTransaction();
         validateTruePreCheck(requestedGas <= maxGasLimit, MAX_GAS_LIMIT_EXCEEDED);
         // accessLists and codeDelegations are null because both are not supported for 'ContractCallLocal'
         final var functionParameters = op.functionParameters();

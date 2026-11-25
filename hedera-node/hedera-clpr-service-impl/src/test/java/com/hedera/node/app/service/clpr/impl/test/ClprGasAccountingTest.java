@@ -110,6 +110,23 @@ class ClprGasAccountingTest {
                 .refundHandlerCharge(any(AccountID.class), anyLong());
     }
 
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void transactionGasIsCappedAtEffectiveMaxGasPerTransaction(final boolean throttleByGas) {
+        given(context.configuration())
+                .willReturn(HederaTestConfigBuilder.create()
+                        .withValue("contracts.maxGasPerTransaction", 15_000_000L)
+                        .withValue("contracts.maxGasPerSec", 8_000_000L)
+                        .withValue("contracts.throttle.throttleByGas", throttleByGas)
+                        .withValue("clpr.verifierGasLimit", 100L)
+                        .getOrCreateConfig());
+        final var subject = ClprGasAccounting.forContext(context);
+
+        // The unreported verifier allowance (100) is reserved from the transaction gas first
+        assertThat(subject.availableApplicationGas(Long.MAX_VALUE))
+                .isEqualTo((throttleByGas ? 8_000_000L : 15_000_000L) - 100L);
+    }
+
     @Test
     void completionReservesOnlyVerifierAllowanceInsteadOfFullTransactionBudget() {
         given(context.body())

@@ -36,6 +36,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -62,6 +63,7 @@ class ClprUpdateLedgerConfigurationHandlerTest {
     private static final int PROTOCOL_VERSION = 1;
     private static final Bytes LEDGER_ID = Bytes.wrap(new byte[] {0x11, 0x22, 0x33, 0x44});
     private static final long MAX_GAS_PER_TRANSACTION = 15_000_000L;
+    private static final long MAX_GAS_PER_SEC = 8_000_000L;
 
     @BeforeEach
     void setUp() {
@@ -276,13 +278,14 @@ class ClprUpdateLedgerConfigurationHandlerTest {
         assertThat(saved.timestamp().nanos()).isEqualTo(890);
     }
 
-    @Test
-    @DisplayName("should reject max_gas_per_message above contracts.maxGasPerTransaction without storing it")
-    void rejectsMaxGasPerMessageAboveMaxGasPerTransaction() {
-        setupHandleContext(configWithMaxGasPerTransaction());
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    @DisplayName("should reject max_gas_per_message above the effective max gas per transaction without storing it")
+    void rejectsMaxGasPerMessageAboveEffectiveMaxGasPerTransaction(final boolean throttleByGas) {
+        setupHandleContext(configWithGasLimits(throttleByGas));
         final var newConfig = validConfigBuilder()
                 .throttles(validThrottlesBuilder()
-                        .maxGasPerMessage(MAX_GAS_PER_TRANSACTION + 1)
+                        .maxGasPerMessage(effectiveMaxGasPerTransaction(throttleByGas) + 1)
                         .build())
                 .build();
         given(handleContext.body()).willReturn(txnBodyWith(newConfig));
@@ -294,12 +297,13 @@ class ClprUpdateLedgerConfigurationHandlerTest {
         verify(configStore, never()).put(any());
     }
 
-    @Test
-    @DisplayName("should store max_gas_per_message equal to contracts.maxGasPerTransaction")
-    void storesMaxGasPerMessageEqualToMaxGasPerTransaction() {
-        setupHandleContext(configWithMaxGasPerTransaction());
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    @DisplayName("should store max_gas_per_message equal to the effective max gas per transaction")
+    void storesMaxGasPerMessageEqualToEffectiveMaxGasPerTransaction(final boolean throttleByGas) {
+        setupHandleContext(configWithGasLimits(throttleByGas));
         final var throttles = validThrottlesBuilder()
-                .maxGasPerMessage(MAX_GAS_PER_TRANSACTION)
+                .maxGasPerMessage(effectiveMaxGasPerTransaction(throttleByGas))
                 .build();
         given(handleContext.body())
                 .willReturn(
@@ -416,10 +420,17 @@ class ClprUpdateLedgerConfigurationHandlerTest {
         given(handleContext.consensusNow()).willReturn(CONSENSUS_NOW);
     }
 
-    private static Configuration configWithMaxGasPerTransaction() {
+    private static Configuration configWithGasLimits(final boolean throttleByGas) {
         return HederaTestConfigBuilder.create()
                 .withValue("contracts.maxGasPerTransaction", MAX_GAS_PER_TRANSACTION)
+                .withValue("contracts.maxGasPerSec", MAX_GAS_PER_SEC)
+                .withValue("contracts.throttle.throttleByGas", throttleByGas)
                 .getOrCreateConfig();
+    }
+
+    /** The gas throttle lowers the EVM's per-transaction limit to {@code contracts.maxGasPerSec}. */
+    private static long effectiveMaxGasPerTransaction(final boolean throttleByGas) {
+        return throttleByGas ? MAX_GAS_PER_SEC : MAX_GAS_PER_TRANSACTION;
     }
 
     private static ClprLedgerConfiguration genesisConfig() {

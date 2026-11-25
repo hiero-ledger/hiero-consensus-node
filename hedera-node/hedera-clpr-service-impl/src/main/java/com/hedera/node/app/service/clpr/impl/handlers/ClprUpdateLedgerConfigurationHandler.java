@@ -34,8 +34,8 @@ import javax.inject.Singleton;
  * {@code eip155:<contracts.chainId>}. The service_address
  * must be the CLPR system contract's EVM address ({@code 0x16e}, the value this ledger's
  * endpoint manifest carries) and defaults to it when omitted. The max_gas_per_message throttle
- * must not exceed {@code contracts.maxGasPerTransaction} (network property defined in
- * {@link ContractsConfig#maxGasPerTransaction()}).
+ * must not exceed the EVM's effective per-transaction gas limit,
+ * {@link ContractsConfig#effectiveMaxGasPerTransaction()}.
  */
 @Singleton
 public class ClprUpdateLedgerConfigurationHandler extends AbstractClprHandler {
@@ -79,13 +79,15 @@ public class ClprUpdateLedgerConfigurationHandler extends AbstractClprHandler {
         final var op = context.body().clprUpdateLedgerConfigurationOrThrow();
         final var supplied = op.configurationOrThrow();
 
-        // Inbound messages are dispatched as contract calls with up to max_gas_per_message gas, and a
-        // call above contracts.maxGasPerTransaction is refused. Reject such a value instead of storing
-        // and advertising a per-message budget this ledger can never grant.
-        final var maxGasPerTransaction =
-                context.configuration().getConfigData(ContractsConfig.class).maxGasPerTransaction();
+        // Inbound messages are dispatched as contract calls with up to max_gas_per_message gas, and the
+        // EVM refuses a call above its effective gas limit (contracts.maxGasPerTransaction, or
+        // contracts.maxGasPerSec when lower and the gas throttle is on). Reject such a value instead of
+        // storing and advertising a per-message budget this ledger can never grant.
+        final ContractsConfig contractsConfig = context.configuration().getConfigData(ContractsConfig.class);
+        final var effectiveMaxGasPerTransaction = contractsConfig.effectiveMaxGasPerTransaction();
         validateTrue(
-                supplied.throttlesOrThrow().maxGasPerMessage() <= maxGasPerTransaction, INVALID_CLPR_CONFIGURATION);
+                supplied.throttlesOrThrow().maxGasPerMessage() <= effectiveMaxGasPerTransaction,
+                INVALID_CLPR_CONFIGURATION);
 
         final var storeFactory = context.storeFactory();
         final var configStore = storeFactory.writableStore(WritableLedgerConfigurationStore.class);

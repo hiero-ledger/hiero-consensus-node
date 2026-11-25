@@ -82,6 +82,8 @@ class EvmClprVerifierTest {
     private static final ContractID VERIFIER =
             ContractID.newBuilder().contractNum(0x16eL).build();
     private static final AccountID PAYER = AccountID.newBuilder().accountNum(2L).build();
+    private static final long MAX_GAS_PER_TRANSACTION = 15_000_000L;
+    private static final long MAX_GAS_PER_SEC = 8_000_000L;
     private static final byte[] SERVICE_ADDR = new byte[20];
 
     // Manifest-aware config return tuple — single-sourced with the producer + consumer via ClprVerifierAbi.
@@ -421,6 +423,34 @@ class EvmClprVerifierTest {
         verify(context, never()).tryToCharge(any(), org.mockito.ArgumentMatchers.anyLong());
     }
 
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void verifierLimitAboveEffectiveMaxGasPerTransactionReportsGasLimit(final boolean throttleByGas) {
+        given(context.configuration())
+                .willReturn(configWithGasLimits(throttleByGas, effectiveMaxGasPerTransaction(throttleByGas) + 1));
+
+        assertThatThrownBy(() -> subject.verifyConfig(Bytes.EMPTY, Bytes.EMPTY, Bytes.EMPTY, context))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(MAX_GAS_LIMIT_EXCEEDED));
+        verify(context, never()).dispatch(any(DispatchOptions.class));
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void verifierLimitAtEffectiveMaxGasPerTransactionIsDispatched(final boolean throttleByGas) {
+        final var gasLimit = effectiveMaxGasPerTransaction(throttleByGas);
+        givenConfig();
+        given(context.configuration()).willReturn(configWithGasLimits(throttleByGas, gasLimit));
+        givenDispatchReturns(bundleWithManifestReturn(1L, 0L, SERVICE_ADDR));
+        givenDispatchGasUsed(400L);
+
+        subject.verifyBundle(Bytes.EMPTY, Bytes.EMPTY, Bytes.EMPTY, context);
+
+        final var captor = ArgumentCaptor.forClass(DispatchOptions.class);
+        verify(context).dispatch(captor.capture());
+        assertThat(captor.getValue().body().contractCallOrThrow().gas()).isEqualTo(gasLimit);
+    }
+
     @Test
     void realVerifierDispatchReservesItsAllowanceOnlyOnceFromCallbackBudget() {
         givenConfig();
@@ -478,6 +508,20 @@ class EvmClprVerifierTest {
     }
 
     // ---- helpers ----
+
+    private static Configuration configWithGasLimits(final boolean throttleByGas, final long verifierGasLimit) {
+        return HederaTestConfigBuilder.create()
+                .withValue("clpr.verifierGasLimit", verifierGasLimit)
+                .withValue("contracts.maxGasPerTransaction", MAX_GAS_PER_TRANSACTION)
+                .withValue("contracts.maxGasPerSec", MAX_GAS_PER_SEC)
+                .withValue("contracts.throttle.throttleByGas", throttleByGas)
+                .getOrCreateConfig();
+    }
+
+    /** The gas throttle lowers the EVM's per-transaction limit to {@code contracts.maxGasPerSec}. */
+    private static long effectiveMaxGasPerTransaction(final boolean throttleByGas) {
+        return throttleByGas ? MAX_GAS_PER_SEC : MAX_GAS_PER_TRANSACTION;
+    }
 
     private void givenConfig() {
         final Configuration cfg = HederaTestConfigBuilder.create().getOrCreateConfig();
