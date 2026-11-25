@@ -45,6 +45,53 @@ public final class LabelValues {
         return namesAndValues[2 * index + 1];
     }
 
+    /**
+     * Get the value of the label with the specified name.
+     * Useful in filters, for example {@code labelValues -> "3".equals(labelValues.get("node"))}.
+     * Throws for an unknown label name, so a misspelled name in a filter fails instead of matching nothing.
+     *
+     * @param labelName the name of the label to retrieve the value of, must not be {@code null}
+     * @return the label value
+     * @throws NullPointerException     if the label name is {@code null}
+     * @throws IllegalArgumentException if there is no label with the specified name
+     */
+    @NonNull
+    public String get(@NonNull String labelName) {
+        Objects.requireNonNull(labelName, "label name must not be null");
+        for (int i = 0; i < namesAndValues.length; i += 2) {
+            if (namesAndValues[i].equals(labelName)) {
+                return namesAndValues[i + 1];
+            }
+        }
+        throw new IllegalArgumentException("Unknown label name: " + labelName);
+    }
+
+    /**
+     * Compares label values of the same metric, value by value in the sorted order of the dynamic label names,
+     * comparing values as strings, so {@code "10"} comes before {@code "2"}.
+     * The result is meaningful only for label values of the same metric, which have the same label names,
+     * because label names are not compared.
+     * <p>
+     * Returns {@code 0} only for equal label values, consistently with {@link #equals(Object)}: the metric snapshot
+     * keeps one measurement snapshot of the label values comparing equal, so a different order, for example by number,
+     * must still tell apart values that are equal as numbers but not as strings, such as {@code "1"} and {@code "01"}.
+     * <p>
+     * Package private, because it is used only to sort measurement snapshots of a metric snapshot.
+     * This class is not {@link Comparable} on purpose: a natural ordering would make this string order public API,
+     * so changing it later, for example to order numeric values by number, would break users, and it would invite
+     * sorting label values of different metrics, for which this order has no meaning.
+     */
+    static int compare(@NonNull LabelValues first, @NonNull LabelValues second) {
+        final int size = Math.min(first.size(), second.size());
+        for (int i = 0; i < size; i++) {
+            final int result = first.get(i).compareTo(second.get(i));
+            if (result != 0) {
+                return result;
+            }
+        }
+        return Integer.compare(first.size(), second.size());
+    }
+
     @Override
     public boolean equals(Object other) {
         if (other instanceof LabelValues that) {

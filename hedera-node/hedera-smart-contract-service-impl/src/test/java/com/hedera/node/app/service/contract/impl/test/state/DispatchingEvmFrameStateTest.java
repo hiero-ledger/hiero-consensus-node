@@ -46,6 +46,7 @@ import com.hedera.hapi.node.state.schedule.Schedule;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason;
+import com.hedera.node.app.service.contract.impl.exec.scope.AccountAuthorizingVerificationStrategy;
 import com.hedera.node.app.service.contract.impl.exec.scope.ActiveContractVerificationStrategy;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy;
@@ -420,9 +421,17 @@ class DispatchingEvmFrameStateTest {
 
     @Test
     void returnsBalanceIfPresent() {
+        // The Wei type is only a carrier, the amount is the account's balance in tinybars
         final var value = Wei.of(1234);
         givenWellKnownAccount(contractWith(A_ACCOUNT_ID).tinybarBalance(1234));
         assertEquals(value, subject.getBalance(A_ACCOUNT_ID));
+    }
+
+    @Test
+    void returnsBalanceInTinybarsWithoutWeibarScaling() {
+        final long tinybarBalance = 50_000_000_000L * 100_000_000L;
+        givenWellKnownAccount(contractWith(A_ACCOUNT_ID).tinybarBalance(tinybarBalance));
+        assertEquals(tinybarBalance, subject.getBalance(A_ACCOUNT_ID).toLong());
     }
 
     @Test
@@ -569,7 +578,10 @@ class DispatchingEvmFrameStateTest {
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var reasonToHaltDeletion = subject.tryTransfer(LONG_ZERO_ADDRESS, BENEFICIARY_ADDRESS, 123L, false);
         assertTrue(reasonToHaltDeletion.isEmpty());
-        final var strategy = assertInstanceOf(ActiveContractVerificationStrategy.class, captor.getValue());
+        final var scoped = assertInstanceOf(AccountAuthorizingVerificationStrategy.class, captor.getValue());
+        assertTrue(scoped.authorizesAccount(A_ACCOUNT_ID));
+        assertFalse(scoped.authorizesAccount(B_ACCOUNT_ID));
+        final var strategy = assertInstanceOf(ActiveContractVerificationStrategy.class, scoped.primitiveStrategy());
         assertEquals(A_ACCOUNT_ID.accountNum(), strategy.getActiveContractID().contractNum());
         assertEquals(tuweniToPbjBytes(LONG_ZERO_ADDRESS.getBytes()), strategy.getActiveAddress());
         assertFalse(strategy.requiresDelegatePermission());

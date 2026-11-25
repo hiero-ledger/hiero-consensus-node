@@ -7,6 +7,7 @@ import com.hedera.node.app.service.clpr.ClprEndpointServiceDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.CallOptions;
 import io.grpc.Channel;
+import io.grpc.Deadline;
 import io.grpc.ManagedChannel;
 import io.grpc.MethodDescriptor;
 import io.grpc.netty.GrpcSslContexts;
@@ -16,7 +17,8 @@ import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
-import java.time.Duration;
+import java.net.InetSocketAddress;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import javax.net.ssl.SSLException;
 import org.apache.logging.log4j.LogManager;
@@ -103,31 +105,38 @@ class ClprEndpointClientImpl implements ClprEndpointClient {
      * @param useTls whether to encrypt the channel with TLS
      */
     ClprEndpointClientImpl(@NonNull final String host, final int port, final boolean useTls) {
-        this.channel = newChannel(host, port, useTls);
+        this(ClprEndpointAddressPolicy.addressFor(host, port, Set.of()), useTls);
+    }
+
+    /** Creates a client for a destination already checked against the node's endpoint policy. */
+    ClprEndpointClientImpl(@NonNull final InetSocketAddress address, final boolean useTls) {
+        this.channel = newChannel(address, useTls);
     }
 
     /**
      * Builds the {@link ManagedChannel} backing this client, using the same TLS/plaintext rules as the
      * constructors.
      *
-     * @param host the peer's IP address
-     * @param port the peer's gRPC port
+     * @param address the peer's resolved IP address and gRPC port
      * @param useTls whether to encrypt the channel with TLS
      * @return a new managed channel owned by this client instance
      */
     @NonNull
-    static ManagedChannel newChannel(@NonNull final String host, final int port, final boolean useTls) {
-        requireNonNull(host);
+    static ManagedChannel newChannel(@NonNull final InetSocketAddress address, final boolean useTls) {
+        requireNonNull(address);
+        if (address.isUnresolved() || address.getPort() == 0) {
+            throw new ClientException("CLPR peer endpoint must have a resolved address and nonzero port", null);
+        }
         if (!useTls) {
-            return NettyChannelBuilder.forAddress(host, port).usePlaintext().build();
+            return NettyChannelBuilder.forAddress(address).usePlaintext().build();
         }
         try {
-            return NettyChannelBuilder.forAddress(host, port)
+            return NettyChannelBuilder.forAddress(address)
                     .sslContext(buildClientSslContext())
                     .build();
         } catch (final SSLException e) {
             throw new ClientException(
-                    "Failed to build TLS channel for CLPR peer " + host + ":" + port + ": " + e.getMessage(), e);
+                    "Failed to build TLS channel for CLPR peer " + address + ": " + e.getMessage(), e);
         }
     }
 
@@ -147,18 +156,28 @@ class ClprEndpointClientImpl implements ClprEndpointClient {
 
     @Override
     @NonNull
-    public ClprStreamingSyncCall sync(@NonNull final Duration timeout) {
-        requireNonNull(timeout);
-        final var callOptions = CallOptions.DEFAULT.withDeadlineAfter(timeout.toMillis(), TimeUnit.MILLISECONDS);
+    public ClprStreamingSyncCall sync(@NonNull final Deadline deadline) {
+        final var callOptions = CallOptions.DEFAULT.withDeadline(requireNonNull(deadline));
         final var call = ClientCalls.blockingBidiStreamingCall(channel, SYNC_METHOD_DESCRIPTOR, callOptions);
         logger.debug("Streaming sync initiated with peer {}", channel.authority());
         return new ClprStreamingSyncCall(call, channel.authority());
     }
 
     /**
+     * Starts a graceful shutdown without waiting: calls already running finish within their own deadline,
+     * and no new call starts. The cache uses this when a newer client replaces this one, so another thread's
+     * sync on this channel is not cut short and the cache lock is not held while the channel drains.
+     */
+    void retireChannel() {
+        if (channel != null) {
+            ((ManagedChannel) channel).shutdown();
+        }
+    }
+
+    /**
      * Shuts down the channel this client owns. Package-private and absent from the
      * {@link ClprEndpointClient} interface: only {@link ClprEndpointClientCache} — the sole holder of a
-     * reference typed to this concrete class — may tear a client down, on a transport change or node stop.
+     * reference typed to this concrete class — may tear a client down, on a destination-policy change or node stop.
      */
     void shutdownChannel() {
         if (channel == null) {
@@ -171,8 +190,8 @@ class ClprEndpointClientImpl implements ClprEndpointClient {
                 managedChannel.shutdownNow();
             }
         } catch (final InterruptedException e) {
-            Thread.currentThread().interrupt();
             managedChannel.shutdownNow();
+            Thread.currentThread().interrupt();
         }
     }
 }

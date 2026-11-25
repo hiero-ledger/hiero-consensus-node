@@ -3,18 +3,25 @@ package com.hedera.node.app.service.clpr.impl.verifier;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_VERIFIER_CONFIG_FAILED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_GAS_LIMIT_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_SERVICE_ACCOUNT_ID;
+import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_SERVICE_ACCOUNT_NUM;
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.DISPATCH_ONLY_NOOP_FEE_CHARGING;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.stepDispatch;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_DISPATCH;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_VERIFIER;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CONTRACT_GAS_USAGE;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.EXPLICIT_WRITE_TRACING;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REMOVABLE;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Tuple;
+import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.Timestamp;
@@ -30,14 +37,21 @@ import com.hedera.hapi.node.state.clpr.ClprServiceEndpoint;
 import com.hedera.hapi.node.state.clpr.ClprThrottles;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
+import com.hedera.node.app.hapi.utils.blocks.StateProofVerifier;
+import com.hedera.node.app.service.clpr.impl.ClprGasAccounting;
+import com.hedera.node.app.service.clpr.impl.ClprProofTimestamp;
 import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.spi.workflows.ClprDispatchMetadata;
+import com.hedera.node.app.spi.workflows.ContractGasUsage;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.ClprConfig;
+import com.hedera.node.config.data.ContractsConfig;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -78,6 +92,8 @@ public class EvmClprVerifier implements ClprVerifier {
     private static final DispatchMetadata CLPR_DISPATCH_METADATA = new DispatchMetadata(Map.of(
             CLPR_DISPATCH,
             new ClprDispatchMetadata(CLPR_SERVICE_ACCOUNT_ID, CLPR_EVM_ADDRESS_BYTES),
+            CLPR_VERIFIER,
+            true,
             EXPLICIT_WRITE_TRACING,
             true));
 
@@ -220,13 +236,48 @@ public class EvmClprVerifier implements ClprVerifier {
         if (rawReturn == null || rawReturn.length() == 0) {
             throw new HandleException(CLPR_BUNDLE_VERIFICATION_FAILED);
         }
-        final var content = decodeVerifyBundleWithManifestReturn(rawReturn, CLPR_BUNDLE_VERIFICATION_FAILED);
+        var content = decodeVerifyBundleWithManifestReturn(rawReturn, CLPR_BUNDLE_VERIFICATION_FAILED);
+        if (content.hasNewEndpointManifest() && isHieroVerifier()) {
+            final var timestamp = authenticatedManifestTimestamp(bundlePayload);
+            if (timestamp != null) {
+                content =
+                        content.copyBuilder().manifestProofTimestamp(timestamp).build();
+            }
+        }
         log.debug(
                 "[EvmClprVerifier] verifyBundle EXIT: messages={} newTrustAnchorBytes={} newTrustAnchorId={}",
                 content.messages().size(),
                 content.newTrustAnchor().length(),
                 shortHex(content.newTrustAnchorId()));
         return content;
+    }
+
+    private boolean isHieroVerifier() {
+        return verifierContract.contractNumOrElse(0L) == CLPR_SERVICE_ACCOUNT_NUM
+                || CLPR_EVM_ADDRESS_BYTES.equals(verifierContract.evmAddress());
+    }
+
+    @Nullable
+    private static Timestamp authenticatedManifestTimestamp(@NonNull final Bytes bundlePayload) {
+        try {
+            final var proof = StateProof.PROTOBUF.parseStrict(bundlePayload);
+            final var digestType = StateProofVerifier.inferDigestType(proof);
+            if (digestType == null) {
+                return null;
+            }
+            final var digest = digestType.buildDigest();
+            // The native verifier authenticated the root of the first state-item path against the
+            // channel's trust anchor, then checked the manifest path against that same root.
+            for (final var path : proof.paths()) {
+                if (path.hasStateItemLeaf()) {
+                    final var root = StateProofVerifier.computeBlockRootHashFromPath(path, digest);
+                    return ClprProofTimestamp.verifiedTimestamp(proof, root, digest);
+                }
+            }
+        } catch (final ParseException | IllegalStateException e) {
+            log.debug("Bundle lacks a usable manifest proof timestamp", e);
+        }
+        return null;
     }
 
     /**
@@ -304,6 +355,13 @@ public class EvmClprVerifier implements ClprVerifier {
             throws HandleException {
         final var gasLimit =
                 context.configuration().getConfigData(ClprConfig.class).verifierGasLimit();
+        if (gasLimit <= 0) {
+            throw new HandleException(INSUFFICIENT_GAS);
+        }
+        if (gasLimit
+                > context.configuration().getConfigData(ContractsConfig.class).maxGasPerTransaction()) {
+            throw new HandleException(MAX_GAS_LIMIT_EXCEEDED);
+        }
         final var functionParameters = Bytes.wrap(callData);
         final var syntheticBody = TransactionBody.newBuilder()
                 .contractCall(ContractCallTransactionBody.newBuilder()
@@ -321,39 +379,65 @@ public class EvmClprVerifier implements ClprVerifier {
                 callData.length,
                 syntheticBodyBytes.length(),
                 failureCode);
-        final var result = context.dispatch(stepDispatch(
-                context.payer(),
-                syntheticBody,
-                HookDispatchStreamBuilder.class,
-                NOOP_SIGNED_TX_CUSTOMIZER,
-                REMOVABLE,
-                CLPR_DISPATCH_METADATA,
-                DISPATCH_ONLY_NOOP_FEE_CHARGING));
-        log.debug(
-                "[EvmClprVerifier] dispatchRaw RESULT: contract={} status={} evmResult={}",
-                verifierContract,
-                result.status(),
-                evmResultSummary(result));
-        if (result.status() != SUCCESS) {
+        final var payer = context.payer();
+        final var gasAccounting = ClprGasAccounting.forContext(context);
+        if (!gasAccounting.prepayVerifier(payer, gasLimit)) {
+            throw new HandleException(INSUFFICIENT_PAYER_BALANCE);
+        }
+        final var gasUsage = new ContractGasUsage();
+        final var dispatchMetadata = new DispatchMetadata(CLPR_DISPATCH_METADATA);
+        dispatchMetadata.putMetadata(CONTRACT_GAS_USAGE, gasUsage);
+        try {
+            final var result = context.dispatch(stepDispatch(
+                    context.payer(),
+                    syntheticBody,
+                    HookDispatchStreamBuilder.class,
+                    NOOP_SIGNED_TX_CUSTOMIZER,
+                    REMOVABLE,
+                    dispatchMetadata,
+                    DISPATCH_ONLY_NOOP_FEE_CHARGING));
+            if (result == null) {
+                throw new HandleException(failureCode);
+            }
             log.debug(
-                    "Verifier dispatchRaw failed: contract={} status={} (translated to {}) payer={} gasLimit={}",
+                    "[EvmClprVerifier] dispatchRaw RESULT: contract={} status={} evmResult={}",
                     verifierContract,
                     result.status(),
-                    failureCode,
-                    context.payer(),
-                    gasLimit);
-            throw new HandleException(failureCode);
+                    evmResultSummary(result));
+            if (result.status() == INSUFFICIENT_GAS) {
+                log.warn(
+                        "Verifier dispatch ran out of gas: contract={} gasLimit={} callDataBytes={} payer={}"
+                                + " (translated to {}); clpr.verifierGasLimit may be too low for this proof",
+                        verifierContract,
+                        gasLimit,
+                        callData.length,
+                        context.payer(),
+                        failureCode);
+                throw new HandleException(failureCode);
+            }
+            if (result.status() != SUCCESS) {
+                log.debug(
+                        "Verifier dispatchRaw failed: contract={} status={} (translated to {}) payer={} gasLimit={}",
+                        verifierContract,
+                        result.status(),
+                        failureCode,
+                        context.payer(),
+                        gasLimit);
+                throw new HandleException(failureCode);
+            }
+            final var evmResult = result.getEvmCallResult();
+            if (evmResult == null || evmResult.length() == 0) {
+                log.warn("[EvmClprVerifier] dispatchRaw returned empty EVM result (throwing {})", failureCode);
+                throw new HandleException(failureCode);
+            }
+            log.debug(
+                    "[EvmClprVerifier] dispatchRaw EXIT: evmResultBytes={} evmResultHash={}",
+                    evmResult.length(),
+                    shortHex(MiscCryptoUtils.keccak256DigestOf(evmResult)));
+            return evmResult;
+        } finally {
+            gasAccounting.settleVerifierWithGasUsage(payer, gasLimit, gasUsage);
         }
-        final var evmResult = result.getEvmCallResult();
-        if (evmResult == null || evmResult.length() == 0) {
-            log.warn("[EvmClprVerifier] dispatchRaw returned empty EVM result (throwing {})", failureCode);
-            throw new HandleException(failureCode);
-        }
-        log.debug(
-                "[EvmClprVerifier] dispatchRaw EXIT: evmResultBytes={} evmResultHash={}",
-                evmResult.length(),
-                shortHex(MiscCryptoUtils.keccak256DigestOf(evmResult)));
-        return evmResult;
     }
 
     /**

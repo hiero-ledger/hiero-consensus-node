@@ -309,10 +309,13 @@ message StateKey {
     com.hedera.hapi.node.state.clpr.ClprConnectorKey ClprService_I_CONNECTORS = 63;
 
     /**
-     * A state identifier for CLPR pending connector commitments.
-     * Key is the commitment hash bytes.
+     * CLPR connector registration history, keyed by channel ID followed by connector ID.
+     * Legacy entries use a 32-byte commitment hash.
      */
-    proto.ProtoBytes ClprService_I_PENDING_CONNECTOR_COMMITMENTS = 64;
+    proto.ProtoBytes ClprService_I_CONNECTOR_REGISTRATION_HISTORY = 64;
+
+    /** The target hinTS construction ID for an adopted key's signing witness. */
+    proto.ProtoLong HistoryService_I_HINTS_KEY_WITNESSES = 70;
 
     // Queue states
     /** Queue index for adopted hinTS verification-key provenance. */
@@ -712,9 +715,9 @@ message StateValue {
     com.hedera.hapi.node.state.clpr.ClprConnector ClprService_I_CONNECTORS = 63;
 
     /**
-     * CLPR pending connector commitment value (mirrors key — acts as a set).
+     * CLPR connector registration marker. Legacy commitment values mirror their keys.
      */
-    proto.ProtoBytes ClprService_I_PENDING_CONNECTOR_COMMITMENTS = 64;
+    proto.ProtoBytes ClprService_I_CONNECTOR_REGISTRATION_HISTORY = 64;
 
     /**
      * A state identifier for the CLPR endpoint manifest. Singleton state.
@@ -734,6 +737,9 @@ message StateValue {
 
     /** Explicit authorization links between adopted hinTS generations. */
     com.hedera.hapi.node.state.history.HintsKeyProvenance HistoryService_I_HINTS_KEY_PROVENANCE = 69;
+
+    /** Durable pending or completed block-signing witnesses for adopted keys. */
+    com.hedera.hapi.node.state.history.HintsKeyWitnessRecord HistoryService_I_HINTS_KEY_WITNESSES = 70;
 
     /**
      * Metadata of the queue state.<br/>

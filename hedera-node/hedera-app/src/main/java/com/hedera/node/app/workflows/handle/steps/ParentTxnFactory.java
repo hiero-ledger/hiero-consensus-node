@@ -88,7 +88,7 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.transaction.ConsensusTransaction;
+import org.hiero.consensus.main.model.ConsensusTransaction;
 
 @Singleton
 public class ParentTxnFactory {
@@ -426,7 +426,6 @@ public class ParentTxnFactory {
                 keyVerifier,
                 creatorInfo,
                 consensusNow,
-                preHandleResult.getRequiredKeys(),
                 preHandleResult.getHollowAccounts(),
                 dispatchHandleContext,
                 stack,
@@ -500,7 +499,7 @@ public class ParentTxnFactory {
                     SO_FAR_SO_GOOD,
                     OK,
                     txInfo,
-                    preHandleContext.requiredNonPayerKeys(),
+                    preHandleContext.requiredKeyRequirements(),
                     null,
                     preHandleContext.requiredHollowAccounts(),
                     null,

@@ -272,14 +272,13 @@ public class TransactionDispatcher {
             case MIGRATION_ROOT_HASH_VOTE -> handlers.migrationRootHashVoteHandler();
 
             case CLPR_UPDATE_LEDGER_CONFIGURATION -> handlers.clprUpdateLedgerConfigurationHandler();
-            case CLPR_REGISTER_CHANNEL -> handlers.clprRegisterChannelHandler();
-            case CLPR_COMPLETE_CHANNEL -> handlers.clprCompleteChannelHandler();
-            case CLPR_CLOSE_CHANNEL -> handlers.clprCloseChannelHandler();
+            case CLPR_CREATE_CHANNEL -> handlers.clprCreateChannelHandler();
+            case CLPR_DELETE_CHANNEL -> handlers.clprDeleteChannelHandler();
             case CLPR_SUBMIT_BUNDLE -> handlers.clprSubmitBundleHandler();
-            case CLPR_REGISTER_CONNECTOR -> handlers.clprRegisterConnectorHandler();
-            case CLPR_COMPLETE_CONNECTOR -> handlers.clprCompleteConnectorHandler();
-            case CLPR_DEREGISTER_CONNECTOR -> handlers.clprDeregisterConnectorHandler();
+            case CLPR_CREATE_CONNECTOR -> handlers.clprCreateConnectorHandler();
+            case CLPR_DELETE_CONNECTOR -> handlers.clprDeleteConnectorHandler();
             case CLPR_ENDPOINT_PUBLICATION -> handlers.clprEndpointPublicationHandler();
+            case CLPR_EVICT_PEER_ENDPOINT -> handlers.clprEvictPeerEndpointHandler();
 
             case SYSTEM_DELETE ->
                 switch (txBody.systemDeleteOrThrow().id().kind()) {

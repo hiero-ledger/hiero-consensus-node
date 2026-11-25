@@ -25,6 +25,7 @@ module org.hiero.consensus.state {
     requires transitive com.swirlds.virtualmap;
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
+    requires transitive org.hiero.consensus.main.model;
     requires transitive org.hiero.consensus.metrics;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.wiring.framework;

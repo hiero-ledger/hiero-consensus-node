@@ -3,6 +3,7 @@ package org.hiero.otter.fixtures.turtle.gossip;
 
 import static org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerConfiguration.DIRECT_THREADSAFE_CONFIGURATION;
 import static org.hiero.otter.fixtures.network.BandwidthLimit.UNLIMITED_BANDWIDTH;
+import static org.hiero.otter.fixtures.network.simulation.TestRosters.rosterOf;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -29,11 +30,11 @@ import org.assertj.core.data.Percentage;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.gossip.impl.gossip.sync.protocol.SyncStatusChecker;
-import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.main.model.EventDescriptorWrapper;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
@@ -122,7 +123,8 @@ class SimulatedGossipTests {
             eventSubmitters.put(nodeId, node.eventSubmitter());
             gossips.add(node.gossip());
         }
-        final SimulatedNetworkConnectivity network = new SimulatedNetworkConnectivity(randotron, time.now(), gossips);
+        final SimulatedNetworkConnectivity network =
+                new SimulatedNetworkConnectivity(randotron, time.now(), rosterOf(gossips), gossips);
         gossipNetwork.connectivity = network;
         network.setConnections(connections);
 
@@ -189,8 +191,11 @@ class SimulatedGossipTests {
         final List<PlatformEvent> peerReceived = new ArrayList<>();
         final TestNode self = createNode(gossipNetwork, selfId, status, selfReceived, new ArrayList<>());
         final TestNode peer = createNode(gossipNetwork, peerId, PlatformStatus.ACTIVE, peerReceived, new ArrayList<>());
-        final SimulatedNetworkConnectivity network =
-                new SimulatedNetworkConnectivity(randotron, time.now(), List.of(self.gossip(), peer.gossip()));
+        final SimulatedNetworkConnectivity network = new SimulatedNetworkConnectivity(
+                randotron,
+                time.now(),
+                rosterOf(List.of(self.gossip(), peer.gossip())),
+                List.of(self.gossip(), peer.gossip()));
         gossipNetwork.connectivity = network;
 
         final ConnectionState connectionState =
@@ -368,8 +373,8 @@ class SimulatedGossipTests {
             @NonNull final NodeId nodeId, @NonNull final List<SyncProgress> syncProgress) {
         final TestGossipNetwork gossipNetwork = new TestGossipNetwork();
         final TestNode node = createNode(gossipNetwork, nodeId, PlatformStatus.ACTIVE, new ArrayList<>(), syncProgress);
-        gossipNetwork.connectivity =
-                new SimulatedNetworkConnectivity(Randotron.create(), Instant.EPOCH, List.of(node.gossip()));
+        gossipNetwork.connectivity = new SimulatedNetworkConnectivity(
+                Randotron.create(), Instant.EPOCH, rosterOf(List.of(node.gossip())), List.of(node.gossip()));
         return node;
     }
 

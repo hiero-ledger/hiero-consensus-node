@@ -2,12 +2,17 @@
 package org.hiero.consensus.hashgraph.impl.consensus.flicker;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import java.util.List;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.Change;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.Change.MetadataCleared;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.Change.RoundCreatedSet;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.Change.WitnessFound;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.ConsensusTraceLog;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.ConsensusTraceLog.Scope;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.FlickerIntake;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.NamedEvent;
 import org.hiero.consensus.model.roster.RosterWrapper;
@@ -33,7 +38,7 @@ class ConsensusTraceTest {
         final ConsensusTraceLog traceLog = new ConsensusTraceLog();
         final FlickerIntake intake = new FlickerIntake(configuration, roster, traceLog);
 
-        for (final NamedEvent named : LadderGraph.build(roster)) {
+        for (final NamedEvent named : LadderGraph.build()) {
             intake.add(named.name(), named.event());
         }
         return traceLog;
@@ -122,5 +127,56 @@ class ConsensusTraceTest {
                                 + "should never be marked a witness.%nWitness trace:%n%s",
                         traceLog.render(WitnessFound.class))
                 .doesNotContain("a2");
+    }
+
+    @Test
+    @DisplayName("during holds the changes made while one event was added, not the whole run's")
+    void duringIsOneEvent() {
+        final ConsensusTraceLog traceLog = runLadderGraph();
+
+        final Scope scope = traceLog.during("b2");
+
+        assertThat(scope.addName()).isEqualTo("b2");
+        assertThat(scope.changes(RoundCreatedSet.class).map(RoundCreatedSet::name))
+                .as("b2's own promotion into round 2 is recorded while b2 is added")
+                .contains("b2");
+        assertThat(scope.changes())
+                .as("adding one event makes a fraction of the run's changes")
+                .hasSizeLessThan(traceLog.changes().size());
+    }
+
+    @Test
+    @DisplayName("the scopes of every added event together are the whole run, in order")
+    void scopesPartitionTheRun() {
+        final ConsensusTraceLog traceLog = runLadderGraph();
+
+        final List<Change> fromScopes = LadderGraph.build().stream()
+                .flatMap(named -> traceLog.during(named.name()).changes().stream())
+                .toList();
+
+        assertThat(fromScopes)
+                .as("every change belongs to exactly one added event")
+                .isEqualTo(traceLog.changes());
+    }
+
+    @Test
+    @DisplayName("during an event that was never added says so")
+    void duringAnUnknownEventIsRefused() {
+        final ConsensusTraceLog traceLog = runLadderGraph();
+
+        assertThatThrownBy(() -> traceLog.during("z9"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("no event named 'z9'");
+    }
+
+    @Test
+    @DisplayName("a scope renders only its own changes")
+    void renderIsScopedToo() {
+        final ConsensusTraceLog traceLog = runLadderGraph();
+
+        assertThat(traceLog.during("b2").render(MetadataCleared.class).lines())
+                .as("a scope's render leaves out changes made while other events were added")
+                .hasSizeLessThan(
+                        (int) traceLog.render(MetadataCleared.class).lines().count());
     }
 }

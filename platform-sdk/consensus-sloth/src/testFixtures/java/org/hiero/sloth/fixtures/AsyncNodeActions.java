@@ -2,7 +2,7 @@
 package org.hiero.sloth.fixtures;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.consensus.model.quiescence.QuiescenceCommand;
+import org.hiero.consensus.main.model.QuiescenceCommand;
 
 /**
  * Interface for performing asynchronous node actions with a specified timeout.

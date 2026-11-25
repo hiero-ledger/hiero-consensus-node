@@ -239,6 +239,12 @@ class HintsControllerImplTest {
         given(weights.targetWeightOf(1L)).willReturn(TARGET_NODE_WEIGHTS.get(1L));
         task.run();
 
+        verify(library)
+                .preprocess(
+                        Bytes.EMPTY,
+                        new TreeMap<>(Map.of(1, EXPECTED_NODE_ONE_PUBLICATION.hintsKey())),
+                        new TreeMap<>(Map.of(1, 8L)),
+                        EXPECTED_PARTY_SIZE);
         verify(submissions).submitHintsVote(CONSTRUCTION_ID, PREPROCESSED_KEYS);
 
         subject.advanceConstruction(CONSENSUS_NOW, store, true);
@@ -248,12 +254,68 @@ class HintsControllerImplTest {
     }
 
     @Test
+    void fullRosterPreprocessingResumesWithOnlyValidatedPartiesEligibleToSign() {
+        final var roster = new TreeMap<>(Map.of(7L, 8L, 11L, 1L, 42L, 2L));
+        final var construction = CONSTRUCTION_WITH_START_TIME
+                .copyBuilder()
+                .preprocessingRosterWeight(11L)
+                .build();
+        // The valid publication retained a non-contiguous party ID from an earlier construction.
+        final var valid = new HintsKeyPublication(7L, Bytes.wrap("valid"), 5, PREPROCESSING_START_TIME);
+        final var invalid =
+                new HintsKeyPublication(11L, Bytes.wrap("invalid"), 2, PREPROCESSING_START_TIME.minusSeconds(1));
+        given(store.getCrsStateFor(any()))
+                .willReturn(CRSState.newBuilder()
+                        .stage(CRSStage.COMPLETED)
+                        .crs(INITIAL_CRS)
+                        .build());
+        given(library.validateHintsKey(INITIAL_CRS, valid.hintsKey(), 5, EXPECTED_PARTY_SIZE))
+                .willReturn(true);
+        subject = new HintsControllerImpl(
+                SELF_ID,
+                BLS_KEY_PAIR.privateKey(),
+                construction,
+                new RosterTransitionWeights(roster, roster),
+                Set.of(),
+                scheduledTasks::offer,
+                library,
+                Map.of(),
+                List.of(invalid, valid),
+                submissions,
+                context,
+                HederaTestConfigBuilder::createConfig,
+                store,
+                onHintsFinished);
+        final var partyWeights = new TreeMap<>(Map.of(5, 8L, 2, 1L, 1, 2L));
+        given(library.preprocess(
+                        INITIAL_CRS, new TreeMap<>(Map.of(5, valid.hintsKey())), partyWeights, EXPECTED_PARTY_SIZE))
+                .willReturn(ENCODED_PREPROCESSED_KEYS);
+        given(submissions.submitHintsVote(CONSTRUCTION_ID, PREPROCESSED_KEYS))
+                .willReturn(CompletableFuture.completedFuture(null));
+        subject.advanceConstruction(CONSENSUS_NOW, store, true);
+        runScheduledTasks();
+        verify(submissions).submitHintsVote(CONSTRUCTION_ID, PREPROCESSED_KEYS);
+        given(store.setHintsScheme(CONSTRUCTION_ID, PREPROCESSED_KEYS, Map.of(7L, 5), roster))
+                .willReturn(FINISHED_CONSTRUCTION);
+        assertTrue(subject.addPreprocessingVote(
+                7L,
+                PreprocessingVote.newBuilder()
+                        .preprocessedKeys(PREPROCESSED_KEYS)
+                        .build(),
+                store));
+        verify(store).setHintsScheme(CONSTRUCTION_ID, PREPROCESSED_KEYS, Map.of(7L, 5), roster);
+    }
+
+    @Test
     void setsPreprocessingStartTimeWhenAllNodesHavePublished() {
         setupWith(UNFINISHED_CONSTRUCTION);
         given(weights.targetNodeWeights()).willReturn(TARGET_NODE_WEIGHTS);
         given(weights.numTargetNodesInSource()).willReturn(2);
-        given(store.setPreprocessingStartTime(UNFINISHED_CONSTRUCTION.constructionId(), PREPROCESSING_START_TIME))
-                .willReturn(CONSTRUCTION_WITH_START_TIME);
+        given(store.setPreprocessingStartTime(UNFINISHED_CONSTRUCTION.constructionId(), PREPROCESSING_START_TIME, 10L))
+                .willReturn(CONSTRUCTION_WITH_START_TIME
+                        .copyBuilder()
+                        .preprocessingRosterWeight(10L)
+                        .build());
 
         subject.addHintsKeyPublication(EXPECTED_NODE_ONE_PUBLICATION, INITIAL_CRS);
         subject.addHintsKeyPublication(TARDY_NODE_TWO_PUBLICATION, INITIAL_CRS);
@@ -266,13 +328,114 @@ class HintsControllerImplTest {
         final var task = requireNonNull(scheduledTasks.poll());
         final Map<Integer, Bytes> expectedHintsKeys =
                 Map.of(EXPECTED_NODE_ONE_PUBLICATION.partyId(), EXPECTED_NODE_ONE_PUBLICATION.hintsKey());
-        final Map<Integer, Long> expectedWeights = Map.of(EXPECTED_NODE_ONE_PUBLICATION.partyId(), 8L);
+        final Map<Integer, Long> expectedWeights = Map.of(1, 8L, 2, 2L);
         given(library.preprocess(any(), any(), any(), eq(EXPECTED_PARTY_SIZE))).willReturn(ENCODED_PREPROCESSED_KEYS);
         given(submissions.submitHintsVote(CONSTRUCTION_ID, PREPROCESSED_KEYS))
                 .willReturn(CompletableFuture.completedFuture(null));
-        given(weights.targetWeightOf(1L)).willReturn(TARGET_NODE_WEIGHTS.get(1L));
+        given(weights.targetIncludes(anyLong())).willReturn(true);
         task.run();
+        verify(library)
+                .preprocess(
+                        INITIAL_CRS,
+                        new TreeMap<>(expectedHintsKeys),
+                        new TreeMap<>(expectedWeights),
+                        EXPECTED_PARTY_SIZE);
         verify(submissions).submitHintsVote(FINISHED_CONSTRUCTION.constructionId(), PREPROCESSED_KEYS);
+    }
+
+    @Test
+    void keysRotatedAtTheSameTimeAreAllValidatedAndPreprocessed() {
+        // Keys rotated together by startHintsKeyGracePeriod() share an adoption time
+        final var rotationTime = PREPROCESSING_START_TIME.minusSeconds(1);
+        final var nodeOne = new HintsKeyPublication(1L, Bytes.wrap("ONE"), 1, rotationTime);
+        final var nodeTwo = new HintsKeyPublication(2L, Bytes.wrap("TWO"), 2, rotationTime);
+        given(library.validateHintsKey(any(), any(), anyInt(), anyInt())).willReturn(true);
+        setupWith(
+                UNFINISHED_CONSTRUCTION,
+                List.of(nodeOne, nodeTwo),
+                CRSState.newBuilder().stage(CRSStage.COMPLETED).crs(INITIAL_CRS).build());
+        runScheduledTasks();
+        given(weights.targetNodeWeights()).willReturn(TARGET_NODE_WEIGHTS);
+        given(weights.numTargetNodesInSource()).willReturn(2);
+        given(store.setPreprocessingStartTime(CONSTRUCTION_ID, PREPROCESSING_START_TIME, 10L))
+                .willReturn(CONSTRUCTION_WITH_START_TIME
+                        .copyBuilder()
+                        .preprocessingRosterWeight(10L)
+                        .build());
+
+        subject.advanceConstruction(PREPROCESSING_START_TIME, store, true);
+
+        final var voteTask = requireNonNull(scheduledTasks.poll());
+        given(library.preprocess(any(), any(), any(), eq(EXPECTED_PARTY_SIZE))).willReturn(ENCODED_PREPROCESSED_KEYS);
+        given(submissions.submitHintsVote(CONSTRUCTION_ID, PREPROCESSED_KEYS))
+                .willReturn(CompletableFuture.completedFuture(null));
+        given(weights.targetIncludes(anyLong())).willReturn(true);
+        voteTask.run();
+        verify(library)
+                .preprocess(
+                        INITIAL_CRS,
+                        new TreeMap<>(Map.of(1, nodeOne.hintsKey(), 2, nodeTwo.hintsKey())),
+                        new TreeMap<>(Map.of(1, 8L, 2, 2L)),
+                        EXPECTED_PARTY_SIZE);
+    }
+
+    @Test
+    void keysRotatedAtTheSameTimeAllCountTowardTheThresholdAfterTheGracePeriod() {
+        final var now = CONSENSUS_NOW.plusSeconds(2);
+        final var nodeOne = new HintsKeyPublication(1L, Bytes.wrap("ONE"), 1, now);
+        final var nodeTwo = new HintsKeyPublication(2L, Bytes.wrap("TWO"), 2, now);
+        given(library.validateHintsKey(any(), any(), anyInt(), anyInt())).willReturn(true);
+        setupWith(
+                UNFINISHED_CONSTRUCTION,
+                List.of(nodeOne, nodeTwo),
+                CRSState.newBuilder().stage(CRSStage.COMPLETED).crs(INITIAL_CRS).build());
+        runScheduledTasks();
+        // A third target node never publishes, so only the weight check can start preprocessing
+        given(weights.numTargetNodesInSource()).willReturn(3);
+        given(weights.targetWeightOf(1L)).willReturn(8L);
+        given(weights.targetWeightOf(2L)).willReturn(2L);
+        given(weights.targetWeightThreshold()).willReturn(10L);
+        given(weights.targetNodeWeights()).willReturn(TARGET_NODE_WEIGHTS);
+        given(store.setPreprocessingStartTime(CONSTRUCTION_ID, now, 10L)).willReturn(CONSTRUCTION_WITH_START_TIME);
+
+        subject.advanceConstruction(now, store, false);
+
+        verify(store).setPreprocessingStartTime(CONSTRUCTION_ID, now, 10L);
+    }
+
+    @Test
+    void doesNotStartPreprocessingEarlyBeforeCurrentRosterNodeOutsideSourcePublishes() {
+        // Node 2 is in the current roster but not a party in the source scheme, e.g. it was added at the last upgrade
+        setupWithCurrentRosterNodesOutsideSource(UNFINISHED_CONSTRUCTION, Set.of(2L));
+        given(weights.numTargetNodesInSource()).willReturn(1);
+        given(weights.targetNodeWeights()).willReturn(TARGET_NODE_WEIGHTS);
+
+        subject.addHintsKeyPublication(EXPECTED_NODE_ONE_PUBLICATION, INITIAL_CRS);
+        given(library.validateHintsKey(any(), any(), anyInt(), anyInt())).willReturn(true);
+        runScheduledTasks();
+
+        subject.advanceConstruction(PREPROCESSING_START_TIME, store, true);
+
+        verify(store, never()).setPreprocessingStartTime(anyLong(), any(), any());
+    }
+
+    @Test
+    void startsPreprocessingEarlyOnceCurrentRosterNodeOutsideSourcePublishes() {
+        setupWithCurrentRosterNodesOutsideSource(UNFINISHED_CONSTRUCTION, Set.of(2L));
+        given(weights.numTargetNodesInSource()).willReturn(1);
+        given(weights.targetNodeWeights()).willReturn(TARGET_NODE_WEIGHTS);
+        given(store.setPreprocessingStartTime(UNFINISHED_CONSTRUCTION.constructionId(), PREPROCESSING_START_TIME, 10L))
+                .willReturn(CONSTRUCTION_WITH_START_TIME);
+
+        subject.addHintsKeyPublication(EXPECTED_NODE_ONE_PUBLICATION, INITIAL_CRS);
+        subject.addHintsKeyPublication(TARDY_NODE_TWO_PUBLICATION, INITIAL_CRS);
+        given(library.validateHintsKey(any(), any(), anyInt(), anyInt())).willReturn(true);
+        runScheduledTasks();
+
+        subject.advanceConstruction(PREPROCESSING_START_TIME, store, true);
+
+        verify(store)
+                .setPreprocessingStartTime(UNFINISHED_CONSTRUCTION.constructionId(), PREPROCESSING_START_TIME, 10L);
     }
 
     @Test
@@ -562,6 +725,7 @@ class HintsControllerImplTest {
                 BLS_KEY_PAIR.privateKey(),
                 CONSTRUCTION_WITH_START_TIME,
                 weights,
+                Set.of(),
                 scheduledTasks::offer,
                 library,
                 Map.of(0L, node0CongruentVote),
@@ -765,6 +929,7 @@ class HintsControllerImplTest {
                 BLS_KEY_PAIR.privateKey(),
                 CONSTRUCTION_WITH_START_TIME,
                 weights,
+                Set.of(),
                 scheduledTasks::offer,
                 library,
                 Map.of(0L, PreprocessingVote.newBuilder().congruentNodeId(1L).build()),
@@ -817,6 +982,7 @@ class HintsControllerImplTest {
                 BLS_KEY_PAIR.privateKey(),
                 CONSTRUCTION_WITH_START_TIME,
                 weights,
+                Set.of(),
                 scheduledTasks::offer,
                 library,
                 Map.of(0L, PreprocessingVote.newBuilder().congruentNodeId(2L).build()),
@@ -871,6 +1037,7 @@ class HintsControllerImplTest {
                 BLS_KEY_PAIR.privateKey(),
                 construction,
                 weights,
+                Set.of(),
                 scheduledTasks::offer,
                 library,
                 votes,
@@ -894,7 +1061,7 @@ class HintsControllerImplTest {
         setupWith(UNFINISHED_CONSTRUCTION);
         given(weights.targetNodeWeights()).willReturn(TARGET_NODE_WEIGHTS);
         given(weights.numTargetNodesInSource()).willReturn(2);
-        given(store.setPreprocessingStartTime(UNFINISHED_CONSTRUCTION.constructionId(), PREPROCESSING_START_TIME))
+        given(store.setPreprocessingStartTime(UNFINISHED_CONSTRUCTION.constructionId(), PREPROCESSING_START_TIME, 10L))
                 .willReturn(CONSTRUCTION_WITH_START_TIME);
 
         subject.addHintsKeyPublication(EXPECTED_NODE_ONE_PUBLICATION, INITIAL_CRS);
@@ -905,7 +1072,8 @@ class HintsControllerImplTest {
         subject.advanceConstruction(PREPROCESSING_START_TIME, store, false);
 
         // State write uses the consensus timestamp, regardless of node-local ACTIVE status
-        verify(store).setPreprocessingStartTime(UNFINISHED_CONSTRUCTION.constructionId(), PREPROCESSING_START_TIME);
+        verify(store)
+                .setPreprocessingStartTime(UNFINISHED_CONSTRUCTION.constructionId(), PREPROCESSING_START_TIME, 10L);
         // ...but the node does not schedule/submit its own preprocessing vote when not ACTIVE
         assertTrue(scheduledTasks.isEmpty());
         verify(submissions, never()).submitHintsVote(eq(CONSTRUCTION_ID), any(PreprocessedKeys.class));
@@ -938,6 +1106,31 @@ class HintsControllerImplTest {
                 CRSState.newBuilder().stage(CRSStage.COMPLETED).crs(INITIAL_CRS).build());
     }
 
+    private void setupWithCurrentRosterNodesOutsideSource(
+            @NonNull final HintsConstruction construction, @NonNull final Set<Long> currentRosterNodesOutsideSource) {
+        lenient()
+                .when(store.getCrsStateFor(any()))
+                .thenReturn(CRSState.newBuilder()
+                        .stage(CRSStage.COMPLETED)
+                        .crs(INITIAL_CRS)
+                        .build());
+        subject = new HintsControllerImpl(
+                SELF_ID,
+                BLS_KEY_PAIR.privateKey(),
+                construction,
+                weights,
+                currentRosterNodesOutsideSource,
+                scheduledTasks::offer,
+                library,
+                Map.of(),
+                List.of(),
+                submissions,
+                context,
+                HederaTestConfigBuilder::createConfig,
+                store,
+                onHintsFinished);
+    }
+
     private void setupWithFinalCrs(@NonNull final HintsConstruction construction) {
         setupWith(
                 construction,
@@ -956,6 +1149,7 @@ class HintsControllerImplTest {
                 BLS_KEY_PAIR.privateKey(),
                 construction,
                 weights,
+                Set.of(),
                 scheduledTasks::offer,
                 library,
                 Map.of(),

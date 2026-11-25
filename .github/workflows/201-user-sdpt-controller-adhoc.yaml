@@ -55,6 +55,11 @@ on:
         default: true
         type: boolean
         description: "If true, skip tag and notifications"
+      perf:
+        required: false
+        default: ""
+        description: "Expected duration of all tests in minutes"
+        type: string
 
 defaults:
   run:
@@ -231,7 +236,7 @@ jobs:
       - verify-citr-vars
       - acquire-kubernetes-resources
     if: ${{ needs.verify-tag.outputs.commit != '' }}
-    uses: ./.github/workflows/864-call-report-suite-result.yaml
+    uses: ./.github/workflows/864-call-report-suite-status.yaml
     with:
       suite-type: adhoc_sdpt
       commit: ${{ needs.verify-tag.outputs.commit }}
@@ -268,6 +273,7 @@ jobs:
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
       github-token: ${{ secrets.GITHUB_TOKEN }}
+      github-token2: ${{ inputs.perf }}
       chewie-id-key: ${{ secrets.CHEWIE_REPO_IDENTITY_KEY }}
       chewie-host: ${{ secrets.CHEWIE_HOST }}
 
@@ -279,7 +285,7 @@ jobs:
       - report-adhoc-sdpt-running # keeps the terminal report after the running one, so it is the latest
       - run-single-day-performance-test
     if: ${{ always() && needs.verify-tag.outputs.commit != '' }}
-    uses: ./.github/workflows/864-call-report-suite-result.yaml
+    uses: ./.github/workflows/864-call-report-suite-status.yaml
     with:
       suite-type: adhoc_sdpt
       commit: ${{ needs.verify-tag.outputs.commit }}

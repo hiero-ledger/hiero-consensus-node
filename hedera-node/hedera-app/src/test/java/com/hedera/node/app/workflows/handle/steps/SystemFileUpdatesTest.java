@@ -473,7 +473,32 @@ class SystemFileUpdatesTest implements TransactionFactory {
         // when
         subject.handleTxBody(state, txBody.build());
         // then
-        verify(feeManager, times(1)).updateSimpleFees(FileUtilities.getFileContent(state, fileID));
+        verify(feeManager, times(1)).updateSimpleFees(FileUtilities.getFileContent(state, fileID), true);
+    }
+
+    @Test
+    void simpleFeesFileUpdateThrowsWhenFeeManagerReportsAnInvalidFeeFile() {
+        // given
+        final var configuration = configProvider.getConfiguration();
+        final var config = configuration.getConfigData(FilesConfig.class);
+
+        final var fileNum = config.simpleFeesSchedules();
+        final var fileID = FileID.newBuilder().fileNum(fileNum).build();
+        final var txBody = TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder()
+                        .accountID(AccountID.newBuilder().accountNum(50L).build())
+                        .build())
+                .fileUpdate(FileUpdateTransactionBody.newBuilder().fileID(fileID));
+        files.put(fileID, File.newBuilder().contents(FILE_BYTES).build());
+        when(feeManager.updateSimpleFees(FileUtilities.getFileContent(state, fileID), true))
+                .thenReturn(com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_FEE_FILE);
+
+        // then: the caller must throw so the dispatch (including the file write just committed) rolls back,
+        // instead of returning a status that lets the committed bytes stand
+        assertThatThrownBy(() -> subject.handleTxBody(state, txBody.build()))
+                .isInstanceOf(com.hedera.node.app.spi.workflows.HandleException.class)
+                .extracting(e -> ((com.hedera.node.app.spi.workflows.HandleException) e).getStatus())
+                .isEqualTo(com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_FEE_FILE);
     }
 
     @Test

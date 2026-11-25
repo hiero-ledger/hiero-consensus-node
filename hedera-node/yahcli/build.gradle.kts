@@ -58,6 +58,8 @@ tasks.register<Test>("testSubprocess") {
     systemProperty("hapi.spec.default.shard", 11)
     systemProperty("hapi.spec.default.realm", 12)
     systemProperty("hapi.spec.network.size", 4)
+    // FILE keeps a block node off the network, since yahcli never validates its streams
+    systemProperty("hapi.spec.test.overrides", "blockStream.writerMode=FILE")
     systemProperty("hapi.spec.quiet.mode", "false")
     systemProperty("junit.jupiter.execution.parallel.enabled", true)
     systemProperty("junit.jupiter.execution.parallel.mode.default", "concurrent")

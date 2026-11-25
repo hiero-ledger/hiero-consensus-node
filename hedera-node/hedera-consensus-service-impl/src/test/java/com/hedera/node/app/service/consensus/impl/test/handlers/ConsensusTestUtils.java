@@ -3,7 +3,6 @@ package com.hedera.node.app.service.consensus.impl.test.handlers;
 
 import static org.mockito.ArgumentMatchers.notNull;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
@@ -41,9 +40,8 @@ public final class ConsensusTestUtils {
     }
 
     static Key mockPayerLookup(Key key, AccountID accountId, ReadableAccountStore accountStore) {
-        final var account = mock(Account.class);
+        final var account = Account.newBuilder().accountId(accountId).key(key).build();
         given(accountStore.getAccountById(accountId)).willReturn(account);
-        given(account.key()).willReturn(key);
         return key;
     }
 

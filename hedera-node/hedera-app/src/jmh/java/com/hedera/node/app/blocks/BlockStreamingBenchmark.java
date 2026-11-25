@@ -45,11 +45,11 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import jdk.jfr.Recording;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
 import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
 import org.hiero.consensus.metrics.platform.PlatformMetricsFactoryImpl;
-import org.hiero.consensus.model.node.NodeId;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -468,7 +468,8 @@ public class BlockStreamingBenchmark {
 
         final BlockNodeStreamingConnection connection = new BlockNodeStreamingConnection(
                 configProvider,
-                new BlockNode(configProvider, nodeConfig, new AtomicInteger(), new BlockNodeStats()),
+                new BlockNode(
+                        configProvider, nodeConfig, new AtomicInteger(), new AtomicInteger(), new BlockNodeStats()),
                 connectionManager,
                 bufferService,
                 blockStreamMetrics,

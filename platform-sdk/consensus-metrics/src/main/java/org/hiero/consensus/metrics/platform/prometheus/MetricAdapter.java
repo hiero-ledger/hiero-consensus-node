@@ -3,7 +3,7 @@ package org.hiero.consensus.metrics.platform.prometheus;
 
 import com.swirlds.metrics.api.snapshot.Snapshot;
 import io.prometheus.client.CollectorRegistry;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * Common interface of all adapters, which synchronize a {@link com.swirlds.metrics.api.Metric}

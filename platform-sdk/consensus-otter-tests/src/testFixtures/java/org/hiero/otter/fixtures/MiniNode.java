@@ -4,9 +4,9 @@ package org.hiero.otter.fixtures;
 import com.hedera.hapi.node.base.SemanticVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
+import org.hiero.consensus.main.model.KeysAndCerts;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Interface representing a minimal node in the network that is stripped down to the essential functionality needed

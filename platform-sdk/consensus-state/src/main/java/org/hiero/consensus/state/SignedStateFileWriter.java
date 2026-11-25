@@ -41,7 +41,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Mnemonics;
 import org.hiero.base.file.FileSystemManager;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.pces.impl.DefaultPcesModule;
 import org.hiero.consensus.platformstate.PlatformStateUtils;
@@ -454,12 +454,14 @@ public final class SignedStateFileWriter {
                             reservedSignedState,
                             stateLifecycleManager));
 
-            logger.info(STATE_TO_DISK.getMarker(), () -> new StateSavedToDiskPayload(
-                            round,
-                            signedState.isFreezeState(),
-                            stateToDiskReason == null ? "UNKNOWN" : stateToDiskReason.toString(),
-                            savedStateDirectory)
-                    .toString());
+            logger.info(
+                    STATE_TO_DISK.getMarker(),
+                    () -> new StateSavedToDiskPayload(
+                                    round,
+                                    signedState.isFreezeState(),
+                                    stateToDiskReason == null ? "UNKNOWN" : stateToDiskReason.toString(),
+                                    savedStateDirectory)
+                            .toString());
         } catch (final Throwable e) {
             logger.error(
                     EXCEPTION.getMarker(), "Exception when writing the signed state for round {} to disk:", round, e);

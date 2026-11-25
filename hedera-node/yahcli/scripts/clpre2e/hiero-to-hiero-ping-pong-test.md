@@ -25,10 +25,10 @@ The protocol has three layers:
   *state proof* and uses it to verify incoming data. Alongside it, each network
   keeps an *endpoint manifest* (the endpoints its peers dial), which the other
   side also fetches as a state proof.
-- **Channel** — a bilateral agreement between two specific ledger IDs. Uses a
-  two-phase commit/reveal so neither side can front-run the other's identity.
+- **Channel** — a bilateral agreement opened using both ledgers’ service and verifier addresses,
+  chain IDs, and a shared salt.
 - **Connector** — the on-chain contract that authorises bundle relay for a given
-  channel. Also registered via commit/reveal, and can be slashed for
+  channel. Registered with an identity-key signature, and can be slashed for
   misbehaviour.
 
 ---
@@ -307,7 +307,7 @@ If either `--proof-path` writes 0 bytes the genesis WRAPS proof has not finished
 Wait for the FINISHED line from step 4 and retry.
 
 Verify the observed configs have a trust anchor **and** the observed manifests are
-finalized before proceeding. Without a trust anchor `complete-channel` fails; without
+finalized before proceeding. Without a trust anchor `create-channel` fails; without
 a finalized manifest the channel has no endpoints to dial:
 
 ```bash
@@ -319,94 +319,40 @@ jq '.finalized' bob-observed-manifest.json                           # must be t
 
 ---
 
-### Step 10 — Generate a channel security identity
+### Step 10 — Derive a shared channel ID
 
-**What this does:** This step is not really part of the protocol itself. It
-generates data required to establish a channel between the two ledgers: a
-random channel ID and an asymmetric keypair. Both networks will reference this
-to secure the channel establishment process. The `ownershipCommitment` is a hash
-of the full identity that is submitted first (commit phase), protecting both parties
-from front-running — neither side can observe the other's identity before locking
-in its own commitment.
+Both ledgers in this example use the native CLPR service and Hiero verifier at `0.0.366`. Read each chain ID from its queried configuration and generate the salt once.
 
 ```bash
-./yahcli -n alice -p 2 clpr generate-channel-identity --out channel.json
+SERVICE=000000000000000000000000000000000000016e
+./yahcli -n alice -p 2 clpr generate-channel-identity \
+  --local-chain-id "$(jq -r .configuration.chain_id alice-observed-config.json)" \
+  --local-service "$SERVICE" --local-verifier "$SERVICE" \
+  --peer-chain-id "$(jq -r .configuration.chain_id bob-observed-config.json)" \
+  --peer-service "$SERVICE" --peer-verifier "$SERVICE" --out channel.json
+CHANNEL_ID=$(jq -r .channelId channel.json)
+CHANNEL_SALT=$(jq -r .salt channel.json)
 ```
 
-Inspect the result:
+### Step 11 — Open the channel on Alice
 
 ```bash
-jq . channel.json
-```
-
-Capture the commitment for the next step:
-
-```bash
-CHANNEL_COMMIT=$(jq -r .ownershipCommitment channel.json)
-echo "Commitment: $CHANNEL_COMMIT"
-```
-
----
-
-### Step 11 — Register the channel on both networks (commit phase)
-
-**What this does:** Submits the commitment hash to each network's CLPR state,
-indicating the interest in establishing a channel. Locking in the commitment
-prevents front-running: neither side can observe the other's full identity and
-craft a conflicting response before its own commit is recorded. For now, no
-channel is open yet.
-
-```bash
-./yahcli -n alice -p 2 clpr register-channel --commitment "$CHANNEL_COMMIT"
-./yahcli -n bob   -p 2 clpr register-channel --commitment "$CHANNEL_COMMIT"
-```
-
----
-
-### Step 12 — Complete the channel on both networks (reveal phase)
-
-**What this does:** Completes the channel on both networks, using the
-identity generated previously to identify the channel. Trust anchors are
-exchanged between the ledgers, so they can verify each other's messages.
-This step verifies that:
-
-1. The commitment hash matches what was registered in step 11.
-2. The peer's ledger-configuration and endpoint-manifest state proofs (pulled in
-   step 9) validate against the peer's trust anchor using the CLPR verifier
-   system contract at `0.0.366`. The verified manifest becomes the list of
-   endpoints this network dials for the channel.
-
-The `0.0.366` verifier requires both proofs: pass the peer's configuration proof
-with `--config-proof` and its manifest proof with `--endpoint-manifest-proof`.
-
-Completing the channel for Alice network:
-
-```bash
-./yahcli -n alice -p 2 clpr complete-channel \
-  --identity channel.json \
-  --verifier-contract 0.0.366 \
-  --config-proof bob-proof.bin \
+./yahcli -n alice -p 2 clpr create-channel \
+  --channel-id "$CHANNEL_ID" --salt "$CHANNEL_SALT" --peer-verifier "$SERVICE" \
+  --verifier-contract 0.0.366 --config-proof bob-proof.bin \
   --endpoint-manifest-proof bob-manifest-proof.bin
 ```
 
-Completing the channel for Bob network:
+### Step 12 — Open the channel on Bob
+
+Use the same ID and salt with Alice's proofs.
 
 ```bash
-./yahcli -n bob -p 2 clpr complete-channel \
-  --identity channel.json \
-  --verifier-contract 0.0.366 \
-  --config-proof alice-proof.bin \
+./yahcli -n bob -p 2 clpr create-channel \
+  --channel-id "$CHANNEL_ID" --salt "$CHANNEL_SALT" --peer-verifier "$SERVICE" \
+  --verifier-contract 0.0.366 --config-proof alice-proof.bin \
   --endpoint-manifest-proof alice-manifest-proof.bin
 ```
-
-The channel is now ACTIVE on both networks. Capture the channel ID:
-
-```bash
-CHANNEL_ID=$(jq -r .channelId channel.json)
-echo "Channel ID: $CHANNEL_ID"
-```
-
----
 
 ### Step 13 — Deploy the passthrough connector on both networks
 
@@ -440,66 +386,27 @@ echo "PassThroughAuth on bob:   $PASSTHROUGH_B"
 
 ### Step 14 — Generate a connector identity
 
-**What this does:** Creates a cryptographic identity for the connector — the
-entity responsible for relaying bundles between the two chains. Like the
-channel identity, it uses a commit/reveal cycle. The connector ID is derived
-from the channel ID, binding this connector to the specific channel.
+The same public key and salt produce the same connector ID on both networks.
+Keep the companion key file available to sign each registration.
 
 ```bash
-./yahcli clpr generate-connector-identity \
-  --channel-id "$CHANNEL_ID" \
-  --out connector.json
-```
-
-Capture the values you will need:
-
-```bash
-CONNECTOR_COMMIT=$(jq -r .commitment connector.json)
+./yahcli clpr generate-connector-identity --out connector.json
 CONNECTOR_ID=$(jq -r .connectorId connector.json)
-echo "Connector commitment: $CONNECTOR_COMMIT"
-echo "Connector ID:         $CONNECTOR_ID"
 ```
 
----
+### Step 15 — Register the connector on both networks
 
-### Step 15 — Register the connector on both networks (commit phase)
-
-**What this does:** Submits the connector commitment to each network. Same
-principle as the channel's commit phase — locks in the hash before revealing
-the identity.
+Each registration binds the shared identity to its local PassThroughAuth contract
+and locks the payer's stake in tinybars.
 
 ```bash
-./yahcli -n alice -p 2 clpr register-connector --channel-id "$CHANNEL_ID" --commitment "$CONNECTOR_COMMIT"
-./yahcli -n bob   -p 2 clpr register-connector --channel-id "$CHANNEL_ID" --commitment "$CONNECTOR_COMMIT"
+./yahcli -n alice -p 2 clpr create-connector --identity connector.json \
+  --channel-id "$CHANNEL_ID" --connector-contract "$PASSTHROUGH_A" --locked-stake 100000000
+./yahcli -n bob -p 2 clpr create-connector --identity connector.json \
+  --channel-id "$CHANNEL_ID" --connector-contract "$PASSTHROUGH_B" --locked-stake 100000000
 ```
 
----
-
-### Step 16 — Complete the connector on both networks (reveal phase)
-
-**What this does:** Associates the connector identity with the PassThroughAuth
-contract and locks the stake. From this point, PassThroughAuth is the authorised
-connector for this channel. If it submits invalid bundles it can be slashed. The
-`--locked-stake` is denominated in tinybars and held by the CLPR staking account
-until the connector is deregistered.
-
-```bash
-./yahcli -n alice -p 2 clpr complete-connector \
-  --identity connector.json \
-  --connector-contract "$PASSTHROUGH_A" \
-  --locked-stake 100000000
-
-./yahcli -n bob -p 2 clpr complete-connector \
-  --identity connector.json \
-  --connector-contract "$PASSTHROUGH_B" \
-  --locked-stake 100000000
-```
-
-The CLPR channel + connector are now fully established on both chains.
-
----
-
-### Step 17 — Deploy PingPong on both networks
+### Step 16 — Deploy PingPong on both networks
 
 **What this does:** Deploys the [PingPong application contract](../../../test-clients/src/main/resources/contract/contracts/PingPong/PingPong.sol). PingPong is a CLPR
 application — it implements `onClprMessage` (receives cross-ledger messages and
@@ -526,7 +433,7 @@ echo "PingPong on bob:   $PINGPONG_B"
 
 ---
 
-### Step 18 — Encode the serve() call
+### Step 17 — Encode the serve() call
 
 **What this does:** Builds the ABI calldata for one `serve()` invocation on alice's
 PingPong. The on-chain signature is
@@ -547,7 +454,7 @@ Capture the ids (from steps 10 & 14), pick bob's PingPong as the target, and set
 CHANNEL_ID=$(jq -r .channelId channel.json)
 CONNECTOR_ID=$(jq -r .connectorId connector.json)
 
-# bob's PingPong (from step 17) as a 20-byte long-zero address, no 0x prefix
+# bob's PingPong (from step 16) as a 20-byte long-zero address, no 0x prefix
 TARGET_APP=$(printf '%040x' "${PINGPONG_B##*.}")
 # message payload, hex-encoded (no 0x)
 MESSAGE_DATA=$(printf '%s' "Hello world" | xxd -p -c 1000000 | tr -d '\n')
@@ -610,7 +517,7 @@ Each hop is logged on the side that runs the callback: bob's `onClprMessage`
 this is to **tail both logs live in one terminal** and **trigger the volley from
 another** — you watch the ping-pong bounce in real time.
 
-### Step 19 — Terminal A: start the live volley watcher
+### Step 18 — Terminal A: start the live volley watcher
 
 Open a **second terminal**, `cd` into `clpr-hiero-alice/hedera-node/yahcli`, and
 start the watcher. It follows both nodes' logs and prints one friendly line per
@@ -644,9 +551,9 @@ watch_volley
 
 `tail -n 0` means it shows only *new* activity, so start it **before** you serve.
 
-### Step 20 — Terminal B: kick off the volley
+### Step 19 — Terminal B: kick off the volley
 
-Back in your original terminal, run the serve from Step 18 (re-run it any time to
+Back in your original terminal, run the serve from Step 17 (re-run it any time to
 start a fresh volley):
 
 ```bash
@@ -687,17 +594,17 @@ cd clpr-hiero-bob/hedera-node/yahcli/scripts/clpre2e  && HAPI_PORT=50311 ./start
 
 ## Troubleshooting
 
-|                                                                                            Symptom                                                                                             |                                                                           Cause                                                                           |                                                                                Fix                                                                                 |
-|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `proof-path` writes 0 bytes                                                                                                                                                                    | Genesis WRAPS proof not finished                                                                                                                          | Wait for "FINISHED" in step 4 and retry step 9                                                                                                                     |
-| `CLPR_VERIFIER_CONFIG_FAILED` at `complete-channel`; `hgcaa.log` shows `requires a non-empty endpoint_manifest_proof_bytes`                                                                    | `--endpoint-manifest-proof` was not passed, or the manifest proof file is empty; the `0.0.366` verifier requires it                                       | Run `get-endpoint-manifest` on the peer (step 9) and pass its `--proof-path` file via `--endpoint-manifest-proof` (step 12)                                        |
-| `INVALID_CLPR_CONFIGURATION` at `update-ledger-configuration`, or `CLPR_VERIFIER_CONFIG_FAILED` at `complete-channel` with `manifest.service_address != config.service_address` in `hgcaa.log` | The config file's `serviceAddress` is not the CLPR system contract address, which the endpoint manifest carries                                           | Set `serviceAddress` to `AAAAAAAAAAAAAAAAAAAAAAAAAW4=` as in the repo-provided `alice-config.json` / `bob-config.json`, then re-run steps 8 and 9                  |
-| `get-endpoint-manifest` warns `is not finalized yet`, or `jq '.finalized'` prints `false`                                                                                                      | The node has not published its endpoint yet, so the manifest is still the version-1 genesis placeholder with no endpoints                                 | Wait a few seconds (`hgcaa.log` logs `endpoint absent from manifest` while the node publishes) and re-run step 9                                                   |
-| `CLPR_VERIFIER_CONFIG_FAILED` at `complete-channel` — trust anchor empty                                                                                                                       | Step 8 ran before the `[CLPR-SYNC-POINT]` log appeared — block proofs didn't yet carry the WRAPS recursive material needed for cross-network verification | Wait for `[CLPR-SYNC-POINT]` on both networks, wait 30 s, then re-run steps 8 and 9; verify `jq '.configuration.initial_trust_anchor'` is non-null before retrying |
-| `INSUFFICIENT_PAYER_BALANCE` in hgcaa.log                                                                                                                                                      | Account 0.0.3 ran out of hbar                                                                                                                             | Repeat step 7                                                                                                                                                      |
-| Bob's node never starts / port 50311 not listening                                                                                                                                             | Properties not copied to build dir                                                                                                                        | Verify `clpr-hiero-bob/hedera-node/hedera-app/build/node/data/config/application.properties` contains the port overrides; re-run `./gradlew :app:run`              |
-| `BindException: Address already in use` on port 31013 in `swirlds.log`; bob's node never reaches consensus and CLPR steps fail (e.g. `INVALID_TRANSACTION_BODY` at `complete-channel`)         | Both networks ship the same `genesis-network.json` gossip port (31013) and collide on `127.0.0.1`                                                         | Change bob's gossip port in `genesis-network.json` per step 2, then `./gradlew :app:cleanRun`                                                                      |
-| `yahcli exited non-zero` at register-channel                                                                                                                                                   | Channel already registered from a prior run                                                                                                               | Clean the node state (`./gradlew :app:cleanRun`) and restart both networks                                                                                         |
+|                                                                                           Symptom                                                                                            |                                                                           Cause                                                                           |                                                                                Fix                                                                                 |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `proof-path` writes 0 bytes                                                                                                                                                                  | Genesis WRAPS proof not finished                                                                                                                          | Wait for "FINISHED" in step 4 and retry step 9                                                                                                                     |
+| `CLPR_VERIFIER_CONFIG_FAILED` at `create-channel`; `hgcaa.log` shows `requires a non-empty endpoint_manifest_proof_bytes`                                                                    | `--endpoint-manifest-proof` was not passed, or the manifest proof file is empty; the `0.0.366` verifier requires it                                       | Run `get-endpoint-manifest` on the peer (step 9) and pass its `--proof-path` file via `--endpoint-manifest-proof` (step 12)                                        |
+| `INVALID_CLPR_CONFIGURATION` at `update-ledger-configuration`, or `CLPR_VERIFIER_CONFIG_FAILED` at `create-channel` with `manifest.service_address != config.service_address` in `hgcaa.log` | The config file's `serviceAddress` is not the CLPR system contract address, which the endpoint manifest carries                                           | Set `serviceAddress` to `AAAAAAAAAAAAAAAAAAAAAAAAAW4=` as in the repo-provided `alice-config.json` / `bob-config.json`, then re-run steps 8 and 9                  |
+| `get-endpoint-manifest` warns `is not finalized yet`, or `jq '.finalized'` prints `false`                                                                                                    | The node has not published its endpoint yet, so the manifest is still the version-1 genesis placeholder with no endpoints                                 | Wait a few seconds (`hgcaa.log` logs `endpoint absent from manifest` while the node publishes) and re-run step 9                                                   |
+| `CLPR_VERIFIER_CONFIG_FAILED` at `create-channel` — trust anchor empty                                                                                                                       | Step 8 ran before the `[CLPR-SYNC-POINT]` log appeared — block proofs didn't yet carry the WRAPS recursive material needed for cross-network verification | Wait for `[CLPR-SYNC-POINT]` on both networks, wait 30 s, then re-run steps 8 and 9; verify `jq '.configuration.initial_trust_anchor'` is non-null before retrying |
+| `INSUFFICIENT_PAYER_BALANCE` in hgcaa.log                                                                                                                                                    | Account 0.0.3 ran out of hbar                                                                                                                             | Repeat step 7                                                                                                                                                      |
+| Bob's node never starts / port 50311 not listening                                                                                                                                           | Properties not copied to build dir                                                                                                                        | Verify `clpr-hiero-bob/hedera-node/hedera-app/build/node/data/config/application.properties` contains the port overrides; re-run `./gradlew :app:run`              |
+| `BindException: Address already in use` on port 31013 in `swirlds.log`; bob's node never reaches consensus and CLPR steps fail (e.g. `INVALID_TRANSACTION_BODY` at `create-channel`)         | Both networks ship the same `genesis-network.json` gossip port (31013) and collide on `127.0.0.1`                                                         | Change bob's gossip port in `genesis-network.json` per step 2, then `./gradlew :app:cleanRun`                                                                      |
+| `CLPR_CHANNEL_ALREADY_EXISTS` at `create-channel`                                                                                                                                            | The shared ID is already in use on that ledger.                                                                                                           | Reuse the existing channel or generate a fresh shared salt to open a separate channel.                                                                             |
 
 ---
 
@@ -728,5 +635,5 @@ grep -hE "step10 DATA ABI unwrap OK|onClprResponse dispatch SUCCESS" \
 
 Each `step10 DATA ABI unwrap OK … receivedMsgId=N` is bob's `onClprMessage` receiving a
 ping; each `onClprResponse dispatch SUCCESS` is alice re-serving. For the friendly live
-view, run `watch_volley` from [Step 19](#step-19--terminal-a-start-the-live-volley-watcher)
+view, run `watch_volley` from [Step 18](#step-19--terminal-a-start-the-live-volley-watcher)
 in a second terminal *before* you serve.

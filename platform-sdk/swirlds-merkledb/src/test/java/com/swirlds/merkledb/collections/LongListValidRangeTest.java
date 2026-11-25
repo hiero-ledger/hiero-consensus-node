@@ -7,10 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.parallel.ExecutionMode.SAME_THREAD;
 
-import java.lang.management.BufferPoolMXBean;
-import java.lang.management.ManagementFactory;
 import java.util.Objects;
 import java.util.stream.Stream;
 import org.hiero.base.utility.test.fixtures.file.AbstractFileManagerAwareTest;
@@ -20,7 +17,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
-import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -100,13 +96,9 @@ class LongListValidRangeTest extends AbstractFileManagerAwareTest {
     @SuppressWarnings("resource")
     @Tag(TestComponentTags.VMAP)
     @Test
-    @DisplayName("Attempt to create LongListOffHeap with too many memory chunks")
+    @DisplayName("Attempt to create a long list with too many memory chunks")
     void testInvalidMemoryChunkNumber() {
         // Valid cases
-        new LongListOffHeap(1, AbstractLongList.MAX_NUM_CHUNKS, 1).close();
-        new LongListOffHeap(2, AbstractLongList.MAX_NUM_CHUNKS * 2, 1).close();
-        new LongListHeap(1, AbstractLongList.MAX_NUM_CHUNKS, 1).close();
-        new LongListHeap(2, AbstractLongList.MAX_NUM_CHUNKS * 2, 1).close();
         new LongListSegment(1, AbstractLongList.MAX_NUM_CHUNKS, 1).close();
         new LongListSegment(2, AbstractLongList.MAX_NUM_CHUNKS * 2, 1).close();
         new LongListDisk(1, AbstractLongList.MAX_NUM_CHUNKS, 1, fileSystemManager)
@@ -116,15 +108,6 @@ class LongListValidRangeTest extends AbstractFileManagerAwareTest {
                 .resetTransferBuffer()
                 .close();
         // Illegal cases, too many chunks
-        assertThrows(
-                IllegalArgumentException.class, () -> new LongListOffHeap(1, AbstractLongList.MAX_NUM_CHUNKS + 1, 1));
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> new LongListOffHeap(8, AbstractLongList.MAX_NUM_CHUNKS * 8 + 1, 1));
-        assertThrows(IllegalArgumentException.class, () -> new LongListHeap(1, AbstractLongList.MAX_NUM_CHUNKS + 1, 1));
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> new LongListHeap(16, AbstractLongList.MAX_NUM_CHUNKS * 16 + 1, 1));
         assertThrows(
                 IllegalArgumentException.class,
                 () -> new LongListDisk(1, AbstractLongList.MAX_NUM_CHUNKS + 1, 1, fileSystemManager));
@@ -587,32 +570,21 @@ class LongListValidRangeTest extends AbstractFileManagerAwareTest {
     public static final int NUM_LONGS_PER_CHUNK = 10000;
     public static final int INITIAL_DATA_SIZE = 10_000_000;
 
-    @SuppressWarnings("OptionalGetWithoutIsPresent")
     @EnabledIfEnvironmentVariable(disabledReason = "Benchmark", named = "benchmark", matches = "true")
     @Tag(TestComponentTags.VMAP)
     @DisplayName("Make sure that the list releases allocated memory on update of min valid index")
-    @Execution(SAME_THREAD) // to make sure that the other tests don't mess with the memory
     @ParameterizedTest
     @MethodSource("paramProvider")
-    void allocateAndRelease_minValidIndex(final long newValidIndex, final long expectedAmountOfMemoryUsed, boolean left)
-            throws InterruptedException {
-        final BufferPoolMXBean directPool = ManagementFactory.getPlatformMXBeans(BufferPoolMXBean.class).stream()
-                .filter(v -> v.getName().equals("direct"))
-                .findFirst()
-                .get();
-        // this is an attempt to stabilize memory footprint
-        System.gc();
-        Thread.sleep(10);
-
-        final long initialMemoryAmount = directPool.getMemoryUsed();
-        // 8K is the minimal memory consumption
-        list = new LongListOffHeap(NUM_LONGS_PER_CHUNK, INITIAL_DATA_SIZE, 200);
+    void allocateAndRelease_minValidIndex(
+            final long newValidIndex, final long expectedAmountOfMemoryUsed, boolean left) {
+        list = new LongListSegment(NUM_LONGS_PER_CHUNK, INITIAL_DATA_SIZE, 200);
         // fill with some data
+        list.updateValidRange(0, INITIAL_DATA_SIZE - 1);
         for (int i = 0; i < INITIAL_DATA_SIZE; i++) {
             list.put(i, i + 1);
         }
 
-        final long filledListMemoryAmount = directPool.getMemoryUsed() - initialMemoryAmount;
+        final long filledListMemoryAmount = list.getOffHeapConsumption();
         assertEquals(
                 INITIAL_DATA_SIZE * Long.BYTES,
                 filledListMemoryAmount,
@@ -624,7 +596,7 @@ class LongListValidRangeTest extends AbstractFileManagerAwareTest {
             list.updateValidRange(0, newValidIndex);
         }
 
-        final long truncatedListMemoryAmount = directPool.getMemoryUsed() - initialMemoryAmount;
+        final long truncatedListMemoryAmount = list.getOffHeapConsumption();
 
         assertEquals(
                 expectedAmountOfMemoryUsed,
@@ -653,7 +625,7 @@ class LongListValidRangeTest extends AbstractFileManagerAwareTest {
         final int longsPerChunk = 3;
         final int reservedBufferLength = 1;
         int maxLongs = 1000;
-        try (final LongListOffHeap list = new LongListOffHeap(longsPerChunk, maxLongs, reservedBufferLength)) {
+        try (final LongListSegment list = new LongListSegment(longsPerChunk, maxLongs, reservedBufferLength)) {
             this.list = list;
             // empty list doesn't consume off-heap memory
             assertEquals(0, list.getOffHeapConsumption());
@@ -692,7 +664,7 @@ class LongListValidRangeTest extends AbstractFileManagerAwareTest {
         final int longsPerChunk = 3;
         final int reservedBufferLength = 1;
         int maxLongs = 1000;
-        try (final LongListOffHeap list = new LongListOffHeap(longsPerChunk, maxLongs, reservedBufferLength)) {
+        try (final LongListSegment list = new LongListSegment(longsPerChunk, maxLongs, reservedBufferLength)) {
             this.list = list;
             // fill 12 elements in the first 4 chunks
             fill(11);
@@ -770,8 +742,6 @@ class LongListValidRangeTest extends AbstractFileManagerAwareTest {
     static Stream<Arguments> longListProvider(final int reservedBufferLength) {
         final int longsPerChunk = 3;
         return Stream.of(
-                Arguments.of(new LongListOffHeap(longsPerChunk, MAX_LONGS, reservedBufferLength)),
-                Arguments.of(new LongListHeap(longsPerChunk, MAX_LONGS, reservedBufferLength)),
                 Arguments.of(new LongListDisk(longsPerChunk, MAX_LONGS, reservedBufferLength, fileSystemManager)),
                 Arguments.of(new LongListSegment(longsPerChunk, MAX_LONGS, reservedBufferLength)));
     }

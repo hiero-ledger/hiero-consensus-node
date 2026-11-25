@@ -65,8 +65,8 @@ import org.hiero.base.crypto.PEMEncoder;
 import org.hiero.base.crypto.SigningSchema;
 import org.hiero.consensus.PathsConfig;
 import org.hiero.consensus.crypto.KeyCertPurpose;
-import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.KeysAndCerts;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.node.NodeUtilities;
 import org.hiero.consensus.roster.RosterUtils;
 

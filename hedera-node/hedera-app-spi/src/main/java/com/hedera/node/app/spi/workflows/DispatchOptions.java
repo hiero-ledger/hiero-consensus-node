@@ -14,6 +14,7 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.fees.FeeCharging;
+import com.hedera.node.app.spi.key.RequirementVerifier;
 import com.hedera.node.app.spi.workflows.HandleContext.ConsensusThrottling;
 import com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata;
 import com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory;
@@ -40,7 +41,8 @@ public record DispatchOptions<T extends StreamBuilder>(
         @NonNull ReversingBehavior reversingBehavior,
         @NonNull StreamBuilder.SignedTxCustomizer signedTxCustomizer,
         @NonNull DispatchMetadata dispatchMetadata,
-        @Nullable FeeCharging customFeeCharging) {
+        @Nullable FeeCharging customFeeCharging,
+        @Nullable RequirementVerifier requirementVerifier) {
     /**
      * The set of keys that are authorized to sign the transaction. This should be used only for the dispatches
      * that don't have any signatures to verify.
@@ -130,12 +132,10 @@ public record DispatchOptions<T extends StreamBuilder>(
 
     /**
      * Returns options for a dispatch that is part of the parent dispatch's transactional unit, but in a setup role
-     * that logically precedes the parent transaction's effects. Use cases include,
+     * that logically precedes the parent transaction's effects; and whose record is removed from the stream if
+     * the parent rolls back. Use cases include,
      * <ul>
-     *     <li>Externalizing creation of a "hollow" account prior to a successful EVM transaction that
-     *     first sends value to its EVM address.</li>
-     *     <li>Externalizing auto-creation of an aliased account that receives value in a parent
-     *     {@link HederaFunctionality#CRYPTO_TRANSFER} transaction.</li>
+     *     <li>Externalizing completion of a "hollow" account that signed the parent transaction.</li>
      * </ul>
      *
      * @param <T> the type of stream builder to use for the dispatch
@@ -152,6 +152,47 @@ public record DispatchOptions<T extends StreamBuilder>(
             @NonNull final Class<T> streamBuilderType,
             @Nullable final FeeCharging customFeeCharging,
             @NonNull final ConsensusThrottling consensusThrottling) {
+        return setupDispatch(
+                payerId, body, streamBuilderType, customFeeCharging, consensusThrottling, ReversingBehavior.REMOVABLE);
+    }
+
+    /**
+     * Returns options for a setup dispatch whose record is kept in the stream if the parent rolls back; as
+     * {@link com.hedera.hapi.node.base.ResponseCodeEnum#REVERTED_SUCCESS}, or with its own status if the
+     * dispatch itself failed. So a rolled back parent still shows every record that counted toward its child
+     * record limit. Use cases include,
+     * <ul>
+     *     <li>Externalizing creation of a "hollow" account when an EVM transaction or a parent
+     *     {@link HederaFunctionality#CRYPTO_TRANSFER} first sends value to its EVM address.</li>
+     *     <li>Externalizing auto-creation of a key-aliased account that receives value in a parent
+     *     {@link HederaFunctionality#CRYPTO_TRANSFER} transaction.</li>
+     * </ul>
+     *
+     * @param <T> the type of stream builder to use for the dispatch
+     * @param payerId the account to pay for the dispatch
+     * @param body the transaction to dispatch
+     * @param streamBuilderType the type of stream builder to use for the dispatch
+     * @param customFeeCharging the custom fee charging strategy for the dispatch, if any
+     * @param consensusThrottling the consensus throttling for the dispatch
+     * @return the options for the reversible setup dispatch
+     */
+    public static <T extends StreamBuilder> DispatchOptions<T> reversibleSetupDispatch(
+            @NonNull final AccountID payerId,
+            @NonNull final TransactionBody body,
+            @NonNull final Class<T> streamBuilderType,
+            @Nullable final FeeCharging customFeeCharging,
+            @NonNull final ConsensusThrottling consensusThrottling) {
+        return setupDispatch(
+                payerId, body, streamBuilderType, customFeeCharging, consensusThrottling, ReversingBehavior.REVERSIBLE);
+    }
+
+    private static <T extends StreamBuilder> DispatchOptions<T> setupDispatch(
+            @NonNull final AccountID payerId,
+            @NonNull final TransactionBody body,
+            @NonNull final Class<T> streamBuilderType,
+            @Nullable final FeeCharging customFeeCharging,
+            @NonNull final ConsensusThrottling consensusThrottling,
+            @NonNull final ReversingBehavior reversingBehavior) {
         return new DispatchOptions<>(
                 Commit.WITH_PARENT,
                 payerId,
@@ -162,10 +203,11 @@ public record DispatchOptions<T extends StreamBuilder>(
                 TransactionCategory.PRECEDING,
                 consensusThrottling,
                 streamBuilderType,
-                ReversingBehavior.REMOVABLE,
+                reversingBehavior,
                 NOOP_SIGNED_TX_CUSTOMIZER,
                 EMPTY_METADATA,
-                customFeeCharging);
+                customFeeCharging,
+                null);
     }
 
     /**
@@ -201,16 +243,14 @@ public record DispatchOptions<T extends StreamBuilder>(
             @NonNull final PropagateFeeChargingStrategy propagateFeeChargingStrategy) {
         requireNonNull(customFeeCharging);
         requireNonNull(propagateFeeChargingStrategy);
-        final var category =
-                switch (requireNonNull(stakingRewards)) {
-                    case ON -> TransactionCategory.SCHEDULED;
-                    case OFF -> TransactionCategory.CHILD;
-                };
-        final var metadata =
-                switch (propagateFeeChargingStrategy) {
-                    case YES -> new DispatchMetadata(CUSTOM_FEE_CHARGING, customFeeCharging);
-                    case NO -> EMPTY_METADATA;
-                };
+        final var category = switch (requireNonNull(stakingRewards)) {
+            case ON -> TransactionCategory.SCHEDULED;
+            case OFF -> TransactionCategory.CHILD;
+        };
+        final var metadata = switch (propagateFeeChargingStrategy) {
+            case YES -> new DispatchMetadata(CUSTOM_FEE_CHARGING, customFeeCharging);
+            case NO -> EMPTY_METADATA;
+        };
         return new DispatchOptions<>(
                 Commit.WITH_PARENT,
                 payerId,
@@ -224,7 +264,62 @@ public record DispatchOptions<T extends StreamBuilder>(
                 ReversingBehavior.REVERSIBLE,
                 NOOP_SIGNED_TX_CUSTOMIZER,
                 metadata,
-                customFeeCharging);
+                customFeeCharging,
+                null);
+    }
+
+    /**
+     * Returns sub-dispatch options whose verifier evaluates a complete identity-scoped requirement.
+     * The verifier is invoked once for each requirement, rather than once for each primitive key.
+     *
+     * @param <T> the stream builder type
+     * @param payerId the account paying for the dispatch
+     * @param body the transaction to dispatch
+     * @param requirementVerifier the verifier of complete requirements
+     * @param authorizingKeys the simple keys independently authorizing the dispatch
+     * @param streamBuilderType the stream builder type
+     * @param stakingRewards whether the dispatch can trigger staking rewards
+     * @param usePresetTxnId whether to use a preset transaction ID
+     * @param customFeeCharging the custom fee charging strategy
+     * @param propagateFeeChargingStrategy whether to propagate the fee charging strategy
+     * @return the sub-dispatch options
+     */
+    public static <T extends StreamBuilder> DispatchOptions<T> subDispatchWithRequirements(
+            @NonNull final AccountID payerId,
+            @NonNull final TransactionBody body,
+            @NonNull final RequirementVerifier requirementVerifier,
+            @NonNull final Set<Key> authorizingKeys,
+            @NonNull final Class<T> streamBuilderType,
+            @NonNull final StakingRewards stakingRewards,
+            @NonNull final UsePresetTxnId usePresetTxnId,
+            @NonNull final FeeCharging customFeeCharging,
+            @NonNull final PropagateFeeChargingStrategy propagateFeeChargingStrategy) {
+        requireNonNull(requirementVerifier);
+        final var options = subDispatch(
+                payerId,
+                body,
+                NO_AUTHORIZED_KEYS,
+                authorizingKeys,
+                streamBuilderType,
+                stakingRewards,
+                usePresetTxnId,
+                customFeeCharging,
+                propagateFeeChargingStrategy);
+        return new DispatchOptions<>(
+                options.commit(),
+                options.payerId(),
+                options.body(),
+                options.usePresetTxnId(),
+                options.keyVerifier(),
+                options.authorizingKeys(),
+                options.category(),
+                options.throttling(),
+                options.streamBuilderType(),
+                options.reversingBehavior(),
+                options.signedTxCustomizer(),
+                options.dispatchMetadata(),
+                options.customFeeCharging(),
+                requirementVerifier);
     }
 
     /**
@@ -346,7 +441,8 @@ public record DispatchOptions<T extends StreamBuilder>(
                 reversingBehavior,
                 signedTxCustomizer,
                 metadata,
-                customFeeCharging);
+                customFeeCharging,
+                null);
     }
 
     /**
@@ -369,6 +465,17 @@ public record DispatchOptions<T extends StreamBuilder>(
             @NonNull final Class<T> streamBuilderType,
             @NonNull final StreamBuilder.SignedTxCustomizer signedTxCustomizer,
             @NonNull final DispatchMetadata metaData) {
+        return stepDispatch(payerId, body, streamBuilderType, signedTxCustomizer, metaData, ConsensusThrottling.OFF);
+    }
+
+    /** Returns a parent business-logic dispatch with an explicit consensus throttling policy. */
+    public static <T extends StreamBuilder> DispatchOptions<T> stepDispatch(
+            @NonNull final AccountID payerId,
+            @NonNull final TransactionBody body,
+            @NonNull final Class<T> streamBuilderType,
+            @NonNull final StreamBuilder.SignedTxCustomizer signedTxCustomizer,
+            @NonNull final DispatchMetadata metaData,
+            @NonNull final ConsensusThrottling throttling) {
         return new DispatchOptions<>(
                 Commit.WITH_PARENT,
                 payerId,
@@ -377,12 +484,13 @@ public record DispatchOptions<T extends StreamBuilder>(
                 PREAUTHORIZED_KEYS,
                 emptySet(),
                 TransactionCategory.CHILD,
-                ConsensusThrottling.OFF,
+                throttling,
                 streamBuilderType,
                 ReversingBehavior.REMOVABLE,
                 signedTxCustomizer,
                 metaData,
-                UNIVERSAL_NOOP_FEE_CHARGING);
+                UNIVERSAL_NOOP_FEE_CHARGING,
+                null);
     }
 
     /**
@@ -415,7 +523,8 @@ public record DispatchOptions<T extends StreamBuilder>(
                 ReversingBehavior.REVERSIBLE,
                 NOOP_SIGNED_TX_CUSTOMIZER,
                 dispatchMetadata,
-                customFeeCharging);
+                customFeeCharging,
+                null);
     }
 
     /**
@@ -444,7 +553,7 @@ public record DispatchOptions<T extends StreamBuilder>(
      * @param body the transaction to dispatch
      * @param streamBuilderType the type of stream builder to use for the dispatch
      * @param signedTxCustomizer the customizer for the transaction
-     * @param metadata metadata with a flag whether more than one hook is being executed in the parent tx
+     * @param metadata the metadata for the dispatch
      * @return the options for the sub-dispatch
      */
     public static <T extends StreamBuilder> DispatchOptions<T> hookDispatchForExecution(

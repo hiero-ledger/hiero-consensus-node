@@ -19,6 +19,8 @@ import com.hedera.hapi.node.state.clpr.SeiTrustAnchor;
 import com.hedera.hapi.node.state.clpr.SeiValidatorEntry;
 import com.hedera.hapi.node.state.clpr.SeiValidatorSet;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
+import com.hedera.node.app.service.clpr.impl.verifier.Ed25519Verify;
+import com.hedera.node.app.service.clpr.impl.verifier.EvmChannelContext;
 import com.hedera.node.app.service.clpr.impl.verifier.ProofException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -82,12 +84,13 @@ public final class SeiCometBftProofVerifier {
     private static final byte[] EVM_ZERO_WORD = new byte[32];
 
     // ── Storage-proof layout shared with the QBFT/Ethereum bundle constructors ──
-    // Every bundle proves the five Channel fields (offsets {1,2,4,5,16}, including the proven
+    // Every bundle proves the five Channel fields (offsets {1,2,4,5,15}, including the proven
     // endpointManifestVersion). Message-bearing bundles add the last message's running-hash slot as a
     // sixth entry. Matches the relay's ClprServiceStorageLayout / the on-chain ClprEvmBundleVerifier.
     private static final int STORAGE_PROOF_CHANNEL_ENTRIES = 5;
     private static final int STORAGE_PROOF_WITH_MESSAGE_ENTRIES = 6;
-    // Positions inside the reordered (canonical) slot-value array produced by orderQueueSlotValuesByProofKey.
+    // Positions inside the reordered (canonical) slot-value array produced by EvmChannelContext.orderQueueSlots
+    // (channel-bound) or orderQueueSlotValuesByProofKey (unbound).
     private static final int SP_INDEX_STATUS_AND_NEXT_MSG_ID = 0;
     private static final int SP_INDEX_RECEIVED_MSG_ID = 1;
     private static final int SP_INDEX_SENT_RUNNING_HASH = 2;
@@ -107,7 +110,7 @@ public final class SeiCometBftProofVerifier {
     private static final BigInteger CHANNEL_OFFSET_RECEIVED_MSG_ID = BigInteger.TWO;
     private static final BigInteger CHANNEL_OFFSET_SENT_RUNNING_HASH = BigInteger.valueOf(4);
     private static final BigInteger CHANNEL_OFFSET_RECEIVED_RUNNING_HASH = BigInteger.valueOf(5);
-    private static final BigInteger CHANNEL_OFFSET_ENDPOINT_MANIFEST_VERSION = BigInteger.valueOf(16);
+    private static final BigInteger CHANNEL_OFFSET_ENDPOINT_MANIFEST_VERSION = BigInteger.valueOf(15);
 
     private SeiCometBftProofVerifier() {}
 
@@ -206,14 +209,25 @@ public final class SeiCometBftProofVerifier {
      * {@code state_proof}/{@code bundle_content}/{@code next_validator_set}); it returns the
      * advanced trust anchor with no queue metadata or bundle content.
      *
+     * <p>The proven queue slots are bound to the local Channel record. The service address in
+     * {@code channelContext} must equal the trust anchor's service address, and every proven queue storage key must
+     * be a canonical key of the context's channel ID (see {@link EvmChannelContext#orderQueueSlots}). A valid state
+     * proof for another channel is therefore rejected, even when its counters and running hashes match.
+     *
      * @param bundlePayload protobuf-serialized {@code ClprSeiBundlePayload}
      * @param trustAnchor protobuf-serialized {@code SeiTrustAnchor} from the channel
-     * @throws ProofException if parsing fails or any verification step is violated
+     * @param channelContext the local Channel record's {@code channelId32 || serviceAddress20}
+     * @throws ProofException if parsing fails, any verification step is violated, or the proof is not for this
+     *     channel
      */
     @NonNull
-    public static VerifiedBundle verifyBundle(@NonNull final byte[] bundlePayload, @NonNull final byte[] trustAnchor) {
+    public static VerifiedBundle verifyBundle(
+            @NonNull final byte[] bundlePayload,
+            @NonNull final byte[] trustAnchor,
+            @NonNull final byte[] channelContext) {
         requireNonNull(bundlePayload, "bundlePayload");
         requireNonNull(trustAnchor, "trustAnchor");
+        requireNonNull(channelContext, "channelContext");
         log.debug(
                 "SeiCometBftProofVerifier.verifyBundle ENTER: bundlePayload={} bytes, trustAnchor={} bytes",
                 bundlePayload.length,
@@ -231,6 +245,9 @@ public final class SeiCometBftProofVerifier {
             throw ProofException.sei(
                     "trustAnchor.service_address must be " + ADDRESS_LENGTH + " bytes, got " + serviceAddress20.length);
         }
+        // Check the context against the trusted anchor before any proof work, so a context naming another
+        // service contract fails fast.
+        final byte[] channelId = EvmChannelContext.channelId(channelContext, serviceAddress20);
         final String chainId = anchor.chainId();
         if (chainId.isEmpty()) {
             throw ProofException.sei("trustAnchor.chain_id is empty");
@@ -321,7 +338,7 @@ public final class SeiCometBftProofVerifier {
         QueueMetadata queueMetadata = null;
         byte[] newEndpointManifestBytes = new byte[0];
         if (stateProof != null) {
-            final ProvenState proven = verifyStateProof(stateProof, currentSet, serviceAddress20);
+            final ProvenState proven = verifyStateProof(stateProof, currentSet, serviceAddress20, channelId);
             final SeiHeader contentHeader = proven.header();
             if (!chainId.equals(contentHeader.chainId())) {
                 throw ProofException.sei("header chain_id '" + contentHeader.chainId()
@@ -334,7 +351,7 @@ public final class SeiCometBftProofVerifier {
             headerHash32 = proven.headerHash32();
 
             // Manifest-only recovery bundle (spec §8.1.4): a state_proof (to establish the store root)
-            // with EMPTY bundle_content and a slot-18 manifest proof but NO queue storage slots. It
+            // with EMPTY bundle_content and a slot-14 manifest proof but NO queue storage slots. It
             // authenticates the peer chain and proves the endpoint manifest while carrying no queue
             // state — the store root comes from the multistore commitment, not the per-slot proofs, so
             // verifyStateProof tolerates zero queue slots. bundleContentBytes/queueMetadata stay null;
@@ -353,7 +370,7 @@ public final class SeiCometBftProofVerifier {
                 queueMetadata = decodeQueueMetadata(proven.slotValues());
 
                 // Endpoint-manifest advance (spec §4.2 Step 1b): a separate top-level ICS-23 proof of the
-                // slot-18 commitment against the same proven store root as the queue slots.
+                // slot-14 commitment against the same proven store root as the queue slots.
                 if (hasManifestProof) {
                     newEndpointManifestBytes = verifyEndpointManifestProof(
                             payload.manifestStorageProof(),
@@ -361,16 +378,6 @@ public final class SeiCometBftProofVerifier {
                             proven.storeRoot(),
                             serviceAddress20);
                 }
-            }
-
-            // Endpoint-manifest advance (spec §4.2 Step 1b): a separate top-level ICS-23 proof of the
-            // slot-18 commitment against the same proven store root as the queue slots.
-            if (hasManifestProof) {
-                newEndpointManifestBytes = verifyEndpointManifestProof(
-                        payload.manifestStorageProof(),
-                        payload.endpointManifest().toByteArray(),
-                        proven.storeRoot(),
-                        serviceAddress20);
             }
 
             // ── Stage 3: current rotation from the content header ──
@@ -537,12 +544,33 @@ public final class SeiCometBftProofVerifier {
      * Runs the full verification chain for one state proof: validator-set hash, header hash,
      * commit signatures with quorum, multistore proof to {@code app_hash}, and one IAVL proof
      * per storage slot, with every slot key required to target the given service contract.
+     *
+     * <p>The proven slots are <b>not</b> bound to a channel. {@link #verifyBundle} always uses the four-argument
+     * overload; this one is a test seam for checking the CometBFT and ICS-23 chain against fixtures whose slots do
+     * not belong to a CLPR channel, such as captured Sei testnet proofs.
      */
     @NonNull
     static ProvenState verifyStateProof(
             @NonNull final SeiStateProof stateProof,
             @NonNull final SeiValidatorSet trustedSet,
             @NonNull final byte[] serviceAddress20) {
+        return verifyStateProof(stateProof, trustedSet, serviceAddress20, null);
+    }
+
+    /**
+     * Same as {@link #verifyStateProof(SeiStateProof, SeiValidatorSet, byte[])}, but when {@code channelId} is set,
+     * the proven queue slots are ordered by {@link EvmChannelContext#orderQueueSlots}, which accepts only the
+     * canonical storage keys of that channel.
+     *
+     * @param channelId the 32-byte channel ID to bind the queue slots to, or {@code null} (tests only) to order them
+     *     by the legacy key-pattern search ({@link #orderQueueSlotValuesByProofKey})
+     */
+    @NonNull
+    private static ProvenState verifyStateProof(
+            @NonNull final SeiStateProof stateProof,
+            @NonNull final SeiValidatorSet trustedSet,
+            @NonNull final byte[] serviceAddress20,
+            @Nullable final byte[] channelId) {
         final SeiSignedHeader signedHeader = required(stateProof.signedHeader(), "signed_header");
         final ProvenHeader provenHeader = verifySignedHeader(signedHeader, trustedSet);
         final SeiHeader header = provenHeader.header();
@@ -633,7 +661,19 @@ public final class SeiCometBftProofVerifier {
                     HEX.formatHex(slotValue),
                     entry.iavlProof().length());
         }
-        final byte[][] slotValues = orderQueueSlotValuesByProofKey(entries, slotValuesInProofOrder);
+        final byte[][] slotValues;
+        // A manifest-only recovery bundle proves no queue slots, so there is nothing to bind; it takes the legacy
+        // path, which passes the empty array through unchanged.
+        if (channelId != null && !entries.isEmpty()) {
+            // Each key was checked above to be 0x03 || serviceAddress(20) || slot(32); bytes 21..52 are the
+            // 32-byte EVM storage slot.
+            final byte[][] slotKeys = entries.stream()
+                    .map(entry -> Arrays.copyOfRange(entry.key().toByteArray(), 21, 53))
+                    .toArray(byte[][]::new);
+            slotValues = EvmChannelContext.orderQueueSlots(slotKeys, slotValuesInProofOrder, channelId);
+        } else {
+            slotValues = orderQueueSlotValuesByProofKey(entries, slotValuesInProofOrder);
+        }
         log.debug(
                 "SeiCometBftProofVerifier.verifyStateProof EXIT: SUCCESS blockHash=0x{}, provenSlots={}",
                 HEX.formatHex(headerHash32),
@@ -643,8 +683,8 @@ public final class SeiCometBftProofVerifier {
 
     /**
      * Verifies the optional endpoint-manifest advance carried by a Sei bundle (spec §4.2 Step 1b) —
-     * the CometBFT analog of the QBFT slot-18 manifest proof. {@code manifest_storage_proof} is a
-     * single ICS-23 IAVL existence proof of the {@code _endpointManifest.commitment} slot (18) in the
+     * the CometBFT analog of the QBFT slot-14 manifest proof. {@code manifest_storage_proof} is a
+     * single ICS-23 IAVL existence proof of the {@code _endpointManifest.commitment} slot (14) in the
      * peer's {@code evm} store, verified against the <b>same</b> {@code storeRoot} (hence the same
      * signed header / app-hash) as the queue-metadata slots. Kept out of {@code state_proof.storage_proofs}
      * so the fixed queue-slot ordering is unaffected. Binding + invariants mirror {@code BesuQbftVerifier}:
@@ -669,7 +709,7 @@ public final class SeiCometBftProofVerifier {
                     + " (expected 0x03 || serviceAddress || slot)");
         }
         if (!Arrays.equals(key, 1 + ADDRESS_LENGTH, key.length, endpointManifestCommitmentSlot(), 0, 32)) {
-            throw ProofException.sei("manifest_storage_proof is not for the endpoint-manifest commitment slot (18)");
+            throw ProofException.sei("manifest_storage_proof is not for the endpoint-manifest commitment slot (14)");
         }
         final byte[] value = manifestStorageProof.value().toByteArray();
         if (value.length != 32) {
@@ -682,7 +722,7 @@ public final class SeiCometBftProofVerifier {
 
         // Bind the supplied preimage to the proven commitment: commitment = keccak256(preimage).
         if (!Arrays.equals(MiscCryptoUtils.keccak256DigestOf(manifestPreimage), value)) {
-            throw ProofException.sei("endpoint_manifest preimage does not match the proven commitment (slot 18)");
+            throw ProofException.sei("endpoint_manifest preimage does not match the proven commitment (slot 14)");
         }
         final ClprEndpointManifest manifest;
         try {
@@ -731,7 +771,7 @@ public final class SeiCometBftProofVerifier {
             final int sentRunningHashIndex = findSlot(slots, addUint256(base, CHANNEL_OFFSET_SENT_RUNNING_HASH));
             final int receivedRunningHashIndex =
                     findSlot(slots, addUint256(base, CHANNEL_OFFSET_RECEIVED_RUNNING_HASH));
-            // offset 16: endpointManifestVersion — proven on every bundle (the sender's cached view of our
+            // offset 15: endpointManifestVersion — proven on every bundle (the sender's cached view of our
             // manifest version). Required, so a relay cannot omit it and fall back to the relayed value.
             final int manifestVersionIndex =
                     findSlot(slots, addUint256(base, CHANNEL_OFFSET_ENDPOINT_MANIFEST_VERSION));
@@ -872,7 +912,7 @@ public final class SeiCometBftProofVerifier {
             }
             final byte[] signBytes = SeiHashing.precommitSignBytes(
                     header.chainId(), header.height(), commit.round(), blockId, timestamp);
-            if (!SeiHashing.verifyEd25519(
+            if (!Ed25519Verify.verify(
                     validator.ed25519PubKey().toByteArray(),
                     signBytes,
                     sig.signature().toByteArray())) {
@@ -919,10 +959,10 @@ public final class SeiCometBftProofVerifier {
 
     /**
      * Decodes queue metadata from the canonical slot-value array produced by
-     * {@link #orderQueueSlotValuesByProofKey}: {@code [status|nextMsgId, acked|received, sentRunningHash,
-     * receivedRunningHash, endpointManifestVersion]} and, for message-bearing bundles, the last-message
-     * running hash appended. The Channel packing is identical to QBFT/Ethereum because all EVM ledgers use
-     * the same CLPR service contract.
+     * {@link EvmChannelContext#orderQueueSlots} or {@link #orderQueueSlotValuesByProofKey}:
+     * {@code [status|nextMsgId, acked|received, sentRunningHash, receivedRunningHash, endpointManifestVersion]}
+     * and, for message-bearing bundles, the last-message running hash appended. The Channel packing is identical
+     * to QBFT/Ethereum because all EVM ledgers use the same CLPR service contract.
      */
     @NonNull
     static QueueMetadata decodeQueueMetadata(@NonNull final byte[][] provenSlotValues) {
@@ -950,7 +990,7 @@ public final class SeiCometBftProofVerifier {
         final byte[] receivedIdSlot = provenSlotValues[SP_INDEX_RECEIVED_MSG_ID];
         final long receivedMessageId = readUint64BigEndian(receivedIdSlot, 16);
 
-        // Slot +16: endpointManifestVersion (uint64) — a lone field in its own slot, LSB-packed (last 8 bytes).
+        // Slot +15: endpointManifestVersion (uint64) — a lone field in its own slot, LSB-packed (last 8 bytes).
         final byte[] manifestVersionSlot = provenSlotValues[SP_INDEX_ENDPOINT_MANIFEST_VERSION];
         final long endpointManifestVersion = readUint64BigEndian(manifestVersionSlot, 24);
 
@@ -1108,7 +1148,7 @@ public final class SeiCometBftProofVerifier {
      * @param newTrustAnchorId {@code validator_set_hash || height} of {@code newTrustAnchor};
      *     {@code null} iff it is
      * @param newEndpointManifestBytes protobuf {@code ClprEndpointManifest} preimage proven by the
-     *     bundle's slot-18 manifest proof (spec §4.2 Step 1b); empty ({@code byte[0]}) when the bundle
+     *     bundle's slot-14 manifest proof (spec §4.2 Step 1b); empty ({@code byte[0]}) when the bundle
      *     carried no manifest advance
      */
     public record VerifiedBundle(

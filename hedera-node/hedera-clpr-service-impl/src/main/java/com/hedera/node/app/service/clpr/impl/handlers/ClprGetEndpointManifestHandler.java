@@ -16,6 +16,7 @@ import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.hapi.utils.blocks.StateProofVerifier;
 import com.hedera.node.app.hapi.utils.blocks.TssVerifier;
 import com.hedera.node.app.service.clpr.ReadableEndpointManifestStore;
+import com.hedera.node.app.service.clpr.impl.ClprProofTimestamp;
 import com.hedera.node.app.service.clpr.impl.ClprStateProofManager;
 import com.hedera.node.app.spi.workflows.FreeQueryHandler;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -38,7 +39,7 @@ import org.apache.logging.log4j.Logger;
  * required. Enables:
  * <ul>
  *   <li>Channel registrants to build the {@code endpoint_manifest_proof_bytes} needed by
- *       {@code ClprCompleteChannel} (spec PR #332).</li>
+ *       {@code ClprCreateChannel} (spec PR #332).</li>
  *   <li>Any party to construct manifest-recovery {@code ClprSubmitBundle} calls (spec PR #336).</li>
  * </ul>
  */
@@ -89,14 +90,17 @@ public class ClprGetEndpointManifestHandler extends FreeQueryHandler {
 
         final var response = ClprGetEndpointManifestResponse.newBuilder().header(header);
         if (header.nodeTransactionPrecheckCode() == OK) {
-            final var proven = stateProofManager.buildManifestStateProofWithValue();
+            final boolean forRecovery =
+                    context.query().clprGetEndpointManifestOrThrow().forManifestRecovery();
+            final var proven = stateProofManager.buildManifestStateProofWithValue(forRecovery);
             if (proven != null) {
                 // Value and proof come from the same block-proven snapshot, so the returned
                 // manifest.version() is exactly what the proof attests. This is what lets a recovery
                 // consumer (spec §8.1.4) key off the observed version without capturing a value that is
                 // ahead of its proof — the manual bundle then carries a strictly-advancing, sealed manifest.
                 response.manifest(proven.manifest());
-                response.manifestStateProof(assertValidOrEmpty(proven.proof(), stateProofManager.latestLedgerId()));
+                response.manifestStateProof(
+                        assertValidOrEmpty(proven.proof(), stateProofManager.latestLedgerId(), forRecovery));
             } else {
                 // Bring-up: no signed snapshot yet. Return the live manifest with no proof — consumers see
                 // an empty proof and retry once a snapshot is available (unchanged pre-snapshot behavior).
@@ -120,7 +124,7 @@ public class ClprGetEndpointManifestHandler extends FreeQueryHandler {
      * <p>Same defensive pattern as {@link ClprGetLedgerConfigurationHandler}; consider
      * factoring both into a shared helper once the pattern proves stable.
      */
-    private Bytes assertValidOrEmpty(final Bytes proofBytes, final Bytes ledgerId) {
+    private Bytes assertValidOrEmpty(final Bytes proofBytes, final Bytes ledgerId, final boolean forRecovery) {
         if (proofBytes == null || proofBytes.length() == 0) {
             return Bytes.EMPTY;
         }
@@ -140,7 +144,14 @@ public class ClprGetEndpointManifestHandler extends FreeQueryHandler {
                                     .getConfiguration()
                                     .getConfigData(BlockStreamConfig.class)
                                     .digestType());
-            final byte[] rootHash = StateProofVerifier.computeBlockRootHash(stateProof, digest);
+            final byte[] rootHash = forRecovery
+                    ? StateProofVerifier.computeBlockRootHashFromPath(
+                            stateProof.paths().getFirst(), digest)
+                    : StateProofVerifier.computeBlockRootHash(stateProof, digest);
+            if (forRecovery && ClprProofTimestamp.verifiedTimestamp(stateProof, rootHash, digest) == null) {
+                log.warn("ClprGetEndpointManifest: recovery proof has no authenticated source timestamp");
+                return Bytes.EMPTY;
+            }
             if (!stateProof.hasSignedBlockProof()) {
                 log.warn("ClprGetEndpointManifest: proof has no signedBlockProof; refusing");
                 return Bytes.EMPTY;

@@ -37,6 +37,7 @@ public class HapiClprGetEndpointManifest extends HapiQueryOp<HapiClprGetEndpoint
 
     private Consumer<ClprEndpointManifest> manifestObserver = m -> {};
     private Consumer<ByteString> proofObserver = p -> {};
+    private boolean forManifestRecovery;
 
     private Optional<Long> expectedMinVersion = Optional.empty();
     private Optional<Integer> expectedMinEndpoints = Optional.empty();
@@ -57,6 +58,12 @@ public class HapiClprGetEndpointManifest extends HapiQueryOp<HapiClprGetEndpoint
      */
     public HapiClprGetEndpointManifest exposingProofTo(final Consumer<ByteString> observer) {
         this.proofObserver = observer;
+        return this;
+    }
+
+    /** Requests a proof with an authenticated timestamp for a manifest recovery bundle. */
+    public HapiClprGetEndpointManifest forManifestRecovery() {
+        forManifestRecovery = true;
         return this;
     }
 
@@ -98,6 +105,7 @@ public class HapiClprGetEndpointManifest extends HapiQueryOp<HapiClprGetEndpoint
             @NonNull final Transaction payment,
             @NonNull final ResponseType responseType) {
         final var inner = ClprGetEndpointManifestQuery.newBuilder()
+                .setForManifestRecovery(forManifestRecovery)
                 .setHeader(responseType == ResponseType.COST_ANSWER ? answerCostHeader(payment) : answerHeader(payment))
                 .build();
         return Query.newBuilder().setClprGetEndpointManifest(inner).build();

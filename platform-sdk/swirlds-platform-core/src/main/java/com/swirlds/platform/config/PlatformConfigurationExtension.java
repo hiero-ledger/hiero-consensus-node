@@ -11,7 +11,7 @@ import java.util.Set;
 import org.hiero.consensus.BasicConfig;
 import org.hiero.consensus.FallenBehindConfig;
 import org.hiero.consensus.PathsConfig;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.wiring.framework.WiringConfig;
 import org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerConfiguration;
 

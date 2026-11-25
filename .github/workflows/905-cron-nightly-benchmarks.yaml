@@ -10,11 +10,18 @@ on:
         type: string
         required: false
         default: ""
-      publish:
-        description: "Publish the results to Grafana, labeled run_type=manual."
-        type: boolean
+      benchmarks:
+        description: "The tracked benchmarks to run, separated by commas or spaces (default: all)."
+        type: string
         required: false
-        default: false
+        default: ""
+      params:
+        description:
+          "Only the parameter sets with these values, as name=value separated by spaces, e.g. numNodes=10;
+          a benchmark without the parameter runs all its sets (default: all)."
+        type: string
+        required: false
+        default: ""
 
 defaults:
   run:
@@ -35,7 +42,7 @@ jobs:
   extract-jdk-version:
     name: Extract Java Version
     uses: ./.github/workflows/854-call-extract-jdk-version.yaml
-    if: ${{ github.event.repository.visibility == 'public' }}
+    if: ${{ github.event.repository.visibility == 'public' && !github.event.repository.fork }}
     with:
       ref: ${{ inputs.ref || github.ref }}
     secrets:
@@ -54,7 +61,7 @@ jobs:
       matrix:
         runner: ["hl-cn-benchmark-lin"]
     runs-on: ${{ matrix.runner }}
-    if: ${{ github.event.repository.visibility == 'public' }}
+    if: ${{ github.event.repository.visibility == 'public' && !github.event.repository.fork }}
     timeout-minutes: 360
     needs:
       - extract-jdk-version
@@ -92,11 +99,15 @@ jobs:
       - name: Record Environment Before
         env:
           BENCHMARK_REF: ${{ inputs.ref || github.ref }}
+          BENCHMARKS: ${{ inputs.benchmarks }}
+          PARAMS: ${{ inputs.params }}
         run: |
           mkdir -p "${RESULTS_DIR}"
           {
             echo "commit=$(git rev-parse HEAD)"
             echo "ref=${BENCHMARK_REF}"
+            echo "benchmarks=${BENCHMARKS:-all}"
+            echo "params=${PARAMS:-all}"
             echo "run_id=${GITHUB_RUN_ID}"
             echo "run_attempt=${GITHUB_RUN_ATTEMPT}"
             echo "run_url=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
@@ -114,6 +125,9 @@ jobs:
       # benchmarks' priority on a shared node.
       - name: Run Benchmarks
         id: jmh
+        env:
+          BENCHMARKS: ${{ inputs.benchmarks }}
+          PARAMS: ${{ inputs.params }}
         run: |
           shopt -s nullglob
           manifests=(platform-sdk/*/build/jmh/tracked.properties)
@@ -121,8 +135,13 @@ jobs:
             echo "::error::no module tracks benchmarks (no build/jmh/tracked.properties written by jmhTracked)"
             exit 1
           fi
+          read -r -a entries <<< "${PARAMS}"
+          params=()
+          for entry in "${entries[@]}"; do
+            params+=(--param "${entry}")
+          done
           python3 .github/workflows/support/scripts/benchmarks/run_benchmarks.py \
-            --manifest "${manifests[@]}" --out "${RESULTS_DIR}"
+            --manifest "${manifests[@]}" --only "${BENCHMARKS}" "${params[@]}" --out "${RESULTS_DIR}"
 
       - name: Record Environment After
         if: ${{ always() && steps.jmh.outcome != 'skipped' }}
@@ -131,11 +150,12 @@ jobs:
           .github/workflows/support/scripts/record-benchmark-environment.sh > "${RESULTS_DIR}/environment-after.txt"
           sed -n '/^== summary/,/^== end summary/p' "${RESULTS_DIR}/environment-after.txt"
 
-      # Scheduled runs publish as run_type=nightly, which dashboards and alerts use; manual runs only on request
+      # Only scheduled runs publish, as run_type=nightly, which dashboards and alerts use: a manual run can measure
+      # another ref or only some benchmarks, which must not be compared with the nightly runs
       - name: Publish Results
-        if: ${{ github.event_name == 'schedule' || inputs.publish }}
+        if: ${{ github.event_name == 'schedule' }}
         env:
-          RUN_TYPE: ${{ github.event_name == 'schedule' && 'nightly' || 'manual' }}
+          RUN_TYPE: nightly
           METRICS_URL: ${{ vars.MICROBENCHMARKS_METRICS_MIMIR_URL }}
           LOKI_URL: ${{ vars.MICROBENCHMARKS_METRICS_LOKI_URL }}
           BENCHMARK_METRICS_USER: ${{ vars.MICROBENCHMARK_METRICS_USER_NAME }}

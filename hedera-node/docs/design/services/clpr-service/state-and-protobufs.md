@@ -14,12 +14,10 @@ Transaction bodies (one body per HAPI tx):
 
 |                   File                   |                 Functionality                 |
 |------------------------------------------|-----------------------------------------------|
-| `clpr_register_channel.proto`            | `CLPR_REGISTER_CHANNEL`                       |
-| `clpr_complete_channel.proto`            | `CLPR_COMPLETE_CHANNEL`                       |
-| `clpr_close_channel.proto`               | `CLPR_CLOSE_CHANNEL`                          |
-| `clpr_register_connector.proto`          | `CLPR_REGISTER_CONNECTOR`                     |
-| `clpr_complete_connector.proto`          | `CLPR_COMPLETE_CONNECTOR`                     |
-| `clpr_deregister_connector.proto`        | `CLPR_DEREGISTER_CONNECTOR`                   |
+| `clpr_create_channel.proto`              | `CLPR_CREATE_CHANNEL`                         |
+| `clpr_delete_channel.proto`              | `CLPR_DELETE_CHANNEL`                         |
+| `clpr_create_connector.proto`            | `CLPR_CREATE_CONNECTOR`                       |
+| `clpr_delete_connector.proto`            | `CLPR_DELETE_CONNECTOR`                       |
 | `clpr_submit_bundle.proto`               | `CLPR_SUBMIT_BUNDLE`                          |
 | `clpr_redact_message.proto`              | `CLPR_REDACT_MESSAGE`                         |
 | `clpr_update_ledger_configuration.proto` | `CLPR_UPDATE_LEDGER_CONFIGURATION`            |
@@ -31,7 +29,7 @@ Transaction bodies (one body per HAPI tx):
 |               File                |                                                                                         Defines                                                                                         |
 |-----------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `clpr_channel.proto`              | `ClprChannel`, `ClprChannelStatus` enum                                                                                                                                                 |
-| `clpr_connector.proto`            | `ClprConnector`, `ClprConnectorKey` (composite key: `channel_id` + `connector_id`, where `connector_id = keccak256(channel_id ‖ public_key ‖ salt)` per spec §2.2)                      |
+| `clpr_connector.proto`            | `ClprConnector`, `ClprConnectorKey` (composite key: `channel_id` + `connector_id`, where `connector_id = keccak256(public_key ‖ salt)` per spec §2.2)                                   |
 | `clpr_message.proto`              | `ClprMessage`, `ClprMessageKey`, `ClprMessageValue`, `ClprMessagePayload` (oneof), `ClprControlMessage`, `ClprConfigUpdate`, `ClprQueueMetadata`, `ClprSyncPayload`                     |
 | `clpr_ledger_configuration.proto` | `ClprLedgerConfiguration`, `ClprThrottles`, `ClprEndpoint`                                                                                                                              |
 | `clpr_bundle_content.proto`       | `ClprBundleContent` (returned by `ClprVerifier.verifyBundle`)                                                                                                                           |
@@ -50,14 +48,14 @@ orders the schema independently of the software version.
 
 ### States created
 
-|              Constant               |   Kind    |                         Key type                         |        Value type         |                                       Cap                                        |
-|-------------------------------------|-----------|----------------------------------------------------------|---------------------------|----------------------------------------------------------------------------------|
-| `CHANNELS_KEY`                      | KV        | `ProtoBytes` (32B channel ID)                            | `ClprChannel`             | `MAX_CHANNELS = 10 000`                                                          |
-| `PENDING_COMMITMENTS_KEY`           | KV        | `ProtoBytes`                                             | `ProtoBytes`              | `MAX_PENDING_COMMITMENTS = 10 000` (independent)                                 |
-| `PENDING_CONNECTOR_COMMITMENTS_KEY` | KV        | `ProtoBytes`                                             | `ProtoBytes`              | `MAX_PENDING_COMMITMENTS = 10 000` (independent — same constant, separate state) |
-| `MESSAGE_QUEUE_KEY`                 | KV        | `ClprMessageKey` (channelId + messageId)                 | `ClprMessageValue`        | unbounded (queue depth gated by `ClprThrottles.max_queue_depth`)                 |
-| `CONNECTORS_KEY`                    | KV        | `ClprConnectorKey` (channel_id + connector_id, both 32B) | `ClprConnector`           | `MAX_CONNECTORS = 100 000`                                                       |
-| `LEDGER_CONFIGURATION_KEY`          | Singleton | —                                                        | `ClprLedgerConfiguration` | 1                                                                                |
+|               Constant               |   Kind    |                         Key type                         |        Value type         |                                      Cap                                       |
+|--------------------------------------|-----------|----------------------------------------------------------|---------------------------|--------------------------------------------------------------------------------|
+| `CHANNELS_KEY`                       | KV        | `ProtoBytes` (32B channel ID)                            | `ClprChannel`             | `MAX_CHANNELS = 10 000`                                                        |
+| `PENDING_COMMITMENTS_KEY`            | KV        | `ProtoBytes`                                             | `ProtoBytes`              | `MAX_PENDING_COMMITMENTS = 10 000` (independent)                               |
+| `CONNECTOR_REGISTRATION_HISTORY_KEY` | KV        | `ProtoBytes` (channel ID ‖ connector ID)                 | `ProtoBytes`              | Permanent registration history. Legacy 32-byte commitments have distinct keys. |
+| `MESSAGE_QUEUE_KEY`                  | KV        | `ClprMessageKey` (channelId + messageId)                 | `ClprMessageValue`        | unbounded (queue depth gated by `ClprThrottles.max_queue_depth`)               |
+| `CONNECTORS_KEY`                     | KV        | `ClprConnectorKey` (channel_id + connector_id, both 32B) | `ClprConnector`           | `MAX_CONNECTORS = 100 000`                                                     |
+| `LEDGER_CONFIGURATION_KEY`           | Singleton | —                                                        | `ClprLedgerConfiguration` | 1                                                                              |
 
 State IDs are `StateKey.KeyOneOfType.CLPRSERVICE_I_*.protoOrdinal()` (or
 `SingletonType.CLPRSERVICE_I_LEDGER_CONFIGURATION.protoOrdinal()` for the singleton). Treat
@@ -73,17 +71,23 @@ values; schema startup only registers the state definitions.
 Seeds `LEDGER_CONFIGURATION` with:
 
 - `chainId` and `protocolVersion` from `ClprConfig` (active network config).
-- Default `ClprThrottles`:
+- Default `ClprThrottles` from the bundled genesis configuration, unless a node-local file overrides them:
   - `maxSyncBytes = 4 MiB`
   - `maxMessagesPerBundle = 1 000`
   - `maxQueueDepth = 10 000`
   - `maxMessagePayloadBytes = 64 KiB`
   - `maxSyncsPerSec = 10`
   - `maxLocalEndpoints = 10`
-  - `maxPeerEndpoints = 10`
+  - `maxPeerEndpoints = 100`
 - `endpoints` is **not** seeded by the schema; it is populated via
   `CLPR_UPDATE_LEDGER_CONFIGURATION` (admin tx). A fresh genesis network has empty seeds
   and no channels — bootstrap must perform an admin update before any sync can run.
+
+Changing the bundled defaults does not migrate existing `LEDGER_CONFIGURATION` state. A node-local
+file or an upgrade configuration file retains its explicitly configured count limit; existing ledgers
+must apply a configuration update or upgrade file to adopt `maxPeerEndpoints = 100`. Independently,
+Hiero bounds every retained peer manifest to 16,384 serialized bytes. A zero count limit disables
+only the endpoint-count bound, not this protocol byte ceiling.
 
 > **Spec mapping:** the singleton corresponds to `ClprLedgerConfiguration` from spec
 > §1.1. Throttle defaults satisfy the §7 "TBD per platform" placeholders.
@@ -101,7 +105,7 @@ Impl module (`hedera-clpr-service-impl`):
 - Writable (only used inside handler/api code): `WritableChannelStore`,
   `WritableConnectorStore`, `WritableMessageQueueStore`,
   `WritableLedgerConfigurationStore`, `WritablePendingCommitmentStore`,
-  `WritablePendingConnectorCommitmentStore`.
+  `WritableConnectorRegistrationStore`.
 
 `ReadableStoreFactoryImpl` and `WritableStoreFactory` register all of these under
 `ClprService.NAME`; `HederaNativeOperations` exposes `ReadableChannelStore` to the EVM

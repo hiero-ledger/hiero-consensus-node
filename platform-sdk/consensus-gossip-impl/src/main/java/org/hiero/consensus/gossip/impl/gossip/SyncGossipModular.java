@@ -30,11 +30,11 @@ import org.hiero.consensus.gossip.impl.network.protocol.HeartbeatProtocol;
 import org.hiero.consensus.gossip.impl.network.protocol.Protocol;
 import org.hiero.consensus.gossip.impl.network.protocol.ProtocolRunnable;
 import org.hiero.consensus.gossip.impl.network.protocol.rpc.RpcProtocol;
+import org.hiero.consensus.main.model.KeysAndCerts;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.RosterEntryWrapper;
 import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.status.PlatformStatus;
@@ -65,17 +65,17 @@ public class SyncGossipModular implements Gossip {
     /**
      * Builds the gossip engine, depending on which flavor is requested in the configuration.
      *
-     * @param configuration the configuration
-     * @param metrics the metrics registry
-     * @param time the time source
-     * @param threadManager the thread manager
-     * @param ownKeysAndCerts private keys and public certificates for this node
-     * @param roster the active roster
-     * @param selfId this node's ID
-     * @param appVersion the version of the app
-     * @param intakeEventCounter keeps track of the number of events in the intake pipeline from each peer
+     * @param configuration       the configuration
+     * @param metrics             the metrics registry
+     * @param time                the time source
+     * @param threadManager       the thread manager
+     * @param ownKeysAndCerts     private keys and public certificates for this node
+     * @param roster              the active roster
+     * @param selfId              this node's ID
+     * @param appVersion          the version of the app
+     * @param intakeEventCounter  keeps track of the number of events in the intake pipeline from each peer
      * @param fallenBehindMonitor an instance of the fallenBehind Monitor which tracks if the node has fallen behind
-     * @param reconnectProtocol the reconnect protocol to use
+     * @param reconnectProtocol   the reconnect protocol to use
      */
     public SyncGossipModular(
             @NonNull final Configuration configuration,
@@ -166,7 +166,7 @@ public class SyncGossipModular implements Gossip {
      * can be a short moment when it will drop out of the network if disconnect happens at a bad moment. NOT THREAD
      * SAFE. Synchronize externally.
      *
-     * @param added peers to be added
+     * @param added   peers to be added
      * @param removed peers to be removed
      */
     public void addRemovePeers(@NonNull final List<PeerInfo> added, @NonNull final List<PeerInfo> removed) {

@@ -21,15 +21,16 @@ import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.NoOpIntakeEventCounter;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.gossip.config.BroadcastConfig;
+import org.hiero.consensus.gossip.config.GossipConfig;
 import org.hiero.consensus.gossip.config.SyncConfig;
 import org.hiero.consensus.gossip.impl.gossip.permits.SyncGuard;
 import org.hiero.consensus.gossip.impl.gossip.permits.SyncGuardFactory;
 import org.hiero.consensus.gossip.impl.gossip.rpc.GossipRpcSender;
 import org.hiero.consensus.gossip.impl.gossip.rpc.SyncData;
 import org.hiero.consensus.gossip.impl.gossip.sync.SyncMetrics;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
@@ -108,6 +109,7 @@ class RpcPeerHandlerTest {
                 syncGuard,
                 fallenBehindManager,
                 configuration.getConfigData(SyncConfig.class),
+                configuration.getConfigData(GossipConfig.class),
                 configuration.getConfigData(BroadcastConfig.class));
     }
 

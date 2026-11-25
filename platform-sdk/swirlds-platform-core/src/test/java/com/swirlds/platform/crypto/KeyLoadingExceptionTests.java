@@ -8,7 +8,7 @@ import static org.hiero.base.utility.test.fixtures.assertions.ExceptionAssertion
 
 import java.util.List;
 import org.hiero.consensus.crypto.KeyCertPurpose;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.junit.jupiter.api.Test;
 
 class KeyLoadingExceptionTests {

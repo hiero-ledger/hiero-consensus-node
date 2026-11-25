@@ -36,7 +36,7 @@ import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
-import com.hedera.hapi.node.clpr.ClprRegisterChannelTransactionBody;
+import com.hedera.hapi.node.clpr.ClprCreateChannelTransactionBody;
 import com.hedera.hapi.node.consensus.ConsensusCreateTopicTransactionBody;
 import com.hedera.hapi.node.consensus.ConsensusDeleteTopicTransactionBody;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
@@ -148,13 +148,12 @@ class AtomicBatchHandlerTest {
             HederaFunctionality.LEDGER_ID_PUBLICATION,
             // CLPR
             HederaFunctionality.CLPR_UPDATE_LEDGER_CONFIGURATION,
-            HederaFunctionality.CLPR_REGISTER_CHANNEL,
-            HederaFunctionality.CLPR_COMPLETE_CHANNEL,
-            HederaFunctionality.CLPR_CLOSE_CHANNEL,
+            HederaFunctionality.CLPR_CREATE_CHANNEL,
+            HederaFunctionality.CLPR_DELETE_CHANNEL,
+            HederaFunctionality.CLPR_EVICT_PEER_ENDPOINT,
             HederaFunctionality.CLPR_SUBMIT_BUNDLE,
-            HederaFunctionality.CLPR_REGISTER_CONNECTOR,
-            HederaFunctionality.CLPR_DEREGISTER_CONNECTOR,
-            HederaFunctionality.CLPR_COMPLETE_CONNECTOR,
+            HederaFunctionality.CLPR_CREATE_CONNECTOR,
+            HederaFunctionality.CLPR_DELETE_CONNECTOR,
             HederaFunctionality.CLPR_ENDPOINT_PUBLICATION,
             HederaFunctionality.CLPR_MAINTENANCE);
     private final AccountID payerId1 = AccountID.newBuilder().accountNum(1001).build();
@@ -262,7 +261,7 @@ class AtomicBatchHandlerTest {
     @Test
     void failsOnInnerClprTx() throws PreCheckException {
         final var innerTxnBody = newTxnBodyBuilder(payerId2, consensusTimestamp, SIMPLE_KEY_A)
-                .clprRegisterChannel(ClprRegisterChannelTransactionBody.DEFAULT)
+                .clprCreateChannel(ClprCreateChannelTransactionBody.DEFAULT)
                 .batchKey(SIMPLE_KEY_A)
                 .nodeAccountID(AccountID.newBuilder().accountNum(0).build())
                 .build();
@@ -282,17 +281,13 @@ class AtomicBatchHandlerTest {
     void failsOnInnerScheduleTx(final TransactionBody.DataOneOfType scheduleTxnType) throws PreCheckException {
         final var builder = newTxnBodyBuilder(payerId2, consensusTimestamp, SIMPLE_KEY_A)
                 .nodeAccountID(ATOMIC_BATCH_NODE_ACCOUNT_ID);
-        final var innerTxnBody =
-                switch (scheduleTxnType) {
-                    case SCHEDULE_CREATE ->
-                        builder.scheduleCreate(ScheduleCreateTransactionBody.DEFAULT)
-                                .build();
-                    case SCHEDULE_SIGN ->
-                        builder.scheduleSign(ScheduleSignTransactionBody.DEFAULT)
-                                .build();
-                    default ->
-                        throw new IllegalArgumentException("Not a schedule transaction type: " + scheduleTxnType);
-                };
+        final var innerTxnBody = switch (scheduleTxnType) {
+            case SCHEDULE_CREATE ->
+                builder.scheduleCreate(ScheduleCreateTransactionBody.DEFAULT).build();
+            case SCHEDULE_SIGN ->
+                builder.scheduleSign(ScheduleSignTransactionBody.DEFAULT).build();
+            default -> throw new IllegalArgumentException("Not a schedule transaction type: " + scheduleTxnType);
+        };
         final var bytes = transactionsToBytes(innerTxnFrom("123"));
         given(preHandleContext.body()).willReturn(newAtomicBatch(payerId1, consensusTimestamp, bytes));
         given(transactionParser.parse(eq(bytes.getFirst()), any())).willReturn(innerTxnBody);

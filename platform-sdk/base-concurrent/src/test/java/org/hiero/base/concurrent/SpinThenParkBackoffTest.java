@@ -20,10 +20,10 @@ class SpinThenParkBackoffTest {
     @Test
     void spinsWithoutParkingBeforeSpinLimit() {
         final List<Long> parks = new ArrayList<>();
-        int idle = 0;
+        int backoffStep = 0;
         for (int i = 0; i < SPIN_LIMIT; i++) {
-            idle = SpinThenParkBackoff.backOff(idle, 7, parks::add);
-            assertEquals(i + 1, idle, "the counter should grow by one per call");
+            backoffStep = SpinThenParkBackoff.backOff(backoffStep, 7, parks::add);
+            assertEquals(i + 1, backoffStep, "the step should grow by one per call");
         }
         assertTrue(parks.isEmpty(), "the first SPIN_LIMIT calls should spin, not park");
     }
@@ -32,9 +32,9 @@ class SpinThenParkBackoffTest {
     void parksWithDoublingLengthAfterSpinLimitUpToCap() {
         final int maxParkShift = 7;
         final List<Long> parks = new ArrayList<>();
-        int idle = SPIN_LIMIT;
+        int backoffStep = SPIN_LIMIT;
         for (int i = 0; i <= maxParkShift; i++) {
-            idle = SpinThenParkBackoff.backOff(idle, maxParkShift, parks::add);
+            backoffStep = SpinThenParkBackoff.backOff(backoffStep, maxParkShift, parks::add);
         }
         final List<Long> expected = new ArrayList<>();
         for (int shift = 0; shift <= maxParkShift; shift++) {
@@ -44,14 +44,14 @@ class SpinThenParkBackoffTest {
     }
 
     @Test
-    void parkLengthAndCounterStopGrowingAtCap() {
+    void parkLengthAndStepStopGrowingAtCap() {
         final int maxParkShift = 3;
         final List<Long> parks = new ArrayList<>();
-        int idle = 0;
+        int backoffStep = 0;
         for (int i = 0; i < SPIN_LIMIT + maxParkShift + 100; i++) {
-            idle = SpinThenParkBackoff.backOff(idle, maxParkShift, parks::add);
+            backoffStep = SpinThenParkBackoff.backOff(backoffStep, maxParkShift, parks::add);
         }
-        assertEquals(SPIN_LIMIT + maxParkShift, idle, "the counter should stop growing at the cap");
+        assertEquals(SPIN_LIMIT + maxParkShift, backoffStep, "the step should stop growing at the last step");
         assertEquals(maxParkShift + 100, parks.size(), "every call after the spin phase should park");
         final List<Long> lastParks = parks.subList(maxParkShift, parks.size());
         assertTrue(
@@ -62,9 +62,9 @@ class SpinThenParkBackoffTest {
     @Test
     void zeroShiftParksOneMicrosecond() {
         final List<Long> parks = new ArrayList<>();
-        final int idle = SpinThenParkBackoff.backOff(SPIN_LIMIT, 0, parks::add);
+        final int backoffStep = SpinThenParkBackoff.backOff(SPIN_LIMIT, 0, parks::add);
         assertEquals(List.of(1_000L), parks);
-        assertEquals(SPIN_LIMIT, idle, "the counter is already at the cap");
+        assertEquals(SPIN_LIMIT, backoffStep, "the step is already the last one");
     }
 
     @ParameterizedTest

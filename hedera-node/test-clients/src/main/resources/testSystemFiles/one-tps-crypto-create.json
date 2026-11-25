@@ -59,12 +59,10 @@
 			"RegisteredNodeDelete",
 				"AtomicBatch",
 				"ClprUpdateLedgerConfiguration",
-				"ClprRegisterChannel",
-				"ClprCompleteChannel",
-				"ClprCloseChannel",
-				"ClprRegisterConnector",
-				"ClprCompleteConnector",
-				"ClprDeregisterConnector",
+				"ClprCreateChannel",
+				"ClprDeleteChannel",
+				"ClprCreateConnector",
+				"ClprDeleteConnector",
 				"ClprGetLedgerConfiguration",
 				"ClprGetEndpointManifest"
 		  ]

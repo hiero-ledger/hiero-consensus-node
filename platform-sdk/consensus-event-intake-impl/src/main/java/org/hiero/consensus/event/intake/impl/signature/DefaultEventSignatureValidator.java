@@ -18,10 +18,10 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.throttle.RateLimitedLogger;
 import org.hiero.base.crypto.SignatureVerifier;
 import org.hiero.consensus.event.IntakeEventCounter;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.RosterEntryWrapper;
 import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.roster.RosterWrapperHistory;
@@ -126,8 +126,21 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
             return false;
         }
 
-        final boolean isSignatureValid =
-                signatureVerifier.verifySignature(event.getHash().getBytes(), event.getSignature(), publicKey);
+        boolean isSignatureValid = false;
+        try {
+            isSignatureValid =
+                    signatureVerifier.verifySignature(event.getHash().getBytes(), event.getSignature(), publicKey);
+        } catch (final RuntimeException e) {
+            rateLimitedLogger.error(
+                    EXCEPTION.getMarker(),
+                    "Event failed signature verification with exception. Event: {}, Signature: {}, Hash: {}",
+                    event,
+                    event.getSignature().toHex(),
+                    event.getHash(),
+                    e);
+            // Prevent duplicate log entries:
+            return isSignatureValid;
+        }
 
         if (!isSignatureValid) {
             rateLimitedLogger.error(

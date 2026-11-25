@@ -146,23 +146,12 @@ public class BlockNodeStreamingConnection extends BlockNodePublisherConnection {
     }
 
     @Override
-    void onActiveStateTransition() {
-        if (!isRequestClientActive()) {
-            logger.warn(
-                    "{} Connection transitioned to ACTIVE but the request pipeline has not been established; closing connection",
-                    this);
-            close(CloseReason.INTERNAL_ERROR, false, EndStream.Code.ERROR);
-            return;
-        }
-
-        // start worker thread to handle sending requests
+    void startWorkerThread() {
         final Thread workerThread = new Thread(new ConnectionWorkerLoopTask(), "bn-conn-worker-" + connectionId());
         if (workerThreadRef.compareAndSet(null, workerThread)) {
             workerThread.setDaemon(true);
             workerThread.start();
         }
-
-        connectionManager().notifyConnectionActive(this);
     }
 
     @Override
@@ -214,7 +203,7 @@ public class BlockNodeStreamingConnection extends BlockNodePublisherConnection {
      */
     private void handleAcknowledgement(@NonNull final BlockAcknowledgement acknowledgement) {
         final long acknowledgedBlockNumber = acknowledgement.blockNumber();
-        logger.debug("{} BlockAcknowledgement received for block {}", this, acknowledgedBlockNumber);
+        logger.debug("{} Acknowledgement received for block {}", this, acknowledgedBlockNumber);
         acknowledgeBlocks(acknowledgedBlockNumber, true);
 
         // Evaluate latency and high-latency QoS via the connection manager
@@ -541,28 +530,38 @@ public class BlockNodeStreamingConnection extends BlockNodePublisherConnection {
 
         // Process the response
         if (response.hasAcknowledgement()) {
-            metrics().recordResponseReceived(response.response().kind());
+            metrics()
+                    .recordPublisherResponseReceived(
+                            connectionType(), response.response().kind());
             handleAcknowledgement(response.acknowledgement());
         } else if (response.hasEndStream()) {
-            metrics().recordResponseEndOfStreamReceived(response.endStream().status());
+            metrics()
+                    .recordResponseEndOfStreamReceived(
+                            connectionType(), response.endStream().status());
             metrics().recordLatestBlockEndOfStream(response.endStream().blockNumber());
             handleEndOfStream(response.endStream());
         } else if (response.hasSkipBlock()) {
-            metrics().recordResponseReceived(response.response().kind());
+            metrics()
+                    .recordPublisherResponseReceived(
+                            connectionType(), response.response().kind());
             metrics().recordLatestBlockSkipBlock(response.skipBlock().blockNumber());
             handleSkipBlock(response.skipBlock());
         } else if (response.hasResendBlock()) {
-            metrics().recordResponseReceived(response.response().kind());
+            metrics()
+                    .recordPublisherResponseReceived(
+                            connectionType(), response.response().kind());
             metrics().recordLatestBlockResendBlock(response.resendBlock().blockNumber());
             handleResendBlock(response.resendBlock());
         } else if (response.hasNodeBehindPublisher()) {
-            metrics().recordResponseReceived(response.response().kind());
+            metrics()
+                    .recordPublisherResponseReceived(
+                            connectionType(), response.response().kind());
             metrics()
                     .recordLatestBlockBehindPublisher(
                             response.nodeBehindPublisher().blockNumber());
             handleBlockNodeBehind(response.nodeBehindPublisher());
         } else {
-            metrics().recordUnknownResponseReceived();
+            metrics().recordUnknownResponseReceived(connectionType());
             logger.warn("{} Unexpected response received: {}", this, response);
         }
     }
@@ -631,7 +630,7 @@ public class BlockNodeStreamingConnection extends BlockNodePublisherConnection {
         @Override
         public void run() {
             logger.info(
-                    "{} Worker thread started (messageSizeSoftLimit: {}, messageSizeHardLimit: {}, requestPadding: {}, itemPadding: {})",
+                    "{} Worker thread started (streamer, messageSizeSoftLimit: {}, messageSizeHardLimit: {}, requestPadding: {}, itemPadding: {})",
                     BlockNodeStreamingConnection.this,
                     softLimitBytes,
                     hardLimitBytes,

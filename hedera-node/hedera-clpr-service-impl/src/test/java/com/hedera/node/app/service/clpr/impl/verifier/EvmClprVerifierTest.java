@@ -1,41 +1,71 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.verifier;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_VERIFIER_CONFIG_FAILED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_GAS_LIMIT_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.hapi.node.base.SubType.DEFAULT;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_SERVICE_ACCOUNT_ID;
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.DISPATCH_ONLY_NOOP_FEE_CHARGING;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_DISPATCH;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_VERIFIER;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CONTRACT_GAS_USAGE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.esaulpaugh.headlong.abi.Function;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.esaulpaugh.headlong.abi.TupleType;
+import com.hedera.hapi.block.stream.MerklePath;
+import com.hedera.hapi.block.stream.SiblingNode;
+import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.base.FeeData;
+import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.transaction.ExchangeRate;
+import com.hedera.node.app.hapi.utils.blocks.HashUtils;
+import com.hedera.node.app.service.clpr.impl.ClprGasAccounting;
 import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
+import com.hedera.node.app.spi.fees.ExchangeRateInfo;
+import com.hedera.node.app.spi.fees.ResourcePriceCalculator;
 import com.hedera.node.app.spi.workflows.ClprDispatchMetadata;
+import com.hedera.node.app.spi.workflows.ContractGasUsage;
 import com.hedera.node.app.spi.workflows.DispatchOptions;
+import com.hedera.node.app.spi.workflows.FunctionalityResourcePrices;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import java.math.BigInteger;
+import java.time.Instant;
+import java.util.HashMap;
 import java.util.stream.Stream;
+import org.hiero.base.crypto.DigestType;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -103,6 +133,8 @@ class EvmClprVerifierTest {
         verify(context).dispatch(optionsCaptor.capture());
         final var options = optionsCaptor.getValue();
         assertThat(options.customFeeCharging()).isSameAs(DISPATCH_ONLY_NOOP_FEE_CHARGING);
+        assertThat(options.dispatchMetadata().getMetadata(CLPR_VERIFIER, Boolean.class))
+                .contains(true);
         final var metadata = options.dispatchMetadata()
                 .getMetadata(CLPR_DISPATCH, ClprDispatchMetadata.class)
                 .orElseThrow();
@@ -125,6 +157,39 @@ class EvmClprVerifierTest {
         assertThat(content.newEndpointManifest()).isNotNull();
         assertThat(content.newEndpointManifest().version()).isEqualTo(7L);
         assertThat(content.newEndpointManifest().serviceAddress()).isEqualTo(Bytes.wrap(SERVICE_ADDR));
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void returnsTimestampOnlyWhenItAuthenticatesAgainstTheVerifiedBlock(final boolean matchingTimestamp) {
+        givenConfig();
+        givenDispatchReturns(bundleWithManifestReturn(0L, 7L, SERVICE_ADDR));
+        final var digest = DigestType.SHA_384.buildDigest();
+        final var timestamp = new Timestamp(100L, 50);
+        final var serializedTimestamp = Timestamp.PROTOBUF.toBytes(timestamp);
+        final var stateLeaf = Bytes.wrap(new byte[] {1, 2, 3});
+        final var statePath = MerklePath.newBuilder()
+                .stateItemLeaf(stateLeaf)
+                .siblings(SiblingNode.newBuilder()
+                        .isLeft(true)
+                        .hash(Bytes.wrap(HashUtils.computeRawLeafHash(digest, serializedTimestamp)))
+                        .build())
+                .nextPathIndex(-1)
+                .build();
+        final var timestampPath = MerklePath.newBuilder()
+                .timestampLeaf(
+                        matchingTimestamp ? serializedTimestamp : Timestamp.PROTOBUF.toBytes(new Timestamp(101L, 0)))
+                .siblings(SiblingNode.newBuilder()
+                        .hash(Bytes.wrap(HashUtils.computeVirtualMapStateLeafHash(digest, stateLeaf)))
+                        .build())
+                .nextPathIndex(-1)
+                .build();
+        final var payload = StateProof.PROTOBUF.toBytes(
+                StateProof.newBuilder().paths(statePath, timestampPath).build());
+
+        final var content = subject.verifyBundle(payload, Bytes.EMPTY, Bytes.EMPTY, context);
+
+        assertThat(content.manifestProofTimestamp()).isEqualTo(matchingTimestamp ? timestamp : null);
     }
 
     @Test
@@ -217,18 +282,231 @@ class EvmClprVerifierTest {
         return Stream.of(null, Bytes.EMPTY, Bytes.fromHex("ffff"));
     }
 
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void verifierGasIsPricedAndUnusedGasRefunded(final boolean configCall) {
+        givenPricedConfig(true);
+        givenDispatchReturns(
+                configCall
+                        ? configWithManifestReturn("295", SERVICE_ADDR, 1L)
+                        : bundleWithManifestReturn(1L, 0L, SERVICE_ADDR));
+        givenDispatchGasUsed(400L);
+
+        if (configCall) {
+            subject.verifyConfig(Bytes.EMPTY, Bytes.EMPTY, Bytes.EMPTY, context);
+        } else {
+            subject.verifyBundle(Bytes.EMPTY, Bytes.EMPTY, Bytes.EMPTY, context);
+        }
+
+        ClprGasAccounting.refundUnusedGas(context);
+        verify(context).tryToCharge(PAYER, 21_000L);
+        verify(context).refundHandlerCharge(PAYER, 12_600L);
+    }
+
+    @Test
+    void revertedVerifierStillPaysForActualGas() {
+        givenPricedConfig(true);
+        givenDispatchReturns(Bytes.EMPTY);
+        given(dispatchResult.status()).willReturn(CONTRACT_REVERT_EXECUTED);
+        givenDispatchGasUsed(400L);
+
+        assertThatThrownBy(() -> subject.verifyConfig(Bytes.EMPTY, Bytes.EMPTY, Bytes.EMPTY, context))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(CLPR_VERIFIER_CONFIG_FAILED));
+        verify(context).tryToCharge(PAYER, 21_000L);
+        verify(context, never()).refundHandlerCharge(any(), org.mockito.ArgumentMatchers.anyLong());
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void verifierOutOfGasFailsWithTheCallFailureCodeAndPaysForItsGas(final boolean configCall) {
+        givenPricedConfig(true);
+        givenDispatchReturns(Bytes.EMPTY);
+        given(dispatchResult.status()).willReturn(INSUFFICIENT_GAS);
+        givenDispatchGasUsed(1000L);
+        final var failureCode = configCall ? CLPR_VERIFIER_CONFIG_FAILED : CLPR_BUNDLE_VERIFICATION_FAILED;
+
+        assertThatThrownBy(() -> {
+                    if (configCall) {
+                        subject.verifyConfig(Bytes.EMPTY, Bytes.EMPTY, Bytes.EMPTY, context);
+                    } else {
+                        subject.verifyBundle(Bytes.EMPTY, Bytes.EMPTY, Bytes.EMPTY, context);
+                    }
+                })
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(failureCode));
+        verify(context).tryToCharge(PAYER, 21_000L);
+        verify(context, never()).refundHandlerCharge(any(), anyLong());
+    }
+
+    @Test
+    void underfundedVerifierIsNotDispatched() {
+        givenPricedConfig(false);
+
+        assertThatThrownBy(() -> subject.verifyConfig(Bytes.EMPTY, Bytes.EMPTY, Bytes.EMPTY, context))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(INSUFFICIENT_PAYER_BALANCE));
+        verify(context, never()).dispatch(any(DispatchOptions.class));
+        verify(context, never()).refundHandlerCharge(any(), org.mockito.ArgumentMatchers.anyLong());
+    }
+
+    @Test
+    void verifierWithoutExecutionGasReportRefundsPrepayment() {
+        givenPricedConfig(true);
+        givenDispatchReturns(configWithManifestReturn("295", SERVICE_ADDR, 1L));
+
+        subject.verifyConfig(Bytes.EMPTY, Bytes.EMPTY, Bytes.EMPTY, context);
+
+        ClprGasAccounting.refundUnusedGas(context);
+        verify(context).tryToCharge(PAYER, 21_000L);
+        verify(context).refundHandlerCharge(PAYER, 21_000L);
+    }
+
+    @Test
+    void verifierDispatchWithoutResultDoesNotPreserveAnyGasCharge() {
+        givenPricedConfig(true);
+        given(context.dispatch(any(DispatchOptions.class))).willReturn(null);
+
+        assertThatThrownBy(() -> subject.verifyConfig(Bytes.EMPTY, Bytes.EMPTY, Bytes.EMPTY, context))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(CLPR_VERIFIER_CONFIG_FAILED));
+        verify(context).tryToCharge(PAYER, 21_000L);
+        verify(context, never()).refundHandlerCharge(any(), org.mockito.ArgumentMatchers.anyLong());
+        final var failure = new HandleException(CLPR_VERIFIER_CONFIG_FAILED);
+        assertThat(ClprGasAccounting.preservingChargesOnRollback(context, failure))
+                .isSameAs(failure);
+    }
+
+    @Test
+    void verifierDispatchFailureBeforeExecutionDoesNotPreserveAnyGasCharge() {
+        givenPricedConfig(true);
+        given(context.dispatch(any(DispatchOptions.class))).willThrow(new HandleException(MAX_CHILD_RECORDS_EXCEEDED));
+
+        assertThatThrownBy(() -> subject.verifyConfig(Bytes.EMPTY, Bytes.EMPTY, Bytes.EMPTY, context))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(MAX_CHILD_RECORDS_EXCEEDED));
+        verify(context).tryToCharge(PAYER, 21_000L);
+        verify(context, never()).refundHandlerCharge(any(), org.mockito.ArgumentMatchers.anyLong());
+        final var failure = new HandleException(MAX_CHILD_RECORDS_EXCEEDED);
+        assertThat(ClprGasAccounting.preservingChargesOnRollback(context, failure))
+                .isSameAs(failure);
+    }
+
+    @Test
+    void zeroVerifierLimitReportsInsufficientGasInsteadOfBalance() {
+        given(context.configuration())
+                .willReturn(HederaTestConfigBuilder.create()
+                        .withValue("clpr.verifierGasLimit", 0L)
+                        .getOrCreateConfig());
+
+        assertThatThrownBy(() -> subject.verifyConfig(Bytes.EMPTY, Bytes.EMPTY, Bytes.EMPTY, context))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(INSUFFICIENT_GAS));
+        verify(context, never()).dispatch(any(DispatchOptions.class));
+        verify(context, never()).tryToCharge(any(), org.mockito.ArgumentMatchers.anyLong());
+    }
+
+    @Test
+    void oversizedVerifierLimitReportsGasLimitInsteadOfBalance() {
+        given(context.configuration())
+                .willReturn(HederaTestConfigBuilder.create()
+                        .withValue("clpr.verifierGasLimit", 1001L)
+                        .withValue("contracts.maxGasPerTransaction", 1000L)
+                        .getOrCreateConfig());
+
+        assertThatThrownBy(() -> subject.verifyConfig(Bytes.EMPTY, Bytes.EMPTY, Bytes.EMPTY, context))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(MAX_GAS_LIMIT_EXCEEDED));
+        verify(context, never()).dispatch(any(DispatchOptions.class));
+        verify(context, never()).tryToCharge(any(), org.mockito.ArgumentMatchers.anyLong());
+    }
+
+    @Test
+    void realVerifierDispatchReservesItsAllowanceOnlyOnceFromCallbackBudget() {
+        givenConfig();
+        given(context.configuration())
+                .willReturn(HederaTestConfigBuilder.create()
+                        .withValue("clpr.verifierGasLimit", 1000L)
+                        .withValue("contracts.maxGasPerTransaction", 5000L)
+                        .getOrCreateConfig());
+        givenDispatchReturns(bundleWithManifestReturn(1L, 0L, SERVICE_ADDR));
+        givenDispatchGasUsed(400L);
+
+        subject.verifyBundle(Bytes.EMPTY, Bytes.EMPTY, Bytes.EMPTY, context);
+
+        assertThat(ClprGasAccounting.forContext(context).availableApplicationGas(5000L))
+                .isEqualTo(4000L);
+    }
+
+    @Test
+    void exhaustedParentGasReportsGasLimitInsteadOfBalance() {
+        givenConfig();
+        given(context.configuration())
+                .willReturn(HederaTestConfigBuilder.create()
+                        .withValue("clpr.verifierGasLimit", 1000L)
+                        .withValue("contracts.maxGasPerTransaction", 1000L)
+                        .getOrCreateConfig());
+        givenDispatchReturns(bundleWithManifestReturn(1L, 0L, SERVICE_ADDR));
+        subject.verifyBundle(Bytes.EMPTY, Bytes.EMPTY, Bytes.EMPTY, context);
+
+        assertThatThrownBy(() -> subject.verifyBundle(Bytes.EMPTY, Bytes.EMPTY, Bytes.EMPTY, context))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(MAX_GAS_LIMIT_EXCEEDED));
+        verify(context).dispatch(any(DispatchOptions.class));
+    }
+
+    private void givenPricedConfig(final boolean solvent) {
+        final var cfg = HederaTestConfigBuilder.create()
+                .withValue("clpr.verifierGasLimit", 1000L)
+                .withValue("contracts.maxGasPerTransaction", 1000L)
+                .getOrCreateConfig();
+        given(context.configuration()).willReturn(cfg);
+        given(context.dispatchMetadata()).willReturn(new HandleContext.DispatchMetadata(new HashMap<>()));
+        givenBaseBuilder();
+        given(context.payer()).willReturn(PAYER);
+        given(context.getGasPriceInTinycents()).willReturn(2L);
+        final var prices = mock(ResourcePriceCalculator.class);
+        given(context.resourcePriceCalculator()).willReturn(prices);
+        given(prices.resourcePricesFor(CONTRACT_CALL, DEFAULT))
+                .willReturn(new FunctionalityResourcePrices(FeeData.DEFAULT, 3L));
+        final var rates = mock(ExchangeRateInfo.class);
+        given(context.exchangeRateInfo()).willReturn(rates);
+        given(context.consensusNow()).willReturn(Instant.EPOCH);
+        given(rates.activeRate(Instant.EPOCH))
+                .willReturn(ExchangeRate.newBuilder().hbarEquiv(7).centEquiv(2).build());
+        given(context.tryToCharge(PAYER, 21_000L)).willReturn(solvent);
+    }
+
     // ---- helpers ----
 
     private void givenConfig() {
         final Configuration cfg = HederaTestConfigBuilder.create().getOrCreateConfig();
         given(context.configuration()).willReturn(cfg);
+        given(context.dispatchMetadata()).willReturn(new HandleContext.DispatchMetadata(new HashMap<>()));
+    }
+
+    private void givenBaseBuilder() {
+        final var stack = mock(HandleContext.SavepointStack.class);
+        given(context.savepointStack()).willReturn(stack);
+        given(stack.getBaseBuilder(StreamBuilder.class)).willReturn(mock(StreamBuilder.class));
     }
 
     private void givenDispatchReturns(final Bytes evmResult) {
         lenient().when(context.payer()).thenReturn(PAYER);
-        given(context.dispatch(any(DispatchOptions.class))).willReturn(dispatchResult);
+        lenient().when(context.dispatch(any(DispatchOptions.class))).thenReturn(dispatchResult);
         lenient().when(dispatchResult.status()).thenReturn(SUCCESS);
         lenient().when(dispatchResult.getEvmCallResult()).thenReturn(evmResult);
+    }
+
+    private void givenDispatchGasUsed(final long gasUsed) {
+        given(context.dispatch(any(DispatchOptions.class))).willAnswer(invocation -> {
+            final DispatchOptions<?> options = invocation.getArgument(0);
+            options.dispatchMetadata()
+                    .getMetadata(CONTRACT_GAS_USAGE, ContractGasUsage.class)
+                    .orElseThrow()
+                    .recordGasUsed(gasUsed);
+            return dispatchResult;
+        });
     }
 
     /** Encodes the manifest-aware return: config fields (7-field throttles, no endpoints) + manifest struct. */

@@ -137,35 +137,30 @@ spammed in `hgcaa.log`.
 
 ## Step 3 — Bridge Besu's channel identity into Hiero
 
+Export `CHANNEL_SALT` and `EVM_VERIFIER_ADDRESS` with the values used to open the Besu channel.
+
 ```bash
 cd hedera-node/yahcli
 VERIFIER_CONTRACT=0.0.367 ./scripts/clpre2e/bridge-from-besu.sh
 ```
 
 What the script does (9 steps; each yahcli call is logged):
-1. `update-ledger-configuration` on `localhost` (Hiero's own throttles/endpoints).
+1. Checks the deployment’s `peerChainId` against Hiero’s live configuration, then updates Hiero’s local configuration.
 2. Builds the Besu QBFT trust anchor:
 - Reads `clprService`, `peerChainId`, `channelId` from
 `clpr-smart-contracts/deployments/<chainId>/channel.json`.
 - Derives the validator address from `.env`'s `PRIVATE_KEY` (single-validator
 dev Besu = the same deployer key).
 - `cast keccak "$(cast code $CLPR_SERVICE)"` for the code hash.
-- Fetches live throttles via `cast call getLedgerConfiguration()`. Dial
-targets are not part of the config; they come from the endpoint manifest.
-- Calls `hedera-node/tools/build-besu-qbft-trust-anchor.py --config-json ...`
-to emit the RLP trust-anchor envelope wrapped in a protobuf
-`ClprLedgerConfiguration`.
-3. `gen-channel-identity.sh` — builds the channel identity bundle (`channel.json`)
-using `PEER_PK=0xa11ce` (matches `CreateChannel.s.sol`'s default).
-4. `register-channel` — commit phase.
-5. `complete-channel` — reveal phase with the trust-anchor bytes from step 2.
-6. Connector identity bundle via `sign-clpr-connector-identity.py` using
+- Reads Besu’s chain ID and throttles from the deployed service’s `getLedgerConfiguration()`. For a Besu `eip155:1337` ↔ Hiero `eip155:298` channel, the proof carries `eip155:1337`.
+- Passes that configuration to `hedera-node/tools/build-besu-qbft-config-payload.py` to build the QBFT configuration proof.
+3. `create-channel` uses the shared ID and salt, the EVM verifier address, and the peer config proof.
+4. Connector identity bundle via `derive-clpr-connector-identity.py` using
 `CONNECTOR_PK=0xc044ec` + `salt=0` (matches `CreateConnector.s.sol`).
-7. `register-connector`.
-8. `contracts create` for `PassThroughAuth` (the connector contract).
-9. `complete-connector`.
+5. `contracts create` for `PassThroughAuth` (the connector contract).
+6. `create-connector` signs the binding with the connector identity key.
 
-If everything passes you'll see `ok: complete-connector` and a summary block:
+If everything passes you'll see `ok: create-connector` and a summary block:
 
 ```
 Besu side (from clpr-smart-contracts/deployments/<chainId>/):
@@ -185,16 +180,20 @@ Per-step yahcli logs are at `scripts/clpre2e/.run-logs-bridge/`.
 
 ### Useful overrides
 
-|          Env           |             Default             |                                        Purpose                                        |
-|------------------------|---------------------------------|---------------------------------------------------------------------------------------|
-| `VERIFIER_CONTRACT`    | (required)                      | Pre-deployed Besu-QBFT verifier system contract id on Hiero (0.0.367 on localhost)    |
-| `SMART_CONTRACTS_REPO` | sibling auto-detect             | Path to `clpr-smart-contracts`                                                        |
-| `CHAIN_ID`             | auto-detect from `deployments/` | Picks one of the chain subdirs                                                        |
-| `PEER_PK`              | `0xa11ce`                       | secp256k1 key used for the channel identity (must match Besu's `CreateChannel.s.sol`) |
-| `CONNECTOR_PK`         | `0xc044ec`                      | secp256k1 key for the connector identity                                              |
-| `NET`                  | `localhost`                     | Target Hiero network from `yahcli/config.yml`                                         |
-| `PAYER`                | `2`                             | Yahcli payer account                                                                  |
-| `LOCKED_STAKE`         | `100000000`                     | Connector locked stake (tinybars)                                                     |
+|          Env           |             Default             |                                                                         Purpose                                                                         |
+|------------------------|---------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `VERIFIER_CONTRACT`    | (required)                      | Pre-deployed Besu-QBFT verifier system contract id on Hiero (0.0.367 on localhost)                                                                      |
+| `SMART_CONTRACTS_REPO` | sibling auto-detect             | Path to `clpr-smart-contracts`                                                                                                                          |
+| `CHAIN_ID`             | auto-detect from `deployments/` | Picks one of the chain subdirs                                                                                                                          |
+| `PEER_PK_FILE`         | dev key `0xa11ce`               | Path to a 0600 file holding the secp256k1 key for the channel identity (must match Besu's `CreateChannel.s.sol`); the old `PEER_PK` env var is rejected |
+| `CONNECTOR_PK_FILE`    | dev key `0xc044ec`              | Path to a 0600 file holding the secp256k1 key for the connector identity; the old `CONNECTOR_PK` env var is rejected                                    |
+| `NET`                  | `localhost`                     | Target Hiero network from `yahcli/config.yml`                                                                                                           |
+| `PAYER`                | `2`                             | Yahcli payer account                                                                                                                                    |
+| `LOCKED_STAKE`         | `100000000`                     | Connector locked stake (tinybars)                                                                                                                       |
+
+> Key files must be mode 0600 (set `ALLOW_LOOSE_KEY_FILE=1` to override). The scripts no longer put these keys on any command line or in any bundle: each is written to
+> `<bundle>.key` (mode 0600, `0x<hex>`) and passed to the signer by file path. An existing,
+> different key file is moved to `<name>.<epochMillis>.bak` (never deleted or pruned).
 
 ## Step 4 — Start the EVM relay
 
@@ -276,7 +275,7 @@ tail -f hedera-node/hedera-app/build/node/output/hgcaa.log \
   is using `StubBundleConstructor` instead of `QbftBundleConstructor`. Check
   `clpr-evm-endpoint/clpr-relay-app/.../RelayInstance.java` step 2.
 - **`ClprSubmitBundle rejected: status=CLPR_VERIFIER_CONFIG_FAILED`** at
-  *complete-channel time* → trust anchor's throttles or endpoints are
+  *channel opening* → trust anchor's throttles or endpoints are
   missing/empty. Re-run the bridge script with throttles populated.
 - **`Connection failed after 3 retries`** in the relay → the Besu RPC port is
   unreachable. Re-run `script/demo.sh` (Docker may have re-mapped the port on
@@ -284,9 +283,8 @@ tail -f hedera-node/hedera-app/build/node/output/hgcaa.log \
 
 ## Scripts in this directory
 
-|          Script           |                                                                                          What it does                                                                                           |
-|---------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `bridge-from-besu.sh`     | Bridge a Besu-deployed channel onto Hiero via yahcli. Auto-pulls state from `clpr-smart-contracts/deployments/`.                                                                                |
-| `gen-channel-identity.sh` | Build a CLPR channel-identity JSON from a channel id + secp256k1 private key (used by the bridge in step 3).                                                                                    |
-| `start-besu-qbft.sh`      | Spin up a single-node Besu QBFT chain in Docker Compose with a pre-funded dev account. Not currently used by the bridge flow (`clpr-smart-contracts/script/demo.sh` uses its own compose file). |
-| `start-hiero-local.sh`    | Start or stop one local Hiero node with `./gradlew :app:run` by default, cleaning up stale HAPI port listeners on `down`.                                                                       |
+|         Script         |                                                                                          What it does                                                                                           |
+|------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `bridge-from-besu.sh`  | Bridge a Besu-deployed channel onto Hiero via yahcli. Auto-pulls state from `clpr-smart-contracts/deployments/`.                                                                                |
+| `start-besu-qbft.sh`   | Spin up a single-node Besu QBFT chain in Docker Compose with a pre-funded dev account. Not currently used by the bridge flow (`clpr-smart-contracts/script/demo.sh` uses its own compose file). |
+| `start-hiero-local.sh` | Start or stop one local Hiero node with `./gradlew :app:run` by default, cleaning up stale HAPI port listeners on `down`.                                                                       |

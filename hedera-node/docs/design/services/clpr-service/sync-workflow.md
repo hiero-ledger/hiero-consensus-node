@@ -11,6 +11,57 @@ without a separate endpoint identity — the consensus roster *is* the endpoint 
 All classes live under
 `hedera-node/hedera-app/src/main/java/com/hedera/node/app/workflows/clpr/`.
 
+## Outbound proof format
+
+The receiver reports its current verifier-defined ID in
+`ClprBundleRequest.current_trust_anchor_id` (field 3). The compact Hiero
+verifier advertises the following 33-byte ID:
+
+```text
+0x01 || keccak256(raw 1,096-byte hinTS verification key)
+```
+
+The first byte selects `HieroProof` version 1 for a Hiero source. The sender
+uses the remaining 32 bytes to find the receiver's current hinTS key. An empty
+ID or any other encoding selects the native WRAPS-bearing `StateProof`.
+The tag belongs to the Hiero verifier's opaque ID format. The receiver relays
+the stored ID using the existing CLPR request fields.
+
+The compact profile uses SHA-256 block roots. A message bundle includes a
+`StateProof` with its signature shortened to the verification key and aggregate
+signature (2,344 bytes). If the receiver's key differs from the block signer,
+the sender includes the predecessor certificates. Both the certificates and
+the state proof come from the same block-proven snapshot.
+
+A bundle may carry up to eight certificates and must fit the peer's
+`max_sync_bytes`. For a longer path the sender can send certificates and a
+SHA-256 adoption witness for the last key in the batch. This updates only the
+receiver's anchor and can run even with an empty message queue. The sender sends
+one batch per cycle and uses the anchor reported in the next request to resume
+from the committed key. Witness bundles leave the received message ID unchanged.
+Before sending either compact form, the sender checks its serialized proofs at
+the EVM verifier's threshold of strictly more than one third.
+
+The request guides proof construction. The receiver authorizes keys and
+messages by verifying the proof. `ANCHOR_AHEAD` means the peer's anchor is
+known to be ahead of the snapshot signer. `SNAPSHOT_NOT_READY` means the node
+lacks a signed snapshot with enough history to make progress. Retry both with a
+newer signed snapshot. For a compact request, `UNKNOWN_ANCHOR` means the key hash
+is unrecognized in the available history. Check current history before treating it
+as foreign to the ledger.
+
+An `UNWITNESSED_GAP` means the sender found no usable witness endpoint within
+eight links in the snapshot it used. A previously captured witness can still be
+published after a key retires. If the gap persists, check for pending publication
+or [historical backfill](../../explicit-key-provenance.md#production-and-consensus-admission)
+before reopening with a newer anchor.
+
+The sender records skipped compact proofs in the `clpr.hieroProofSkipped_*`
+counters, by reason and channel, and rate limits the corresponding logs.
+Ledger-configuration and endpoint-manifest queries use the native proof format.
+See the [Hiero to EVM interoperability guide](hiero-evm-proof-interop.md) for
+channel setup and the Solidity fixture tests.
+
 ## Class roles at a glance
 
 ```
@@ -124,7 +175,9 @@ apply circuit-breaker / retry policy (`clpr.retryInitialDelayMs`,
 `clpr.circuitBreakerCooldownSeconds`); decay peer reputation
 (`clpr.reputationDecaySeconds`). Open circuit breakers remove peers from the candidate
 set only when `clpr.syncPeerExclusionEnabled=true`; the default false setting keeps those
-signals observational and never declines to initiate a sync on that basis.
+signals observational. Failed syncs still defer the next attempt using capped exponential delay between
+`clpr.retryInitialDelayMs` and `clpr.retryMaxDelayMs`, independently of the exclusion flag. Successful syncs
+reset that delay, so an unavailable endpoint is retried periodically rather than on every scheduler tick.
 - Each bundle the peer streams back is handed to `ClprBundleSubmitter` to ingest the peer's
 outbound (i.e. our inbound) messages.
 
@@ -133,8 +186,31 @@ outbound (i.e. our inbound) messages.
 Outbound gRPC client. Netty + grpc-java `ClientCalls` for the bidirectional-streaming
 `proto.ClprEndpointService/sync` RPC. Marshallers are byte-array based — payloads
 are pre-serialised `ClprStreamingSyncPayload` bytes — so the client does not need the protobuf service stub
-generated. `sync(timeout)` returns a `ClprStreamingSyncCall`; the deadline covers the whole multi-bundle exchange,
-not a single message.
+generated. `sync(deadline)` returns a `ClprStreamingSyncCall` with the deadline set at the start of peer lookup.
+
+Peer destinations use numeric IPv4 or IPv6 by default, with a port in `1..65535`. DNS publication is a
+Hiero-local extension for test networks such as Solo. Set `clpr.allowDnsPeerEndpoints=true` on each node that
+dials these names. A ledger that publishes them also sets `clpr.publishDnsEndpoints=true` through its network
+properties file (`0.0.121`).
+
+DNS lookup and streaming sync share the `clpr.syncTimeoutSeconds` deadline. The client applies its address
+policy to each returned IP and dials a permitted one directly. It keeps the current IP while the answer still
+contains it. If the name stops resolving or has no permitted addresses, the client retires the cached transport.
+Scoped IPv6 is unsupported. By default, outbound sync uses ordinary public unicast addresses. The default IPv6 range
+is `2000::/3`, excluding IETF special-purpose `2001::/23`, documentation `2001:db8::/32` and `3fff::/20`, and
+6to4 `2002::/16`. A node that intentionally syncs over other unicast ranges, including local or private networks,
+lists those ranges in the node-local `clpr.additionalPeerEndpointCidrs` setting. In Solo, use the Service or Pod
+CIDR containing the IPs returned for the peer's DNS name. Example values follow.
+
+```properties
+clpr.additionalPeerEndpointCidrs=127.0.0.1/32,10.0.0.0/24
+```
+
+The setting is empty by default and does not alter the peer's stored manifest. Choose ranges that match the
+deployment; unspecified and multicast destinations remain invalid. Endpoint validation applies to both TLS and
+plaintext clients, independently of `clpr.syncPeerExclusionEnabled`.
+On the next client lookup after either endpoint policy setting changes, the cache retires all existing transports before validating
+the requested destination and creating a client under the new setting.
 
 ## Wiring (Dagger)
 

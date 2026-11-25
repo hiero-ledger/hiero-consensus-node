@@ -15,13 +15,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
-import org.hiero.consensus.model.event.EventHashFactory;
+import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.main.model.TransactionLimits;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.test.fixtures.Randotron;
-import org.hiero.consensus.transaction.TransactionLimits;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -51,12 +49,6 @@ class DefaultEventFieldValidatorTests {
     void setup() {
         random = Randotron.create();
         validator = new DefaultEventFieldValidator(new NoOpMetrics(), new FakeTime(), TRANSACTION_LIMITS);
-    }
-
-    @AfterEach
-    void tearDown() {
-        // restore the default so tests do not leak static state
-        EventHashFactory.initialize(Long.MAX_VALUE);
     }
 
     @Test
@@ -127,18 +119,6 @@ class DefaultEventFieldValidatorTests {
                 Arguments.of(0L, CUTOVER, SHA_384_LENGTH));
     }
 
-    @ParameterizedTest(name = "cutover {0}, parent birth round {1}, hash length {2}")
-    @MethodSource("invalidParentHashLengths")
-    @DisplayName("An event with a parent hash length that does not match the parent birth round is invalid")
-    void parentHashLengthMustMatchParentBirthRound(
-            final long cutover, final long parentBirthRound, final int hashLength) {
-        EventHashFactory.initialize(cutover);
-
-        final PlatformEvent platformEvent = eventWithParents(List.of(descriptor(0, parentBirthRound, hashLength)));
-
-        assertThat(validator.isValid(platformEvent)).isFalse();
-    }
-
     static Stream<Arguments> invalidParentAmongValidParents() {
         return Stream.of(
                 // invalid parent last
@@ -159,8 +139,6 @@ class DefaultEventFieldValidatorTests {
     @MethodSource("invalidParentAmongValidParents")
     @DisplayName("Every parent hash length is checked, not only the first")
     void everyParentHashLengthIsChecked(final List<Long> parentBirthRounds, final List<Integer> hashLengths) {
-        EventHashFactory.initialize(CUTOVER);
-
         final List<EventDescriptor> parents = new ArrayList<>();
         for (int i = 0; i < parentBirthRounds.size(); i++) {
             parents.add(descriptor(i, parentBirthRounds.get(i), hashLengths.get(i)));
@@ -300,8 +278,6 @@ class DefaultEventFieldValidatorTests {
     @MethodSource("validParentBirthRounds")
     @DisplayName("Test that an event with no issues passes validation")
     void successfulValidation(final long cutover, final long selfParentBirthRound, final long otherParentBirthRound) {
-        EventHashFactory.initialize(cutover);
-
         final PlatformEvent normalEvent = new TestingEventBuilder(random)
                 .setSelfParent(new TestingEventBuilder(random)
                         .setCreatorId(NodeId.of(0))

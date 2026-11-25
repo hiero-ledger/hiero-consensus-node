@@ -40,10 +40,11 @@ system delete admin account under certain conditions.
 or substitute for them in circumstances where they have been compromised or rendered
 unusable.
 - The **software update admin**, responsible for managing the contents of the software update files (`0.0.150`..`0.0.159`). Updating these files does not update the network code; the network code is only updated by executing a successful freeze/upgrade process, initiated and signed by `0.0.58` (the freeze admin). Note that this update will not occur unless the hash in the freeze/upgrade transaction(s) matches the hash of the specified update file at the time of freeze/upgrade submission.
+- The **CLPR admin**, which can update the CLPR ledger configuration,
+close channels, and evict peer endpoints.
 
-The account number that plays each role is set on network startup from the active
-bootstrap configuration. In the default configuration, the treasury account is `0.0.2`
-because `accounts.treasury=2`.
+Network configuration determines the account number for each role. In the default
+configuration, the treasury account is `0.0.2` because `accounts.treasury=2`.
 
 # Privileged transactions
 
@@ -62,7 +63,7 @@ This document lists the privileged transactions recognized by the Hedera network
 
 ## Authorization privileges
 
-First we consider the three transaction types that always require authorization to execute. These include:
+The following system transactions require an authorized payer.
 1. The `Freeze` transaction that schedules a maintenance window in which the network
 will stop accepting transactions and possibly perform a software update.
 2. The `SystemDelete` transaction that deletes a file or contract (even an immutable
@@ -79,6 +80,24 @@ transaction, if within the window during which such a reversal is possible.
 | `accounts.freezeAdmin=58`         |    X     |                |                  |
 | `accounts.systemDeleteAdmin=59`   |          |       X        |                  |
 | `accounts.systemUndeleteAdmin=60` |          |                |        X         |
+
+### Authorization privileges for CLPR transactions
+
+The treasury, system admin, and configured CLPR admin can submit
+`ClprUpdateLedgerConfiguration`, `ClprDeleteChannel`, and `ClprEvictPeerEndpoint`.
+The network property `accounts.clprAdmin` defaults to `-1`, which disables the
+delegation, so only the treasury and system admin can submit these transactions. To
+enable a CLPR admin, set the property to a positive account number in the network
+properties file (`0.0.121`); for example, `accounts.clprAdmin=601` selects account
+number 601 in the network's shard and realm (`0.0.601` on Previewnet).
+
+When CLPR is enabled, HCN creates a missing eligible CLPR admin account at genesis
+or after an upgrade. It creates the account with the treasury's current key and a
+zero balance. An existing account retains its key and balance.
+
+Automatic provisioning applies to account numbers from 200 up to
+`hedera.firstUserEntity` (exclusive), excluding the reserved contract range
+350–399.
 
 ### Authorization privileges for file updates and appends
 

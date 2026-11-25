@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * Base class for all metric implementations.
@@ -19,11 +20,18 @@ import java.util.Set;
  * Constructor of this class requires a {@link Builder} instance to initialize common metric metadata.
  * Subclasses extending this class must provide their own builder extending {@link Builder}.
  * <p>
- * Additionally it stores a reusable {@link MetricSnapshot} instance for exporting measurements.
- * Measurements are not part of this abstract class, but subclasses, knowing their measurement and snapshot type,
- * must add measurement snapshots to metric snapshot by calling {@link #addMeasurementSnapshot(MeasurementSnapshot)}.
+ * Additionally it keeps the measurements of the metric in a {@link Measurements} container, which subclasses access
+ * by {@link #measurements()}, and, if the metric is exported, a reusable {@link MetricSnapshot} exporting them.
+ * Subclasses, knowing their measurement and snapshot type, implement
+ * {@link #createMeasurementSnapshot(Object, LabelValues)}. The container notifies the metric when measurements are
+ * added or removed, and the metric marks its snapshot, which rebuilds the measurement snapshots on the next export.
+ *
+ * @param <M> the type of the measurements
  */
-public abstract class Metric implements MetricInfo {
+public abstract class Metric<M> implements MetricInfo {
+
+    // shared by the measurements of all metrics that are not exported, so they keep nothing for snapshots
+    private static final Runnable NOT_EXPORTED = () -> {};
 
     @NonNull
     private final MetricType type;
@@ -40,6 +48,8 @@ public abstract class Metric implements MetricInfo {
     private final List<Label> staticLabels;
     private final List<String> dynamicLabelNames;
 
+    private final Measurements<M> measurements;
+
     @Nullable
     private final MetricSnapshot snapshot;
 
@@ -53,8 +63,11 @@ public abstract class Metric implements MetricInfo {
         dynamicLabelNames = builder.dynamicLabelNames.stream().sorted().toList();
 
         if (builder.snapshotable) {
+            // measurements are added only after this constructor returns, when the snapshot is assigned
+            measurements = new Measurements<>(this::markSnapshotChanged);
             snapshot = new MetricSnapshot(this);
         } else {
+            measurements = new Measurements<>(NOT_EXPORTED);
             snapshot = null;
         }
     }
@@ -124,6 +137,13 @@ public abstract class Metric implements MetricInfo {
         return snapshot;
     }
 
+    // called by the measurements after measurements are added or removed, like MetricRegistry marks its snapshot
+    private void markSnapshotChanged() {
+        if (snapshot != null) {
+            snapshot.markChanged();
+        }
+    }
+
     /**
      * Resets all measurements associated with this metric to their initial state.
      * Subclasses must implement this method to reset their specific measurements.
@@ -134,15 +154,66 @@ public abstract class Metric implements MetricInfo {
     protected abstract void reset();
 
     /**
-     * Adds a measurement snapshot to the metric's snapshot.
-     * Subclasses must call this method to register their measurement snapshots for exporting.
+     * Removes all measurements whose dynamic label values match the given filter, so they are not exported anymore.
+     * Use {@link LabelValues#get(String)} to match by label name, for example
+     * {@code metric.removeIf(labelValues -> "3".equals(labelValues.get("node")))}.
+     * <p>
+     * The filter is called for the label values of each existing measurement without holding any lock.
+     * Measurements added concurrently with this call may or may not be removed.
+     * If the filter throws, measurements removed before it threw stay removed, and the exception is rethrown.
+     * <p>
+     * Removed measurements are released by the next export, which rebuilds the exported snapshot without them;
+     * until then the snapshot of the last export still references them, and an export already in progress may read
+     * a removed measurement once more. References to removed measurements held by callers remain usable,
+     * but their updates are not exported anymore, so callers caching measurements must drop them on removal.
+     * <p>
+     * A metric without dynamic labels has a single measurement, which can be removed only together with the metric
+     * by {@link MetricRegistry#remove(MetricKey)}.
      *
-     * @param measurementSnapshot the measurement snapshot to add, must not be {@code null}
+     * @param filter returns {@code true} for label values of measurements to remove, must not be {@code null}
+     * @return the number of removed measurements
+     * @throws IllegalStateException if metric has no dynamic labels specified during creation
+     * @throws NullPointerException  if the filter is {@code null}
      */
-    protected final void addMeasurementSnapshot(@NonNull MeasurementSnapshot measurementSnapshot) {
-        if (snapshot != null) {
-            snapshot.addMeasurementSnapshot(measurementSnapshot);
+    public final int removeIf(@NonNull Predicate<LabelValues> filter) {
+        // the single measurement of a metric without labels is never removed: subclasses may cache it,
+        // for example SettableMetric, whose cached reference would otherwise stop being exported
+        if (dynamicLabelNames.isEmpty()) {
+            throw new IllegalStateException(
+                    "This metric has no dynamic labels, so it can be removed only from the metric registry");
         }
+        return measurements.removeIf(filter);
+    }
+
+    // Collects the snapshots of all measurements of this metric for export
+    List<MeasurementSnapshot> collectMeasurementSnapshots() {
+        return measurements().collectSnapshots(this::createMeasurementSnapshot);
+    }
+
+    /**
+     * Creates the snapshot of the given measurement with its dynamic label values for export.
+     * <p>
+     * Called only if this metric is exported, once per measurement in {@link #measurements()}, by the first export
+     * that collects the measurement. It is never called by the thread adding the measurement or under a lock of the
+     * measurements map. The created snapshot must not read the measurement value: the export updates it right after.
+     *
+     * @param measurement the measurement to create the snapshot for
+     * @param labelValues the dynamic label values of the measurement
+     * @return the created snapshot, must not be {@code null}
+     */
+    @NonNull
+    protected abstract MeasurementSnapshot createMeasurementSnapshot(
+            @NonNull M measurement, @NonNull LabelValues labelValues);
+
+    /**
+     * Returns the container of the measurements of this metric, created by the constructor.
+     * Subclasses must keep all their measurements in it, so they are exported.
+     *
+     * @return the measurements container, never {@code null}
+     */
+    @NonNull
+    protected final Measurements<M> measurements() {
+        return measurements;
     }
 
     /**
@@ -219,7 +290,7 @@ public abstract class Metric implements MetricInfo {
      * @param <B> the concrete builder type to return for method chaining
      * @param <M> the concrete metric type to build
      */
-    public abstract static class Builder<B extends Metric.Builder<B, M>, M extends Metric> {
+    public abstract static class Builder<B extends Metric.Builder<B, M>, M extends Metric<?>> {
 
         private final MetricType type;
         private final MetricKey<M> key;
@@ -341,6 +412,8 @@ public abstract class Metric implements MetricInfo {
             return self();
         }
 
+        // Marks the metric as not snapshotable, so we do not create a MetricSnapshot for it.
+        // Package private, because it is called only by the MetricRegistry when no exporter is available
         final void doNotSnapshot() {
             this.snapshotable = false;
         }

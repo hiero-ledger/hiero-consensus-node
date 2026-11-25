@@ -26,10 +26,7 @@ public class InMemoryBuilder implements VirtualDataSourceBuilder {
     @NonNull
     @Override
     public InMemoryDataSource build(
-            final String label,
-            @Nullable final Path sourceDir,
-            final boolean compactionEnabled,
-            final boolean offlineUse) {
+            final String label, @Nullable final Path sourceDir, final boolean compactionEnabled) {
         if (sourceDir == null) {
             return createDataSource(label);
         } else {
@@ -52,6 +49,15 @@ public class InMemoryBuilder implements VirtualDataSourceBuilder {
         final InMemoryDataSource snapshot = new InMemoryDataSource(source);
         snapshots.put(destinationDir.toString(), snapshot);
         return destinationDir;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @NonNull
+    @Override
+    public InMemoryDataSource copy(@NonNull final VirtualDataSource dataSource, final boolean compactionEnabled) {
+        return new InMemoryDataSource((InMemoryDataSource) dataSource);
     }
 
     protected InMemoryDataSource createDataSource(final String name) {

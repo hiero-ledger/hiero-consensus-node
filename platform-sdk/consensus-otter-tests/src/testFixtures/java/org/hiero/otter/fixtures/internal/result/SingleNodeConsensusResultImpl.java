@@ -5,10 +5,10 @@ import static java.util.Objects.requireNonNull;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.main.model.EventDescriptorWrapper;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.result.ConsensusRoundSubscriber;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 
@@ -20,7 +20,7 @@ public class SingleNodeConsensusResultImpl implements SingleNodeConsensusResult 
     private final NodeResultsCollector collector;
 
     // This class may be used in a multithreaded context, so we use volatile to ensure visibility of state changes
-    private volatile long lastClearedRoundNum = -1L;
+    private volatile int consensusRoundsStartIndex = 0;
     private volatile int preConsensusEventsStartIndex = 0;
     private volatile int staleEventsStartIndex = 0;
     private volatile boolean cleared = false;
@@ -49,7 +49,7 @@ public class SingleNodeConsensusResultImpl implements SingleNodeConsensusResult 
     @Override
     @NonNull
     public List<ConsensusRound> consensusRounds() {
-        return collector.currentConsensusRoundsAfter(lastClearedRoundNum);
+        return collector.currentConsensusRounds(consensusRoundsStartIndex);
     }
 
     /**
@@ -96,10 +96,7 @@ public class SingleNodeConsensusResultImpl implements SingleNodeConsensusResult 
      */
     @Override
     public void clear() {
-        final long lastRoundNum = lastRoundNum();
-        if (lastRoundNum >= 0) {
-            lastClearedRoundNum = lastRoundNum;
-        }
+        consensusRoundsStartIndex = collector.currentConsensusRoundsCount();
         preConsensusEventsStartIndex = collector.currentPreConsensusEventsCount();
         staleEventsStartIndex = collector.currentStaleEventsCount();
         cleared = true;

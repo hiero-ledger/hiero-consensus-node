@@ -15,13 +15,12 @@ import com.hedera.node.app.service.addressbook.impl.handlers.NodeUpdateHandler;
 import com.hedera.node.app.service.addressbook.impl.handlers.RegisteredNodeCreateHandler;
 import com.hedera.node.app.service.addressbook.impl.handlers.RegisteredNodeDeleteHandler;
 import com.hedera.node.app.service.addressbook.impl.handlers.RegisteredNodeUpdateHandler;
-import com.hedera.node.app.service.clpr.impl.handlers.ClprCloseChannelHandler;
-import com.hedera.node.app.service.clpr.impl.handlers.ClprCompleteChannelHandler;
-import com.hedera.node.app.service.clpr.impl.handlers.ClprCompleteConnectorHandler;
-import com.hedera.node.app.service.clpr.impl.handlers.ClprDeregisterConnectorHandler;
+import com.hedera.node.app.service.clpr.impl.handlers.ClprCreateChannelHandler;
+import com.hedera.node.app.service.clpr.impl.handlers.ClprCreateConnectorHandler;
+import com.hedera.node.app.service.clpr.impl.handlers.ClprDeleteChannelHandler;
+import com.hedera.node.app.service.clpr.impl.handlers.ClprDeleteConnectorHandler;
 import com.hedera.node.app.service.clpr.impl.handlers.ClprEndpointPublicationHandler;
-import com.hedera.node.app.service.clpr.impl.handlers.ClprRegisterChannelHandler;
-import com.hedera.node.app.service.clpr.impl.handlers.ClprRegisterConnectorHandler;
+import com.hedera.node.app.service.clpr.impl.handlers.ClprEvictPeerEndpointHandler;
 import com.hedera.node.app.service.clpr.impl.handlers.ClprSubmitBundleHandler;
 import com.hedera.node.app.service.clpr.impl.handlers.ClprUpdateLedgerConfigurationHandler;
 import com.hedera.node.app.service.consensus.impl.handlers.ConsensusCreateTopicHandler;
@@ -152,11 +151,10 @@ public record TransactionHandlers(
         @NonNull CrsPublicationHandler crsPublicationHandler,
         @NonNull MigrationRootHashVoteHandler migrationRootHashVoteHandler,
         @NonNull ClprUpdateLedgerConfigurationHandler clprUpdateLedgerConfigurationHandler,
-        @NonNull ClprRegisterChannelHandler clprRegisterChannelHandler,
-        @NonNull ClprCompleteChannelHandler clprCompleteChannelHandler,
-        @NonNull ClprCloseChannelHandler clprCloseChannelHandler,
+        @NonNull ClprCreateChannelHandler clprCreateChannelHandler,
+        @NonNull ClprDeleteChannelHandler clprDeleteChannelHandler,
         @NonNull ClprSubmitBundleHandler clprSubmitBundleHandler,
-        @NonNull ClprRegisterConnectorHandler clprRegisterConnectorHandler,
-        @NonNull ClprCompleteConnectorHandler clprCompleteConnectorHandler,
-        @NonNull ClprDeregisterConnectorHandler clprDeregisterConnectorHandler,
-        @NonNull ClprEndpointPublicationHandler clprEndpointPublicationHandler) {}
+        @NonNull ClprCreateConnectorHandler clprCreateConnectorHandler,
+        @NonNull ClprDeleteConnectorHandler clprDeleteConnectorHandler,
+        @NonNull ClprEndpointPublicationHandler clprEndpointPublicationHandler,
+        @NonNull ClprEvictPeerEndpointHandler clprEvictPeerEndpointHandler) {}

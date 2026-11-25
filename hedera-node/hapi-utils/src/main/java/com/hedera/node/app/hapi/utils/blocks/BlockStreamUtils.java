@@ -106,6 +106,7 @@ public final class BlockStreamUtils {
             case STATE_ID_CRS_STATE -> "HintsService.CRS_STATE";
             case STATE_ID_NEXT_CRS_STATE -> "HintsService.NEXT_CRS_STATE";
             case STATE_ID_HINTS_KEY_PROVENANCE -> "HistoryService.HINTS_KEY_PROVENANCE";
+            case STATE_ID_HINTS_KEY_WITNESSES -> "HistoryService.HINTS_KEY_WITNESSES";
             case STATE_ID_CRS_PUBLICATIONS -> "HintsService.CRS_PUBLICATIONS";
             case STATE_ID_NODE_REWARDS -> "TokenService.NODE_REWARDS";
             case STATE_ID_NODE_PAYMENTS -> "TokenService.NODE_PAYMENTS";
@@ -114,7 +115,7 @@ public final class BlockStreamUtils {
             case STATE_ID_CLPR_PENDING_COMMITMENTS -> "ClprService.PENDING_COMMITMENTS";
             case STATE_ID_CLPR_MESSAGE_QUEUE -> "ClprService.MESSAGE_QUEUE";
             case STATE_ID_CLPR_CONNECTORS -> "ClprService.CONNECTORS";
-            case STATE_ID_CLPR_PENDING_CONNECTOR_COMMITMENTS -> "ClprService.PENDING_CONNECTOR_COMMITMENTS";
+            case STATE_ID_CLPR_CONNECTOR_REGISTRATION_HISTORY -> "ClprService.CONNECTOR_REGISTRATION_HISTORY";
             case STATE_ID_CLPR_ENDPOINT_MANIFEST -> "ClprService.ENDPOINT_MANIFEST";
             case STATE_ID_CLPR_ENDPOINT_MANIFEST_CONSTRUCTION -> "ClprService.ENDPOINT_MANIFEST_CONSTRUCTION";
         };
@@ -230,6 +231,7 @@ public final class BlockStreamUtils {
             case PROTO_BYTES_VALUE -> new ProtoBytes(mapChangeValue.protoBytesValueOrThrow());
             case CLPR_MESSAGE_VALUE -> mapChangeValue.clprMessageValueOrThrow();
             case CLPR_CONNECTOR_VALUE -> mapChangeValue.clprConnectorValueOrThrow();
+            case HINTS_KEY_WITNESS_RECORD_VALUE -> mapChangeValue.hintsKeyWitnessRecordValueOrThrow();
         };
     }
 

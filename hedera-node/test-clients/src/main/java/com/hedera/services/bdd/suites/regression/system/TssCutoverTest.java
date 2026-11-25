@@ -7,6 +7,7 @@ import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.untilHgcaaLogContainsPattern;
@@ -14,16 +15,20 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.untilHgcaaLogContai
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withExternalizedLedgerIdFromHgcaaLog;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
+import com.hedera.services.bdd.junit.hedera.BlockNodeReader;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.junit.support.validators.block.StateChangesValidator;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
+import com.hedera.services.bdd.spec.utilops.streams.StreamValidationOp;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -49,6 +54,7 @@ public class TssCutoverTest implements LifecycleTest {
      */
     private static final Duration LEDGER_ID_TIMEOUT = Duration.ofMinutes(5);
 
+    private static final Duration BLOCK_NODE_TIMEOUT = Duration.ofMinutes(1);
     private static final Duration LOG_POLL_INTERVAL = Duration.ofSeconds(1);
     private static final long TRANSFER_PACING_MS = 250L;
     private static final Random RANDOM = new Random(2_721_828L);
@@ -78,6 +84,7 @@ public class TssCutoverTest implements LifecycleTest {
                                 byNodeId(0), "tss.hintsEnabled = false", Duration.ofMinutes(1), LOG_POLL_INTERVAL, () ->
                                         new SpecOperation[] {randomStakerTransfer(), sleepFor(TRANSFER_PACING_MS)})
                         .loggingOff(),
+                untilBlockNodeHoldsFirstBlock(),
                 prepareFakeUpgrade(),
                 upgradeToNextConfigVersion(Map.of(
                         "tss.hintsEnabled", "true", "tss.historyEnabled", "true", "tss.forceMockSignatures", "false")),
@@ -94,6 +101,25 @@ public class TssCutoverTest implements LifecycleTest {
                                 LOG_POLL_INTERVAL,
                                 () -> new SpecOperation[] {randomStakerTransfer(), sleepFor(TRANSFER_PACING_MS)})
                         .loggingOff());
+    }
+
+    // The upgrade restarts the network, and with no buffer persistence a block not yet on the block node is lost for
+    // good; a node's first status call can time out and back off past that restart, so first wait for block 0 there
+    private static SpecOperation untilBlockNodeHoldsFirstBlock() {
+        return doingContextual(spec -> {
+            final var network = StreamValidationOp.checkableBlockNodeNetwork();
+            if (network == null) {
+                return;
+            }
+            final var reader = BlockNodeReader.of(network);
+            final var deadline = Instant.now().plus(BLOCK_NODE_TIMEOUT);
+            while (!(reader.isReal() ? reader.lastStoredBlock() >= 0 : reader.hasBlock(0))) {
+                if (Instant.now().isAfter(deadline)) {
+                    fail("Block node held no block " + BLOCK_NODE_TIMEOUT.toSeconds() + "s before the upgrade");
+                }
+                allRunFor(spec, randomStakerTransfer(), sleepFor(TRANSFER_PACING_MS));
+            }
+        });
     }
 
     private static SpecOperation randomStakerTransfer() {

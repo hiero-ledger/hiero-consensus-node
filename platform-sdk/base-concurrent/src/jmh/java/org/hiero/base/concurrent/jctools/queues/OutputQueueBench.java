@@ -133,12 +133,12 @@ public class OutputQueueBench {
             return true;
         }
         final long deadline = System.nanoTime() + OFFER_TIMEOUT_NANOS;
-        int idle = 0;
+        int backoffStep = 0;
         while (!mpscQueue.offer(PAYLOAD)) {
             if (System.nanoTime() - deadline >= 0) {
                 return false;
             }
-            idle = backOff(idle, PRODUCER_MAX_PARK_SHIFT);
+            backoffStep = backOff(backoffStep, PRODUCER_MAX_PARK_SHIFT);
         }
         return true;
     }
@@ -149,12 +149,12 @@ public class OutputQueueBench {
             return true;
         }
         final long deadline = System.nanoTime() + OFFER_TIMEOUT_NANOS;
-        int idle = 0;
+        int backoffStep = 0;
         while (!offerLinked()) {
             if (System.nanoTime() - deadline >= 0) {
                 return false;
             }
-            idle = backOff(idle, PRODUCER_MAX_PARK_SHIFT);
+            backoffStep = backOff(backoffStep, PRODUCER_MAX_PARK_SHIFT);
         }
         return true;
     }
@@ -183,12 +183,12 @@ public class OutputQueueBench {
             message = linkedQueue.poll();
             if (message == null) {
                 final long deadline = System.nanoTime() + POLL_TIMEOUT_NANOS;
-                int idle = 0;
+                int backoffStep = 0;
                 while ((message = linkedQueue.poll()) == null) {
                     if (System.nanoTime() - deadline >= 0) {
                         break;
                     }
-                    idle = backOff(idle, WRITER_MAX_PARK_SHIFT);
+                    backoffStep = backOff(backoffStep, WRITER_MAX_PARK_SHIFT);
                 }
             }
             if (message != null) {
@@ -199,12 +199,12 @@ public class OutputQueueBench {
             message = mpscQueue.relaxedPoll();
             if (message == null) {
                 final long deadline = System.nanoTime() + POLL_TIMEOUT_NANOS;
-                int idle = 0;
+                int backoffStep = 0;
                 while ((message = mpscQueue.relaxedPoll()) == null) {
                     if (System.nanoTime() - deadline >= 0) {
                         break;
                     }
-                    idle = backOff(idle, WRITER_MAX_PARK_SHIFT);
+                    backoffStep = backOff(backoffStep, WRITER_MAX_PARK_SHIFT);
                 }
             }
         }

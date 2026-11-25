@@ -27,7 +27,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.event.IntakeEventCounter;
-import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.main.model.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 
@@ -354,7 +354,9 @@ public class Shadowgraph {
         while (oldestUnexpiredIndicator < minimumIndicatorToKeep) {
             final Set<ShadowEvent> shadowsToExpire = indicatorToShadowEvent.remove(oldestUnexpiredIndicator);
             if (shadowsToExpire != null) {
-                shadowsToExpire.forEach(this::expire);
+                for (final ShadowEvent shadow : shadowsToExpire) {
+                    expire(shadow);
+                }
             }
             oldestUnexpiredIndicator++;
         }

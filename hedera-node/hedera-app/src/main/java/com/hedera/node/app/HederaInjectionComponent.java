@@ -8,6 +8,8 @@ import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.BlockStreamModule;
 import com.hedera.node.app.blocks.InitialStateHash;
+import com.hedera.node.app.blocks.failure.IssDetectionStagingCoordinator;
+import com.hedera.node.app.blocks.failure.TriageBlockStagingCoordinator;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
@@ -81,7 +83,7 @@ import java.util.function.Supplier;
 import javax.inject.Named;
 import javax.inject.Provider;
 import javax.inject.Singleton;
-import org.hiero.consensus.transaction.TransactionPoolNexus;
+import org.hiero.consensus.adapter.transaction.TransactionPoolNexus;
 
 /**
  * The infrastructure used to implement the platform contract for a Hedera Services node.
@@ -146,6 +148,10 @@ public interface HederaInjectionComponent {
     BlockBufferService blockBufferService();
 
     BlockStreamManager blockStreamManager();
+
+    TriageBlockStagingCoordinator triageBlockStagingCoordinator();
+
+    IssDetectionStagingCoordinator issDetectionStagingCoordinator();
 
     NodeRewardManager nodeRewardManager();
 

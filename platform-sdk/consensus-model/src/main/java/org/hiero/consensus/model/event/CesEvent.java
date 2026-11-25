@@ -10,18 +10,19 @@ import com.swirlds.base.utility.ToStringBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.time.Instant;
-import java.util.Iterator;
+import java.util.List;
 import java.util.Objects;
 import org.hiero.base.crypto.AbstractSerializableHashable;
 import org.hiero.base.crypto.RunningHash;
 import org.hiero.base.crypto.RunningHashable;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.ConsensusEvent;
+import org.hiero.consensus.main.model.ConsensusTransaction;
+import org.hiero.consensus.main.model.EventDescriptorWrapper;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.stream.StreamAligned;
 import org.hiero.consensus.model.stream.Timestamped;
-import org.hiero.consensus.model.transaction.ConsensusTransaction;
-import org.hiero.consensus.model.transaction.Transaction;
 
 /**
  * A wrapper around a {@link PlatformEvent} that holds additional information required by the
@@ -122,16 +123,10 @@ public class CesEvent extends AbstractSerializableHashable
         return platformEvent;
     }
 
-    @Override
-    @NonNull
-    public Iterator<ConsensusTransaction> consensusTransactionIterator() {
-        return platformEvent.consensusTransactionIterator();
-    }
-
     @NonNull
     @Override
-    public Iterator<EventDescriptorWrapper> allParentsIterator() {
-        return platformEvent.allParentsIterator();
+    public List<? extends ConsensusTransaction> getTransactions() {
+        return platformEvent.getTransactions();
     }
 
     @Override
@@ -144,11 +139,7 @@ public class CesEvent extends AbstractSerializableHashable
         return platformEvent.getConsensusTimestamp();
     }
 
-    @Override
-    public Iterator<Transaction> transactionIterator() {
-        return platformEvent.transactionIterator();
-    }
-
+    @NonNull
     @Override
     public Instant getTimeCreated() {
         return platformEvent.getTimeCreated();
@@ -163,6 +154,12 @@ public class CesEvent extends AbstractSerializableHashable
     @Override
     public long getBirthRound() {
         return platformEvent.getBirthRound();
+    }
+
+    @NonNull
+    @Override
+    public List<EventDescriptorWrapper> getAllParents() {
+        return platformEvent.getAllParents();
     }
 
     /**
@@ -180,6 +177,11 @@ public class CesEvent extends AbstractSerializableHashable
     @NonNull
     public Bytes getSignature() {
         return platformEvent.getSignature();
+    }
+
+    @Override
+    public boolean isPcesEvent() {
+        return platformEvent.isPcesEvent();
     }
 
     /**

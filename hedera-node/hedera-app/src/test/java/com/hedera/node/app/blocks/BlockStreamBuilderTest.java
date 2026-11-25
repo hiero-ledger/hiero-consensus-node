@@ -13,6 +13,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.blocks.BlockItemsTranslator.BLOCK_ITEMS_TRANSLATOR;
 import static com.hedera.node.app.service.token.HookDispatchUtils.HTS_HOOKS_CONTRACT_NUM;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.BATCH_INNER;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.PRECEDING;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
@@ -38,6 +40,8 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ScheduleID;
+import com.hedera.hapi.node.base.SignatureMap;
+import com.hedera.hapi.node.base.SignaturePair;
 import com.hedera.hapi.node.base.TokenAssociation;
 import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TransactionID;
@@ -280,8 +284,9 @@ public class BlockStreamBuilderTest {
     }
 
     private static Stream<Arguments> implicitSlotReadScenarios() {
-        return Stream.of(false, true).flatMap(hookStorage -> Stream.of(ImplicitWriteContext.values())
-                .map(writeContext -> Arguments.of(hookStorage, writeContext)));
+        return Stream.of(false, true)
+                .flatMap(hookStorage -> Stream.of(ImplicitWriteContext.values())
+                        .map(writeContext -> Arguments.of(hookStorage, writeContext)));
     }
 
     private enum ImplicitWriteContext {
@@ -440,8 +445,9 @@ public class BlockStreamBuilderTest {
     }
 
     private static Stream<Arguments> scopedCreatedIdCases() {
-        return Stream.of(false, true).flatMap(ethereum -> Stream.of(false, true)
-                .flatMap(create -> Stream.of(false, true).map(empty -> Arguments.of(ethereum, create, empty))));
+        return Stream.of(false, true)
+                .flatMap(ethereum -> Stream.of(false, true)
+                        .flatMap(create -> Stream.of(false, true).map(empty -> Arguments.of(ethereum, create, empty))));
     }
 
     private BlockStreamBuilder evmOutputBuilder(
@@ -693,6 +699,74 @@ public class BlockStreamBuilderTest {
         assertThat(record.contractCallResult().createdContractIDs()).isEmpty();
     }
 
+    /**
+     * {@link BlockItemsTranslator} casts the translation context to a type chosen by its functionality, so for every
+     * functionality the builder must create the context type the translator expects.
+     */
+    @ParameterizedTest
+    @EnumSource(HederaFunctionality.class)
+    void translatesRecordAndReceiptForEveryFunctionality(final HederaFunctionality functionality) {
+        final var output = createEmptyBuilder()
+                .functionality(functionality)
+                .status(SUCCESS)
+                .consensusTimestamp(CONSENSUS_TIME)
+                .transactionID(TransactionID.DEFAULT)
+                .build(false, null);
+
+        final var record = output.toRecord(BLOCK_ITEMS_TRANSLATOR);
+
+        assertThat(output.translationContext().functionality()).isEqualTo(functionality);
+        assertThat(record.receiptOrThrow().status()).isEqualTo(SUCCESS);
+    }
+
+    @Test
+    void keepsSubmittedBytesWhenNotCustomized() throws Exception {
+        final var bodyBytes = signedTx.bodyBytes();
+        final var sigMap = SignatureMap.newBuilder()
+                .sigPair(SignaturePair.newBuilder()
+                        .pubKeyPrefix(Bytes.fromHex("01"))
+                        .ed25519(Bytes.fromHex("0203"))
+                        .build())
+                .build();
+        final var sigMapBytes = SignatureMap.PROTOBUF.toBytes(sigMap);
+        // A valid encoding with sig_map (field 2) written before body_bytes (field 1)
+        final var submittedBytes = Bytes.merge(
+                Bytes.merge(Bytes.wrap(new byte[] {0x12, (byte) sigMapBytes.length()}), sigMapBytes),
+                Bytes.merge(Bytes.wrap(new byte[] {0x0a, (byte) bodyBytes.length()}), bodyBytes));
+        final var submittedTx = SignedTransaction.PROTOBUF.parse(submittedBytes);
+        assertThat(SignedTransaction.PROTOBUF.toBytes(submittedTx)).isNotEqualTo(submittedBytes);
+
+        final var builder = new BlockStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER)
+                .functionality(HederaFunctionality.CRYPTO_TRANSFER)
+                .signedTx(submittedTx)
+                .serializedSignedTx(submittedBytes);
+
+        final var blockItems = builder.build(false, null).blockItems();
+
+        assertEquals(submittedBytes, blockItems.getFirst().signedTransaction());
+    }
+
+    @Test
+    void reserializesCustomizedTransaction() {
+        final var customizedTx = signedTx.copyBuilder()
+                .sigMap(SignatureMap.newBuilder()
+                        .sigPair(SignaturePair.newBuilder()
+                                .ed25519(Bytes.fromHex("0203"))
+                                .build())
+                        .build())
+                .build();
+        final var builder = new BlockStreamBuilder(REVERSIBLE, tx -> customizedTx, USER)
+                .functionality(HederaFunctionality.CRYPTO_TRANSFER)
+                .signedTx(signedTx)
+                .serializedSignedTx(signedTxBytes);
+
+        final var blockItems = builder.build(false, null).blockItems();
+
+        assertEquals(
+                SignedTransaction.PROTOBUF.toBytes(customizedTx),
+                blockItems.getFirst().signedTransaction());
+    }
+
     private BlockStreamBuilder createBaseBuilder() {
         return createBaseBuilder(Integer.MAX_VALUE);
     }
@@ -742,5 +816,57 @@ public class BlockStreamBuilderTest {
         final Map<AccountID, AccountID> visited = new HashMap<>();
         builder.forEachDeletedAccountBeneficiary(visited::put);
         assertThat(visited).hasSize(2).containsEntry(deletedA, beneficiaryA).containsEntry(deletedB, beneficiaryB);
+    }
+
+    @Test
+    void nullOutSideEffectFieldsClearsAccountCreationFields() {
+        final var builder = new BlockStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, PRECEDING)
+                .signedTx(signedTx)
+                .serializedSignedTx(signedTxBytes)
+                .functionality(CRYPTO_CREATE)
+                .status(SUCCESS)
+                .accountID(AccountID.newBuilder().accountNum(1234L).build())
+                .evmAddress(Bytes.wrap(new byte[20]))
+                .transferList(TransferList.newBuilder()
+                        .accountAmounts(AccountAmount.newBuilder()
+                                .accountID(
+                                        AccountID.newBuilder().accountNum(98L).build())
+                                .amount(100L)
+                                .build())
+                        .build())
+                .transactionFee(100L);
+
+        builder.nullOutSideEffectFields();
+
+        final var blockItems = builder.build(false, null).blockItems();
+        assertThat(blockItems).noneMatch(BlockItem::hasTransactionOutput);
+        final var result = blockItems.stream()
+                .filter(BlockItem::hasTransactionResult)
+                .findFirst()
+                .orElseThrow()
+                .transactionResultOrThrow();
+        assertThat(result.transferListOrElse(TransferList.DEFAULT).accountAmounts())
+                .isEmpty();
+        assertThat(result.transactionFeeCharged()).isZero();
+    }
+
+    @Test
+    void nullOutSideEffectFieldsKeepsFeeOfNonPrecedingBuilder() {
+        // The fee of a rolled back atomic batch inner transaction is still charged, so its result must keep it
+        final var builder = new BlockStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, BATCH_INNER)
+                .signedTx(signedTx)
+                .serializedSignedTx(signedTxBytes)
+                .functionality(HederaFunctionality.CRYPTO_TRANSFER)
+                .status(SUCCESS)
+                .transactionFee(100L);
+
+        builder.nullOutSideEffectFields();
+
+        final var result = builder.build(false, null).blockItems().stream()
+                .filter(BlockItem::hasTransactionResult)
+                .findFirst()
+                .orElseThrow()
+                .transactionResultOrThrow();
+        assertThat(result.transactionFeeCharged()).isEqualTo(100L);
     }
 }

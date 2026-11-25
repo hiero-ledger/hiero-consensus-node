@@ -10,8 +10,8 @@ import java.util.Map;
 import java.util.TreeMap;
 import org.assertj.core.api.AbstractAssert;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.framework.validation.ConsensusRoundValidator;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.OtterAssertions;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
@@ -187,6 +187,42 @@ public class MultipleNodeConsensusResultsAssert
         isNotNull();
         for (final SingleNodeConsensusResult result : actual.results()) {
             OtterAssertions.assertThat(result).hasNoUnannouncedEvents();
+        }
+        return this;
+    }
+
+    /**
+     * Verifies that the consensus ratio of every node is between the given bounds, inclusive. Each node's ratio is
+     * computed from its own results. See {@link SingleNodeConsensusResultAssert#hasConsensusRatioBetween(double, double)}
+     * for details.
+     *
+     * @param min the smallest allowed ratio
+     * @param max the largest allowed ratio
+     * @return this assertion object for method chaining
+     */
+    @NonNull
+    public MultipleNodeConsensusResultsAssert haveConsensusRatioBetween(final double min, final double max) {
+        isNotNull();
+        for (final SingleNodeConsensusResult result : actual.results()) {
+            OtterAssertions.assertThat(result).hasConsensusRatioBetween(min, max);
+        }
+        return this;
+    }
+
+    /**
+     * Verifies that the stale ratio of every node is between the given bounds, inclusive. Each node's ratio is computed
+     * from its own results. See {@link SingleNodeConsensusResultAssert#hasStaleRatioBetween(double, double)} for
+     * details.
+     *
+     * @param min the smallest allowed ratio
+     * @param max the largest allowed ratio
+     * @return this assertion object for method chaining
+     */
+    @NonNull
+    public MultipleNodeConsensusResultsAssert haveStaleRatioBetween(final double min, final double max) {
+        isNotNull();
+        for (final SingleNodeConsensusResult result : actual.results()) {
+            OtterAssertions.assertThat(result).hasStaleRatioBetween(min, max);
         }
         return this;
     }

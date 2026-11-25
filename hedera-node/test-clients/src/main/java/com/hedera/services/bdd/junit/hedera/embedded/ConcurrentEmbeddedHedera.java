@@ -34,10 +34,10 @@ import java.util.function.Consumer;
 import java.util.stream.IntStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.event.ConsensusEvent;
-import org.hiero.consensus.model.hashgraph.Round;
+import org.hiero.consensus.main.model.ConsensusEvent;
+import org.hiero.consensus.main.model.Round;
+import org.hiero.consensus.main.model.TimestampedTransaction;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
-import org.hiero.consensus.model.transaction.TimestampedTransaction;
 
 /**
  * An embedded Hedera node that can be used in concurrent tests.
@@ -59,8 +59,8 @@ class ConcurrentEmbeddedHedera extends AbstractEmbeddedHedera implements Embedde
     @Override
     protected void handleRoundWith(@NonNull final byte[] serializedSignedTx) {
         final var round = platform.roundWith(serializedSignedTx);
-        hedera.onPreHandle(round.iterator().next(), state, NOOP_STATE_SIG_CALLBACK);
         synchronized (state) {
+            hedera.onPreHandle(round.getConsensusEvents().getFirst(), state, NOOP_STATE_SIG_CALLBACK);
             bulkUpdateOf(state, v -> {
                 v.setRound(round.getRoundNum());
                 v.setConsensusTimestamp(round.getConsensusTimestamp());

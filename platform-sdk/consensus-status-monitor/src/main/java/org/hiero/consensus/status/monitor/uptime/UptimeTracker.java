@@ -17,10 +17,10 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.base.CompareTo;
-import org.hiero.consensus.model.event.ConsensusEvent;
+import org.hiero.consensus.main.model.ConsensusEvent;
+import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.main.model.Round;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
-import org.hiero.consensus.model.hashgraph.Round;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.RosterEntryWrapper;
 import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.status.monitor.config.UptimeConfig;
@@ -151,9 +151,9 @@ public class UptimeTracker {
         // new self event
         final Instant previousSelfEventConsensusTimestamp = lastSelfEventTime.get();
 
-        round.forEach(event -> {
+        for (final ConsensusEvent event : round.getConsensusEvents()) {
             lastEventsInRoundByCreator.put(event.getCreatorId(), event);
-        });
+        }
 
         final ConsensusEvent lastSelfEvent = lastEventsInRoundByCreator.get(selfId);
         if (lastSelfEvent != null) {

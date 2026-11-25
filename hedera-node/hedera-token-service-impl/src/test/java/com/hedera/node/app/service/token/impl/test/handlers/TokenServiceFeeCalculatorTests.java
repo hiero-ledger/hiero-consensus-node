@@ -53,6 +53,7 @@ import com.hedera.hapi.node.token.TokenUnpauseTransactionBody;
 import com.hedera.hapi.node.token.TokenUpdateNftsTransactionBody;
 import com.hedera.hapi.node.token.TokenUpdateTransactionBody;
 import com.hedera.hapi.node.token.TokenWipeAccountTransactionBody;
+import com.hedera.hapi.node.transaction.CustomFee;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
@@ -105,6 +106,7 @@ public class TokenServiceFeeCalculatorTests {
     private static final long TOKEN_ASSOCIATE_BASE_FEE = 45;
     private static final long TOKEN_BURN_BASE_FEE = 40;
     private static final long TOKEN_CREATE_BASE_FEE = 15;
+    private static final long TOKEN_CREATE_CUSTOM_FEE = 7;
     private static final long TOKEN_DELETE_BASE_FEE = 45;
     private static final long TOKEN_DISSOCIATE_BASE_FEE = 45;
     private static final long TOKEN_FEE_SCHEDULE_UPDATE_BASE_FEE = 45;
@@ -181,6 +183,21 @@ public class TokenServiceFeeCalculatorTests {
         final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
         assertNotNull(result);
         assertEquals(TOKEN_CREATE_BASE_FEE, result.totalTinycents());
+    }
+
+    @Test
+    void createTokenWithCustomFees() {
+        lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
+        final var body = TransactionBody.newBuilder()
+                .tokenCreation(TokenCreateTransactionBody.newBuilder()
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .customFees(CustomFee.DEFAULT)
+                        .build())
+                .build();
+        when(feeContext.functionality()).thenReturn(HederaFunctionality.TOKEN_CREATE);
+        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
+        assertNotNull(result);
+        assertEquals(TOKEN_CREATE_BASE_FEE + TOKEN_CREATE_CUSTOM_FEE, result.totalTinycents());
     }
 
     @Test
@@ -452,7 +469,8 @@ public class TokenServiceFeeCalculatorTests {
                         makeExtraDef(Extra.NFT_UPDATE, 4),
                         makeExtraDef(Extra.TOKEN_ASSOCIATE, 4),
                         makeExtraDef(Extra.TOKEN_MINT_NFT_BASE, 5),
-                        makeExtraDef(Extra.TOKEN_MINT_NFT, UNIQUE_TOKEN_FEE))
+                        makeExtraDef(Extra.TOKEN_MINT_NFT, UNIQUE_TOKEN_FEE),
+                        makeExtraDef(Extra.TOKEN_CREATE_WITH_CUSTOM_FEE, TOKEN_CREATE_CUSTOM_FEE))
                 .network(NetworkFee.DEFAULT.copyBuilder().multiplier(2).build())
                 .services(makeService(
                         "Token",
@@ -462,7 +480,11 @@ public class TokenServiceFeeCalculatorTests {
                                 TOKEN_ASSOCIATE_BASE_FEE,
                                 makeExtraIncluded(Extra.TOKEN_ASSOCIATE, 1)),
                         makeServiceFee(TOKEN_BURN, TOKEN_BURN_BASE_FEE),
-                        makeServiceFee(TOKEN_CREATE, TOKEN_CREATE_BASE_FEE, makeExtraIncluded(Extra.KEYS, 1)),
+                        makeServiceFee(
+                                TOKEN_CREATE,
+                                TOKEN_CREATE_BASE_FEE,
+                                makeExtraIncluded(Extra.KEYS, 1),
+                                makeExtraIncluded(Extra.TOKEN_CREATE_WITH_CUSTOM_FEE, 0)),
                         makeServiceFee(TOKEN_DELETE, TOKEN_DELETE_BASE_FEE),
                         makeServiceFee(TOKEN_DISSOCIATE_FROM_ACCOUNT, TOKEN_DISSOCIATE_BASE_FEE),
                         makeServiceFee(TOKEN_FEE_SCHEDULE_UPDATE, TOKEN_FEE_SCHEDULE_UPDATE_BASE_FEE),

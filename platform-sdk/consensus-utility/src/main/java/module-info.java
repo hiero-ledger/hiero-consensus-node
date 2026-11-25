@@ -18,7 +18,6 @@ module org.hiero.consensus.utility {
     exports org.hiero.consensus.round;
     exports org.hiero.consensus.scratchpad;
     exports org.hiero.consensus.system;
-    exports org.hiero.consensus.transaction;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
@@ -28,6 +27,7 @@ module org.hiero.consensus.utility {
     requires transitive org.hiero.base.concurrent;
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
+    requires transitive org.hiero.consensus.main.model;
     requires transitive org.hiero.consensus.model;
     requires com.swirlds.logging;
     requires org.hiero.consensus.metrics;

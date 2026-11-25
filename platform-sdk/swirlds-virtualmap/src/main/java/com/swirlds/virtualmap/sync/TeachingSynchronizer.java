@@ -52,8 +52,8 @@ public class TeachingSynchronizer {
             @NonNull final VirtualMap teacherMap,
             @NonNull final ThreadManager threadManager,
             @NonNull final Configuration config) {
-
-        teacherView = Objects.requireNonNull(teacherMap, "teacher map is null").detach();
+        Objects.requireNonNull(teacherMap, "teacher map is null");
+        teacherView = teacherMap.detach();
         this.threadManager = Objects.requireNonNull(threadManager, "threadManager is null");
         this.syncConfig =
                 Objects.requireNonNull(config, "config is null").getConfigData(VirtualMapTeacherSyncConfig.class);
@@ -185,7 +185,7 @@ public class TeachingSynchronizer {
         }
 
         final Hash teacherRootHash = teacherView.findHash(MerklePathUtils.ROOT_PATH);
-        final boolean isClean = (teacherRootHash == null) || teacherRootHash.equals(rootRequest.hash());
+        final boolean isClean = (teacherRootHash == null) || rootRequest.matches(teacherRootHash);
         final long firstLeafPath = teacherView.getMetadata().getFirstLeafPath();
         final long lastLeafPath = teacherView.getMetadata().getLastLeafPath();
         final PullVirtualTreeResponse rootResponse =
@@ -193,9 +193,10 @@ public class TeachingSynchronizer {
 
         logger.info(
                 RECONNECT.getMarker(),
-                "Teacher sending root node response: firstLeafPath={}, lastLeafPath={}",
+                "Teacher sending root node response: firstLeafPath={}, lastLeafPath={}, hashPrefixLength={}",
                 firstLeafPath,
-                lastLeafPath);
+                lastLeafPath,
+                rootRequest.hashPrefixLength());
         final byte[] responseBytes = new byte[rootResponse.getSizeInBytes()];
         rootResponse.writeTo(BufferedData.wrap(responseBytes));
         try {

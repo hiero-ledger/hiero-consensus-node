@@ -20,6 +20,7 @@ import com.hedera.node.app.spi.authorization.SystemPrivilege;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.FilesConfig;
+import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
@@ -34,13 +35,14 @@ public class PrivilegesVerifier {
     private static final long FIRST_SYSTEM_FILE_ENTITY = 101L;
     private static final long FIRST_POST_SYSTEM_FILE_ENTITY = 200L;
 
+    private final ConfigProvider configProvider;
     private final AccountsConfig accountsConfig;
     private final FilesConfig filesConfig;
     private final long numReservedSystemEntities;
 
     @Inject
     public PrivilegesVerifier(@NonNull final ConfigProvider configProvider) {
-        requireNonNull(configProvider, "configProvider cannot be null");
+        this.configProvider = requireNonNull(configProvider, "configProvider cannot be null");
 
         final var configuration = configProvider.getConfiguration();
         this.accountsConfig = configuration.getConfigData(AccountsConfig.class);
@@ -50,12 +52,12 @@ public class PrivilegesVerifier {
     }
 
     /**
-     * Checks whether an account is exempt from paying fees.
+     * Evaluates the payer's system privileges for a transaction.
      *
      * @param payerId the payer {@link AccountID} for the transaction
      * @param functionality the {@link HederaFunctionality} of the transaction
      * @param txBody the {@link TransactionBody} of the transaction
-     * @return {@code true} if the account is exempt from paying fees, otherwise {@code false}
+     * @return the system privilege decision for the transaction
      */
     public SystemPrivilege hasPrivileges(
             @NonNull final AccountID payerId,
@@ -84,7 +86,12 @@ public class PrivilegesVerifier {
                 checkCryptoDelete(
                         effectiveNumber(txBody.cryptoDeleteOrThrow().deleteAccountIDOrElse(AccountID.DEFAULT)));
             case NODE_CREATE -> checkNodeCreate(payerId);
-            case CLPR_UPDATE_LEDGER_CONFIGURATION, CLPR_CLOSE_CHANNEL -> checkClprAdmin(payerId);
+            case CLPR_UPDATE_LEDGER_CONFIGURATION, CLPR_DELETE_CHANNEL, CLPR_EVICT_PEER_ENDPOINT ->
+                checkClprAdmin(payerId);
+            case CLPR_SUBMIT_BUNDLE ->
+                txBody.clprSubmitBundleOrThrow().hasExpectedCachedManifestVersion()
+                        ? checkClprAdmin(payerId)
+                        : SystemPrivilege.UNNECESSARY;
             default -> SystemPrivilege.UNNECESSARY;
         };
     }
@@ -200,8 +207,26 @@ public class PrivilegesVerifier {
         return hasNodeCreatePrivilege(payerId) ? AUTHORIZED : UNAUTHORIZED;
     }
 
+    /**
+     * Authorizes the treasury, system admin, and configured local account for privileged CLPR transactions.
+     *
+     * @param payerId the transaction payer
+     * @return {@link SystemPrivilege#AUTHORIZED} for an allowed payer or {@link SystemPrivilege#UNAUTHORIZED}
+     */
     private SystemPrivilege checkClprAdmin(@NonNull final AccountID payerId) {
-        return isSuperUser(payerId) ? AUTHORIZED : UNAUTHORIZED;
+        if (isSuperUser(payerId)) {
+            return AUTHORIZED;
+        }
+        // Read the live network properties so account changes take effect without a restart.
+        final var configuration = configProvider.getConfiguration();
+        final var clprAdmin = configuration.getConfigData(AccountsConfig.class).clprAdmin();
+        final var hederaConfig = configuration.getConfigData(HederaConfig.class);
+        return clprAdmin > 0
+                        && payerId.accountNumOrElse(0L) == clprAdmin
+                        && payerId.shardNum() == hederaConfig.shard()
+                        && payerId.realmNum() == hederaConfig.realm()
+                ? AUTHORIZED
+                : UNAUTHORIZED;
     }
 
     private SystemPrivilege checkEntityDelete(final long entityNum) {

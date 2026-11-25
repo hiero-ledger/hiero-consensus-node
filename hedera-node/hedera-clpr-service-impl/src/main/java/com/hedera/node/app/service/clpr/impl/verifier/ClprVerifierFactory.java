@@ -13,20 +13,20 @@ import javax.inject.Singleton;
 /**
  * Resolves the appropriate {@link ClprVerifier} for a Channel's verifier contract.
  *
- * <p>Every Channel specifies a {@code verifier_contract} at registration time and that
- * contract is always a deployed EVM smart contract. The factory returns an
- * {@link EvmClprVerifier} that dispatches verification calls to that specific contract.
- * The contract must implement the config ABI with seed endpoints, or the manifest-aware config ABI
- * when endpoint manifests are enabled, and the three-argument bundle ABI described by {@link EvmClprVerifier}.
+ * <p>Native built-in verifiers (see {@link VerifiersRegistry}, e.g. Canton at {@code 0x173}) are returned
+ * directly. Every other verifier contract is a deployed EVM smart contract (including the
+ * precompile-backed built-ins {@code 0x16e}, {@code 0x16f} and {@code 0x171}), and gets an {@link EvmClprVerifier}
+ * that dispatches verification calls to that specific contract. The contract must implement the config ABI with
+ * seed endpoints, or the manifest-aware config ABI when endpoint manifests are enabled, and the three-argument
+ * bundle ABI described by {@link EvmClprVerifier}.
  *
- * <p>Heavy lifting (TSS signature verification, Merkle path walking) is available to the
- * verifier contract through the CLPR system contract precompiles
+ * <p>Heavy lifting (TSS signature verification, Merkle path walking) is available to EVM
+ * verifier contracts through the CLPR system contract precompiles
  * ({@code verifyConfig}/{@code verifyBundle} on the precompile at {@code 0x16e}) — see
  * {@code com.hedera.node.app.service.contract.impl.exec.systemcontracts.clpr.verify}.
  */
 @Singleton
 public class ClprVerifierFactory {
-
     @Inject
     public ClprVerifierFactory() {
         // Exists for Dagger injection
@@ -43,10 +43,9 @@ public class ClprVerifierFactory {
     @NonNull
     public ClprVerifier getVerifier(@NonNull final ContractID verifierContract) throws HandleException {
         requireNonNull(verifierContract);
-        // TODO(CLPR-5.3): Check against a registry of built-in verifiers first; return one if found.
         if (!verifierContract.hasContractNum() && !verifierContract.hasEvmAddress()) {
             throw new HandleException(CLPR_INVALID_VERIFIER_CONTRACT);
         }
-        return new EvmClprVerifier(verifierContract);
+        return VerifiersRegistry.find(verifierContract).orElseGet(() -> new EvmClprVerifier(verifierContract));
     }
 }

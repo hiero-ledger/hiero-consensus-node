@@ -34,7 +34,11 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
  *
  * <p>The {@code bundlePayload} is a proto-encoded {@code ClprSeiBundlePayload}; the
  * {@code trustAnchor} is the proto-encoded {@code SeiTrustAnchor} stored on the Channel.
- * Verification is delegated to {@link SeiCometBftProofVerifier#verifyBundle(byte[], byte[])}.
+ * Verification is delegated to {@link SeiCometBftProofVerifier#verifyBundle(byte[], byte[], byte[])}.
+ *
+ * <p>The {@code channelContext} is the local Channel record's {@code channelId(32) || serviceAddress(20)}. The
+ * verifier requires its service address to match the trust anchor and accepts only proven storage slots of its
+ * channel, so a valid proof of another channel's queue cannot be relayed into this one.
  *
  * <p>The Sei verifier enforces two service-level invariants before returning, because a Sei bundle's
  * trust anchor is <i>computed</i> from proven validator-set rotation rather than echoed from the
@@ -51,15 +55,19 @@ public class SeiVerifyBundleCall extends AbstractCall {
 
     private final byte[] bundlePayload;
     private final byte[] trustAnchor;
+    /** {@code channelId(32) || serviceAddress(20)} from the local Channel record; binds the proof to that channel. */
+    private final byte[] channelContext;
 
     public SeiVerifyBundleCall(
             @NonNull final HederaWorldUpdater.Enhancement enhancement,
             @NonNull final SystemContractGasCalculator gasCalculator,
             @NonNull final byte[] bundlePayload,
-            @NonNull final byte[] trustAnchor) {
+            @NonNull final byte[] trustAnchor,
+            @NonNull final byte[] channelContext) {
         super(gasCalculator, enhancement, true);
         this.bundlePayload = requireNonNull(bundlePayload);
         this.trustAnchor = requireNonNull(trustAnchor);
+        this.channelContext = requireNonNull(channelContext);
     }
 
     @Override
@@ -76,7 +84,7 @@ public class SeiVerifyBundleCall extends AbstractCall {
 
         final SeiCometBftProofVerifier.VerifiedBundle verified;
         try {
-            verified = SeiCometBftProofVerifier.verifyBundle(bundlePayload, trustAnchor);
+            verified = SeiCometBftProofVerifier.verifyBundle(bundlePayload, trustAnchor, channelContext);
         } catch (final ProofException e) {
             log.debug("verifyBundle (Sei): proof rejected: {}", e.getMessage());
             return fail();
@@ -193,7 +201,7 @@ public class SeiVerifyBundleCall extends AbstractCall {
             @NonNull final SeiCometBftProofVerifier.VerifiedBundle verified) {
         // Metadata absent (a state-update-only bundle) → the zero-nextMessageId sentinel, with full
         // 32-byte zero hashes so it encodes against the bytes32 fields. Otherwise the proven queue state,
-        // with endpointManifestVersion sourced from the PROVEN Channel slot (offset 16) rather than the
+        // with endpointManifestVersion sourced from the PROVEN Channel slot (offset 15) rather than the
         // relayed content — a relay could otherwise inflate it to suppress our manifest re-pushes (spec §4.5).
         final ClprQueueMetadata meta = outContent.metadata();
         final Tuple metaTuple = meta == null

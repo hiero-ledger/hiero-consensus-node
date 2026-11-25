@@ -18,6 +18,7 @@ import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import com.swirlds.state.test.fixtures.merkle.TestStateUtils;
 import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.virtualmap.config.VirtualMapLearnerSyncConfig;
 import com.swirlds.virtualmap.test.fixtures.sync.PairedStreams;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -35,7 +36,7 @@ import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.gossip.impl.network.Connection;
 import org.hiero.consensus.gossip.impl.network.SocketConnection;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
@@ -313,6 +314,9 @@ final class ReconnectTest {
                 state,
                 RECONNECT_SOCKET_TIMEOUT,
                 reconnectMetrics,
-                stateLifecycleManager);
+                stateLifecycleManager,
+                receiverConfiguration
+                        .getConfigData(VirtualMapLearnerSyncConfig.class)
+                        .hashPrefixLength());
     }
 }

@@ -9,7 +9,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import org.hiero.base.crypto.test.fixtures.TestCertificates;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.test.fixtures.crypto.PreGeneratedX509Certs;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;

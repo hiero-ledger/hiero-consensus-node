@@ -3,8 +3,9 @@ package org.hiero.consensus.state.persistence;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STATE_TO_DISK;
+import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.base.file.FileUtils.deleteDirectoryAndLog;
+import static org.hiero.base.file.FileUtils.deleteDirectory;
 import static org.hiero.consensus.state.snapshot.StateToDiskReason.UNKNOWN;
 
 import com.swirlds.base.time.Time;
@@ -17,6 +18,7 @@ import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
@@ -25,8 +27,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.utility.Threshold;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.event.EventConstants;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.state.StateSavingResult;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.state.SignedStateFileWriter;
@@ -311,13 +313,7 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
         int index = savedStates.size() - 1;
         final StateConfig stateConfig = configuration.getConfigData(StateConfig.class);
         for (; index >= stateConfig.signedStateDisk(); index--) {
-
-            final SavedStateInfo savedStateInfo = savedStates.get(index);
-            try {
-                deleteDirectoryAndLog(savedStateInfo.stateDirectory());
-            } catch (final IOException e) {
-                // Intentionally ignored, deleteDirectoryAndLog will log any exceptions that happen
-            }
+            deleteState(savedStates.get(index).stateDirectory());
         }
 
         if (index < 0) {
@@ -325,5 +321,26 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
         }
         final SavedStateMetadata oldestStateMetadata = savedStates.get(index).metadata();
         return oldestStateMetadata.minimumBirthRoundNonAncient();
+    }
+
+    /**
+     * Deletes a saved state from disk.
+     * <p>
+     * The state is first moved to the temporary directory, which is atomic, and then deleted there. Deleting a
+     * directory tree is not atomic: if the node stopped part way through deleting the state in place, a partially
+     * deleted state would be left among the saved states. Whatever is left in the temporary directory is removed
+     * when the node starts.
+     *
+     * @param stateDirectory the directory of the saved state to delete
+     */
+    private void deleteState(@NonNull final Path stateDirectory) {
+        logger.info(STATE_TO_DISK.getMarker(), "Deleting saved state {}", stateDirectory);
+        try {
+            final Path temporaryDirectory = fileSystemManager.resolveNewTemp();
+            Files.move(stateDirectory, temporaryDirectory, ATOMIC_MOVE);
+            deleteDirectory(temporaryDirectory);
+        } catch (final IOException e) {
+            logger.error(EXCEPTION.getMarker(), "Unable to delete saved state {}", stateDirectory, e);
+        }
     }
 }

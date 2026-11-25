@@ -11,6 +11,7 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 import com.hedera.hapi.node.base.Key;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
+import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.junit.support.validators.HgcaaLogValidator;
 import com.hedera.services.bdd.junit.support.validators.SwirldsLogValidator;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -47,6 +48,10 @@ public class LogValidationOp extends UtilOp {
     @Override
     protected boolean submitOp(@NonNull final HapiSpec spec) throws Throwable {
         doIfNotInterrupted(() -> MILLISECONDS.sleep(delay.toMillis()));
+        // Only nodes that existed at genesis log the admin key overrides
+        final int genesisSize = spec.targetNetworkOrThrow() instanceof SubProcessNetwork subProcessNetwork
+                ? subProcessNetwork.genesisSize()
+                : CLASSIC_HAPI_TEST_NETWORK_SIZE;
         nodesToValidate(spec).forEach(node -> {
             // Validate swirlds.log for all nodes
             final var swirldsLogPath =
@@ -59,7 +64,7 @@ public class LogValidationOp extends UtilOp {
                 }
             }
             // A node added after genesis initialization will not have admin key override logs
-            if (node.getNodeId() >= CLASSIC_HAPI_TEST_NETWORK_SIZE) {
+            if (node.getNodeId() >= genesisSize) {
                 return;
             }
             try {

@@ -39,8 +39,11 @@ public final class ClprVerifierAbi {
      * encodes this {@link TupleType} directly and {@link EvmClprVerifier} decodes it. A {@code version == 0}
      * manifest member means "absent".
      */
-    public static final TupleType<Tuple> VERIFY_BUNDLE_RETURN = TupleType.parse(
-            "((uint64,bytes32,uint64,bytes32,uint8,uint64),bytes[],bytes,bytes,(uint64,bytes,(string,uint32,bytes,bytes)[]))");
+    public static final String VERIFY_BUNDLE_OUTPUTS =
+            "((uint64,bytes32,uint64,bytes32,uint8,uint64),bytes[],bytes,bytes,(uint64,bytes,(string,uint32,bytes,bytes)[]))";
+
+    /** {@link #VERIFY_BUNDLE_OUTPUTS} parsed, for the encode and decode sides. */
+    public static final TupleType<Tuple> VERIFY_BUNDLE_RETURN = TupleType.parse(VERIFY_BUNDLE_OUTPUTS);
 
     /**
      * The metadata-absent sentinel {@code metaTuple}: every field zero, with the two {@code bytes32}
@@ -63,7 +66,7 @@ public final class ClprVerifierAbi {
      *
      * <p>{@code endpointManifestVersion} is the sender's cached version of the receiver's endpoint manifest. Every
      * producer sources it from PROVEN state — the Hiero TSS producer from a proven {@code ClprChannel} leaf, and the
-     * Besu QBFT, Sei and Ethereum producers from the proven Channel storage slot (offset 16) via the
+     * Besu QBFT, Sei and Ethereum producers from the proven Channel storage slot (offset 15) via the
      * {@link #metadataTuple(ClprQueueMetadata, long)} overload — never from relayed content, which a relay could
      * inflate. It drives the receiver's node-local decision whether to re-send its own manifest (liveness), never
      * consensus state.
@@ -76,7 +79,7 @@ public final class ClprVerifierAbi {
     /**
      * As {@link #metadataTuple(ClprQueueMetadata)}, but with {@code endpointManifestVersion} supplied explicitly —
      * used by the EVM producers (Besu QBFT, Sei, Ethereum) to carry the version PROVEN from the peer Channel storage
-     * slot (offset 16) rather than the unproven copy in {@code meta}.
+     * slot (offset 15) rather than the unproven copy in {@code meta}.
      */
     @Nullable
     public static Tuple metadataTuple(@NonNull final ClprQueueMetadata meta, final long endpointManifestVersion) {

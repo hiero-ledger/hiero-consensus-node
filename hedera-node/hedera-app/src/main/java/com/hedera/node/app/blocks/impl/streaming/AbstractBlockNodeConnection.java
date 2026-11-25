@@ -6,7 +6,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.node.app.blocks.impl.streaming.ConnectionId.ConnectionType;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.config.ConfigProvider;
-import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.pbj.runtime.grpc.GrpcException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -14,7 +13,6 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.URL;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
@@ -25,13 +23,9 @@ import org.apache.logging.log4j.Logger;
 /**
  * Base implementation for a connection to a block node.
  */
-public abstract class AbstractBlockNodeConnection implements AutoCloseable {
+public abstract class AbstractBlockNodeConnection extends BlockStreamingBase implements AutoCloseable {
 
     private static final Logger logger = LogManager.getLogger(AbstractBlockNodeConnection.class);
-    /**
-     * Default timeout for connection management operations (e.g. connection create).
-     */
-    private static final long DEFAULT_CONNECTION_MANAGEMENT_TIMEOUT_MILLIS = TimeUnit.SECONDS.toMillis(3);
     /**
      * The block node configuration.
      */
@@ -40,10 +34,6 @@ public abstract class AbstractBlockNodeConnection implements AutoCloseable {
      * The unique (for the life of the JVM) connection identifier.
      */
     private final ConnectionId connectionId;
-    /**
-     * Mechanism to retrieve configuration data.
-     */
-    private final ConfigProvider configProvider;
     /**
      * The current state of this connection.
      */
@@ -92,8 +82,8 @@ public abstract class AbstractBlockNodeConnection implements AutoCloseable {
             @NonNull final BlockNodeConfiguration configuration,
             @NonNull final ConfigProvider configProvider,
             final long nodeId) {
+        super(configProvider);
         this.configuration = requireNonNull(configuration, "configuration is required");
-        this.configProvider = requireNonNull(configProvider, "configProvider is required");
         this.type = requireNonNull(type, "type is required");
 
         connectionId = ConnectionId.newConnectionId(nodeId, type);
@@ -102,22 +92,10 @@ public abstract class AbstractBlockNodeConnection implements AutoCloseable {
     }
 
     /**
-     * @return the current {@link BlockNodeConnectionConfig} instance
+     * @return the connection type
      */
-    final @NonNull BlockNodeConnectionConfig bncConfig() {
-        return configProvider.getConfiguration().getConfigData(BlockNodeConnectionConfig.class);
-    }
-
-    /**
-     * @return the connection management timeout in milliseconds
-     */
-    final long connectionManagementTimeoutMillis() {
-        final Duration configValue = bncConfig().connectionManagementTimeout();
-        if (configValue == null || !configValue.isPositive()) {
-            return DEFAULT_CONNECTION_MANAGEMENT_TIMEOUT_MILLIS;
-        } else {
-            return configValue.toMillis();
-        }
+    final @NonNull ConnectionType connectionType() {
+        return type;
     }
 
     /**
@@ -216,11 +194,10 @@ public abstract class AbstractBlockNodeConnection implements AutoCloseable {
      * @return formatted context string in the form {@code [ID/host:port/STATE]}
      */
     final @NonNull String connectionContext(@Nullable final String correlationId) {
-        final int port =
-                switch (type) {
-                    case BLOCK_STREAMING -> configuration.streamingPort();
-                    case SERVER_STATUS -> configuration.servicePort();
-                };
+        final int port = switch (type) {
+            case BLOCK_STREAMING, ACK_OBSERVING -> configuration.streamingPort();
+            case SERVER_STATUS -> configuration.servicePort();
+        };
         final String idToDisplay =
                 (correlationId == null || correlationId.isBlank()) ? connectionId.toString() : correlationId;
         return "[" + idToDisplay + "/" + configuration.address() + ":" + port + "/" + stateRef.get() + "]";
@@ -254,7 +231,7 @@ public abstract class AbstractBlockNodeConnection implements AutoCloseable {
                     this,
                     latestState,
                     newState);
-            throw new IllegalArgumentException("Attempted to downgrade state from " + latestState + " to " + newState);
+            throw new IllegalConnectionStateTransition(connectionId, latestState, newState);
         }
 
         if (expectedState != null && expectedState != latestState) {
@@ -364,13 +341,6 @@ public abstract class AbstractBlockNodeConnection implements AutoCloseable {
     public abstract void close();
 
     /**
-     * @return the configuration provider used by this connection
-     */
-    final @NonNull ConfigProvider configProvider() {
-        return configProvider;
-    }
-
-    /**
      * @return the current state of this connection
      */
     public final @NonNull ConnectionState currentState() {
@@ -390,7 +360,7 @@ public abstract class AbstractBlockNodeConnection implements AutoCloseable {
      * @param t the throwable to search
      * @return the {@link GrpcException} associated with this throwable, or null if one is not found
      */
-    protected GrpcException findGrpcException(final Throwable t) {
+    protected final GrpcException findGrpcException(final Throwable t) {
         Throwable th = t;
 
         while (th != null) {
@@ -402,6 +372,29 @@ public abstract class AbstractBlockNodeConnection implements AutoCloseable {
         }
 
         return null;
+    }
+
+    /**
+     * Calculates the duration between the specified start and end nanoseconds and converts it to microseconds.
+     *
+     * @param startNanos the starting nanosecond timestamp
+     * @param endNanos the ending nanosecond timestamp
+     * @return the duration between the start and end in microseconds
+     */
+    protected static long calculateDurationMicros(final long startNanos, final long endNanos) {
+        final long totalNanos;
+
+        if (startNanos == -1 && endNanos == -1) {
+            // if both start and end are -1 it probably means the request never actually was attempted
+            return -1;
+        } else if (endNanos == -1) {
+            // if the endNanos is -1 it probably means the request failed so default to the current time as the end
+            totalNanos = System.nanoTime() - startNanos;
+        } else {
+            totalNanos = endNanos - startNanos;
+        }
+
+        return TimeUnit.NANOSECONDS.toMicros(totalNanos);
     }
 
     @Override

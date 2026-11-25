@@ -2,6 +2,7 @@
 package org.hiero.consensus.event.intake.impl.validation;
 
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.consensus.main.model.ConsensusLayerConstants.DEFAULT_EVENT_DIGEST_TYPE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -20,15 +21,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicLong;
-import org.hiero.base.crypto.DigestType;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.validation.DefaultEventFieldValidator;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
+import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.main.model.TransactionLimits;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.test.fixtures.Randotron;
-import org.hiero.consensus.transaction.TransactionLimits;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -51,7 +51,7 @@ class InternalEventValidatorTests {
 
         exitedIntakePipelineCount = new AtomicLong(0);
         final IntakeEventCounter intakeEventCounter = mock(IntakeEventCounter.class);
-        doAnswer(invocation -> {
+        doAnswer(_ -> {
                     exitedIntakePipelineCount.incrementAndGet();
                     return null;
                 })
@@ -136,7 +136,11 @@ class InternalEventValidatorTests {
                 .signature(validEvent.signature())
                 .transactions(validEvent.transactions())
                 .parents(EventDescriptor.newBuilder()
-                        .hash(validEvent.parents().getFirst().hash().getBytes(1, DigestType.SHA_384.digestLength() - 2))
+                        .hash(validEvent
+                                .parents()
+                                .getFirst()
+                                .hash()
+                                .getBytes(1, DEFAULT_EVENT_DIGEST_TYPE.digestLength() - 2))
                         .build())
                 .build();
         when(platformEvent.getGossipEvent()).thenReturn(shortDescriptorHash);

@@ -187,7 +187,7 @@ public class AsyncOutputStream {
         // set after the first failed offer, so the fast path doesn't read the clock
         long deadlineNanos = 0;
         long consumerIndex = 0;
-        int idle = 0;
+        int backoffStep = 0;
         while (true) {
             // Like LinkedBlockingQueue.offer(e, timeout, unit): an interrupt fails the call even if there is room
             if (Thread.interrupted()) {
@@ -204,7 +204,7 @@ public class AsyncOutputStream {
             }
             final long nowNanos = System.nanoTime();
             final long currentConsumerIndex = outputQueue.currentConsumerIndex();
-            if (idle == 0 || currentConsumerIndex != consumerIndex) {
+            if (backoffStep == 0 || currentConsumerIndex != consumerIndex) {
                 consumerIndex = currentConsumerIndex;
                 deadlineNanos = nowNanos + timeoutNanos;
             } else if (nowNanos - deadlineNanos >= 0) {
@@ -212,7 +212,7 @@ public class AsyncOutputStream {
                         "Timed out waiting to send data: the writer took no message for "
                                 + Duration.ofNanos(timeoutNanos));
             }
-            idle = backOff(idle, PRODUCER_MAX_PARK_SHIFT);
+            backoffStep = backOff(backoffStep, PRODUCER_MAX_PARK_SHIFT);
         }
     }
 
@@ -238,7 +238,7 @@ public class AsyncOutputStream {
         final long flushIntervalNanos = flushInterval.toNanos();
         long lastFlushNanos = System.nanoTime();
         boolean dirty = false;
-        int idle = 0;
+        int backoffStep = 0;
         try {
             while (status.get() == Status.RUNNING && !Thread.currentThread().isInterrupted()) {
                 // relaxedPoll(): returns null instead of spinning when a producer has claimed a slot but not yet
@@ -247,13 +247,13 @@ public class AsyncOutputStream {
                 if (msg != null) {
                     writeMessage(msg);
                     dirty = true;
-                    idle = 0;
+                    backoffStep = 0;
                 }
                 if (dirty) {
                     // Flush when the queue ran dry: nothing arrived while spinning, so the burst is over, and the
                     // buffered data shouldn't wait up to flushInterval. Bursts still get batched. Otherwise flush
                     // once flushInterval has elapsed, so a queue that never runs dry still gets flushed.
-                    final boolean drained = (msg == null) && (idle >= SPIN_LIMIT);
+                    final boolean drained = (msg == null) && (backoffStep >= SPIN_LIMIT);
                     if (drained || (System.nanoTime() - lastFlushNanos) >= flushIntervalNanos) {
                         outputStream.flush();
                         dirty = false;
@@ -261,7 +261,7 @@ public class AsyncOutputStream {
                     }
                 }
                 if (msg == null) {
-                    idle = backOff(idle, WRITER_MAX_PARK_SHIFT);
+                    backoffStep = backOff(backoffStep, WRITER_MAX_PARK_SHIFT);
                 }
             }
 

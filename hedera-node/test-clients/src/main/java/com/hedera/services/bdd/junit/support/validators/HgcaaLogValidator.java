@@ -122,6 +122,13 @@ public class HgcaaLogValidator {
                 // when a CLPR task runs with tss.forceMockSignatures=true
                 List.of("ClprGetLedgerConfigurationHandler", "TSS verification failed for ledgerId"),
                 List.of("ClprGetEndpointManifestHandler", "TSS verification failed for ledgerId"),
+                // Restart and roster-change tests can need another grace period while endpoints re-publish.
+                // Ignore only the recovery warning; errors and other manifest-construction warnings still fail.
+                List.of(
+                        " WARN ",
+                        "ClprEndpointManifestReconciler - [Clpr] construction #",
+                        " grace period expired with ",
+                        " target nodes published — extending (extensions used: "),
                 // Multi-network tests warm-start their networks from TSS fixtures in the startup network JSON
                 List.of("dev-only", "from startup network JSON"),
                 List.of("WRAPS enabled but this node cannot build recursive proofs", "TSS_LIB_WRAPS_ARTIFACTS_PATH=''"),
@@ -133,7 +140,10 @@ public class HgcaaLogValidator {
                 List.of("ClprStreamingSynchronizer", "Streaming sync failed for channel", "with status UNAVAILABLE"),
                 List.of("ClprPeerSelector", "circuit breaker opened"),
                 // The server side of the same churn: a peer cancels its sync stream when it fails or restarts
-                List.of("ClprStreamingSyncMethod", "stream aborted by peer"));
+                List.of("ClprStreamingSyncMethod", "stream aborted by peer"),
+                // SimpleFeeScheduleCoverageTest deliberately installs schedules the registered calculators
+                // cannot evaluate, to prove FeeManager rejects them
+                List.of("FeeManager", "Rejecting simple fee schedule"));
 
         /**
          * The level of a log line: the first word after its timestamp and optional {@code <network-nN>} tag.

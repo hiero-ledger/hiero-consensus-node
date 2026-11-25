@@ -30,8 +30,12 @@ permissions:
   actions: read
 
 jobs:
+  # Never runs in a fork; every other job needs this one, so in a fork nothing starts. In a private
+  # repository only the DevOps bucket upload in 850 runs; every public destination is guarded by
+  # repository visibility.
   prepare-tag-release:
     name: Prepare Release [Tag]
+    if: ${{ !github.event.repository.fork }}
     runs-on: hl-cn-default-lin-sm
     outputs:
       tag: ${{ steps.resolve.outputs.tag }}
@@ -141,64 +145,6 @@ jobs:
       jf-user-name: ${{ vars.JF_USER_NAME }}
       jf-access-token: ${{ secrets.JF_ACCESS_TOKEN }}
 
-  update-hedera-protobufs:
-    name: Update Hedera Protobufs
-    runs-on: hl-cn-default-lin-sm
-    needs:
-      - prepare-tag-release
-      - release-tag
-    steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
-        with:
-          egress-policy: audit
-
-      - name: Checkout Hiero Consensus Node Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          token: ${{ secrets.GH_ACCESS_TOKEN }}
-          ref: ${{ needs.prepare-tag-release.outputs.commit }}
-          fetch-depth: "0"
-
-      - name: Checkout Hedera Protobufs Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          token: ${{ secrets.PROTOBUFS_GH_ACCESS_TOKEN }}
-          fetch-depth: "0"
-          repository: hashgraph/hedera-protobufs
-          path: hedera-protobufs
-
-      - name: Install rsync
-        run: sudo apt update && sudo apt -y install rsync
-
-      - name: Update the folders owned by Services
-        working-directory: hedera-protobufs
-        run: |
-          git push --delete origin v${{ needs.prepare-tag-release.outputs.version }} || true
-          git tag --delete v${{ needs.prepare-tag-release.outputs.version }} || true
-          rsync -a --delete ../hapi/hedera-protobuf-java-api/src/main/proto/services/ services/
-
-      - name: Import GPG key for commit signoff
-        id: gpg_import
-        uses: step-security/ghaction-import-gpg@c0b4a334b9b72bfaaebec86ef022a78a5b17f828 # v7.0.0
-        with:
-          gpg_private_key: ${{ secrets.PROTOBUFS_GPG_KEY_CONTENTS }}
-          passphrase: ${{ secrets.PROTOBUFS_GPG_KEY_PASSPHRASE }}
-          git_user_signingkey: true
-          git_commit_gpgsign: true
-          git_tag_gpgsign: true
-
-      - name: Add & Commit
-        uses: EndBug/add-and-commit@a94899bca583c204427a224a7af87c02f9b325d5 # v9.1.4
-        with:
-          cwd: "hedera-protobufs"
-          author_name: swirlds-eng-automation
-          author_email: ${{ secrets.PROTOBUFS_GPG_USER_EMAIL }}
-          commit: --signoff
-          message: "ci: Copied recent protobuf changes from hedera-services"
-          new_branch: "update-recent-protobuf-changes-${{ github.run_number }}"
-          tag: 'v${{ needs.prepare-tag-release.outputs.version }} -s -m "Hedera Protobufs v${{ needs.prepare-tag-release.outputs.version }}" -u "${{ steps.gpg_import.outputs.keyid }}"'
-
   # Runs only when a job this workflow depends on failed. A job skipped because
   # an earlier one failed is covered by that earlier job's failure, so testing
   # for 'failure' rather than for '!= success' cannot fire on a successful run.
@@ -209,7 +155,6 @@ jobs:
       - extract-jdk-version
       - prepare-tag-release
       - release-tag
-      - update-hedera-protobufs
     # A dispatch whose tag did not resolve is bad input, not a failed release:
     # the run already shows the error to whoever dispatched it, and with no
     # resolved commit the report would name an unrelated commit's author.
@@ -285,7 +230,6 @@ jobs:
             echo "- Extract Java Version: ${{ needs.extract-jdk-version.result }}"
             echo "- Prepare Release [Tag]: ${{ needs.prepare-tag-release.result }}"
             echo "- Release [Tag]: ${{ needs.release-tag.result }}"
-            echo "- Update Hedera Protobufs: ${{ needs.update-hedera-protobufs.result }}"
             echo "------------------------------------"
             echo "Commit information:"
             echo "- Author: ${{ steps.fetch-commit-info.outputs.commit-author }}"
@@ -324,7 +268,6 @@ jobs:
             *Extract Java Version*: ${{ needs.extract-jdk-version.result }}
             *Prepare Release [Tag]*: ${{ needs.prepare-tag-release.result }}
             *Release [Tag]*: ${{ needs.release-tag.result }}
-            *Update Hedera Protobufs*: ${{ needs.update-hedera-protobufs.result }}
           COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ steps.fetch-commit-info.outputs.commit-hash }}
           COMMIT_AUTHOR: ${{ steps.fetch-commit-info.outputs.commit-author }}
           SLACK_USER_ID: ${{ steps.find-commit-author-slack.outputs.slack-user-id }}

@@ -38,6 +38,13 @@ public class LabelValuesTest {
         }
 
         @Test
+        void testGetByNameThrows() {
+            assertThatThrownBy(() -> LabelValues.EMPTY.get("name"))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("Unknown label name: name");
+        }
+
+        @Test
         void testToString() {
             assertThat(LabelValues.EMPTY.toString()).isEqualTo("[]");
         }
@@ -73,6 +80,24 @@ public class LabelValuesTest {
         assertThatThrownBy(() -> labelNamesAndValues.get(-1)).isInstanceOf(IndexOutOfBoundsException.class);
     }
 
+    @Test
+    void testGetByName() {
+        LabelValues labelNamesAndValues = new LabelValues("name1", "name2", "name2", "value2");
+
+        assertThat(labelNamesAndValues.get("name1")).isEqualTo("name2");
+        assertThat(labelNamesAndValues.get("name2")).isEqualTo("value2");
+        assertThatThrownBy(() -> labelNamesAndValues.get("value2"))
+                .as("values are not matched as names")
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Unknown label name: value2");
+        assertThatThrownBy(() -> labelNamesAndValues.get("unknown"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Unknown label name: unknown");
+        assertThatThrownBy(() -> labelNamesAndValues.get(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("label name must not be null");
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"", "name1,value1", "name1,name1", "1,2,3,4", "1,2,3,4,5,6,7,8,9,10"})
     void testEqualsAndHashCodeIsSame(String namesAndValuesString) {
@@ -98,6 +123,33 @@ public class LabelValuesTest {
 
         assertThat(values1).isNotEqualTo(values2);
         assertThat(values1.hashCode()).isNotEqualTo(values2.hashCode());
+    }
+
+    @ParameterizedTest
+    @ValueSource(
+            strings = {"name,1!=name,01", "name,1!=name,1.0", "name,0!=name,-0", "name,a!=name,A", "a,1,b,2!=a,1,b,02"})
+    void testCompareTellsApartDifferentValues(String comparison) {
+        String[] pair = comparison.split("!=");
+
+        LabelValues first = new LabelValues(pair[0].split(","));
+        LabelValues second = new LabelValues(pair[1].split(","));
+
+        // the metric snapshot keeps one measurement snapshot of the label values comparing equal
+        assertThat(first).isNotEqualTo(second);
+        assertThat(LabelValues.compare(first, second))
+                .as("different values must not compare equal")
+                .isNotZero();
+        assertThat(LabelValues.compare(second, first))
+                .as("different values must not compare equal")
+                .isNotZero();
+    }
+
+    @Test
+    void testCompareIsZeroForEqualValues() {
+        LabelValues first = new LabelValues("name", "1", "other", "a");
+        LabelValues second = new LabelValues("name", "1", "other", "a");
+
+        assertThat(LabelValues.compare(first, second)).isZero();
     }
 
     @Test

@@ -358,7 +358,7 @@ jobs:
       - extract-citr-vars
       - verify-citr-vars
     if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-proceed == 'true' }}
-    uses: ./.github/workflows/864-call-report-suite-result.yaml
+    uses: ./.github/workflows/864-call-report-suite-status.yaml
     with:
       suite-type: xts
       commit: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
@@ -769,7 +769,7 @@ jobs:
       - report-xts-running # keeps the terminal report after the running one, so it is the latest
       - xts-execution
     if: ${{ always() && needs.fetch-xts-candidate.outputs.xts-tag-commit != '' }}
-    uses: ./.github/workflows/864-call-report-suite-result.yaml
+    uses: ./.github/workflows/864-call-report-suite-status.yaml
     with:
       suite-type: xts
       commit: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
@@ -784,3 +784,29 @@ jobs:
     secrets:
       chewie-key: ${{ secrets.CHEWIE_REPO_IDENTITY_KEY }}
       chewie-host: ${{ secrets.CHEWIE_HOST }}
+
+  # Never gates the run: nothing depends on it and a failure inside it does not fail this run. See docs/ci-metrics.md.
+  publish-run-metrics:
+    name: Publish Run Metrics
+    needs:
+      - prime-workflow
+      - extract-citr-vars
+      - verify-citr-vars
+      - compute-solo-ge-0440
+      - parameters
+      - fetch-xts-candidate
+      - extract-jdk-version
+      - state-validator-uberjar
+      - report-xts-running
+      - xts-execution
+      - deploy-xts-optional-trigger
+      - tag-for-promotion
+      - report-success
+      - report-failure
+      - report-xts-result
+    if: ${{ always() && github.event.repository.visibility == 'public' && !github.event.repository.fork }}
+    uses: ./.github/workflows/865-call-publish-run-metrics.yaml
+    with:
+      context: >-
+        ${{ format('{{"ref":{0},"xts_proceed":{1},"xts_tag_commit":{2},"xts_branch":{3},"tested_commit":{4}}}',
+        toJSON(inputs.ref), toJSON(needs.fetch-xts-candidate.outputs.xts-proceed), toJSON(needs.fetch-xts-candidate.outputs.xts-tag-commit), toJSON(needs.fetch-xts-candidate.outputs.xts-commit-branch), toJSON(needs.fetch-xts-candidate.outputs.xts-tag-commit || inputs.ref)) }}

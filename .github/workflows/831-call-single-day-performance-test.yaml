@@ -68,6 +68,9 @@ on:
       github-token:
         required: true
         description: "GitHub Authorization Token for the workflow"
+      github-token2:
+        required: true
+        description: "GitHub Authorization Token for the workflow"
       chewie-host:
         required: true
         description: "Chewie Host"
@@ -196,6 +199,14 @@ jobs:
           path: target_block_node
           ref: ${{ inputs.bnref }}
 
+      - name: Checkout NLG Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: hashgraph/network-load-generator
+          ref: "00438-update-protobuf-v2"
+          token: ${{ secrets.github-token2 }}
+          path: NLG
+
       - name: Set Kubernetes Cluster
         id: set-k8s-cluster
         run: |
@@ -209,7 +220,7 @@ jobs:
           echo "grafana-url=${grafana_url}" >> "${GITHUB_OUTPUT}"
 
       - name: Install KubeCtl
-        uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
+        uses: step-security/setup-kubectl@fdd30c5ae990e05271b3bde363e8b9cdeb1eb400 # v5.2.0
         with:
           version: v1.35.0
 
@@ -358,7 +369,7 @@ jobs:
 
       # Set up kind; needed for configuring the solo environment
       - name: Setup Kind
-        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
+        uses: helm/kind-action@ea822c7bf1874f08e5a491df991c228edffc3376 # v1.15.2
         with:
           install_only: true
           node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
@@ -629,6 +640,18 @@ jobs:
           "${{ github.workspace }}"/.github/workflows/support/chewie/apply-allocation-scheduling.sh \
             nlg-values.yaml merkledb-values.yaml || exit 1
 
+      - name: Build NLG test
+        run: |
+          set +x
+          set +e
+          export JAVA_OPTS="-Xmx62g -Dfile.encoding=UTF-8 -Djava.awt.headless=true -Dkotlin.daemon.jvm.options=-Xmx48g"
+          ulimit -n 4096
+          cd "${{ github.workspace }}"/NLG
+          git log -1
+          ./gradlew --no-daemon assemble
+          cd build/libs
+          tar cvf /tmp/NLG.tar lib network-load-generator-*.jar
+
       - name: Deploy NLG test
         run: |
           set +x
@@ -642,6 +665,8 @@ jobs:
           # Copy run version
           echo "run_number=${{ github.run_number }}" | tee -a "${{ github.workspace }}"/version_run.txt
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp "${{ github.workspace }}"/version_run.txt ${nlgpod}:/app/
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp /tmp/NLG.tar ${nlgpod}:/app/
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "cd /app; rm -rf lib network-load-generator-*.jar; ls -l; tar xvf NLG.tar; ls -l"
 
       - name: JDK25 for NLG pod
         run: |
@@ -934,7 +959,7 @@ jobs:
 
   performance-NftTransferLoadTest-watch1:
     name: NFT Transfer Load Test
-    runs-on: hl-cn-sdpt-lin-lg
+    runs-on: hl-cn-sdpt-lin-sm
     if: ${{ !cancelled() && needs.acquire-kubernetes-resources.result == 'success' }}
     needs:
       - acquire-kubernetes-resources
@@ -960,7 +985,7 @@ jobs:
           echo "namespace=${{ needs.acquire-kubernetes-resources.outputs.namespace }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
 
       - name: Install KubeCtl
-        uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
+        uses: step-security/setup-kubectl@fdd30c5ae990e05271b3bde363e8b9cdeb1eb400 # v5.2.0
         with:
           version: v1.35.0
 
@@ -1126,7 +1151,7 @@ jobs:
 
   performance-NftTransferLoadTest-report:
     name: NFT Transfer Load Test Report
-    runs-on: hl-cn-sdpt-lin-lg
+    runs-on: hl-cn-sdpt-lin-sm
     if: ${{ !cancelled() && needs.acquire-kubernetes-resources.result == 'success' }}
     needs:
       - acquire-kubernetes-resources
@@ -1157,7 +1182,7 @@ jobs:
           echo "namespace=${{ needs.acquire-kubernetes-resources.outputs.namespace }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
 
       - name: Install KubeCtl
-        uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
+        uses: step-security/setup-kubectl@fdd30c5ae990e05271b3bde363e8b9cdeb1eb400 # v5.2.0
         with:
           version: v1.35.0
 
@@ -1483,7 +1508,7 @@ jobs:
   performance-post-test-validation:
     name: Consensus Node State Validator
     if: ${{ !cancelled() && needs.acquire-kubernetes-resources.result == 'success' }}
-    runs-on: hl-cn-sdpt-lin-lg
+    runs-on: hl-cn-sdpt-lin-sm
     needs:
       - acquire-kubernetes-resources
       - performance-tests-start
@@ -1507,7 +1532,7 @@ jobs:
           echo "namespace=${{ needs.acquire-kubernetes-resources.outputs.namespace }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
 
       - name: Install KubeCtl
-        uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
+        uses: step-security/setup-kubectl@fdd30c5ae990e05271b3bde363e8b9cdeb1eb400 # v5.2.0
         with:
           version: v1.35.0
 
@@ -1606,7 +1631,7 @@ jobs:
   # Send this output back to the caller workflow
   single-day-performance-test-result:
     name: Calculate Result
-    runs-on: hl-cn-sdpt-lin-lg
+    runs-on: hl-cn-sdpt-lin-sm
     if: ${{ !cancelled() }}
     needs:
       - performance-NftTransferLoadTest-report

@@ -39,11 +39,11 @@ import org.apache.logging.log4j.Logger;
 import org.assertj.core.data.Percentage;
 import org.hiero.base.utility.Threshold;
 import org.hiero.consensus.fakes.crypto.KeysAndCertsGenerator;
+import org.hiero.consensus.main.model.KeysAndCerts;
+import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.main.model.QuiescenceCommand;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.monitoring.FallenBehindStatus;
 import org.hiero.consensus.test.fixtures.WeightGenerator;
@@ -704,8 +704,9 @@ public abstract class AbstractNetwork implements Network {
         throwIfInLifecycle(Lifecycle.SHUTDOWN, "Network has been shut down.");
 
         log.info("Sending freeze transaction...");
-        final OtterTransaction freezeTransaction = TransactionFactory.createFreezeTransaction(
-                random.nextLong(), timeManager().now().plus(FREEZE_DELAY));
+        final Instant freezeTime = timeManager().now().plus(FREEZE_DELAY);
+        final OtterTransaction freezeTransaction =
+                TransactionFactory.createFreezeTransaction(random.nextLong(), freezeTime);
         submitTransaction(freezeTransaction);
 
         log.debug("Waiting for nodes to freeze...");
@@ -715,9 +716,29 @@ public abstract class AbstractNetwork implements Network {
                         timeout,
                         "Timeout while waiting for all nodes to freeze.");
 
+        // A node can report FREEZE_COMPLETE before the test receives its freeze round
+        timeManager()
+                .waitForCondition(
+                        () -> allNodesDeliveredFreezeRound(freezeTime),
+                        timeout,
+                        "Timeout while waiting for the freeze round of all nodes.");
+
         transactionGenerator().stop();
 
         log.info("Network frozen.");
+    }
+
+    /**
+     * Checks whether the test received the freeze round of every node.
+     *
+     * @param freezeTime the freeze time sent in the freeze transaction
+     * @return {@code true} if the last round of every node is at or after the freeze time
+     */
+    private boolean allNodesDeliveredFreezeRound(@NonNull final Instant freezeTime) {
+        return nodes().stream()
+                .map(node -> node.newConsensusResult().consensusRounds())
+                .allMatch(rounds -> !rounds.isEmpty()
+                        && !rounds.getLast().getConsensusTimestamp().isBefore(freezeTime));
     }
 
     /**

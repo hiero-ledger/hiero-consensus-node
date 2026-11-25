@@ -3,6 +3,8 @@ package com.hedera.node.app.history.impl;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.node.app.hints.HintsLibrary;
+import com.hedera.node.app.hints.impl.HintsLibraryImpl;
 import com.hedera.node.app.history.handlers.HistoryHandlers;
 import com.hedera.node.app.history.handlers.HistoryProofKeyPublicationHandler;
 import com.hedera.node.app.history.handlers.HistoryProofSignatureHandler;
@@ -19,6 +21,12 @@ import javax.inject.Singleton;
 
 @Module
 public interface HistoryModule {
+    @Provides
+    @Singleton
+    static HintsLibrary provideHintsLibrary() {
+        return new HintsLibraryImpl();
+    }
+
     @Provides
     @Singleton
     static Supplier<NodeInfo> provideSelfNodeInfoSupplier(@NonNull final AppContext appContext) {

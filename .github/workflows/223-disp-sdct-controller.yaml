@@ -1004,7 +1004,7 @@ jobs:
           CHEWIE_DRY_RUN: ${{ inputs.mock }}
         run: |-
           # Always exits 0: a Chewie failure is reported as a warning only; mock runs only log the request
-          bash .github/workflows/support/chewie/report-suite-result.sh running "${BUILD_STARTED}"
+          bash .github/workflows/support/chewie/report-suite-status.sh running "${BUILD_STARTED}"
 
   chewie-report-final:
     name: Chewie Report Final
@@ -1048,5 +1048,5 @@ jobs:
           # No Jenkins build (artifact, start or queue failure): both times are the decision time.
           # No disposition (SDCT Verdict did not run): not_run. Always exits 0.
           decided_at=${DECIDED_AT:-$(date -u '+%Y-%m-%dT%H:%M:%SZ')}
-          bash .github/workflows/support/chewie/report-suite-result.sh \
+          bash .github/workflows/support/chewie/report-suite-status.sh \
             "${DISPOSITION:-not_run}" "${BUILD_STARTED:-${decided_at}}" "${decided_at}"

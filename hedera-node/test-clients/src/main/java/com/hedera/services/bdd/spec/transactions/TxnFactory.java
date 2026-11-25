@@ -13,12 +13,11 @@ import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecSetup;
 import com.hedera.services.bdd.spec.utilops.mod.BodyMutation;
 import com.hederahashgraph.api.proto.java.AtomicBatchTransactionBody;
-import com.hederahashgraph.api.proto.java.ClprCloseChannelTransactionBody;
-import com.hederahashgraph.api.proto.java.ClprCompleteChannelTransactionBody;
-import com.hederahashgraph.api.proto.java.ClprCompleteConnectorTransactionBody;
-import com.hederahashgraph.api.proto.java.ClprDeregisterConnectorTransactionBody;
-import com.hederahashgraph.api.proto.java.ClprRegisterChannelTransactionBody;
-import com.hederahashgraph.api.proto.java.ClprRegisterConnectorTransactionBody;
+import com.hederahashgraph.api.proto.java.ClprCreateChannelTransactionBody;
+import com.hederahashgraph.api.proto.java.ClprCreateConnectorTransactionBody;
+import com.hederahashgraph.api.proto.java.ClprDeleteChannelTransactionBody;
+import com.hederahashgraph.api.proto.java.ClprDeleteConnectorTransactionBody;
+import com.hederahashgraph.api.proto.java.ClprEvictPeerEndpointTransactionBody;
 import com.hederahashgraph.api.proto.java.ClprSubmitBundleTransactionBody;
 import com.hederahashgraph.api.proto.java.ClprUpdateLedgerConfigurationTransactionBody;
 import com.hederahashgraph.api.proto.java.ConsensusCreateTopicTransactionBody;
@@ -350,27 +349,23 @@ public class TxnFactory {
         return builder -> {};
     }
 
-    public Consumer<ClprCloseChannelTransactionBody.Builder> defaultDefClprCloseChannelTransactionBody() {
+    public Consumer<ClprDeleteChannelTransactionBody.Builder> defaultDefClprDeleteChannelTransactionBody() {
         return builder -> {};
     }
 
-    public Consumer<ClprRegisterChannelTransactionBody.Builder> defaultDefClprRegisterChannelTransactionBody() {
+    public Consumer<ClprEvictPeerEndpointTransactionBody.Builder> defaultDefClprEvictPeerEndpointTransactionBody() {
         return builder -> {};
     }
 
-    public Consumer<ClprCompleteChannelTransactionBody.Builder> defaultDefClprCompleteChannelTransactionBody() {
+    public Consumer<ClprCreateChannelTransactionBody.Builder> defaultDefClprCreateChannelTransactionBody() {
         return builder -> {};
     }
 
-    public Consumer<ClprRegisterConnectorTransactionBody.Builder> defaultDefClprRegisterConnectorTransactionBody() {
+    public Consumer<ClprCreateConnectorTransactionBody.Builder> defaultDefClprCreateConnectorTransactionBody() {
         return builder -> {};
     }
 
-    public Consumer<ClprCompleteConnectorTransactionBody.Builder> defaultDefClprCompleteConnectorTransactionBody() {
-        return builder -> {};
-    }
-
-    public Consumer<ClprDeregisterConnectorTransactionBody.Builder> defaultDefClprDeregisterConnectorTransactionBody() {
+    public Consumer<ClprDeleteConnectorTransactionBody.Builder> defaultDefClprDeleteConnectorTransactionBody() {
         return builder -> {};
     }
 

@@ -16,7 +16,8 @@ open module org.hiero.consensus.gossip.impl.test.fixtures {
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.gossip.impl;
-    requires transitive org.hiero.consensus.model;
+    requires transitive org.hiero.consensus.main.model;
+    requires org.hiero.consensus.model;
     requires transitive org.junit.jupiter.api;
     requires com.swirlds.config.extensions.test.fixtures;
     requires org.hiero.consensus.model.test.fixtures;

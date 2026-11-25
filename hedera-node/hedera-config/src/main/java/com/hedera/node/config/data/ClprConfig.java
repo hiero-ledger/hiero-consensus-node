@@ -6,13 +6,14 @@ import com.hedera.node.config.NodeProperty;
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
 import java.time.Duration;
+import java.util.Set;
 
 /**
  * Configuration for the CLPR (Cross Ledger Protocol) service.
  */
 @ConfigData("clpr")
 public record ClprConfig(
-        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        @ConfigProperty(defaultValue = "true") @NetworkProperty
         boolean enabled,
 
         @ConfigProperty(defaultValue = "1") @NetworkProperty int protocolVersion,
@@ -59,6 +60,16 @@ public record ClprConfig(
         @ConfigProperty(defaultValue = "30000") long retryMaxDelayMs,
         @ConfigProperty(defaultValue = "5") @NetworkProperty int retryMaxAttempts,
         @ConfigProperty(defaultValue = "120") int circuitBreakerCooldownSeconds,
+        // Publish address-book domain names in this ledger's endpoint manifest, as Solo needs. It drives deterministic
+        // roster reconciliation, so set it through the network properties file (0.0.121), never per node.
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        boolean publishDnsEndpoints,
+        // Let this node resolve and dial DNS names that peers publish. The resolved IP must pass the same checks.
+        @ConfigProperty(defaultValue = "false") @NodeProperty
+        boolean allowDnsPeerEndpoints,
+        // Additional numeric IP ranges this node may dial for CLPR sync, such as a local test network.
+        // Ordinary public unicast addresses need no entry; other unicast ranges require an IPv4 or IPv6 CIDR.
+        @ConfigProperty(defaultValue = "") @NodeProperty Set<String> additionalPeerEndpointCidrs,
         // --- Local peer exclusion heuristics ---
         // When false, CLPR does not reject inbound requests or remove outbound candidates
         // due to local shunning or open circuit-breaker state.
@@ -69,13 +80,15 @@ public record ClprConfig(
 
         // --- Verifier contract dispatch (CLPR-5.3) ---
         // The dispatched call's gas must cover the EIP-7623 calldata floor (~40 gas per proof byte); a Hiero
-        // state proof carrying a WRAPS proof is ~15 KB, so even a single-message bundle needs ~640K gas
-        @ConfigProperty(defaultValue = "2000000") @NetworkProperty
+        // state proof carrying a WRAPS proof is ~15 KB, so even a single-message bundle needs ~640K gas. An Ethereum
+        // mainnet-preset verifyConfig carries two 512-key sync committees (~50 KB) and needs ~2.2M gas
+        @ConfigProperty(defaultValue = "3000000") @NetworkProperty
         long verifierGasLimit,
 
         // --- Node-submitted ClprSubmitBundle fee cap (tinybars) ---
         // Maximum fee the node will pay when submitting an inbound bundle for consensus.
-        @ConfigProperty(defaultValue = "1000000000") @NetworkProperty
+        // Must cover the shared verifier/callback gas reservation as well as base and byte fees.
+        @ConfigProperty(defaultValue = "100000000000") @NetworkProperty
         long nodeSubmitBundleMaxFee,
 
         // --- Sender-side state-proof verification (bring-up sanity check) ---

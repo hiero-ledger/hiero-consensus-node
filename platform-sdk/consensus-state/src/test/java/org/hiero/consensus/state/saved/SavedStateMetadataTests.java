@@ -45,7 +45,7 @@ import java.util.stream.Collectors;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Mnemonics;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.platformstate.PlatformStateUtils;
 import org.hiero.consensus.roster.test.fixtures.RosterServiceStateMock;
 import org.hiero.consensus.state.signed.SigSet;

@@ -12,11 +12,11 @@ import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
 import com.hedera.node.app.service.clpr.ClprService;
 import com.hedera.node.app.service.clpr.impl.WritableChannelStore;
+import com.hedera.node.app.service.clpr.impl.WritableConnectorRegistrationStore;
 import com.hedera.node.app.service.clpr.impl.WritableConnectorStore;
 import com.hedera.node.app.service.clpr.impl.WritableLedgerConfigurationStore;
 import com.hedera.node.app.service.clpr.impl.WritableMessageQueueStore;
 import com.hedera.node.app.service.clpr.impl.WritablePendingCommitmentStore;
-import com.hedera.node.app.service.clpr.impl.WritablePendingConnectorCommitmentStore;
 import com.hedera.node.app.service.consensus.ConsensusService;
 import com.hedera.node.app.service.consensus.impl.WritableTopicStore;
 import com.hedera.node.app.service.entityid.WritableEntityIdStore;
@@ -70,7 +70,7 @@ class WritableStoreFactoryImplTest {
                 arguments(ClprService.NAME, WritableLedgerConfigurationStore.class),
                 arguments(ClprService.NAME, WritableChannelStore.class),
                 arguments(ClprService.NAME, WritablePendingCommitmentStore.class),
-                arguments(ClprService.NAME, WritablePendingConnectorCommitmentStore.class),
+                arguments(ClprService.NAME, WritableConnectorRegistrationStore.class),
                 arguments(ClprService.NAME, WritableMessageQueueStore.class),
                 arguments(ClprService.NAME, WritableConnectorStore.class));
     }

@@ -252,9 +252,10 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Remote multi-tenant cluster only: solo's mirror-node and shared-resources (postgres/redis)
-# sub-charts carry none of the Chewie allocation's scheduling constraints, and solo exposes no values
-# knob for the shared-resources ones. While the mirror/explorer deploy steps run, this background
+# Remote multi-tenant cluster only: solo's mirror-node, shared-resources (postgres/redis) and explorer
+# charts carry none of the Chewie allocation's scheduling constraints. The mirror and shared-resources
+# pods get them from REMOTE_MIRROR_VALUES_TEMPLATE, which matches this patcher, so the patcher is a
+# no-op for them and a fallback for anything else. While the mirror/explorer deploy steps run, this background
 # loop (a) patches the namespace's NON-consensus workloads - skipping network-node/haproxy/envoy/minio
 # so the live network is never restarted - onto the allocation's auxiliary machines (the aux group's
 # labels as nodeSelector, its tolerations; AUX_LABELS / AUX_TOLERATIONS as compact JSON), and

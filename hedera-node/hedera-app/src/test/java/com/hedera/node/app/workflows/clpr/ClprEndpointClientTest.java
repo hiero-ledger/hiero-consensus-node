@@ -10,9 +10,13 @@ import com.hedera.hapi.node.state.clpr.ClprBundleResponse;
 import com.hedera.hapi.node.state.clpr.ClprStreamingSyncPayload;
 import com.hedera.node.app.service.clpr.ClprEndpointServiceDefinition;
 import com.hedera.node.app.workflows.clpr.ClprEndpointClient.ClprSyncException;
+import com.hedera.node.app.workflows.clpr.ClprEndpointClientImpl.ClientException;
+import com.hedera.node.config.VersionedConfigImpl;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.UnknownFieldException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import io.grpc.Deadline;
 import io.grpc.MethodDescriptor;
 import io.grpc.Server;
 import io.grpc.ServerServiceDefinition;
@@ -25,8 +29,9 @@ import io.grpc.stub.StreamObserver;
 import io.netty.handler.ssl.SslContextBuilder;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
-import java.time.Duration;
+import java.net.InetSocketAddress;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -35,6 +40,8 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 /**
  * Verifies that {@link ClprEndpointClient} establishes a TLS channel against a peer's HAPI TLS listener without
@@ -45,16 +52,18 @@ import org.junit.jupiter.api.Test;
  */
 class ClprEndpointClientTest {
 
-    private static final Duration TIMEOUT = Duration.ofSeconds(10);
+    private static Deadline deadline() {
+        return Deadline.after(10, TimeUnit.SECONDS);
+    }
 
-    /** How long to wait for the peer to observe a cancellation — well under {@link #TIMEOUT}, so a call left
+    /** How long to wait for the peer to observe a cancellation — well under the RPC deadline, so a call left
      * pinned until its deadline fails this wait rather than satisfying it. */
     private static final long CANCEL_TIMEOUT_SECONDS = 5;
 
     private static final Bytes CHANNEL_ID =
             Bytes.fromHex("01000000000000000000000000000000000000000000000000000000000000ab");
 
-    /** The server's self-signed HAPI TLS certificate; its subject deliberately does not match {@code localhost}. */
+    /** The server's self-signed HAPI TLS certificate; its subject deliberately does not match {@code 127.0.0.1}. */
     private static ClprTestTlsCert serverCert;
 
     /** A simple byte-array marshaller mirroring the one used by {@link ClprEndpointClient}. */
@@ -93,6 +102,26 @@ class ClprEndpointClientTest {
     class StreamingSync {
 
         @Test
+        void dnsEnabledCacheSyncsWithLocalhostOverTls() throws Exception {
+            final var config = HederaTestConfigBuilder.create()
+                    .withValue("clpr.allowDnsPeerEndpoints", "true")
+                    .withValue("clpr.additionalPeerEndpointCidrs", "127.0.0.1/32,::1/128")
+                    .getOrCreateConfig();
+            final var cache = new ClprEndpointClientCache(() -> new VersionedConfigImpl(config, 1));
+            final var reply = buildStreamingSyncPayload(null, null);
+            final int port = startStreamingServer(new ClprStreamingSyncPayload[] {reply}, new CopyOnWriteArrayList<>());
+            final var deadline = deadline();
+            try (final var call =
+                    cache.clientFor("localhost", port, true, deadline).sync(deadline)) {
+                call.write(buildStreamingSyncPayload(8, null));
+                call.halfClose();
+                assertThat(call.read()).isEqualTo(reply);
+            } finally {
+                cache.close();
+            }
+        }
+
+        @Test
         void rejectsResponseWithUnknownFields() throws Exception {
             final var bytes = ClprStreamingSyncPayload.PROTOBUF
                     .toBytes(buildStreamingSyncPayload(null, null))
@@ -113,7 +142,7 @@ class ClprEndpointClientTest {
             });
 
             final var client = newTlsClient(port);
-            try (final var call = client.sync(TIMEOUT)) {
+            try (final var call = client.sync(deadline())) {
                 call.write(buildStreamingSyncPayload(0, null));
                 call.halfClose();
                 assertThatThrownBy(call::read)
@@ -135,7 +164,7 @@ class ClprEndpointClientTest {
             final int port = startStreamingServer(mockedResponseMessages, received);
 
             final var client = newTlsClient(port);
-            try (final var call = client.sync(TIMEOUT)) {
+            try (final var call = client.sync(deadline())) {
                 // Msg 1: this ledger sends a bundle request to the peer ledger.
                 call.write(buildStreamingSyncPayload(8, null));
 
@@ -186,7 +215,7 @@ class ClprEndpointClientTest {
             final int port = startStreamingServer(mockedResponseMessages, new CopyOnWriteArrayList<>());
 
             final var client = newTlsClient(port);
-            try (final var call = client.sync(TIMEOUT)) {
+            try (final var call = client.sync(deadline())) {
                 call.write(buildStreamingSyncPayload(8, null));
 
                 // Drain until the peer's clean close is observed, so the next write is provably a no-op at the grpc
@@ -209,8 +238,8 @@ class ClprEndpointClientTest {
             final var mockedResponseMessages = new ClprStreamingSyncPayload[] {buildStreamingSyncPayload(null, null)};
             final int port = startStreamingServer(mockedResponseMessages, new CopyOnWriteArrayList<>());
 
-            final var client = new ClprEndpointClientImpl("localhost", port, false);
-            try (final var call = client.sync(TIMEOUT)) {
+            final var client = new ClprEndpointClientImpl(localAddress(port), false);
+            try (final var call = client.sync(deadline())) {
                 // The failure may surface on the write or on the read, depending on timing.
                 assertThatThrownBy(() -> {
                             call.write(buildStreamingSyncPayload(8, null));
@@ -245,7 +274,7 @@ class ClprEndpointClientTest {
             });
 
             final var client = newTlsClient(port);
-            try (final var call = client.sync(TIMEOUT)) {
+            try (final var call = client.sync(deadline())) {
                 call.write(buildStreamingSyncPayload(8, null));
 
                 assertThatThrownBy(call::read)
@@ -264,7 +293,7 @@ class ClprEndpointClientTest {
 
             final var client = newTlsClient(port);
             try {
-                final var call = client.sync(TIMEOUT);
+                final var call = client.sync(deadline());
                 call.write(buildStreamingSyncPayload(8, null));
 
                 // grpc's BlockingClientCall throws IllegalStateException on a repeated halfClose; the wrapper must not.
@@ -309,7 +338,7 @@ class ClprEndpointClientTest {
             final var client = newTlsClient(port);
             try {
                 final ClprStreamingSyncCall abandonedCall;
-                try (final var call = client.sync(TIMEOUT)) {
+                try (final var call = client.sync(deadline())) {
                     abandonedCall = call;
                     call.write(buildStreamingSyncPayload(8, null));
                     // Walk out mid-exchange without half-closing.
@@ -333,7 +362,29 @@ class ClprEndpointClientTest {
     @Test
     @DisplayName("given no TLS, then the client is constructed for plaintext")
     void givenNoTls_thenClientIsConstructedForPlaintext() {
-        assertThatNoException().isThrownBy(() -> new ClprEndpointClientImpl("localhost", 50211).shutdownChannel());
+        assertThatNoException()
+                .isThrownBy(() -> new ClprEndpointClientImpl(localAddress(50211), false).shutdownChannel());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"localhost", "127.0.0.1", "10.0.0.1", "169.254.169.254", "::1", "fd00::1"})
+    void stringConstructorRequiresPublicNumericAddress(final String host) {
+        assertThatThrownBy(() -> new ClprEndpointClientImpl(host, 50211, false)).isInstanceOf(ClientException.class);
+    }
+
+    @Test
+    void resolvedTransportRejectsUnresolvedAddress() {
+        final var unresolved = InetSocketAddress.createUnresolved("peer.example", 50211);
+
+        assertThatThrownBy(() -> new ClprEndpointClientImpl(unresolved, false)).isInstanceOf(ClientException.class);
+    }
+
+    @Test
+    void resolvedTransportRejectsZeroPort() {
+        final var address = localAddress(50211);
+        final var zeroPort = new InetSocketAddress(address.getAddress(), 0);
+
+        assertThatThrownBy(() -> new ClprEndpointClientImpl(zeroPort, false)).isInstanceOf(ClientException.class);
     }
 
     /**
@@ -447,6 +498,10 @@ class ClprEndpointClientTest {
     }
 
     private static ClprEndpointClientImpl newTlsClient(final int port) {
-        return new ClprEndpointClientImpl("localhost", port, true);
+        return new ClprEndpointClientImpl(localAddress(port), true);
+    }
+
+    private static InetSocketAddress localAddress(final int port) {
+        return ClprEndpointAddressPolicy.addressFor("127.0.0.1", port, Set.of("127.0.0.1/32"));
     }
 }

@@ -2,9 +2,9 @@
 package com.hedera.node.app.quiescence;
 
 import static java.util.Objects.requireNonNull;
-import static org.hiero.consensus.model.quiescence.QuiescenceCommand.BREAK_QUIESCENCE;
-import static org.hiero.consensus.model.quiescence.QuiescenceCommand.DONT_QUIESCE;
-import static org.hiero.consensus.model.quiescence.QuiescenceCommand.QUIESCE;
+import static org.hiero.consensus.main.model.QuiescenceCommand.BREAK_QUIESCENCE;
+import static org.hiero.consensus.main.model.QuiescenceCommand.DONT_QUIESCE;
+import static org.hiero.consensus.main.model.QuiescenceCommand.QUIESCE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -25,10 +25,10 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
-import org.hiero.consensus.model.event.Event;
+import org.hiero.consensus.main.model.ConsensusTransaction;
+import org.hiero.consensus.main.model.Event;
+import org.hiero.consensus.main.model.Transaction;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.model.transaction.ConsensusTransaction;
-import org.hiero.consensus.model.transaction.Transaction;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -189,7 +189,7 @@ class QuiescenceControllerTest {
     private Event createEvent(final TransactionBody... txns) {
         final Event event = Mockito.mock(Event.class);
         final List<Transaction> transactions = createTransactions(txns);
-        Mockito.when(event.transactionIterator()).thenReturn(transactions.iterator());
+        Mockito.when(event.getTransactions()).thenAnswer(_ -> transactions);
         return event;
     }
 

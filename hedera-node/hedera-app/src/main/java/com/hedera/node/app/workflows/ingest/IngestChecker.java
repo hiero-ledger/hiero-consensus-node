@@ -2,14 +2,13 @@
 package com.hedera.node.app.workflows.ingest;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
-import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_CLOSE_CHANNEL;
-import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CHANNEL;
-import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CONNECTOR;
-import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_DEREGISTER_CONNECTOR;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_CREATE_CHANNEL;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_CREATE_CONNECTOR;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_DELETE_CHANNEL;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_DELETE_CONNECTOR;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_ENDPOINT_PUBLICATION;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_EVICT_PEER_ENDPOINT;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_MAINTENANCE;
-import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_REGISTER_CHANNEL;
-import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_REGISTER_CONNECTOR;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SUBMIT_BUNDLE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_UPDATE_LEDGER_CONFIGURATION;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
@@ -121,12 +120,11 @@ public final class IngestChecker {
             TOKEN_AIRDROP);
     private static final Set<HederaFunctionality> CLPR_TRANSACTIONS = EnumSet.of(
             CLPR_UPDATE_LEDGER_CONFIGURATION,
-            CLPR_REGISTER_CHANNEL,
-            CLPR_COMPLETE_CHANNEL,
-            CLPR_CLOSE_CHANNEL,
-            CLPR_REGISTER_CONNECTOR,
-            CLPR_COMPLETE_CONNECTOR,
-            CLPR_DEREGISTER_CONNECTOR,
+            CLPR_CREATE_CHANNEL,
+            CLPR_DELETE_CHANNEL,
+            CLPR_EVICT_PEER_ENDPOINT,
+            CLPR_CREATE_CONNECTOR,
+            CLPR_DELETE_CONNECTOR,
             CLPR_SUBMIT_BUNDLE,
             CLPR_ENDPOINT_PUBLICATION,
             CLPR_MAINTENANCE);

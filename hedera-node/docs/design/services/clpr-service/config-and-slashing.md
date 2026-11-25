@@ -38,7 +38,7 @@ derived from the network's HIP-26 EVM chain ID, `contracts.chainId`, as `eip155:
 
 |            Key            |            Default            | Network? |                                  Purpose                                   |
 |---------------------------|-------------------------------|----------|----------------------------------------------------------------------------|
-| `minLockedStake`          | `100 000 000` tinybars        | yes      | Required stake for `completeConnector`; transferred to `stakingAccount`.   |
+| `minLockedStake`          | `100 000 000` tinybars        | yes      | Required stake for `createConnector`; transferred to `stakingAccount`.     |
 | `stakingAccount`          | `0.0.803` (account num `803`) | yes      | Holds locked connector stake; created at genesis/upgrade if CLPR enabled.  |
 | `slashBasePenalty`        | `10 000 000` tinybars         | yes      | Base slash on first offence.                                               |
 | `slashMultiplier`         | `2`                           | yes      | Geometric escalation factor per repeat offence.                            |
@@ -76,12 +76,17 @@ derived from the network's HIP-26 EVM chain ID, `contracts.chainId`, as `eip155:
 
 |        Key         |   Default   | Network? |                                  Purpose                                  |
 |--------------------|-------------|----------|---------------------------------------------------------------------------|
-| `verifierGasLimit` | `2 000 000` | yes      | Gas for `ClprVerifier.verifyBundle` / `verifyConfig` (`EvmClprVerifier`). |
+| `verifierGasLimit` | `3 000 000` | yes      | Gas for `ClprVerifier.verifyBundle` / `verifyConfig` (`EvmClprVerifier`). |
 
+> `ClprCreateChannel` and `ClprSubmitBundle` each reserve `verifierGasLimit` from the network gas throttle
+> (`contracts.maxGasPerSec` / `maxGasPerSecBackend`), the same way a contract call reserves its gas limit, so verifier
+> execution can't run unthrottled.
+>
 > The dispatched verifier call must carry at least the EIP-7623 calldata floor for its input, about 40 gas per byte
 > of (mostly non-zero) proof data. A Hiero state proof carries a ~13.7 KB TSS signature, so a `verifyConfig` call
 > needs ~0.6M gas, a `verifyConfig` with an endpoint manifest proof ~1.2M, and a `verifyBundle` ~0.6M plus ~60K per
-> message.
+> message. An Ethereum mainnet-preset `verifyConfig` carries both sync committees' full key sets (2 × 512 keys,
+> ~50 KB), so it needs ~2.1M, and ~2.2M with an endpoint manifest proof.
 >
 > Application-message dispatch gas is **not** a node-config value. `ClprSubmitBundleHandler`
 > caps each application callback (`onClprMessage` / `onClprResponse`) at the per-Channel
@@ -174,15 +179,18 @@ new_locked_stake = max(0, connector.locked_stake − penalty)
 Returned `SlashResult(updatedConnector, penaltyAmount, banned)` is consumed by
 `ClprSubmitBundleHandler`, which also credits the submitting endpoint with
 `endpoint_payout`. If `banned`, the connector record stays in state but
-`deregisterConnector` is blocked while banned (per `ClprDeregisterConnectorHandler`).
+`deleteConnector` is blocked while banned (per `ClprDeleteConnectorHandler`).
 
 ### Which `ClprMessageReplyStatus` triggers a slash?
 
 (Spec §4.6, Hiero implementation):
-- `APPLICATION_ERROR` — slashes destination connector (target was unsuitable).
-- `CONNECTOR_NOT_FOUND` — slashes source connector (lied about their own ID).
-- `CONNECTOR_UNDERFUNDED` — slashes source connector.
-- `SUCCESS`, `CHANNEL_CLOSED`, `REDACTED` — no slash.
+- `APPLICATION_ERROR` — no slash (the destination application call failed or could not run).
+- `CONNECTOR_NOT_FOUND` — slashes source connector when the reply arrives (lied about their own ID).
+- `CONNECTOR_UNDERFUNDED` — slashes the destination connector when the Data Message is processed,
+and the source connector when the reply arrives.
+- `SUCCESS` — no slash. `CLOSING` and `DRAINED` channels still dispatch inbound Data Messages
+and use the normal charging and reply-status rules; there is no separate channel-closed reply status.
+See canonical [§2.1.1](https://github.com/LFDT-CLPR/clpr-spec/blob/945082d69e65dd0fd9e9bdf8d59cb8121579f6fd/clpr-service-spec.md#211-channel-status-transitions).
 
 The endpoint payout always goes to the *submitting* endpoint, regardless of which side
 is at fault. See `ClprSubmitBundleHandler` for the exact branches.
@@ -196,43 +204,32 @@ and endpoint incentives.
 
 ### Per-message charge on successful dispatch
 
-For every inbound data message that dispatches successfully (i.e., the application
-contract returns without reverting and the reply status is `SUCCESS`), the following
-transfer occurs:
+Application execution gas is paid to the network by the original bundle payer through
+one escrow created immediately before the first EVM dispatch. Early validation failures
+create no escrow. Bundles reserve before processing DATA or response payloads,
+including before reversible connector compensation or slashing payouts. This prevents
+those transfers from backing the parent's gas payment, even when a callback is later
+skipped. The parent holds the full transaction gas allowance until completion,
+then refunds unused fees. A later parent rollback retains payment for executed gas.
+Verifier billing is capped at 300,000 units and collected only once, even when the native
+fee calculator also settles byte charges. Already charged base/byte fees count against
+the payer's signed maximum together with the escrow and the full possible endpoint
+misbehavior penalty. Penalty headroom is reserved before bundle validation without
+collecting the penalty; collection occurs only when the penalty applies.
 
-1. **Connector is charged** — the receiving connector's contract account is debited:
+A receiving DATA connector reimburses actual gas plus the existing flat endpoint
+compensation (`messageExecutionCost + messageExecutionCost * endpointMarginPercent / 100`).
+The worst-case reimbursement is debited before the callback and unused reimbursement
+is returned afterward. Response callbacks reimburse actual gas without the DATA flat
+compensation; absent or underfunded source connectors skip best-effort delivery.
+Callbacks rejected by consensus throttling before execution incur no gas charge,
+so their entire gas reimbursement is returned to the connector.
 
-   ```
-   charge = messageExecutionCost + (messageExecutionCost * endpointMarginPercent / 100)
-   ```
-2. **Submitting endpoint is paid** — the entire `charge` is credited to the Hiero
-   consensus node that submitted the `ClprSubmitBundle` transaction. There is no
-   central treasury; the submitter receives the full amount.
-
-The submitting endpoint is identified by `endpoint_node_id` on the transaction body,
-resolved through `ReadableNodeStore`. The node's account receives the payment.
-
-### Why the submitter receives the full charge
-
-The economics are designed so that submitting nodes have a direct financial incentive
-to relay bundles promptly and honestly. A node that delays or censors bundles gives up
-the execution payment to whichever node eventually submits the same bundle. There is no
-"protocol fee" extracted to a treasury — the design assumes that enough competition
-among nodes will keep margins honest.
-
-### Planned gas-based model (E-10)
-
-The current flat `messageExecutionCost` is a placeholder. The planned model charges
-the connector the *actual gas consumed* by the application dispatch plus margin:
-
-```
-charge = gasUsed * gasPriceTinybars * (1 + endpointMarginPercent / 100)
-```
-
-The same "submitter receives all" rule applies. Under the gas-based model, high-gas
-messages cost connectors more and compensate submitters more, aligning costs with
-actual compute. See E-10 in [`clpr-hiero-spec.md`](clpr-hiero-spec.md) for the full
-rationale and implementation notes.
+The full sum of verifier and callback gas grants is capped by
+`contracts.maxGasPerTransaction`. Remaining callback payloads share the available gas,
+with each grant capped by `maxGasPerMessage`. EVM billing refunds do not restore granted
+execution capacity. See [E-10](clpr-hiero-spec.md#e-10-application-execution-gas-and-endpoint-compensation)
+for pricing, rollback, and grant-allocation details.
 
 ### Slashing payouts (non-success path)
 

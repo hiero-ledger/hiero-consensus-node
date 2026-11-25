@@ -323,20 +323,20 @@ public class DoubleAccumulatorGaugeTest
             metric.getOrCreateLabeled(() -> 100.0, "label1", "2").accumulate(1.1); // 10.0 + 1.1 + 1.5 = 12.6
 
             new MetricSnapshotVerifier(metric)
-                    .add(12.6, "label1", "2")
                     .add(3.6, "label1", "1")
+                    .add(12.6, "label1", "2")
                     .verify();
             new MetricSnapshotVerifier(metric)
-                    .add(10.0, "label1", "2")
                     .add(0.0, "label1", "1")
+                    .add(10.0, "label1", "2")
                     .verify();
 
             metric.getOrCreateLabeled("label1", "2").accumulate(3.1); // 10.0 + 3.1 + 1.5 = 14.6
             metric.getOrCreateLabeled("label1", "3").accumulate(10.1); // 0.0 + 10.1 + 1.5 = 11.6
 
             new MetricSnapshotVerifier(metric)
-                    .add(14.6, "label1", "2")
                     .add(0.0, "label1", "1") // unchanged
+                    .add(14.6, "label1", "2")
                     .add(11.6, "label1", "3")
                     .verify();
         }
