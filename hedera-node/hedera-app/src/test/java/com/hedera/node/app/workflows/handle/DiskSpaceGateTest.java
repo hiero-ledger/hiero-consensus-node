@@ -33,6 +33,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.Appender;
 import org.apache.logging.log4j.core.appender.FileAppender;
@@ -88,19 +89,22 @@ class DiskSpaceGateTest {
     }
 
     @Test
-    void stopsWaitingAndKeepsTheFlagWhenInterrupted() throws IOException {
+    void stopsWaitingAndKeepsTheFlagWhenInterrupted() throws IOException, InterruptedException {
         given(savedStore.getUsableSpace()).willReturn(0L);
         final var subject = new DiskSpaceGate(
                 configWith(RESERVE_MB), new NoOpMetrics(), List.of(SAVED), dir -> savedStore, duration -> {
                     throw new InterruptedException();
                 });
+        final var interrupted = new AtomicBoolean();
 
-        try {
+        // Own thread, so the test worker thread is never interrupted
+        final var thread = Thread.ofVirtual().start(() -> {
             subject.awaitFreeSpace();
-            assertThat(Thread.currentThread().isInterrupted()).isTrue();
-        } finally {
-            Thread.interrupted();
-        }
+            interrupted.set(Thread.currentThread().isInterrupted());
+        });
+
+        assertThat(thread.join(Duration.ofSeconds(5))).isTrue();
+        assertThat(interrupted).isTrue();
     }
 
     @Test
