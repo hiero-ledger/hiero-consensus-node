@@ -84,8 +84,10 @@ recorded as decisions rather than restated here:
   starting point; see
   [ADR-007](../../decisions/ADR-007-save-reconnect-state-before-resuming-event-creation.md).
 - `CHECKING` — the node creates events but withholds app transactions until one
-  of its own events reaches consensus, gaining confidence that accepted
-  transactions can actually be ordered.
+  of its own events **created in the current runtime** reaches consensus,
+  gaining confidence that accepted transactions can actually be ordered. Self
+  events reaching consensus only via PCES replay or gossip do not qualify; see
+  [`DefaultPlatformMonitor.java#consensusRound`](../../../../consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/internal/DefaultPlatformMonitor.java#consensusRound).
 
 ## The state machine
 
@@ -125,7 +127,7 @@ heartbeat) into the corresponding action.
 |-----------------------------------|----------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------|
 | `StartedReplayingEventsAction`    | `consensus-pces-impl/.../PcesCoordinator.java`                                                                             | PCES replay began.                                               |
 | `DoneReplayingEventsAction`       | `consensus-pces-impl/.../PcesCoordinator.java`                                                                             | PCES replay finished.                                            |
-| `SelfEventReachedConsensusAction` | `consensus-status-monitor/.../status/monitor/internal/DefaultPlatformMonitor.java` (from a `ConsensusRound`)               | One of this node's own events reached consensus.                 |
+| `SelfEventReachedConsensusAction` | `consensus-status-monitor/.../status/monitor/internal/DefaultPlatformMonitor.java` (from a `ConsensusRound`)               | A self event **created in the current runtime** reached consensus (replayed or gossiped self events do not produce this action). |
 | `FallenBehindAction`              | `consensus-reconnect-impl/.../ReconnectController.java`                                                                    | The node determined it is behind the network.                    |
 | `ReconnectCompleteAction`         | `consensus-reconnect-impl/.../ReconnectController.java`                                                                    | A reconnect finished.                                            |
 | `StateWrittenToDiskAction`        | `consensus-status-monitor/.../status/monitor/internal/DefaultPlatformMonitor.java` (from a state-saving result)            | A signed state was written to disk (carries the freeze flag).    |

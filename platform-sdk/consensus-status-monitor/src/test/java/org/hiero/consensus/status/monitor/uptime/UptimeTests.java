@@ -29,6 +29,7 @@ import java.util.Set;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.main.model.ConsensusEvent;
 import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -49,6 +50,18 @@ class UptimeTests {
             final int count,
             @NonNull Set<NodeId> noEvents,
             @NonNull Set<NodeId> noJudges) {
+        return generateEvents(random, time, roundDuration, roster, count, noEvents, noJudges, EventOrigin.GOSSIP);
+    }
+
+    private static List<PlatformEvent> generateEvents(
+            @NonNull final Random random,
+            @NonNull final FakeTime time,
+            @NonNull final Duration roundDuration,
+            @NonNull final RosterWrapper roster,
+            final int count,
+            @NonNull final Set<NodeId> noEvents,
+            @NonNull final Set<NodeId> noJudges,
+            @NonNull final EventOrigin origin) {
 
         final List<PlatformEvent> events = new ArrayList<>(count);
         final Set<NodeId> firstEventCreated = new HashSet<>();
@@ -62,6 +75,7 @@ class UptimeTests {
             final PlatformEvent platformEvent = new TestingEventBuilder(random)
                     .setCreatorId(nodeId)
                     .setConsensusTimestamp(time.now())
+                    .setOrigin(origin)
                     .build();
 
             if (!noJudges.contains(nodeId) && firstEventCreated.add(nodeId)) {
@@ -360,5 +374,69 @@ class UptimeTests {
         uptimeTracker.trackRound(roundThree);
 
         assertFalse(uptimeTracker.isSelfDegraded());
+    }
+
+    @Test
+    @DisplayName("trackRound reports NONE when round has no self events")
+    void signalIsNoneWhenNoSelfEvent() {
+        final Random random = getRandomPrintSeed();
+        final FakeTime time = new FakeTime();
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(random, 4);
+        final NodeId selfId = roster.nodeIdAtIndex(0);
+        final UptimeTracker tracker = new UptimeTracker(configuration, new NoOpMetrics(), time, selfId);
+
+        final List<PlatformEvent> events =
+                generateEvents(random, time, Duration.ofSeconds(1), roster, 20, Set.of(selfId), Set.of(), EventOrigin.RUNTIME);
+
+        assertEquals(SelfEventRoundSignal.NONE, tracker.trackRound(mockRound(events, roster, 1)));
+    }
+
+    @Test
+    @DisplayName("trackRound reports NON_RUNTIME_ONLY when self events are only replayed or gossiped")
+    void signalIsNonRuntimeOnlyWhenNoRuntimeSelfEvent() {
+        final Random random = getRandomPrintSeed();
+        final FakeTime time = new FakeTime();
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(random, 4);
+        final NodeId selfId = roster.nodeIdAtIndex(0);
+        final UptimeTracker tracker = new UptimeTracker(configuration, new NoOpMetrics(), time, selfId);
+
+        // Mix of other-node events plus one self event explicitly set to STORAGE origin, so the
+        // round is guaranteed to contain a self event (no reliance on random) and no self event
+        // has RUNTIME origin.
+        final List<PlatformEvent> events = new ArrayList<>(
+                generateEvents(random, time, Duration.ofSeconds(1), roster, 20, Set.of(selfId), Set.of(), EventOrigin.STORAGE));
+        events.add(new TestingEventBuilder(random)
+                .setCreatorId(selfId)
+                .setConsensusTimestamp(time.now())
+                .setOrigin(EventOrigin.STORAGE)
+                .build());
+
+        assertEquals(SelfEventRoundSignal.NON_RUNTIME_ONLY, tracker.trackRound(mockRound(events, roster, 1)));
+    }
+
+    @Test
+    @DisplayName("trackRound reports RUNTIME_PRESENT when any self event is RUNTIME-origin")
+    void signalIsRuntimePresentWhenAnyRuntimeSelfEvent() {
+        final Random random = getRandomPrintSeed();
+        final FakeTime time = new FakeTime();
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(random, 4);
+        final NodeId selfId = roster.nodeIdAtIndex(0);
+        final UptimeTracker tracker = new UptimeTracker(configuration, new NoOpMetrics(), time, selfId);
+
+        // A round whose self events include at least one RUNTIME-origin event
+        final List<PlatformEvent> replayed =
+                generateEvents(random, time, Duration.ofSeconds(1), roster, 10, Set.of(), Set.of(), EventOrigin.STORAGE);
+        final PlatformEvent runtimeSelfEvent = new TestingEventBuilder(random)
+                .setCreatorId(selfId)
+                .setConsensusTimestamp(time.now())
+                .setOrigin(EventOrigin.RUNTIME)
+                .build();
+        final List<PlatformEvent> events = new ArrayList<>(replayed);
+        events.add(runtimeSelfEvent);
+
+        assertEquals(SelfEventRoundSignal.RUNTIME_PRESENT, tracker.trackRound(mockRound(events, roster, 1)));
     }
 }
