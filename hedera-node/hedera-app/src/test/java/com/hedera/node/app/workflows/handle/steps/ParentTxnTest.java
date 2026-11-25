@@ -15,6 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 
 import com.hedera.hapi.block.stream.BlockItem;
@@ -235,6 +236,9 @@ class ParentTxnTest {
 
         final var dispatch = factory.createDispatch(subject, ExchangeRateSet.DEFAULT);
 
+        final var inOrder = inOrder(networkUtilizationManager, dispatcher);
+        inOrder.verify(networkUtilizationManager).refreshCongestionMultipliers(CONSENSUS_NOW);
+        inOrder.verify(dispatcher).dispatchComputeFees(any());
         assertSame(PAYER_ID, dispatch.payerId());
         assertNull(dispatch.handleContext()
                 .dispatchMetadata()

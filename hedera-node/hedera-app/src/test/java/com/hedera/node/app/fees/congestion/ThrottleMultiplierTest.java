@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fees.congestion;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
@@ -126,5 +127,70 @@ class ThrottleMultiplierTest {
         assertEquals(startTimes[0], subject.congestionLevelStarts()[0]);
         assertEquals(startTimes[1], subject.congestionLevelStarts()[1]);
         assertEquals(startTimes[2], subject.congestionLevelStarts()[2]);
+    }
+
+    @Test
+    void refreshedMultiplierAfterRestoringStartsMatchesRunningInstance() {
+        givenThreeTiersAtNinetyFivePercentUsage();
+        final var running = subjectWithMinCongestionPeriod(60L);
+        running.resetExpectations();
+        final var congestionStart = Instant.ofEpochSecond(1_000_000L);
+        running.updateMultiplier(congestionStart);
+        assertEquals(DEFAULT_MULTIPLIER, running.currentMultiplier());
+        final var lastTracked = congestionStart.plusSeconds(61);
+        running.updateMultiplier(lastTracked);
+        assertEquals(4L, running.currentMultiplier());
+
+        // A node that restarts or reconnects restores only the congestion level starts from state
+        final var restored = subjectWithMinCongestionPeriod(60L);
+        restored.resetExpectations();
+        restored.resetCongestionLevelStarts(running.congestionLevelStarts());
+        assertEquals(DEFAULT_MULTIPLIER, restored.currentMultiplier());
+
+        final var nextTxnTime = lastTracked.plusSeconds(1);
+        running.refreshMultiplier(nextTxnTime);
+        restored.refreshMultiplier(nextTxnTime);
+        assertEquals(4L, restored.currentMultiplier());
+        assertEquals(running.currentMultiplier(), restored.currentMultiplier());
+    }
+
+    @Test
+    void refreshMultiplierEvaluatesStartsAtGivenTimeWithoutChangingThem() {
+        givenThreeTiersAtNinetyFivePercentUsage();
+        final var running = subjectWithMinCongestionPeriod(60L);
+        running.resetExpectations();
+        final var congestionStart = Instant.ofEpochSecond(1_000_000L);
+        running.updateMultiplier(congestionStart);
+        final var startsBefore = running.congestionLevelStarts();
+
+        running.refreshMultiplier(congestionStart.plusSeconds(59));
+        assertEquals(DEFAULT_MULTIPLIER, running.currentMultiplier());
+        running.refreshMultiplier(congestionStart.plusSeconds(60));
+        assertEquals(4L, running.currentMultiplier());
+        assertArrayEquals(startsBefore, running.congestionLevelStarts());
+    }
+
+    @Test
+    void refreshMultiplierIsNoopWithoutActiveConfig() {
+        subject.refreshMultiplier(Instant.now());
+
+        assertEquals(DEFAULT_MULTIPLIER, subject.currentMultiplier());
+    }
+
+    private void givenThreeTiersAtNinetyFivePercentUsage() {
+        when(congestionMultipliers.multipliers()).thenReturn(new long[] {2L, 3L, 4L});
+        when(congestionMultipliers.usagePercentTriggers()).thenReturn(new int[] {5, 10, 90});
+        when(throttle.capacity()).thenReturn(THROTTLE_CAPACITY);
+        when(throttle.used()).thenReturn(95 * (THROTTLE_CAPACITY / 100));
+    }
+
+    private ThrottleMultiplier subjectWithMinCongestionPeriod(final long minPeriodSecs) {
+        return new ThrottleMultiplier(
+                "UsageType",
+                "AbbrevUsageType",
+                "CongestionType",
+                () -> minPeriodSecs,
+                () -> congestionMultipliers,
+                () -> List.of(throttle));
     }
 }

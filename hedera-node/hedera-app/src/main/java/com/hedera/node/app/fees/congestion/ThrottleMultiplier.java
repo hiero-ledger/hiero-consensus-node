@@ -75,6 +75,34 @@ public class ThrottleMultiplier {
     }
 
     /**
+     * Re-evaluates the congestion multiplier at the given consensus time from the current congestion
+     * level starts, without tracking any new usage or changing those starts.
+     *
+     * <p>The multiplier itself is not saved in state, but the congestion level starts are. Re-evaluating
+     * at the consensus time of the transaction about to be charged therefore gives the same multiplier on
+     * a node that just restarted or reconnected (and so restored only the starts) as on a node that has
+     * been running all along.
+     *
+     * @param consensusTime the consensus time of the transaction about to be charged
+     */
+    public void refreshMultiplier(@NonNull final Instant consensusTime) {
+        requireNonNull(consensusTime);
+        if (activeConfig == null) {
+            return;
+        }
+        final long[] multipliers = activeConfig.multipliers();
+        if (congestionLevelStarts.length != multipliers.length) {
+            return;
+        }
+        long minPeriod = minCongestionPeriodSupplier.getAsLong();
+        multiplier = highestMultiplierNotShorterThan(multipliers, minPeriod, consensusTime);
+        if (multiplier != previousMultiplier) {
+            logMultiplierChange(previousMultiplier, multiplier);
+        }
+        previousMultiplier = multiplier;
+    }
+
+    /**
      * Returns the current congestion multiplier.
      *
      * @return current congestion multiplier

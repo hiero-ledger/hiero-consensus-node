@@ -564,4 +564,13 @@ class UtilizationScaledThrottleMultiplierTest {
 
         assertEquals(startTimes, starts);
     }
+
+    @Test
+    void refreshMultiplierDelegates() {
+        final var consensusTime = Instant.ofEpochSecond(1_000_000L);
+
+        utilizationScaledThrottleMultiplier.refreshMultiplier(consensusTime);
+
+        verify(delegate).refreshMultiplier(consensusTime);
+    }
 }

@@ -33,6 +33,14 @@ public interface NetworkUtilizationManager {
     void trackFeePayments(@NonNull final Instant consensusNow, @NonNull final State state);
 
     /**
+     * Re-evaluates the congestion pricing multipliers at the given consensus time, before the fees of the
+     * transaction at that time are computed. This does not track any usage.
+     *
+     * @param consensusNow - the consensus time of the transaction about to be charged.
+     */
+    void refreshCongestionMultipliers(@NonNull Instant consensusNow);
+
+    /**
      * Indicates whether the last transaction was throttled by gas.
      *
      * @return true if the last transaction was throttled by gas; false otherwise.

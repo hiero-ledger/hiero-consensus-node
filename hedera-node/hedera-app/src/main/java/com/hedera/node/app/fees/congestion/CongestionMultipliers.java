@@ -43,6 +43,18 @@ public class CongestionMultipliers {
     }
 
     /**
+     * Re-evaluates both congestion multipliers at the given consensus time without tracking new usage,
+     * so the fee of the transaction at that time does not depend on in-memory history that a node
+     * loses when it restarts or reconnects.
+     *
+     * @param consensusTime the consensus time of the transaction about to be charged
+     */
+    public void refreshMultipliers(@NonNull final Instant consensusTime) {
+        gasThrottleMultiplier.refreshMultiplier(consensusTime);
+        utilizationScaledThrottleMultiplier.refreshMultiplier(consensusTime);
+    }
+
+    /**
      * Returns the maximum congestion multiplier of the gas and entity utilization based multipliers.
      *
      * @param txnInfo transaction info needed for entity utilization based multiplier

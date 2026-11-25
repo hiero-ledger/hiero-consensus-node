@@ -52,6 +52,15 @@ class CongestionMultipliersTest {
     }
 
     @Test
+    void refreshMultipliersDelegatesToBothMultipliers() {
+        Instant consensusTime = Instant.now();
+        congestionMultipliers.refreshMultipliers(consensusTime);
+
+        verify(throttleMultiplier).refreshMultiplier(consensusTime);
+        verify(utilizationScaledThrottleMultiplier).refreshMultiplier(consensusTime);
+    }
+
+    @Test
     void testMaxCurrentMultiplier() {
         when(throttleMultiplier.currentMultiplier()).thenReturn(2L);
         when(utilizationScaledThrottleMultiplier.currentMultiplier(
