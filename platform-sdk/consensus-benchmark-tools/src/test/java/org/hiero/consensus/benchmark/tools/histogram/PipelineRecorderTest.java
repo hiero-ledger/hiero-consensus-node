@@ -15,10 +15,6 @@ class PipelineRecorderTest {
     /** Much more than the passes allocate otherwise, small enough not to trigger a garbage collection. */
     private static final int ALLOCATION = 1 << 20;
 
-    /** Keeps the allocation in a pass from being optimized away. */
-    @SuppressWarnings("unused")
-    private static byte[] sink;
-
     @Test
     void passesThatEndAreStored() {
         final PipelineRecorder recorder = new PipelineRecorder();
@@ -68,7 +64,7 @@ class PipelineRecorderTest {
         final PipelineRecorder recorder = new PipelineRecorder();
         recorder.preparePass();
         recorder.startPass();
-        final Thread pipelineThread = new Thread(() -> sink = new byte[ALLOCATION]);
+        final Thread pipelineThread = new Thread(() -> SmallArrays.allocate(ALLOCATION));
         pipelineThread.start();
         pipelineThread.join();
         recorder.record(1_000);
@@ -85,7 +81,7 @@ class PipelineRecorderTest {
         final PipelineRecorder recorder = new PipelineRecorder();
         recorder.preparePass();
         recorder.startPass();
-        sink = new byte[ALLOCATION];
+        SmallArrays.allocate(ALLOCATION);
         recorder.endPass();
         recorder.discardSaturatedPass();
         recorder.endIteration();
