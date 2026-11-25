@@ -1,0 +1,91 @@
+﻿/**
+ * # Block Buffer
+ * A representation of the block buffer than can be persisted.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+
+syntax = "proto3";
+
+package proto.blocks;
+
+// SPDX-License-Identifier: Apache-2.0
+import "services/timestamp.proto";
+
+option java_package = "com.hiero.proto.blocks";
+option csharp_namespace = "Hiero.Proto.Blocks";
+// <<<pbj.java_package = "com.hiero.proto.blocks">>> This comment is special code for setting PBJ Compiler java package
+
+option java_multiple_files = true;
+
+/**
+ * A block whose items are carried as already-serialized bytes.
+ *
+ * This mirrors `com.hedera.hapi.block.stream.Block` field-for-field on the wire (its single
+ * `repeated BlockItem items = 1` field): each element here is the full serialized form of one
+ * `com.hedera.hapi.block.stream.BlockItem`. Because a protobuf `bytes` field and an embedded
+ * `message` field share the same wire encoding, a `BlockBytes` whose `items` are full serialized
+ * `BlockItem`s serializes byte-for-byte identically to the equivalent `Block`.
+ *
+ * Storing the buffer's already-serialized items this way lets the in-memory block buffer be
+ * persisted to (and restored from) disk without deserializing each item back into a `BlockItem`
+ * only to re-serialize it. The on-disk representation is unchanged (byte-identical to the prior
+ * `Block`-based format), so it remains backward compatible with previously persisted buffers.
+ */
+message BlockBytes {
+  /**
+   * The serialized block items that, together, make up this block.
+   * <p>
+   * Each element MUST be the full serialized bytes of exactly one
+   * `com.hedera.hapi.block.stream.BlockItem`.
+   */
+  repeated bytes items = 1;
+}
+
+/**
+ * Represents a block that is/was part of the in-memory block buffer. This record
+ * contains all of the necessary data to re-load the block back into the buffer and
+ * replicate the full state pre-export. For example, details such as when the block
+ * was closed and whether it was acknowledged are included. This additional
+ * information is required to ensure upon repopulating the buffer we don't
+ * immediately enter a saturated buffer state.
+ */
+message BufferedBlock {
+  /**
+   * The block number.
+   */
+  int64 block_number = 1;
+
+  /**
+   * The timestamp this block was closed.
+   */
+  proto.services.Timestamp closed_timestamp = 2;
+
+  /**
+   * Flag indicating if this block's proof has been sent to a block node.
+   */
+  bool is_proof_sent = 3;
+
+  /**
+   * Flag indicating if this block has been acknowledged by a block node.
+   */
+  bool is_acknowledged = 4;
+
+  /**
+   * The block data, with each block item carried as already-serialized bytes.
+   * <p>
+   * This is wire-identical to a `com.hedera.hapi.block.stream.Block`, so this field is backward
+   * compatible with buffers persisted before this field used serialized item bytes.
+   */
+  BlockBytes block = 5;
+
+  /**
+   * The timestamp this block's header was added to the Block.
+   */
+  proto.services.Timestamp opened_timestamp = 6;
+}

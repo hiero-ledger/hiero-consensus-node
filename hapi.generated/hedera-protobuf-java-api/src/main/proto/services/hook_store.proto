@@ -1,0 +1,28 @@
+﻿syntax = "proto3";
+
+package proto.services;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hiero.proto.services";
+option csharp_namespace = "Hiero.Proto.Services";
+// <<<pbj.java_package = "com.hiero.proto.services">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/basic_types.proto";
+import "services/hook_types.proto";
+
+/**
+ * Adds or removes key/value pairs in the storage of an EVM hook.
+ * Either the hook owner's key, or its admin key, must sign the transaction.
+ */
+message HookStoreTransactionBody {
+  /**
+   * The id of the EVM hook whose storage is being updated.
+   */
+  proto.services.HookId hook_id = 1;
+
+  /**
+   * The updates to the storage of the EVM hook.
+   */
+  repeated proto.services.EvmHookStorageUpdate storage_updates = 2;
+}
