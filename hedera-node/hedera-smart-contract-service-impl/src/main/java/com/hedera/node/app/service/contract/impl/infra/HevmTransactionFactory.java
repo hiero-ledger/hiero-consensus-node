@@ -13,7 +13,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.FILE_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_FILE_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_MAX_AUTO_ASSOCIATIONS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_RENEWAL_PERIOD;
@@ -153,14 +152,13 @@ public class HevmTransactionFactory {
             @NonNull final TransactionBody body,
             @NonNull final AccountID payerId,
             @Nullable final ClprDispatchMetadata clprDispatchMetadata) {
-        final var hederaEvmTxn =
-                switch (body.data().kind()) {
-                    case CONTRACT_CREATE_INSTANCE -> fromHapiCreate(payerId, body.contractCreateInstanceOrThrow());
-                    case CONTRACT_CALL -> fromHapiCall(payerId, body.contractCallOrThrow(), clprDispatchMetadata);
-                    case ETHEREUM_TRANSACTION -> fromHapiEthereum(payerId, body.ethereumTransactionOrThrow());
-                    case HOOK_DISPATCH -> fromHookDispatch(payerId, body.hookDispatchOrThrow());
-                    default -> throw new IllegalArgumentException("Not a contract operation");
-                };
+        final var hederaEvmTxn = switch (body.data().kind()) {
+            case CONTRACT_CREATE_INSTANCE -> fromHapiCreate(payerId, body.contractCreateInstanceOrThrow());
+            case CONTRACT_CALL -> fromHapiCall(payerId, body.contractCallOrThrow(), clprDispatchMetadata);
+            case ETHEREUM_TRANSACTION -> fromHapiEthereum(payerId, body.ethereumTransactionOrThrow());
+            case HOOK_DISPATCH -> fromHookDispatch(payerId, body.hookDispatchOrThrow());
+            default -> throw new IllegalArgumentException("Not a contract operation");
+        };
         assertValidGasAndAmount(hederaEvmTxn);
         return hederaEvmTxn;
     }
@@ -290,7 +288,8 @@ public class HevmTransactionFactory {
             @NonNull final AccountID senderId,
             @NonNull final EthTxData ethTxData,
             final long maxGasAllowance) {
-        final var initcode = Bytes.wrap(ethTxData.callData());
+        // As on Ethereum, a creation may carry empty initcode; it then creates a contract with empty bytecode
+        final var initcode = ethTxData.hasCallData() ? Bytes.wrap(ethTxData.callData()) : Bytes.EMPTY;
         assertInitcodeSize(initcode);
         return new HederaEvmTransaction(
                 senderId,
@@ -332,29 +331,28 @@ public class HevmTransactionFactory {
         AccountID relayer = null;
         ContractID contractId = null;
 
-        final var gasLimit =
-                switch (body.data().kind()) {
-                    case CONTRACT_CREATE_INSTANCE ->
-                        body.contractCreateInstanceOrThrow().gas();
-                    case CONTRACT_CALL -> {
-                        final var contractCall = body.contractCallOrThrow();
-                        contractId = contractCall.contractID();
-                        yield contractCall.gas();
-                    }
-                    case ETHEREUM_TRANSACTION -> {
-                        final var ethTxData = assertValidEthTx(body.ethereumTransactionOrThrow());
-                        sender = asAliasedSender(ethTxData);
-                        relayer = body.transactionIDOrThrow().accountID();
-                        yield ethTxData.gasLimit();
-                    }
-                    case HOOK_DISPATCH ->
-                        body.hookDispatchOrThrow()
-                                .executionOrThrow()
-                                .callOrThrow()
-                                .evmHookCallOrThrow()
-                                .gasLimit();
-                    default -> throw new IllegalArgumentException("Not a contract operation");
-                };
+        final var gasLimit = switch (body.data().kind()) {
+            case CONTRACT_CREATE_INSTANCE ->
+                body.contractCreateInstanceOrThrow().gas();
+            case CONTRACT_CALL -> {
+                final var contractCall = body.contractCallOrThrow();
+                contractId = contractCall.contractID();
+                yield contractCall.gas();
+            }
+            case ETHEREUM_TRANSACTION -> {
+                final var ethTxData = assertValidEthTx(body.ethereumTransactionOrThrow());
+                sender = asAliasedSender(ethTxData);
+                relayer = body.transactionIDOrThrow().accountID();
+                yield ethTxData.gasLimit();
+            }
+            case HOOK_DISPATCH ->
+                body.hookDispatchOrThrow()
+                        .executionOrThrow()
+                        .callOrThrow()
+                        .evmHookCallOrThrow()
+                        .gasLimit();
+            default -> throw new IllegalArgumentException("Not a contract operation");
+        };
         final var isClprContractCall = body.hasContractCall() && clprDispatchMetadata != null;
         final var syntheticSenderAddress =
                 isClprContractCall ? pbjToBesuAddress(clprDispatchMetadata.senderAddress()) : null;
@@ -385,7 +383,6 @@ public class HevmTransactionFactory {
         }
         final var ethTxData = requireNonNull(hydratedEthTxData.ethTxData());
         validateTrue(ethTxData.matchesChainId(Integers.toBytes(contractsConfig.chainId())), WRONG_CHAIN_ID);
-        validateTrue(ethTxData.hasToAddress() || ethTxData.hasCallData(), INVALID_ETHEREUM_TRANSACTION);
         return ethTxData;
     }
 

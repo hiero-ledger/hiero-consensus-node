@@ -7,6 +7,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.A_NEW_A
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CANONICAL_ALIAS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EIP_1014_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_DATA_WITHOUT_TO_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_ACCOUNT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SOME_DURATION;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SOME_MEMO;
@@ -15,6 +16,7 @@ import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.DEFA
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthAccountCreationFromHapi;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthContractCreationForExternalization;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthContractCreationFromParent;
+import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthEthTxCreation;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthHollowAccountCreation;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -25,7 +27,10 @@ import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
 
 class SynthTxnUtilsTest {
 
@@ -174,5 +179,18 @@ class SynthTxnUtilsTest {
                 .alias(alias)
                 .build();
         assertEquals(bodyOut, synthAccountCreationFromHapi(CALLED_CONTRACT_ID, alias, bodyIn));
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    void synthesizesEthCreationWithEmptyInitcodeWhenCallDataIsMissing(final byte[] callData) {
+        final var ethTxData = ETH_DATA_WITHOUT_TO_ADDRESS.replaceCallData(callData);
+        final var expected = ContractCreateTransactionBody.newBuilder()
+                .gas(ethTxData.gasLimit())
+                .initialBalance(ethTxData.effectiveTinybarValue())
+                .autoRenewPeriod(SOME_DURATION)
+                .initcode(Bytes.EMPTY)
+                .build();
+        assertEquals(expected, synthEthTxCreation(SOME_DURATION.seconds(), ethTxData));
     }
 }

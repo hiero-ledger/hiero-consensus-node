@@ -7,7 +7,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUN
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ALLOWANCE_SPENDER_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CUSTOM_FEE_COLLECTOR;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FILE_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_PENDING_AIRDROP_ID;
@@ -124,9 +123,9 @@ public class BodyIdClearingStrategy extends IdClearingStrategy<TxnModification> 
             entry("proto.TokenAllowance.spender", ExpectedResponse.atIngest(INVALID_ALLOWANCE_SPENDER_ID)),
             entry("proto.NftRemoveAllowance.token_id", ExpectedResponse.atIngest(INVALID_TOKEN_ID)),
             entry("proto.NftRemoveAllowance.owner", ExpectedResponse.atConsensus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT)),
-            entry(
-                    "proto.EthereumTransactionBody.call_data",
-                    ExpectedResponse.atConsensus(INVALID_ETHEREUM_TRANSACTION)),
+            // Without its call data file, a file-backed creation becomes a creation with empty initcode whose
+            // signature was made over the full initcode, so it recovers a sender that has no account
+            entry("proto.EthereumTransactionBody.call_data", ExpectedResponse.atConsensus(INVALID_ACCOUNT_ID)),
             entry("proto.TokenUpdateNftsTransactionBody.token", ExpectedResponse.atIngest(INVALID_TOKEN_ID)),
             entry("proto.PendingAirdropId.receiver_id", ExpectedResponse.atIngest(INVALID_PENDING_AIRDROP_ID)),
             entry(
