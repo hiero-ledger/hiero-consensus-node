@@ -123,9 +123,8 @@ public class ServiceScopeLookup {
                     CLPR_DELETE_CHANNEL,
                     CLPR_EVICT_PEER_ENDPOINT,
                     CLPR_SUBMIT_BUNDLE,
-                    CLPR_REGISTER_CONNECTOR,
-                    CLPR_COMPLETE_CONNECTOR,
-                    CLPR_DEREGISTER_CONNECTOR,
+                    CLPR_CREATE_CONNECTOR,
+                    CLPR_DELETE_CONNECTOR,
                     CLPR_ENDPOINT_PUBLICATION -> ClprService.NAME;
 
             default -> NON_EXISTING_SERVICE;

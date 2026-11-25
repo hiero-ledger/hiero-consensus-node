@@ -5,9 +5,8 @@ import static com.hedera.services.bdd.junit.ContextRequirement.PROPERTY_OVERRIDE
 import static com.hedera.services.bdd.junit.TestTags.CLPR;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCreateChannel;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterConnector;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCreateConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprUpdateLedgerConfiguration;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
@@ -24,7 +23,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVER
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hederahashgraph.api.proto.java.ClprLedgerConfiguration;
-import com.hederahashgraph.api.proto.java.ClprSignatureScheme;
 import com.hederahashgraph.api.proto.java.ClprThrottles;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
@@ -61,7 +59,7 @@ public class ClprSendMessageSuite {
                             uploadInitCode(CLPR_CONTRACT),
                             contractCreate(CLPR_CONTRACT),
                             cryptoCreate("caller").balance(ONE_HUNDRED_HBARS),
-                            // §5.1 commit-reveal channel setup
+                            // Create the verifier-bound channel.
                             clprCreateChannel()
                                     .channelId(crypto.channelId())
                                     .salt(crypto.salt())
@@ -69,16 +67,10 @@ public class ClprSendMessageSuite {
                                     .verifierContract(VERIFIER_CONTRACT)
                                     .configProofBytes(toConfigProofBytes(defaultLedgerConfig()))
                                     .payingWith(GENESIS),
-                            // §6.3 commit-reveal connector setup — the actual proto API migration.
-                            clprRegisterConnector()
-                                    .channelId(crypto.channelId())
-                                    .commitment(crypto.connectorCommitment())
-                                    .payingWith(GENESIS),
-                            clprCompleteConnector()
+                            // Register the signed connector binding.
+                            clprCreateConnector()
                                     .connectorId(crypto.connectorId())
-                                    .publicKey(crypto.publicKey())
-                                    .signature(crypto.connectorSignature())
-                                    .signatureScheme(ClprSignatureScheme.ED25519)
+                                    .ed25519Identity(crypto.seed())
                                     .salt(crypto.connectorSalt())
                                     .channelId(crypto.channelId())
                                     .connectorContract(CONNECTOR_CONTRACT)

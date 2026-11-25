@@ -4,7 +4,7 @@ pluginManagement {
 }
 
 plugins {
-    id("org.hiero.gradle.build") version "0.7.13"
+    id("org.hiero.gradle.build") version "0.7.14"
     id("com.hedera.pbj.pbj-compiler") version "0.16.2" apply false
     id("org.gradlex.java-module-packaging") version "1.3.1" apply false
 }
@@ -57,7 +57,7 @@ javaModules {
 
 @Suppress("UnstableApiUsage")
 gradle.lifecycle.afterProject {
-    // remove below once https://github.com/hiero-ledger/hiero-gradle-conventions/issues/536 is done
+    // remove below once https://github.com/hiero-ledger/hiero-gradle-conventions/pull/580 is in
     plugins.withId("org.hiero.gradle.base.jpms-modules") {
         configure<org.gradlex.javamodule.moduleinfo.ExtraJavaModuleInfoPluginExtension> {
             module("org.openjdk.jmh:jmh-core", "jmh.core") {

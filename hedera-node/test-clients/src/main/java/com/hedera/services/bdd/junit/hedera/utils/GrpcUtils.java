@@ -228,12 +228,10 @@ public class GrpcUtils {
                 clients.getClprSvcStub(nodeAccountId, false, false).evictPeerEndpoint(transaction);
             case ClprSubmitBundle ->
                 clients.getClprSvcStub(nodeAccountId, false, false).submitBundle(transaction);
-            case ClprRegisterConnector ->
-                clients.getClprSvcStub(nodeAccountId, false, false).registerConnector(transaction);
-            case ClprCompleteConnector ->
-                clients.getClprSvcStub(nodeAccountId, false, false).completeConnector(transaction);
-            case ClprDeregisterConnector ->
-                clients.getClprSvcStub(nodeAccountId, false, false).deregisterConnector(transaction);
+            case ClprCreateConnector ->
+                clients.getClprSvcStub(nodeAccountId, false, false).createConnector(transaction);
+            case ClprDeleteConnector ->
+                clients.getClprSvcStub(nodeAccountId, false, false).deleteConnector(transaction);
             case ClprUpdateLedgerConfiguration ->
                 clients.getClprSvcStub(nodeAccountId, false, false).updateLedgerConfiguration(transaction);
             case StateSignatureTransaction,

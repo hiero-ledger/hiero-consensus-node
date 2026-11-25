@@ -101,10 +101,10 @@ module com.hedera.node.app {
     requires transitive com.swirlds.virtualmap;
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
+    requires transitive org.hiero.consensus.adapter;
     requires transitive org.hiero.consensus.main.model;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.platformstate;
-    requires transitive org.hiero.consensus.utility;
     requires transitive dagger;
     requires transitive io.grpc.stub;
     requires transitive io.grpc;
@@ -132,6 +132,7 @@ module com.hedera.node.app {
     requires org.hiero.consensus.pces;
     requires org.hiero.consensus.roster;
     requires org.hiero.consensus.state;
+    requires org.hiero.consensus.utility;
     requires com.github.benmanes.caffeine;
     requires com.google.common;
     requires com.google.errorprone.annotations;

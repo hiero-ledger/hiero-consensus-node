@@ -18,7 +18,7 @@ import java.security.cert.X509Certificate;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
-import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.main.model.KeysAndCerts;
 import org.hiero.otter.fixtures.container.proto.ProtoKeysAndCerts;
 
 /**

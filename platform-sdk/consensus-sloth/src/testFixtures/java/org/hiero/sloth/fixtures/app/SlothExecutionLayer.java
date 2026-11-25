@@ -12,9 +12,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
 import java.util.Random;
+import org.hiero.consensus.adapter.transaction.TransactionPoolNexus;
 import org.hiero.consensus.main.model.TimestampedTransaction;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.transaction.TransactionPoolNexus;
 import org.hiero.sloth.fixtures.SlothTransactionType;
 import org.hiero.sloth.fixtures.TransactionFactory;
 

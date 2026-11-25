@@ -25,8 +25,8 @@ import org.hiero.base.crypto.CryptographyException;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.SigningSchema;
+import org.hiero.consensus.main.model.ConsensusLayerRosterInputs;
 import org.hiero.consensus.main.model.NodeId;
-import org.hiero.consensus.model.roster.ConsensusLayerRosterInputs;
 import org.hiero.consensus.roster.internal.PbjRecordHasher;
 
 /**

@@ -37,7 +37,7 @@ jobs:
   resolve-versions:
     name: Resolve Consensus and Block Node Versions
     runs-on: hl-cn-default-lin-sm
-    if: ${{ github.event.repository.visibility == 'public' }}
+    if: ${{ github.event.repository.visibility == 'public' && !github.event.repository.fork }}
     outputs:
       matrix: ${{ steps.resolve.outputs.matrix }}
       comms-matrix: ${{ steps.resolve.outputs.comms-matrix }}
