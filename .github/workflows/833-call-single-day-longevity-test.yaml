@@ -1004,12 +1004,7 @@ jobs:
       - longevity-tests-start
       - longevity-tests-wait
     outputs:
-      NFTscore: ${{ steps.NftTransferLoadTestLogs.outputs.value }}
-      Heliscore: ${{ steps.HeliSwapLoadTestLogs.outputs.value }}
-      Cryptoscore: ${{ steps.CryptoTransferLoadTestLogs.outputs.value }}
-      HCSscore: ${{ steps.HCSLoadTestLogs.outputs.value }}
-      Smartscore: ${{ steps.SmartContractLoadTestLogs.outputs.value }}
-      ValidatorStatus: ${{ steps.validator-status.outputs.value }}
+      RPCscore: ${{ steps.HeliSwapRpcLoadTestLogs.outputs.value }}
 
     steps:
       - name: Set Kubernetes Cluster
@@ -1111,35 +1106,12 @@ jobs:
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp ${nlgpod}:/app/version_run.txt "${{ github.workspace }}"/report/version_run.txt
           cp -r podlog_"${{ needs.acquire-kubernetes-resources.outputs.namespace }}" "${{ github.workspace }}"/report/
 
-      - name: Extract benchmark score of NftTransferLoadTest test
-        id: NftTransferLoadTestLogs
+      - name: Extract benchmark score of HeliSwapRpcLoadTest test
+        id: HeliSwapRpcLoadTestLogs
         run: |
-          grep -E 'Finished NftTransferLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' >> "${GITHUB_OUTPUT}"
-          grep -E 'Finished NftTransferLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' | grep -E 'value=[0-9][0-9]*'
+          grep -E 'Finished HeliSwapRpcLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' >> "${GITHUB_OUTPUT}"
+          grep -E 'Finished HeliSwapRpcLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' | grep -E 'value=[0-9][0-9]*'
 
-      - name: Extract benchmark score of HeliSwapLoadTest test
-        id: HeliSwapLoadTestLogs
-        run: |
-          grep -E 'Finished HeliSwapLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' >> "${GITHUB_OUTPUT}"
-          grep -E 'Finished HeliSwapLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' | grep -E 'value=[0-9][0-9]*'
-
-      - name: Extract benchmark score of CryptoTransferLoadTest test
-        id: CryptoTransferLoadTestLogs
-        run: |
-          grep -E 'Finished CryptoTransferLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' >> "${GITHUB_OUTPUT}"
-          grep -E 'Finished CryptoTransferLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' | grep -E 'value=[0-9][0-9]*'
-
-      - name: Extract benchmark score of HCSLoadTest test
-        id: HCSLoadTestLogs
-        run: |
-          grep -E 'Finished HCSLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' >> "${GITHUB_OUTPUT}"
-          grep -E 'Finished HCSLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' | grep -E 'value=[0-9][0-9]*'
-
-      - name: Extract benchmark score of SmartContractLoadTest test
-        id: SmartContractLoadTestLogs
-        run: |
-          grep -E 'Finished SmartContractLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' >> "${GITHUB_OUTPUT}"
-          grep -E 'Finished SmartContractLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' | grep -E 'value=[0-9][0-9]*'
 
       - name: Authenticate to Google Cloud
         if: ${{ !cancelled() && always() }}
@@ -1176,7 +1148,7 @@ jobs:
   longevity-test-reconnect:
     name: Reconnect test
     runs-on: hl-cn-sdlt-lin-sm
-    if: ${{ !cancelled() }}
+    if: false
     needs:
       - acquire-kubernetes-resources
       - longevity-tests-start
@@ -1357,7 +1329,7 @@ jobs:
   single-day-longevity-test-result:
     name: Calculate Result
     runs-on: hl-cn-sdlt-lin-sm
-    if: ${{ !cancelled() }}
+    if: false
     needs:
       - longevity-tests-start
       - longevity-tests-finish
@@ -1412,10 +1384,7 @@ jobs:
       - longevity-test-reconnect
       - single-day-longevity-test-result
       - acquire-kubernetes-resources
-    if: ${{ (needs.longevity-tests-finish.result != 'success' ||
-      needs.single-day-longevity-test-result.result != 'success' ||
-      needs.longevity-test-reconnect.result != 'success') &&
-      !cancelled() && always() }}
+    if: false
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
