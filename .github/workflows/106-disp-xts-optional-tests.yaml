@@ -229,7 +229,14 @@ jobs:
   report-failure:
     name: Report XTS optional execution failure
     runs-on: hl-cn-default-lin-sm
+    # Every job xts-optional-execution waits on is listed, so a run cancelled or broken before the tests
+    # start is reported as cancelled or as an environment failure, not as a test failure.
     needs:
+      - extract-citr-vars
+      - verify-citr-vars
+      - compute-solo-ge-0440
+      - parameters
+      - extract-jdk-version
       - candidate-info
       - xts-optional-execution
     if: ${{ !( needs.candidate-info.result == 'success' &&
@@ -248,11 +255,12 @@ jobs:
       - name: Determine Report Category
         id: report-category
         run: |
-          if [[ "${{ needs.xts-optional-execution.result }}" == "cancelled" ]] \
-            || [[ "${{ needs.candidate-info.result }}" == "cancelled" ]]; then
+          if [[ "${{ contains(needs.*.result, 'cancelled') }}" == "true" ]]; then
             echo "category=cancelled" >> "${GITHUB_OUTPUT}"
           elif [[ "${{ needs.candidate-info.result }}" =~ ^(skipped|failure)$ ]] \
-            || [[ "${{ needs.xts-optional-execution.outputs.failure-mode }}" == "workflow" ]]; then
+            || [[ "${{ needs.xts-optional-execution.outputs.failure-mode }}" == "workflow" ]] \
+            || [[ "${{ needs.xts-optional-execution.result }}" == "skipped" ]]; then
+            # A skipped xts-optional-execution means a job it depends on failed: nothing was tested.
             echo "category=environment" >> "${GITHUB_OUTPUT}"
           else
             echo "category=test" >> "${GITHUB_OUTPUT}"
