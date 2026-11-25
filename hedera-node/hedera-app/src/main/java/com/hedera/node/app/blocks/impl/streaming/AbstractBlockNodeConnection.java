@@ -15,6 +15,7 @@ import java.net.URI;
 import java.net.URL;
 import java.time.Instant;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -230,7 +231,7 @@ public abstract class AbstractBlockNodeConnection extends BlockStreamingBase imp
                     this,
                     latestState,
                     newState);
-            throw new IllegalArgumentException("Attempted to downgrade state from " + latestState + " to " + newState);
+            throw new IllegalConnectionStateTransition(connectionId, latestState, newState);
         }
 
         if (expectedState != null && expectedState != latestState) {
@@ -371,6 +372,29 @@ public abstract class AbstractBlockNodeConnection extends BlockStreamingBase imp
         }
 
         return null;
+    }
+
+    /**
+     * Calculates the duration between the specified start and end nanoseconds and converts it to microseconds.
+     *
+     * @param startNanos the starting nanosecond timestamp
+     * @param endNanos the ending nanosecond timestamp
+     * @return the duration between the start and end in microseconds
+     */
+    protected static long calculateDurationMicros(final long startNanos, final long endNanos) {
+        final long totalNanos;
+
+        if (startNanos == -1 && endNanos == -1) {
+            // if both start and end are -1 it probably means the request never actually was attempted
+            return -1;
+        } else if (endNanos == -1) {
+            // if the endNanos is -1 it probably means the request failed so default to the current time as the end
+            totalNanos = System.nanoTime() - startNanos;
+        } else {
+            totalNanos = endNanos - startNanos;
+        }
+
+        return TimeUnit.NANOSECONDS.toMicros(totalNanos);
     }
 
     @Override
