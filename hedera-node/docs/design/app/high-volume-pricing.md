@@ -18,9 +18,9 @@ This covers:
 
 This does not cover legacy congestion multipliers unrelated to HIP-1313 high-volume pricing.
 
-`FileAppend`, `ScheduleCreate` and `HookStore` are deliberately not high-volume operations. As for any other
-operation outside the high-volume set, the `high_volume` flag is ignored for them: they use their normal throttles
-and prices, and must not get an `HV*` bucket, an `HVTotalThrottles` entry or `highVolumeRates`.
+`FileAppend`, `ScheduleCreate` and `HookStore` are not high-volume operations. As for any other operation outside
+the high-volume set, the `high_volume` flag is ignored for them: they use their normal throttles and prices, and
+must not get an `HV*` bucket, an `HVTotalThrottles` entry or `highVolumeRates`.
 
 ## Runtime Model
 
