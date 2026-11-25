@@ -7,94 +7,94 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import org.junit.jupiter.api.Test;
 
 /**
- * Checks which passes of a {@link PipelineRecorder} count and which are discarded, that it counts the allocation of
- * every thread, and that it refuses calls out of order.
+ * Checks which invocations of a {@link PipelineRecorder} are kept and which are discarded, that it counts the
+ * allocation of every thread, and that it refuses calls out of order.
  */
 class PipelineRecorderTest {
 
-    /** Much more than the passes allocate otherwise, small enough not to trigger a garbage collection. */
+    /** Much more than the measured parts allocate otherwise, small enough not to trigger a garbage collection. */
     private static final int ALLOCATION = 1 << 20;
 
-    /** Keeps the allocation in a pass from being optimized away. */
+    /** Keeps the allocation in a measured part from being optimized away. */
     @SuppressWarnings("unused")
     private static byte[] sink;
 
     @Test
-    void passesThatEndCount() {
+    void invocationsThatEndAreKept() {
         final PipelineRecorder recorder = new PipelineRecorder();
-        pass(recorder, 1_000, 3_000);
-        pass(recorder, 5_000);
+        measure(recorder, 1_000, 3_000);
+        measure(recorder, 5_000);
         recorder.endIteration();
 
         assertThat(recorder.histogram().totalCount()).isEqualTo(3);
         assertThat(recorder.histogram().mean()).isEqualTo(3_000);
-        assertThat(recorder.gcDiscardedPasses()).isZero();
-        assertThat(recorder.saturationDiscardedPasses()).isZero();
+        assertThat(recorder.gcDiscardedInvocations()).isZero();
+        assertThat(recorder.saturationDiscardedInvocations()).isZero();
     }
 
     @Test
-    void aSaturatedPassIsDroppedAndCounted() {
+    void aSaturatedInvocationIsDroppedAndCounted() {
         final PipelineRecorder recorder = new PipelineRecorder();
-        pass(recorder, 1_000);
-        pass(recorder, 9_000);
-        recorder.discardSaturatedPass();
-        pass(recorder, 3_000);
+        measure(recorder, 1_000);
+        measure(recorder, 9_000);
+        recorder.discardSaturatedInvocation();
+        measure(recorder, 3_000);
         recorder.endIteration();
 
         assertThat(recorder.histogram().totalCount()).isEqualTo(2);
         assertThat(recorder.histogram().max()).isEqualTo(3_000);
-        assertThat(recorder.saturationDiscardedPasses()).isEqualTo(1);
+        assertThat(recorder.saturationDiscardedInvocations()).isEqualTo(1);
     }
 
     @Test
-    void aSaturatedPassWithAGarbageCollectionCountsInBoth() {
+    void aSaturatedInvocationWithAGarbageCollectionCountsInBoth() {
         final PipelineRecorder recorder = new PipelineRecorder();
-        recorder.startPass();
+        recorder.startMeasurement();
         recorder.record(1_000);
         System.gc();
-        recorder.endPass();
-        recorder.discardSaturatedPass();
+        recorder.stopMeasurement();
+        recorder.discardSaturatedInvocation();
         recorder.endIteration();
 
         assertThat(recorder.histogram().totalCount()).isZero();
-        assertThat(recorder.gcDiscardedPasses()).isEqualTo(1);
-        assertThat(recorder.saturationDiscardedPasses()).isEqualTo(1);
+        assertThat(recorder.gcDiscardedInvocations()).isEqualTo(1);
+        assertThat(recorder.saturationDiscardedInvocations()).isEqualTo(1);
     }
 
     @Test
     void allocationOnAnotherThreadIsCounted() throws InterruptedException {
         System.gc();
         final PipelineRecorder recorder = new PipelineRecorder();
-        recorder.startPass();
+        recorder.startMeasurement();
         final Thread pipelineThread = new Thread(() -> sink = new byte[ALLOCATION]);
         pipelineThread.start();
         pipelineThread.join();
         recorder.record(1_000);
-        recorder.endPass();
+        recorder.stopMeasurement();
         recorder.endIteration();
 
-        assertThat(recorder.gcDiscardedPasses()).isZero();
+        assertThat(recorder.gcDiscardedInvocations()).isZero();
         assertThat(recorder.allocatedBytes()).isGreaterThanOrEqualTo(ALLOCATION);
     }
 
     @Test
-    void theAllocationOfADiscardedPassIsNotCounted() {
+    void theAllocationOfADiscardedInvocationIsNotCounted() {
         System.gc();
         final PipelineRecorder recorder = new PipelineRecorder();
-        recorder.startPass();
+        recorder.startMeasurement();
         sink = new byte[ALLOCATION];
-        recorder.endPass();
-        recorder.discardSaturatedPass();
+        recorder.stopMeasurement();
+        recorder.discardSaturatedInvocation();
         recorder.endIteration();
 
-        assertThat(recorder.gcDiscardedPasses()).isZero();
+        assertThat(recorder.gcDiscardedInvocations()).isZero();
         assertThat(recorder.allocatedBytes()).isZero();
     }
 
     @Test
-    void aPassStillRunningAtTheEndOfTheIterationDoesNotCount() {
+    void anInvocationStillRunningAtTheEndOfTheIterationIsNotKept() {
         final PipelineRecorder recorder = new PipelineRecorder();
-        recorder.startPass();
+        recorder.startMeasurement();
         recorder.record(1_000);
         recorder.endIteration();
 
@@ -104,26 +104,26 @@ class PipelineRecorderTest {
     @Test
     void callsOutOfOrderThrow() {
         final PipelineRecorder recorder = new PipelineRecorder();
-        assertThatThrownBy(() -> recorder.record(1_000)).hasMessageContaining("No pass is running");
-        assertThatThrownBy(recorder::endPass).hasMessageContaining("No pass is running");
-        assertThatThrownBy(recorder::discardSaturatedPass).hasMessageContaining("No pass to discard");
+        assertThatThrownBy(() -> recorder.record(1_000)).hasMessageContaining("No measured part is running");
+        assertThatThrownBy(recorder::stopMeasurement).hasMessageContaining("No measured part is running");
+        assertThatThrownBy(recorder::discardSaturatedInvocation).hasMessageContaining("No invocation to discard");
 
-        recorder.startPass();
-        assertThatThrownBy(recorder::startPass).hasMessageContaining("A pass is running");
-        assertThatThrownBy(recorder::discardSaturatedPass).hasMessageContaining("No pass to discard");
+        recorder.startMeasurement();
+        assertThatThrownBy(recorder::startMeasurement).hasMessageContaining("A measured part is running");
+        assertThatThrownBy(recorder::discardSaturatedInvocation).hasMessageContaining("No invocation to discard");
 
-        recorder.endPass();
-        assertThatThrownBy(() -> recorder.record(1_000)).hasMessageContaining("No pass is running");
-        recorder.discardSaturatedPass();
-        assertThatThrownBy(recorder::discardSaturatedPass).hasMessageContaining("No pass to discard");
+        recorder.stopMeasurement();
+        assertThatThrownBy(() -> recorder.record(1_000)).hasMessageContaining("No measured part is running");
+        recorder.discardSaturatedInvocation();
+        assertThatThrownBy(recorder::discardSaturatedInvocation).hasMessageContaining("No invocation to discard");
     }
 
-    /** Runs a pass that records the given latencies. */
-    private static void pass(final PipelineRecorder recorder, final long... latencies) {
-        recorder.startPass();
+    /** Runs the measured part of an invocation that records the given latencies. */
+    private static void measure(final PipelineRecorder recorder, final long... latencies) {
+        recorder.startMeasurement();
         for (final long latency : latencies) {
             recorder.record(latency);
         }
-        recorder.endPass();
+        recorder.stopMeasurement();
     }
 }

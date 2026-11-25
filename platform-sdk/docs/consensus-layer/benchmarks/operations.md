@@ -52,7 +52,8 @@ check.
 - **The job's `timeout-minutes` turns a hang into a failure.** On a task timeout or a cancelled build, Gradle kills the
   process of a `JavaExec` task with all its child processes, JMH's forks included. If only the JMH process were
   killed, a hung fork would keep running: a fork notices that JMH is gone only when it next reports to it.
-- **Missing latency results never fail a smoke run.** It has a single pass, and a garbage collection can discard it.
+- **Missing latency results never fail a smoke run.** It has a single invocation, and a garbage collection can discard
+  it.
 - **A smoke run checks only what the benchmark's output check checks.** A benchmark that measures code that does
   nothing still passes.
 
@@ -184,8 +185,8 @@ run.
   the JDK, the runner, and the node (the machine).
 - **Latency and saturation only from quiet results; everything else always.** A latency measured on a busy machine
   says nothing about the code. Marking it with a label instead would require every query to filter on that label, which
-  is easy to forget. Allocation and passes discarded for GC do not depend on the load, and the load and the attempts
-  explain it. Passes discarded for saturation do, because a pipeline falls behind on a busy machine.
+  is easy to forget. Allocation and invocations discarded for GC do not depend on the load, and the load and the
+  attempts explain it. Invocations discarded for saturation do, because a pipeline falls behind on a busy machine.
 - **A night without a quiet result is a gap in the latency panels.** The line panels connect points across gaps
   shorter than 36 hours only, so the gap stays visible.
 - **The commit comes from CI, not from the jar.** The task that builds the jar ignores `git.properties` when it checks

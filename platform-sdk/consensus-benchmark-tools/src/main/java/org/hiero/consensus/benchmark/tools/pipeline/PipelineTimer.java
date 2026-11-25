@@ -73,7 +73,7 @@ import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
  * }</pre>
  *
  * <p>Run the benchmark with {@code -prof org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler}. The timer
- * records every pass with the profiler's {@link PipelineRecorder}, and the profiler reports the latencies as
+ * records every invocation with the profiler's {@link PipelineRecorder}, and the profiler reports the latencies as
  * {@code latency.*}.
  *
  * <h2>Inputs</h2>
@@ -89,11 +89,11 @@ import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
  * <p>A timer has one exit point, attached when {@link Builder#exitPoint} is called, so the builder is used before the
  * wiring model starts. The exit point recognizes a value by its identity: the pipeline must hand on the object it got.
  * An optional predicate on the inputs selects the values that count; the others are ignored. A value that did not enter
- * in the running pass, or a counted value that arrives twice, is an error, which {@link #replay()} throws after the
- * drain. Latencies to intermediate points are not supported, because percentiles of parts do not add up to percentiles
- * of the whole; a benchmark that needs a second exit point uses a second benchmark method.
+ * in the running invocation, or a counted value that arrives twice, is an error, which {@link #replay()} throws after
+ * the drain. Latencies to intermediate points are not supported, because percentiles of parts do not add up to
+ * percentiles of the whole; a benchmark that needs a second exit point uses a second benchmark method.
  *
- * <h2>One pass</h2>
+ * <h2>One invocation</h2>
  *
  * <ol>
  *   <li>{@link #prepare()}, in a per-invocation setup: calls {@link TimedInput#pristine()} on every replayed input and
@@ -102,24 +102,24 @@ import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
  *       thread, busy-waiting until then. The latency counts from the due time, so an entry point that holds the timer
  *       up counts. After the last input, it runs the drain, for example the pipeline's {@code flush()}.</li>
  *   <li>Once the drain returns, {@code replay()} records the latency of every counted value that arrived during the
- *       pass with {@link LatencyProfiler#pipelineRecorder()}. Values that never arrived are skipped;
+ *       replay with {@link LatencyProfiler#pipelineRecorder()}. Values that never arrived are skipped;
  *       {@link #arrivals()} returns how many did, for the benchmark's exact check.</li>
- *   <li>If the pipeline did not keep up, {@code replay()} discards the pass (see below).</li>
+ *   <li>If the pipeline did not keep up, {@code replay()} discards the invocation (see below).</li>
  * </ol>
  *
  * <h2>Saturation</h2>
  *
  * <p>A pipeline that gets its inputs faster than it can process them falls behind: every input waits longer than the
- * one before, so the latencies depend on the length of the pass and say nothing about the pipeline. If the inputs come
- * a fraction ε faster than the pipeline's capacity, the latency grows by ε seconds per second of the pass. The timer
- * compares the median latency of the inputs due in the last quarter of the pass with that of the first quarter, and
- * divides the difference by the time between the quarters' centers. If that growth exceeds
- * {@value #MAX_LATENCY_GROWTH} (1%), {@code replay()} discards the pass, which the profiler counts in
- * {@code measured.saturation.discardedPasses}, and {@link #saturated()} returns true. At the recorded rate, passes
- * discarded regularly mean that the pipeline no longer keeps up with production; with a speedup, that the speedup is
- * too high. A pass with fewer than
+ * one before, so the latencies depend on the length of the replay and say nothing about the pipeline. If the inputs
+ * come a fraction ε faster than the pipeline's capacity, the latency grows by ε seconds per second of the replay. The
+ * timer compares the median latency of the inputs due in the last quarter of the replay with that of the first quarter,
+ * and divides the difference by the time between the quarters' centers. If that growth exceeds
+ * {@value #MAX_LATENCY_GROWTH} (1%), {@code replay()} discards the invocation, which the profiler counts in
+ * {@code measured.saturation.discardedInvocations}, and {@link #saturated()} returns true. At the recorded rate,
+ * invocations discarded regularly mean that the pipeline no longer keeps up with production; with a speedup, that the
+ * speedup is too high. A replay with fewer than
  * {@value #MIN_LATENCIES_PER_QUARTER} latencies in either quarter is not judged. Below capacity, the event intake and
- * the self-check {@code PipelineTimerBenchmark} grew by less than 0.13%, even in passes with short bursts. Above
+ * the self-check {@code PipelineTimerBenchmark} grew by less than 0.13%, even in replays with short bursts. Above
  * capacity, the self-check's growth matched its overload.
  *
  * <p>A pipeline that drops inputs it cannot process in time, such as the intake, which drops events that turn ancient
@@ -129,8 +129,8 @@ import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
  * <h2>Allocation and garbage collection</h2>
  *
  * <p>A pipeline allocates on its own threads, so {@link PipelineRecorder} counts the bytes all threads of the JVM
- * allocate during the pass, and {@code LatencyProfiler} reports them per counted value as {@code alloc.norm}. A pass
- * during which a garbage collection ran is discarded, as with {@link LatencyRecorder}.
+ * allocate during the replay, and {@code LatencyProfiler} reports them per counted value as {@code alloc.norm}. An
+ * invocation during whose replay a garbage collection ran is discarded, as with {@link LatencyRecorder}.
  *
  * <h2>Threads</h2>
  *
@@ -146,12 +146,12 @@ public final class PipelineTimer {
     private static final long NOT_ARRIVED = Long.MIN_VALUE;
 
     /**
-     * The largest growth of the latency, in seconds per second of the pass, of a pipeline that keeps up (see the class
-     * description).
+     * The largest growth of the latency, in seconds per second of the replay, of a pipeline that keeps up (see the
+     * class description).
      */
     static final double MAX_LATENCY_GROWTH = 0.01;
 
-    /** The fewest latencies in each of the two quarters for the saturation check to judge a pass. */
+    /** The fewest latencies in each of the two quarters for the saturation check to judge a replay. */
     static final int MIN_LATENCIES_PER_QUARTER = 100;
 
     /** The replayed inputs, in their order. */
@@ -163,7 +163,7 @@ public final class PipelineTimer {
     /** The entry point of each replayed input. */
     private final Entry[] entries;
 
-    /** The time each replayed input is due, from the start of the pass. */
+    /** The time each replayed input is due, from the start of the replay. */
     private final long[] dueNanos;
 
     /** Whether the value of each replayed input counts at the exit point. */
@@ -172,26 +172,29 @@ public final class PipelineTimer {
     /** Runs after the last input, until the pipeline is done. */
     private final Runnable drain;
 
-    /** The values of the current pass. */
-    private final Object[] passValues;
+    /** The values of the current invocation. */
+    private final Object[] invocationValues;
 
     /** Receives the values at the exit point. */
     private final Output output;
 
-    /** The latency of each replayed input in the latest pass, or -1 for one that does not count or did not arrive. */
-    private final long[] passLatencies;
+    /**
+     * The latency of each replayed input in the latest invocation, or -1 for one that does not count or did not
+     * arrive.
+     */
+    private final long[] invocationLatencies;
 
     /** The recorder of the current iteration, or {@code null} before the first {@link #prepare()}. */
     @Nullable
     private PipelineRecorder recorder;
 
-    /** Whether {@link #prepare()} ran since the latest pass. */
+    /** Whether {@link #prepare()} ran since the latest invocation. */
     private boolean prepared;
 
-    /** The counted values that arrived in the latest pass, or -1 before the first pass. */
+    /** The counted values that arrived in the latest invocation, or -1 before the first invocation. */
     private int arrivals = -1;
 
-    /** Whether the latest pass failed the saturation check. */
+    /** Whether the latest invocation failed the saturation check. */
     private boolean saturated;
 
     @SuppressWarnings("unchecked")
@@ -210,8 +213,8 @@ public final class PipelineTimer {
         this.counted = counted;
         this.drain = drain;
         this.output = output;
-        this.passValues = new Object[dueNanos.length];
-        this.passLatencies = new long[dueNanos.length];
+        this.invocationValues = new Object[dueNanos.length];
+        this.invocationLatencies = new long[dueNanos.length];
         output.configure(counted);
     }
 
@@ -228,27 +231,29 @@ public final class PipelineTimer {
     }
 
     /**
-     * Prepares the next pass: gets an untouched instance of every replayed input ({@link TimedInput#pristine()}) and
-     * applies its value function. Call it before every pass, in a per-invocation setup, while the pipeline is idle; end
-     * that setup with {@link System#gc()}, so that the garbage of the preparation is not collected during the pass.
+     * Prepares the next invocation: gets an untouched instance of every replayed input ({@link TimedInput#pristine()})
+     * and applies its value function. Call it before every invocation, in a per-invocation setup, while the pipeline is
+     * idle; end that setup with {@link System#gc()}, so that the garbage of the preparation is not collected during
+     * the replay.
      *
      * @throws IllegalStateException if a value is {@code null} although it was not when the timer was built, or if two
      * inputs have the same value object
      */
     public void prepare() {
         output.positions.clear();
-        for (int i = 0; i < passValues.length; i++) {
+        for (int i = 0; i < invocationValues.length; i++) {
             final Object value = valueFunctions[i].apply(inputs.get(i).pristine());
             if (value == null) {
-                throw new IllegalStateException("The value of input " + i + " is null in this pass, but was not when"
-                        + " the timer was built; the value function must be pure");
+                throw new IllegalStateException(
+                        "The value of input " + i + " is null in this invocation, but was not when"
+                                + " the timer was built; the value function must be pure");
             }
             final Integer previous = output.positions.put(value, i);
             if (previous != null) {
                 throw new IllegalStateException("Inputs " + previous + " and " + i
                         + " have the same value object; each input must enter as an object of its own");
             }
-            passValues[i] = value;
+            invocationValues[i] = value;
             output.arrivalNanos.setPlain(i, NOT_ARRIVED);
         }
         recorder = LatencyProfiler.pipelineRecorder();
@@ -257,68 +262,68 @@ public final class PipelineTimer {
 
     /**
      * Replays the inputs prepared by {@link #prepare()} into the pipeline at their due times, runs the drain, and
-     * records the latencies of the counted values with the profiler's {@link PipelineRecorder}. Discards the pass if
-     * the pipeline did not keep up (see the class description).
+     * records the latencies of the counted values with the profiler's {@link PipelineRecorder}. Discards the invocation
+     * if the pipeline did not keep up (see the class description).
      *
-     * @throws IllegalStateException if {@link #prepare()} did not run since the latest pass, or if the exit point saw a
-     * value that did not enter in this pass, or a counted value twice
+     * @throws IllegalStateException if {@link #prepare()} did not run since the latest invocation, or if the exit point
+     * saw a value that did not enter in this invocation, or a counted value twice
      */
     public void replay() {
         if (!prepared) {
-            throw new IllegalStateException("prepare() must run before every pass");
+            throw new IllegalStateException("prepare() must run before every invocation");
         }
         prepared = false;
-        final PipelineRecorder passRecorder = requireNonNull(recorder);
+        final PipelineRecorder iterationRecorder = requireNonNull(recorder);
         output.replaying = true;
-        passRecorder.startPass();
+        iterationRecorder.startMeasurement();
         final long start = System.nanoTime();
         try {
-            for (int i = 0; i < passValues.length; i++) {
+            for (int i = 0; i < invocationValues.length; i++) {
                 final long due = start + dueNanos[i];
                 while (due - System.nanoTime() > 0) {
                     Thread.onSpinWait();
                 }
-                entries[i].enter(passValues[i]);
+                entries[i].enter(invocationValues[i]);
             }
             drain.run();
         } finally {
             output.replaying = false;
         }
-        // the pass's copies can be collected before the next pass
+        // the invocation's copies can be collected before the next invocation
         output.positions.clear();
-        Arrays.fill(passValues, null);
+        Arrays.fill(invocationValues, null);
         output.throwIfErrors();
 
         int arrived = 0;
-        for (int i = 0; i < passValues.length; i++) {
+        for (int i = 0; i < invocationValues.length; i++) {
             final long arrival = output.arrivalNanos.get(i);
             if (counted[i] && arrival != NOT_ARRIVED) {
                 final long latency = arrival - (start + dueNanos[i]);
-                passRecorder.record(latency);
-                passLatencies[i] = latency;
+                iterationRecorder.record(latency);
+                invocationLatencies[i] = latency;
                 arrived++;
             } else {
-                passLatencies[i] = -1;
+                invocationLatencies[i] = -1;
             }
         }
         // before the saturation check, which allocates
-        passRecorder.endPass();
+        iterationRecorder.stopMeasurement();
         arrivals = arrived;
 
-        saturated = latencyGrowth(dueNanos, passLatencies) > MAX_LATENCY_GROWTH;
+        saturated = latencyGrowth(dueNanos, invocationLatencies) > MAX_LATENCY_GROWTH;
         if (saturated) {
-            passRecorder.discardSaturatedPass();
+            iterationRecorder.discardSaturatedInvocation();
         }
     }
 
     /**
-     * Computes how fast the latency grew during a pass: the median latency of the inputs due in the last quarter of the
-     * pass minus that of the first quarter, divided by the time between the quarters' centers.
+     * Computes how fast the latency grew during a replay: the median latency of the inputs due in the last quarter of
+     * the replay minus that of the first quarter, divided by the time between the quarters' centers.
      *
-     * @param dueNanos the time each input was due, from the start of the pass, in ascending order
+     * @param dueNanos the time each input was due, from the start of the replay, in ascending order
      * @param latencies the latency of each input, or a negative value for one without a latency
-     * @return the growth in seconds per second, or {@link Double#NaN} if the pass has no length or a quarter has fewer
-     * than {@link #MIN_LATENCIES_PER_QUARTER} latencies
+     * @return the growth in seconds per second, or {@link Double#NaN} if the replay has no length or a quarter has
+     * fewer than {@link #MIN_LATENCIES_PER_QUARTER} latencies
      */
     static double latencyGrowth(@NonNull final long[] dueNanos, @NonNull final long[] latencies) {
         if (dueNanos.length == 0) {
@@ -353,27 +358,27 @@ public final class PipelineTimer {
     }
 
     /**
-     * Returns how many counted values arrived at the exit point in the latest pass.
+     * Returns how many counted values arrived at the exit point in the latest invocation.
      *
      * @return the number of counted values that arrived
-     * @throws IllegalStateException if no pass has run
+     * @throws IllegalStateException if no invocation has run
      */
     public int arrivals() {
         if (arrivals < 0) {
-            throw new IllegalStateException("No pass has run");
+            throw new IllegalStateException("No invocation has run");
         }
         return arrivals;
     }
 
     /**
-     * Returns whether the latest pass failed the saturation check, so that {@link #replay()} discarded it.
+     * Returns whether the latest invocation failed the saturation check, so that {@link #replay()} discarded it.
      *
-     * @return true if the pipeline did not keep up in the latest pass
-     * @throws IllegalStateException if no pass has run
+     * @return true if the pipeline did not keep up in the latest invocation
+     * @throws IllegalStateException if no invocation has run
      */
     public boolean saturated() {
         if (arrivals < 0) {
-            throw new IllegalStateException("No pass has run");
+            throw new IllegalStateException("No invocation has run");
         }
         return saturated;
     }
@@ -388,12 +393,12 @@ public final class PipelineTimer {
     private static final class Output {
 
         /**
-         * Whether a pass is running. Written before and after a pass on the benchmark thread, and read first by every
-         * arrival, which makes the positions that {@link #prepare()} wrote visible to the pipeline's threads.
+         * Whether a replay is running. Written before and after a replay on the benchmark thread, and read first by
+         * every arrival, which makes the positions that {@link #prepare()} wrote visible to the pipeline's threads.
          */
         private volatile boolean replaying;
 
-        /** The position of each value of the current pass. */
+        /** The position of each value of the current invocation. */
         private final Map<Object, Integer> positions = new IdentityHashMap<>();
 
         /** Whether the value at each position counts; set when the timer is built. */
@@ -417,12 +422,12 @@ public final class PipelineTimer {
         void arrive(@NonNull final Object value) {
             final long now = System.nanoTime();
             if (!replaying) {
-                error("A value arrived outside a pass: " + describe(value));
+                error("A value arrived outside a replay: " + describe(value));
                 return;
             }
             final Integer position = positions.get(value);
             if (position == null) {
-                error("A value arrived that did not enter the pipeline in this pass: " + describe(value));
+                error("A value arrived that did not enter the pipeline in this invocation: " + describe(value));
                 return;
             }
             if (counted[position] && !arrivalNanos.compareAndSet(position, NOT_ARRIVED, now)) {

@@ -73,8 +73,9 @@ import org.openjdk.jmh.annotations.Warmup;
  * each call. The replay therefore creates exactly the events of the recording, with the same hashes, which the
  * recorded events of the other nodes refer to as parents.
  *
- * <p>Each benchmark method times one kind of call and runs the rest of the replay paused
- * ({@link LatencyRecorder#pause()}), so that the rest counts neither in its latencies nor in its allocation:
+ * <p>The replay runs in segments of consecutive calls of one kind. Each benchmark method times the segments of one
+ * kind, each as one stretch of laps ({@link LatencyRecorder#startLaps()}), and runs the rest of the replay outside the
+ * laps, so that the rest counts neither in its latencies nor in its allocation:
  * <ul>
  *   <li>{@link #createEvent()} times every call of {@link DefaultEventCreationManager#maybeCreateEvent()} that creates
  *   an event. The node's heartbeat makes the call every 10 ms, and the creation rules refuse most calls at once, mostly
@@ -85,16 +86,16 @@ import org.openjdk.jmh.annotations.Warmup;
  * Setting a new event window, about once per round, and a new platform status are part of neither.
  *
  * <p>Timing starts with the first event window that makes events ancient, in round 29 of both recordings. Before
- * it, every pass repeats what a node goes through once after it starts: its first creation takes many times as long as
- * the later ones, and the event creator's collections grow from empty. Timed, these calls would set the slowest
- * percentiles. They are replayed paused.
+ * it, every invocation repeats what a node goes through once after it starts: its first creation takes many times as
+ * long as the later ones, and the event creator's collections grow from empty. Timed, these calls would set the slowest
+ * percentiles. They are replayed outside the laps.
  *
  * <p>Each latency includes one clock read ({@link LatencyRecorder#lap()}). A registration takes well under a
  * microsecond, so the clock read is a few percent of its latency: in profiles on an Apple M4 laptop, 3% to 5%. It is
  * nearly the same for every call, so it does not hide a regression.
  *
- * <p>Each created event gets the transactions it got in the recording, prepared before the passes. In production, the
- * transaction pool hands them over; it is not part of this benchmark. Signing is replaced by an empty signature;
+ * <p>Each created event gets the transactions it got in the recording, prepared before the invocations. In production,
+ * the transaction pool hands them over; it is not part of this benchmark. Signing is replaced by an empty signature;
  * {@code EventSigningBenchmark} measures it. Nothing in the timed calls reads a signature: the hash of an event covers
  * the event without its signature, and registering an event reads only its descriptor and parents. Hashing the new
  * event is part of {@link DefaultEventCreationManager#maybeCreateEvent()} and is measured.
@@ -104,9 +105,9 @@ import org.openjdk.jmh.annotations.Warmup;
  * snapshots run on other threads. Their executor only announces each new metric, while the setup creates the manager.
  *
  * <p>{@link LatencyProfiler} reports the mean, the percentiles, and the allocation per timed call. JMH's primary score
- * is the time of a whole pass, the paused calls included; the number of timed calls per pass differs between the
- * parameter sets. Each invocation's setup ends with {@code System.gc()}; a pass during which a garbage collection runs
- * is discarded and replaced by the next invocation.
+ * is the time of a whole invocation, the untimed calls included; the number of timed calls per invocation differs
+ * between the parameter sets. Each invocation's setup ends with {@code System.gc()}; an invocation during whose
+ * measured part a garbage collection runs is discarded and replaced by the next invocation.
  *
  * <p>The two benchmark methods differ in how many calls they time per second and in how much their forks differ, so
  * each has its own {@code @Fork}, {@code @Warmup}, and {@code @Measurement}, and its calibration block in its Javadoc.
@@ -161,6 +162,14 @@ public class EventCreationBenchmark {
             @Nullable EventWindow window,
             @Nullable PlatformStatus status) {}
 
+    /**
+     * Consecutive calls of the recording of one kind.
+     *
+     * @param kind  the kind of all calls
+     * @param calls the calls, in order
+     */
+    private record Segment(Kind kind, Call[] calls) {}
+
     /** The configuration of the recorded node. */
     private Configuration configuration;
 
@@ -181,6 +190,9 @@ public class EventCreationBenchmark {
 
     /** The index in {@link #calls} of the first event window that makes events ancient, where timing starts. */
     private int firstTimedCall;
+
+    /** The calls from {@link #firstTimedCall} on, in segments of consecutive calls of one kind. */
+    private Segment[] segments;
 
     /** The transactions of each created event of the recording, in order of creation. */
     private List<List<TimestampedTransaction>> transactions;
@@ -226,8 +238,18 @@ public class EventCreationBenchmark {
         startTime = nodeRecording.startTime();
         creatorSeed = nodeRecording.creatorSeed();
 
-        final List<Call> recorded = new ArrayList<>();
         transactions = new ArrayList<>();
+        calls = prepareCalls(nodeRecording);
+        results = new PlatformEvent[count(Kind.CREATE) + count(Kind.ATTEMPT)];
+        firstTimedCall = firstAncientWindow();
+        segments = prepareSegments();
+
+        metricsExecutor = Executors.newSingleThreadScheduledExecutor();
+    }
+
+    /** Prepares the calls of the recording from the node's recording. */
+    private Call[] prepareCalls(final NodeRecording nodeRecording) {
+        final List<Call> recorded = new ArrayList<>();
         for (final Step step : nodeRecording.steps()) {
             final long nanos = Duration.between(startTime, step.time()).toNanos();
             switch (step) {
@@ -251,11 +273,23 @@ public class EventCreationBenchmark {
                 }
             }
         }
-        calls = recorded.toArray(new Call[0]);
-        results = new PlatformEvent[count(Kind.CREATE) + count(Kind.ATTEMPT)];
-        firstTimedCall = firstAncientWindow();
+        return recorded.toArray(new Call[0]);
+    }
 
-        metricsExecutor = Executors.newSingleThreadScheduledExecutor();
+    /** Splits the calls from the given index on into segments of consecutive calls of one kind. */
+    private Segment[] prepareSegments() {
+        final List<Segment> result = new ArrayList<>();
+        int start = firstTimedCall;
+        while (start < calls.length) {
+            final Kind kind = calls[start].kind();
+            int end = start + 1;
+            while (end < calls.length && calls[end].kind() == kind) {
+                end++;
+            }
+            result.add(new Segment(kind, Arrays.copyOfRange(calls, start, end)));
+            start = end;
+        }
+        return result.toArray(new Segment[0]);
     }
 
     /**
@@ -408,36 +442,35 @@ public class EventCreationBenchmark {
     }
 
     /**
-     * Replays the recording, times the calls of the measured kind from {@link #firstTimedCall} on, and pauses the
-     * recorder for the others.
+     * Replays the recording: the calls before {@link #firstTimedCall} untimed, then the rest segment by segment, timing
+     * the calls of the measured kind.
      *
      * @param measured the kind of call to time
      */
     private void replay(final Kind measured) {
-        recorder.startMeasurement();
-        recorder.pause();
-        for (int i = 0; i < calls.length; i++) {
-            final Call call = calls[i];
-            if (i >= firstTimedCall && call.kind() == measured) {
-                // While not paused, advancing the clock counts in the latency; it is a single addition.
-                advanceTime(call);
-                if (recorder.isPaused()) {
-                    recorder.resume();
+        recorder.prepareToMeasure();
+        for (int i = 0; i < firstTimedCall; i++) {
+            advanceTime(calls[i]);
+            execute(calls[i]);
+        }
+        for (final Segment segment : segments) {
+            if (segment.kind() == measured) {
+                recorder.startLaps();
+                for (final Call call : segment.calls()) {
+                    // Advancing the clock counts in the latency; it is a single addition.
+                    advanceTime(call);
+                    execute(call);
+                    recorder.lap();
                 }
-                execute(call);
-                recorder.lap();
+                recorder.stopLaps();
             } else {
-                if (!recorder.isPaused()) {
-                    recorder.pause();
+                for (final Call call : segment.calls()) {
+                    advanceTime(call);
+                    execute(call);
                 }
-                advanceTime(call);
-                execute(call);
             }
         }
-        if (recorder.isPaused()) {
-            recorder.resume();
-        }
-        recorder.stopMeasurement();
+        recorder.finalizeMeasurement();
     }
 
     /** Sets the fake clock to the time of the call. */

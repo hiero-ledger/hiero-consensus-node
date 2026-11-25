@@ -60,7 +60,7 @@ import org.openjdk.jmh.annotations.Warmup;
  * compression, which mainnet does not use, and with a buffer of the default {@code socket.bufferSize}. The output
  * stream writes into a sink that discards the bytes, and the input stream reads from the bytes in memory, so the socket
  * and its encryption are not measured. Like the stream of a connection, the output stream lives for the whole trial;
- * the input stream is new for every pass, because it is read to its end.
+ * the input stream is new for every invocation, because it is read to its end.
  *
  * <p>The cost grows with the size of an event: its parents, its transactions, and its signature. The events take their
  * shape from mainnet's ({@link EventShape#MAINNET}): a self parent and the median number of other parents, four, and
@@ -74,26 +74,26 @@ import org.openjdk.jmh.annotations.Warmup;
  * receive them. The SHA-256 digest of their serialized form must equal a constant; it changes when the generated events
  * change.
  *
- * <p>{@code write} writes the same events in every pass. The records compute their encoded size on first use and keep
- * it. Production writes the same record to every peer, so only the write to the first peer computes the size; this
- * benchmark measures the writes that follow. After every pass, the stream must have written exactly as many bytes as
- * the serialized form of all events has.
+ * <p>{@code write} writes the same events in every invocation. The records compute their encoded size on first use and
+ * keep it. Production writes the same record to every peer, so only the write to the first peer computes the size; this
+ * benchmark measures the writes that follow. After every invocation, the stream must have written exactly as many bytes
+ * as the serialized form of all events has.
  *
- * <p>{@code read} reads the serialized form of all events from a new stream in every pass, and every event it reads
- * must equal the generated event.
+ * <p>{@code read} reads the serialized form of all events from a new stream in every invocation, and every event it
+ * reads must equal the generated event.
  *
- * <p>One invocation, a pass, writes or reads {@value #NUMBER_OF_EVENTS} events. The primary score is the mean time per
+ * <p>One invocation writes or reads {@value #NUMBER_OF_EVENTS} events. The primary score is the mean time per
  * event. A {@link LatencyRecorder} also times every call but the first of {@code read}, with one timestamp per call
  * ({@link LatencyRecorder#lap()}). {@link LatencyProfiler} reports the percentiles and the allocation per call. The
  * allocation is measured around the timed calls only, because {@code -prof gc} also counts the setup.
  *
- * <p>The first call of a {@code read} pass comes right after the setup and is much slower than the others, so it reads
- * an event but is not timed. On an Apple M4 laptop, its median was 6.8–6.9 µs without transactions and 7.0–7.6 µs with
- * two, against about 0.37 µs and 0.47 µs on average for the other calls. One call in {@value #NUMBER_OF_EVENTS} is
- * exactly the share above p99.99, so timing the first call of every pass would set p99.99. In the same run, p99.99 was
- * 6.7–7.5 µs when the first call was timed and 1.3–3.8 µs when it was not. No such setup precedes an event in
- * production. {@code write} has no setup before its passes, and its first call was as fast as the others, so it times
- * every call.
+ * <p>The first call of a {@code read} invocation comes right after the setup and is much slower than the others, so it
+ * reads an event but is not timed. On an Apple M4 laptop, its median was 6.8–6.9 µs without transactions and 7.0–7.6 µs
+ * with two, against about 0.37 µs and 0.47 µs on average for the other calls. One call in {@value #NUMBER_OF_EVENTS} is
+ * exactly the share above p99.99, so timing the first call of every invocation would set p99.99. In the same run,
+ * p99.99 was 6.7–7.5 µs when the first call was timed and 1.3–3.8 µs when it was not. No such setup precedes an event
+ * in production. {@code write} has no setup before its invocations, and its first call was as fast as the others, so it
+ * times every call.
  *
  * <p>Writing or reading an event takes so little time that the timing is a noticeable part of every latency. On an
  * Apple M4 laptop, {@code lap()} added 6.2–9.3 ns to a call of {@code write} (1.4–2.8% of the timed call) and
@@ -102,10 +102,10 @@ import org.openjdk.jmh.annotations.Warmup;
  * nanoseconds, but as a slightly smaller percentage.
  *
  * <p>{@code read} allocates the events it reads, so each of its invocations' setups ends with {@code System.gc()}, and
- * usually no garbage collection falls into the measured calls. {@code write} allocates nothing, neither in its calls
- * nor in its setup, so it needs no collection. A pass during which one runs is discarded and replaced by the next
- * invocation, so the latency results and {@code latency.mean} exclude garbage collection. JMH's primary score, measured
- * by JMH itself, still includes discarded passes.
+ * usually no garbage collection falls into the measured part. {@code write} allocates nothing, neither in its calls
+ * nor in its setup, so it needs no collection. An invocation during whose measured part one runs is discarded and
+ * replaced by the next invocation, so the latency results and {@code latency.mean} exclude garbage collection. JMH's
+ * primary score, measured by JMH itself, still includes discarded invocations.
  *
  * <p>Each fork settles at its own latency level and keeps it, although every fork allocates the same and the machine
  * was quiet. On the benchmark machine with 32 nodes, {@code latency.mean} varied between forks by 0.9% and 6.4% for
@@ -167,16 +167,16 @@ public class GossipEventSerializationBenchmark {
         @Param({"0", "2"})
         public int transactionsPerEvent;
 
-        /** The events, written in every pass. */
+        /** The events, written in every invocation. */
         private GossipEvent[] events;
 
-        /** The number of bytes that one pass writes. */
+        /** The number of bytes that one invocation writes. */
         private long expectedBytes;
 
         /** The stream under test. Like the stream of a connection, it lives for the whole trial. */
         private SyncOutputStream output;
 
-        /** The number of bytes the stream had written before the pass. */
+        /** The number of bytes the stream had written before the invocation. */
         private long bytesBefore;
 
         /** The latency recorder for the benchmark. */
@@ -210,7 +210,7 @@ public class GossipEventSerializationBenchmark {
         }
 
         /**
-         * Verifies that the pass wrote all events. This method is called once per invocation.
+         * Verifies that the invocation wrote all events. This method is called once per invocation.
          *
          * @throws IOException if the stream fails
          */
@@ -221,7 +221,7 @@ public class GossipEventSerializationBenchmark {
             final long actual = output.connectionByteCounter().getTotalCount() - bytesBefore;
             if (actual != expectedBytes) {
                 throw new IllegalStateException(
-                        "Expected the pass to write %d bytes, but it wrote %d".formatted(expectedBytes, actual));
+                        "Expected the invocation to write %d bytes, but it wrote %d".formatted(expectedBytes, actual));
             }
             recorder = null;
         }
@@ -241,13 +241,13 @@ public class GossipEventSerializationBenchmark {
         /** The generated events, which the events read must equal. */
         private GossipEvent[] expectedEvents;
 
-        /** The serialized form of all events, read in every pass. */
+        /** The serialized form of all events, read in every invocation. */
         private byte[] serializedEvents;
 
-        /** The stream under test, new for every pass. */
+        /** The stream under test, new for every invocation. */
         private SyncInputStream input;
 
-        /** The events read in one pass. */
+        /** The events read in one invocation. */
         private GossipEvent[] events;
 
         /** The latency recorder for the benchmark. */
@@ -265,7 +265,8 @@ public class GossipEventSerializationBenchmark {
         }
 
         /**
-         * Creates a new stream over the serialized events for the pass. This method is called once per invocation.
+         * Creates a new stream over the serialized events for the invocation. This method is called once per
+         * invocation.
          */
         @Setup(Level.Invocation)
         public void prepareInvocation() {
@@ -280,8 +281,8 @@ public class GossipEventSerializationBenchmark {
         }
 
         /**
-         * Verifies that the pass read every event as it was generated and all bytes. This method is called once per
-         * invocation.
+         * Verifies that the invocation read every event as it was generated and all bytes. This method is called once
+         * per invocation.
          *
          * @throws IOException if the stream fails
          */
@@ -294,7 +295,7 @@ public class GossipEventSerializationBenchmark {
                 }
             }
             if (input.read() != -1) {
-                throw new IllegalStateException("The pass did not read all bytes");
+                throw new IllegalStateException("The invocation did not read all bytes");
             }
             Arrays.fill(events, null);
             input = null;
@@ -316,13 +317,15 @@ public class GossipEventSerializationBenchmark {
         final SyncOutputStream output = writer.output;
         final GossipEvent[] events = writer.events;
         final LatencyRecorder recorder = writer.recorder;
-        recorder.startMeasurement();
+        recorder.prepareToMeasure();
+        recorder.startLaps();
         for (int i = 0; i < NUMBER_OF_EVENTS; i++) {
             output.writePbjRecord(events[i], GossipEvent.PROTOBUF);
             // One timestamp per call: each latency also contains the loop step to the next event.
             recorder.lap();
         }
-        recorder.stopMeasurement();
+        recorder.stopLaps();
+        recorder.finalizeMeasurement();
     }
 
     /**
@@ -339,17 +342,17 @@ public class GossipEventSerializationBenchmark {
         final SyncInputStream input = reader.input;
         final GossipEvent[] events = reader.events;
         final LatencyRecorder recorder = reader.recorder;
-        recorder.startMeasurement();
+        recorder.prepareToMeasure();
         // The first call follows the setup, which makes it slow; it reads an event but is not timed.
-        recorder.pause();
         events[0] = input.readPbjRecord(GossipEvent.PROTOBUF);
-        recorder.resume();
+        recorder.startLaps();
         for (int i = 1; i < NUMBER_OF_EVENTS; i++) {
             events[i] = input.readPbjRecord(GossipEvent.PROTOBUF);
             // One timestamp per call: each latency also contains the loop step to the next event.
             recorder.lap();
         }
-        recorder.stopMeasurement();
+        recorder.stopLaps();
+        recorder.finalizeMeasurement();
     }
 
     /**

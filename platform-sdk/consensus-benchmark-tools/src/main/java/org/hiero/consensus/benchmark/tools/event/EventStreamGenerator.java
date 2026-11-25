@@ -54,10 +54,10 @@ import org.hiero.consensus.model.roster.RosterWrapper;
  * event with the origin {@link EventOrigin#GOSSIP}, as the gossip layer builds it. {@link #receive(List)} also hashes
  * it, as the intake does; {@link #receiveUnhashed(List)} leaves the hashing to a benchmark of the hasher.
  *
- * <p>A benchmark whose code under test leaves state in an event receives fresh copies in every pass, with new lists and
- * byte buffers. For example, a PBJ {@code Bytes} caches the memory segment that the Ed25519 verifier creates from it
- * ({@code Bytes#toMemorySegment}); a node creates it once for every event it receives, but a benchmark that verifies the
- * same objects in every pass would create it in the first pass only.
+ * <p>A benchmark whose code under test leaves state in an event receives fresh copies in every invocation, with new
+ * lists and byte buffers. For example, a PBJ {@code Bytes} caches the memory segment that the Ed25519 verifier creates
+ * from it ({@code Bytes#toMemorySegment}); a node creates it once for every event it receives, but a benchmark that
+ * verifies the same objects in every invocation would create it in the first invocation only.
  *
  * <p>A benchmark generates fixed shapes, one parameter set each, for example at chosen quantiles of a production table
  * ({@link EmpiricalDistribution#quantile(double)}). With a mix, the upper percentiles would measure the heaviest events

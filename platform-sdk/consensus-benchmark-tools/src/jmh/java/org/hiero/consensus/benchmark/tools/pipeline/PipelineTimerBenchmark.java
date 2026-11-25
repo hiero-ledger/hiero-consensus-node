@@ -36,8 +36,8 @@ import org.openjdk.jmh.annotations.Warmup;
  *       item, which caps the pipeline at 5,000 items/s, get the items at half that rate. Every latency is at least the
  *       sum of both times: {@code latency.min} is at least {@code 2 × STAGE_NANOS}.</li>
  *   <li>{@code saturated}: the same pipeline gets the items at 1.1 times its capacity, so its latency grows by about
- *       10% of the elapsed time. Every pass must fail the timer's saturation check, so that the profiler reports no
- *       latencies and counts the passes in {@code measured.saturation.discardedPasses}.</li>
+ *       10% of the elapsed time. Every invocation must fail the timer's saturation check, so that the profiler reports
+ *       no latencies and counts the invocations in {@code measured.saturation.discardedInvocations}.</li>
  * </ul>
  *
  * <p>Profile it with {@code -prof jfr} and {@code jfr-components.sh}: the timer's busy-waiting shows as "timer:
@@ -59,8 +59,8 @@ public class PipelineTimerBenchmark {
     /** The capacity of the two-stage pipelines, in items per second. */
     private static final double STAGES_CAPACITY = 1e9 / STAGE_NANOS;
 
-    /** The length of a pass, in seconds of due times. */
-    private static final double PASS_SECONDS = 2;
+    /** The length of a replay, in seconds of due times. */
+    private static final double REPLAY_SECONDS = 2;
 
     /** The rate of the {@code direct} pipeline's items, per second. */
     private static final double DIRECT_RATE = 100_000;
@@ -87,7 +87,7 @@ public class PipelineTimerBenchmark {
                 .build();
         timer = switch (pipeline) {
             case "direct" -> {
-                items = (int) (PASS_SECONDS * DIRECT_RATE);
+                items = (int) (REPLAY_SECONDS * DIRECT_RATE);
                 yield PipelineTimer.builder(Item.evenlySpaced(items, DIRECT_RATE))
                         .entryPoint(Item.class, item -> item, item -> output.accept(item))
                         .exitPoint((Consumer<Object> consumer) -> output = consumer)
@@ -126,7 +126,7 @@ public class PipelineTimerBenchmark {
         final boolean expectSaturated = pipeline.equals("saturated");
         if (timer.saturated() != expectSaturated) {
             throw new IllegalStateException(
-                    "Expected a pass that " + (expectSaturated ? "fails" : "passes") + " the saturation check");
+                    "Expected an invocation that " + (expectSaturated ? "fails" : "passes") + " the saturation check");
         }
     }
 
@@ -140,7 +140,7 @@ public class PipelineTimerBenchmark {
         secondInput.bind(PipelineTimerBenchmark::spin);
         first.getOutputWire().solderTo(secondInput);
         final double rate = load * STAGES_CAPACITY;
-        items = (int) (PASS_SECONDS * rate);
+        items = (int) (REPLAY_SECONDS * rate);
         return PipelineTimer.builder(Item.evenlySpaced(items, rate))
                 .entryPoint(Item.class, item -> item, firstInput)
                 .exitPoint(second.getOutputWire())

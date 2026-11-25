@@ -3,6 +3,7 @@ package org.hiero.consensus.gossip.impl.jmh;
 
 import com.swirlds.config.api.Configuration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -62,8 +63,9 @@ import org.openjdk.jmh.annotations.Warmup;
  *   <li>{@link #updateEventWindow()} times every call of {@link Shadowgraph#updateEventWindow(EventWindow)}, which
  *   also removes the expired events.</li>
  * </ul>
- * Each method runs the other calls of the replay paused ({@link LatencyRecorder#pause()}), so they count neither in
- * its latencies nor in its allocation.
+ * The replay runs in segments of consecutive calls of one kind. Each method times the segments of its kind, each as one
+ * stretch of laps ({@link LatencyRecorder#startLaps()}), and runs the other segments outside the laps, so they count
+ * neither in its latencies nor in its allocation.
  *
  * <p>Each latency includes one clock read ({@link LatencyRecorder#lap()}). Adding an event takes well under a
  * microsecond, so the clock read is a noticeable part of its latency. On an Apple M4 laptop, one more clock read after
@@ -78,10 +80,11 @@ import org.openjdk.jmh.annotations.Warmup;
  * latencies before and after it are not comparable.
  *
  * <p>{@link LatencyProfiler} reports the mean, the percentiles, and the allocation per timed call. JMH's primary score
- * is the time of a whole pass, the paused calls included; the number of timed calls per pass differs between the
- * parameter sets. Each invocation's setup ends with {@code System.gc()}; a pass during which a garbage collection runs
- * is discarded and replaced by the next invocation. The heap is sized for the recording of 28 nodes, which keeps more than
- * 5 GB live while it runs: in a local heap sweep, it needed 27 full collections at 6 GB and none at 8 GB.
+ * is the time of a whole invocation, the untimed calls included; the number of timed calls per invocation differs
+ * between the parameter sets. Each invocation's setup ends with {@code System.gc()}; an invocation during whose
+ * measured part a garbage collection runs is discarded and replaced by the next invocation. The heap is sized for the
+ * recording of 28 nodes, which keeps more than 5 GB live while it runs: in a local heap sweep, it needed 27 full
+ * collections at 6 GB and none at 8 GB.
  *
  * <p>The two benchmark methods differ in how many calls they time per second, so each has its own {@code @Fork},
  * {@code @Warmup}, and {@code @Measurement}, and its calibration block in its Javadoc. On the benchmark machine, each
@@ -123,6 +126,14 @@ public class ShadowgraphBenchmark {
      */
     private record Call(Kind kind, PlatformEvent event, EventWindow window) {}
 
+    /**
+     * Consecutive calls of the replay of one kind.
+     *
+     * @param kind  the kind of all calls
+     * @param calls the calls, in order
+     */
+    private record Segment(Kind kind, Call[] calls) {}
+
     /** The configuration of the recorded node. */
     private Configuration configuration;
 
@@ -137,6 +148,9 @@ public class ShadowgraphBenchmark {
 
     /** The number of calls that each invocation's setup makes: those before the first events expire. */
     private int numCallsBeforeFirstExpire;
+
+    /** The calls after those of the setup, in segments of consecutive calls of one kind. */
+    private Segment[] segments;
 
     /** The executor the metrics require. It stays idle, because the metrics are not started. */
     private ScheduledExecutorService metricsExecutor;
@@ -177,6 +191,7 @@ public class ShadowgraphBenchmark {
         }
         calls = callList.toArray(new Call[0]);
         numCallsBeforeFirstExpire = firstExpiringWindow();
+        segments = segmentsFrom(numCallsBeforeFirstExpire);
         metricsExecutor = Executors.newSingleThreadScheduledExecutor();
     }
 
@@ -330,32 +345,27 @@ public class ShadowgraphBenchmark {
     }
 
     /**
-     * Replays the calls after the fill, times the calls of the measured kind, and pauses the recorder for the others.
+     * Replays the calls after the fill, segment by segment, and times the calls of the measured kind.
      *
      * @param measured the kind of call to time
      */
     private void replay(final Kind measured) {
-        recorder.startMeasurement();
-        recorder.pause();
-        for (int i = numCallsBeforeFirstExpire; i < calls.length; i++) {
-            final Call call = calls[i];
-            if (call.kind() == measured) {
-                if (recorder.isPaused()) {
-                    recorder.resume();
+        recorder.prepareToMeasure();
+        for (final Segment segment : segments) {
+            if (segment.kind() == measured) {
+                recorder.startLaps();
+                for (final Call call : segment.calls()) {
+                    execute(call);
+                    recorder.lap();
                 }
-                execute(call);
-                recorder.lap();
+                recorder.stopLaps();
             } else {
-                if (!recorder.isPaused()) {
-                    recorder.pause();
+                for (final Call call : segment.calls()) {
+                    execute(call);
                 }
-                execute(call);
             }
         }
-        if (recorder.isPaused()) {
-            recorder.resume();
-        }
-        recorder.stopMeasurement();
+        recorder.finalizeMeasurement();
     }
 
     /** Calls the shadowgraph as the recorded call does. */
@@ -368,6 +378,22 @@ public class ShadowgraphBenchmark {
             }
             case UPDATE_WINDOW -> shadowgraph.updateEventWindow(call.window());
         }
+    }
+
+    /** Splits the calls from the given index on into segments of consecutive calls of one kind. */
+    private Segment[] segmentsFrom(final int from) {
+        final List<Segment> result = new ArrayList<>();
+        int start = from;
+        while (start < calls.length) {
+            final Kind kind = calls[start].kind();
+            int end = start + 1;
+            while (end < calls.length && calls[end].kind() == kind) {
+                end++;
+            }
+            result.add(new Segment(kind, Arrays.copyOfRange(calls, start, end)));
+            start = end;
+        }
+        return result.toArray(new Segment[0]);
     }
 
     /** Returns the index of the first event window that expires events. */

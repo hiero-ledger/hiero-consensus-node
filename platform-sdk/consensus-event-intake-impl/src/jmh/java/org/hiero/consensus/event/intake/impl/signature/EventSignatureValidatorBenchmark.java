@@ -66,7 +66,7 @@ import org.openjdk.jmh.infra.Blackhole;
  * allocation per call.
  *
  * <p>Each invocation's setup ends with {@code System.gc()}, so usually no garbage collection falls into the measured
- * calls. A pass during which one does is discarded and replaced by the next invocation.
+ * part. An invocation during whose measured part one does is discarded and replaced by the next invocation.
  *
  * <p>In the first 5 s of a fork, RSA's mean was about 6% higher than later, in every fork; Ed25519's mean showed no
  * warmup. A warmup iteration of 10 s, twice that time, keeps these slow calls out of the measured iterations.
@@ -206,7 +206,8 @@ public class EventSignatureValidatorBenchmark {
     @OutputTimeUnit(TimeUnit.MICROSECONDS)
     @OperationsPerInvocation(NUMBER_OF_EVENTS)
     public void validateSignatures(final Blackhole bh) {
-        recorder.startMeasurement();
+        recorder.prepareToMeasure();
+        recorder.startLaps();
         for (final PlatformEvent event : events) {
             final PlatformEvent validated = validator.validateSignature(event);
             // One timestamp per call: each latency also contains the bookkeeping of the previous call.
@@ -216,6 +217,7 @@ public class EventSignatureValidatorBenchmark {
             }
             bh.consume(validated);
         }
-        recorder.stopMeasurement();
+        recorder.stopLaps();
+        recorder.finalizeMeasurement();
     }
 }

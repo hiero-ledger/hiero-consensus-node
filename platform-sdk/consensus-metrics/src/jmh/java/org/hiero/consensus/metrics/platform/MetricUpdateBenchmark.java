@@ -53,21 +53,21 @@ import org.openjdk.jmh.annotations.Warmup;
  * <h2>The clock</h2>
  *
  * <p>Every update reads the clock: a speedometer update once, a running-average update three times. What the metric
- * computes depends on the times it reads. With the system clock, the results would differ from pass to pass, and the
+ * computes depends on the times it reads. With the system clock, the results would differ between invocations, and the
  * benchmark would update about a thousand times more often than production does. The metrics therefore read a
  * {@link SteppingTime}, whose time the benchmark advances by a fixed step, {@link #STEP_NANOS}, before each update: the
- * results are the same in every pass, and the output check compares them with constants. Each read of the stepping
- * clock also reads the system clock, as the production clock does, so the measured time includes the cost of the
- * clock reads. Only the times the metric computes with are made up; the code it runs is the code it runs in
+ * results are the same in every invocation, and the output check compares them with constants. Each read of the
+ * stepping clock also reads the system clock, as the production clock does, so the measured time includes the cost of
+ * the clock reads. Only the times the metric computes with are made up; the code it runs is the code it runs in
  * production. The step hardly matters: on an Apple M4 laptop, steps of 10 µs, 100 µs, and 1 ms gave the same mean
  * time per update within 0.1%, in chunks interleaved in the same run.
  *
- * <h2>Passes</h2>
+ * <h2>Invocations</h2>
  *
- * <p>One invocation, a pass, makes {@link #CALLS_PER_PASS} updates of one metric. The metric and its clock are created
- * new for every pass and brought to the steady state outside the measured region, by {@link #FILL_UPDATES} updates
- * {@link #FILL_STEP_NANOS} apart. After the pass, the mean, minimum, maximum, and standard deviation of the metric must
- * equal the expected values exactly.
+ * <p>One invocation makes {@link #CALLS_PER_INVOCATION} updates of one metric. The metric and its clock are created new
+ * for every invocation and brought to the steady state outside the measured region, by {@link #FILL_UPDATES} updates
+ * {@link #FILL_STEP_NANOS} apart. After the invocation, the mean, minimum, maximum, and standard deviation of the
+ * metric must equal the expected values exactly.
  *
  * <p>The primary score is the mean time per update. A {@link LatencyRecorder} also times every update, with one
  * timestamp per call ({@link LatencyRecorder#lap()}), so each latency also contains the clock step of the next update.
@@ -81,9 +81,9 @@ import org.openjdk.jmh.annotations.Warmup;
  * still shows in full nanoseconds, but as a smaller percentage.
  *
  * <p>Each invocation's setup ends with {@code System.gc()}, so usually no garbage collection falls into the measured
- * calls. A pass during which one does is discarded and replaced by the next invocation, so the latency results and
- * {@code latency.mean} exclude garbage collection. JMH's primary score, measured by JMH itself, still includes
- * discarded passes.
+ * part. An invocation during whose measured part one does is discarded and replaced by the next invocation, so the
+ * latency results and {@code latency.mean} exclude garbage collection. JMH's primary score, measured by JMH itself,
+ * still includes discarded invocations.
  *
  * <p>The benchmark updates each metric from one thread, so the lock in {@link StatsSpeedometer#update(double)} is
  * never contended.
@@ -111,7 +111,7 @@ import org.openjdk.jmh.annotations.Warmup;
 public class MetricUpdateBenchmark {
 
     /** The number of measured updates in one invocation. */
-    private static final int CALLS_PER_PASS = 1_000_000;
+    private static final int CALLS_PER_INVOCATION = 1_000_000;
 
     /** The time between two measured updates: 10,000 updates per second. */
     private static final long STEP_NANOS = 100_000L;
@@ -321,47 +321,51 @@ public class MetricUpdateBenchmark {
     }
 
     /**
-     * Cycles the speedometer {@link #CALLS_PER_PASS} times and records the latency of each call.
+     * Cycles the speedometer {@link #CALLS_PER_INVOCATION} times and records the latency of each call.
      *
      * @param state the speedometer and its clock
      */
     @Benchmark
     @BenchmarkMode(Mode.AverageTime)
     @OutputTimeUnit(TimeUnit.NANOSECONDS)
-    @OperationsPerInvocation(CALLS_PER_PASS)
+    @OperationsPerInvocation(CALLS_PER_INVOCATION)
     public void speedometerCycle(final SpeedometerState state) {
         final SteppingTime time = state.time;
         final PlatformSpeedometerMetric metric = state.metric;
         final LatencyRecorder recorder = state.recorder;
-        recorder.startMeasurement();
-        for (int i = 0; i < CALLS_PER_PASS; i++) {
+        recorder.prepareToMeasure();
+        recorder.startLaps();
+        for (int i = 0; i < CALLS_PER_INVOCATION; i++) {
             time.advance(STEP_NANOS);
             metric.cycle();
             recorder.lap();
         }
-        recorder.stopMeasurement();
+        recorder.stopLaps();
+        recorder.finalizeMeasurement();
     }
 
     /**
-     * Updates the running average {@link #CALLS_PER_PASS} times and records the latency of each call.
+     * Updates the running average {@link #CALLS_PER_INVOCATION} times and records the latency of each call.
      *
      * @param state the running average, its clock, and the values
      */
     @Benchmark
     @BenchmarkMode(Mode.AverageTime)
     @OutputTimeUnit(TimeUnit.NANOSECONDS)
-    @OperationsPerInvocation(CALLS_PER_PASS)
+    @OperationsPerInvocation(CALLS_PER_INVOCATION)
     public void runningAverageUpdate(final RunningAverageState state) {
         final double[] values = state.values;
         final SteppingTime time = state.time;
         final PlatformRunningAverageMetric metric = state.metric;
         final LatencyRecorder recorder = state.recorder;
-        recorder.startMeasurement();
-        for (int i = 0; i < CALLS_PER_PASS; i++) {
+        recorder.prepareToMeasure();
+        recorder.startLaps();
+        for (int i = 0; i < CALLS_PER_INVOCATION; i++) {
             time.advance(STEP_NANOS);
             metric.update(values[i & (RunningAverageState.NUMBER_OF_VALUES - 1)]);
             recorder.lap();
         }
-        recorder.stopMeasurement();
+        recorder.stopLaps();
+        recorder.finalizeMeasurement();
     }
 }

@@ -59,9 +59,9 @@ import org.openjdk.jmh.annotations.Warmup;
  * <p>The intake validates an event right after it has received and hashed it, and the validator makes the first call of
  * {@link PlatformEvent#getDescriptor()}, which creates the event's descriptor. So the benchmark receives every event
  * anew right before it validates it ({@link EventStreamGenerator#receive(List)}): parsed from the gossip streams, built,
- * and hashed, with its data still in the CPU caches. Validating the events only after receiving all of a pass would
- * leave them out of the caches: on the benchmark machine, two transactions then cost about 480 ns more than none
- * (calibration run 40544670094), although the validator only reads their lengths.
+ * and hashed, with its data still in the CPU caches. Validating the events only after receiving all events of an
+ * invocation would leave them out of the caches: on the benchmark machine, two transactions then cost about 480 ns more
+ * than none (calibration run 40544670094), although the validator only reads their lengths.
  *
  * <p>The validator gets the production metrics implementation, {@link DefaultPlatformMetrics}, not started, and the
  * system clock. It updates a metric and logs only when it rejects an event, so the measured calls use neither.
@@ -69,24 +69,25 @@ import org.openjdk.jmh.annotations.Warmup;
  * <p>After every invocation, the number of valid events must equal the number of events. The validator stops at the
  * first check that fails, so an event is valid only if all checks ran on it.
  *
- * <p>One invocation, a pass, receives and validates {@value #NUMBER_OF_EVENTS} events. A {@link LatencyRecorder} is
- * paused while an event is received, so the receiving counts neither in a latency nor in the allocation. It times each
- * validation from {@link LatencyRecorder#resume()} right before the call to {@link LatencyRecorder#lap()} right after
- * it, and {@link LatencyProfiler} reports the percentiles and the allocation per validation. JMH's primary score, the
- * mean time per event of the whole pass, includes the receiving; track {@code latency.mean} instead.
+ * <p>One invocation receives and validates {@value #NUMBER_OF_EVENTS} events. Receiving an event lies outside
+ * the laps of a {@link LatencyRecorder}, so it counts neither in a latency nor in the allocation. The recorder times
+ * each validation from {@link LatencyRecorder#startLaps()} right before the call to {@link LatencyRecorder#lap()} right
+ * after it, and {@link LatencyProfiler} reports the percentiles and the allocation per validation. JMH's primary score,
+ * the mean time per event of the whole invocation, includes the receiving; track {@code latency.mean} instead.
  *
- * <p>The first call of a pass, right after the setup, is validated but not timed: it is much slower than the others. On
- * an Apple M4 laptop, timing it put p99.99 at 0.6–1.0 µs, against 0.17–0.54 µs without it, in alternating runs. No such
- * setup precedes an event in production.
+ * <p>The first call of an invocation, right after the setup, is validated but not timed: it is much slower than the
+ * others. On an Apple M4 laptop, timing it put p99.99 at 0.6–1.0 µs, against 0.17–0.54 µs without it, in alternating
+ * runs. No such setup precedes an event in production.
  *
  * <p>Each latency also contains one reading of the clock, which is a noticeable part of a call this short. On an Apple
- * M4 laptop, an empty call, {@code resume()} directly followed by {@code lap()}, took 11.1–11.3 ns on average, about a
- * fifth of a validation (53–59 ns); on the benchmark machine it is unmeasured. The share is about constant, so a
+ * M4 laptop, an empty call, {@code startLaps()} directly followed by {@code lap()}, took 11.1–11.3 ns on average, about
+ * a fifth of a validation (53–59 ns); on the benchmark machine it is unmeasured. The share is about constant, so a
  * regression of the validator still shows in full nanoseconds, but as a smaller percentage.
  *
- * <p>Each invocation's setup ends with {@code System.gc()}, so usually no garbage collection falls into the pass, although
- * receiving allocates several kilobytes per event. A pass during which one does is discarded and replaced by the next
- * invocation, so the latency results and {@code latency.mean} exclude garbage collection.
+ * <p>Each invocation's setup ends with {@code System.gc()}, so usually no garbage collection falls into the measured
+ * part, although receiving allocates several kilobytes per event. An invocation during whose measured part one does is
+ * discarded and replaced by the next invocation, so the latency results and {@code latency.mean} exclude garbage
+ * collection.
  *
  * <p>Each fork settles at its own latency level and keeps it, although every fork allocates the same and the machine
  * was quiet. In the calibration run, {@code latency.mean} varied between forks by 3.7% without transactions, because
@@ -215,31 +216,29 @@ public class EventFieldValidatorBenchmark {
 
     /**
      * Receives every event anew and validates it right away, as the intake does, and records the latency of each
-     * validation but the first. The recorder is paused while an event is received.
+     * validation but the first. Receiving an event lies outside the recorder's laps.
      */
     @Benchmark
     @BenchmarkMode(Mode.AverageTime)
     @OutputTimeUnit(TimeUnit.MICROSECONDS)
     @OperationsPerInvocation(NUMBER_OF_EVENTS)
     public void validateEvents() {
-        recorder.startMeasurement();
-        recorder.pause();
+        recorder.prepareToMeasure();
         // The first call follows the setup, which makes it slow; it is validated but not timed.
         if (validator.isValid(receive(generatedEvents.getFirst()))) {
             validEvents++;
         }
         for (int i = 1; i < NUMBER_OF_EVENTS; i++) {
             final PlatformEvent event = receive(generatedEvents.get(i));
-            recorder.resume();
+            recorder.startLaps();
             final boolean valid = validator.isValid(event);
             recorder.lap();
-            recorder.pause();
+            recorder.stopLaps();
             if (valid) {
                 validEvents++;
             }
         }
-        recorder.resume();
-        recorder.stopMeasurement();
+        recorder.finalizeMeasurement();
     }
 
     /** Receives a generated event anew, as the intake receives it: parsed from the gossip streams, built, and hashed. */

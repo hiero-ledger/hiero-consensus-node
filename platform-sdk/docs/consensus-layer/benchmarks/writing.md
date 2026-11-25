@@ -44,13 +44,12 @@ The measured region is the part of the benchmark method that is timed: the calls
   events in
   [`ConsensusImplBenchmark#recordEvents`](../../../consensus-hashgraph-impl/src/jmh/java/org/hiero/consensus/hashgraph/ConsensusImplBenchmark.java#recordEvents).
 - **If the code under test changes its input, every call of the benchmark method gets fresh copies,** prepared in
-  `@Setup(Level.Invocation)`. One call of the benchmark method, an invocation, then processes all the copies; this
-  guide calls it a pass.
-  - JMH's overhead per invocation does not matter when a pass takes a fraction of a second or more.
+  `@Setup(Level.Invocation)`. One call of the benchmark method, an invocation, then processes all the copies.
+  - JMH's overhead per invocation does not matter when an invocation takes a fraction of a second or more.
   - In the example, `ConsensusImpl` changes the events it processes, so `prepareInvocation` copies and relinks the
-    recorded events for every pass.
+    recorded events for every invocation.
 - **Check the output after every invocation** against an exact expected value, in `@TearDown(Level.Invocation)`. With
-  the same inputs, every pass gives the same value.
+  the same inputs, every invocation gives the same value.
   - In the example, `verifyInvocation` checks the number of decided rounds.
   - Without the check, a bug can make the benchmark measure code that does nothing, and the smoke run still passes.
   - The check also catches a change to shared test fixtures that changes the benchmark's work: the expected value
@@ -68,22 +67,23 @@ The measured region is the part of the benchmark method that is timed: the calls
 
 Record the time of every call in a histogram with
 [`LatencyRecorder`](../../../consensus-benchmark-tools/src/main/java/org/hiero/consensus/benchmark/tools/histogram/LatencyRecorder.java).
-Its Javadoc shows the pattern: `startMeasurement()`, `lap()` after each call, `stopMeasurement()`.
+Its Javadoc shows the pattern: `prepareToMeasure()` and `startLaps()`, `lap()` after each call, `stopLaps()` and
+`finalizeMeasurement()`, once per invocation.
 
 - **Read the clock once per call.** `lap()` records the time since the previous `lap()`, so no time between calls is
-  lost, and the recorded times add up to the whole pass. Each recorded time also includes the benchmark's work between
-  two calls; keep that work small.
-- **Pause the recorder around work that must not count,** such as calls of the code under test that another benchmark
-  method measures: `pause()` right after a `lap()`, `resume()` right before the next measured call. The paused work
-  counts neither in a latency nor in `alloc.norm`, but JMH's primary score includes it. Calling either in the wrong
-  state throws; a loop that pauses only where timed and untimed calls meet asks `isPaused()`.
+  lost, and the recorded times add up to the laps. Each recorded time also includes the benchmark's work between two
+  calls; keep that work small.
+- **Leave work that must not count outside the laps,** such as calls of the code under test that another benchmark
+  method measures: `stopLaps()` after the last `lap()` of consecutive measured calls, `startLaps()` right before the
+  next one. Work outside the laps counts neither in a latency nor in `alloc.norm`, but JMH's primary score includes it.
+  A replay that mixes timed and untimed calls runs in segments of consecutive calls of one kind.
 - **Do not use JMH's `Mode.SampleTime`.** It gets the slow calls wrong, and they matter most:
   - it times at most about 20 calls per millisecond, a random selection, which adds noise to the slow end;
   - when its buffer is full, it halves every count but keeps counts of 1, so rare slow calls weigh too much, and p99.99
     and max come out too high.
 - **JMH's own result, the primary score,** uses `Mode.AverageTime` with `@OperationsPerInvocation` set to the number of
-  calls per pass, so that it is the mean time per call. In the example, `calculateConsensus` sets it to the number of
-  events in the graph.
+  calls per invocation, so that it is the mean time per call. In the example, `calculateConsensus` sets it to the
+  number of events in the graph.
 
 ### A pipeline
 
@@ -99,11 +99,11 @@ until it reaches the pipeline's output. Its Javadoc shows the pattern.
 - **One exit point per timer:** the percentiles of a pipeline's parts do not add up to those of the whole.
 - **Replay at the recorded rate.** The latency can depend on the rate. Use a speedup only after measuring that it does
   not change the latency, or for a one-time measurement of the pipeline's capacity.
-- **A pass in which the pipeline does not keep up is discarded:** if the latency grows by more than 1% of the elapsed
-  time, the pass counts in `measured.saturation.discardedPasses` instead. At the recorded rate, such passes mean that
-  the pipeline no longer keeps up with production.
-- **One benchmark thread:** `alloc.norm` counts what all threads of the JVM allocate during a pass, so passes must not
-  overlap.
+- **An invocation in which the pipeline does not keep up is discarded:** if the latency grows by more than 1% of the
+  elapsed time, the invocation counts in `measured.saturation.discardedInvocations` instead. At the recorded rate, such
+  invocations mean that the pipeline no longer keeps up with production.
+- **One benchmark thread:** `alloc.norm` counts what all threads of the JVM allocate during the measured part of an
+  invocation, so measured parts must not overlap.
 
 ### Reporting
 
@@ -124,12 +124,12 @@ turns the recorded times into JMH results. Its Javadoc lists them and how JMH co
     ([calibration.md](calibration.md#iterations-and-samples)).
   - `LatencyProfiler` skips a percentile in an iteration with fewer than 100 calls above it, and `latency.skipped`
     names the percentile and the calls it needs.
-- **Track `latency.mean`, not the primary score.** The primary score also includes the passes discarded because a
-  garbage collection ran in them (see below), or because a pipeline did not keep up.
+- **Track `latency.mean`, not the primary score.** The primary score also includes the invocations discarded
+  because a garbage collection ran in their measured part (see below), or because a pipeline did not keep up.
   - The median (p50) does not replace the mean: when most calls are fast and a few are slow, the median shows only the
     fast ones. The mean is the total cost divided by the number of calls.
 - **Report a metric only if someone acts on it.** Each metric is either tracked (`latency.*`, `alloc.norm`) or helps to
-  find a problem (`measured.*.discardedPasses`). JMH's `-prof gc` shows more about garbage collection when needed.
+  find a problem (`measured.*.discardedInvocations`). JMH's `-prof gc` shows more about garbage collection when needed.
 
 ## Allocation and garbage collection
 
@@ -140,13 +140,13 @@ turns the recorded times into JMH results. Its Javadoc lists them and how JMH co
 - **The bytes allocated per call hardly vary between runs.** They show the work the code makes for the garbage
   collector, which the latency leaves out (see the next point). A rise in allocation is the earliest sign that garbage
   collection will make the slow calls slower.
-- **A garbage collection during the measured calls discards the pass; it never fails the run.** Whether a collection
-  falls into the calls varies from run to run, because the G1 collector adjusts the size of its young generation while
-  the program runs. `LatencyRecorder` and `PipelineRecorder` drop the pass's times, count the pass in
-  `measured.gc.discardedPasses`, and the next invocation replaces it.
+- **A garbage collection during the measured part discards the invocation; it never fails the run.** Whether a
+  collection falls into the measured part varies from run to run, because the G1 collector adjusts the size of its
+  young generation while the program runs. `LatencyRecorder` and `PipelineRecorder` drop the invocation's times, count
+  it in `measured.gc.discardedInvocations`, and the next invocation replaces it.
   - A GC log cannot do this check: it does not show whether a collection fell into the setup or into the measured
     calls.
-  - The price is the time of the `System.gc()` and the setup of every pass, which calibration includes.
+  - The price is the time of the `System.gc()` and the setup of every invocation, which calibration includes.
   - Frequent discards mean the heap is too small ([calibration.md](calibration.md#heap)).
 
 ## JVM arguments
@@ -171,7 +171,7 @@ turns the recorded times into JMH results. Its Javadoc lists them and how JMH co
   invocation. The profiler forgets its recorders after every iteration, so a later benchmark in the same JVM cannot pass
   this check by accident.
 - **`-prof` applies to every benchmark in the run.** A benchmark that records nothing still reports
-  `measured.gc.discardedPasses`, as zero. That metric alone does not show that a benchmark records latency.
+  `measured.gc.discardedInvocations`, as zero. That metric alone does not show that a benchmark records latency.
 
 ## Profiling
 

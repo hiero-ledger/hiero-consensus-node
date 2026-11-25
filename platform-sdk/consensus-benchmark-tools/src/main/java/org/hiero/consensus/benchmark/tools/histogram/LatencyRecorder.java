@@ -17,67 +17,81 @@ import java.lang.management.ManagementFactory;
  * 99% of the calls stay at or below. It also measures the memory allocated by the measured calls, excluding the
  * benchmark's setup, and discards measurements disturbed by a garbage collection.
  *
+ * <h2>The measured part and laps</h2>
+ *
+ * <p>The recorder works on three nested levels:
+ * <ul>
+ *   <li>{@link #prepareToMeasure()} and {@link #finalizeMeasurement()} enclose the measured part of one invocation of
+ *   the benchmark method. The invocation is discarded if a garbage collection runs during its measured part.</li>
+ *   <li>{@link #startLaps()} and {@link #stopLaps()} enclose consecutive measured calls. Only the work between them is
+ *   timed and counted in the allocation. The measured part has one stretch of laps or several.</li>
+ *   <li>{@link #lap()}, right after each measured call, records its latency.</li>
+ * </ul>
+ *
  * <h2>How the timing works</h2>
  *
- * <p>The benchmark calls {@link #startMeasurement()} before its first measured call, {@link #lap()} right after each
- * measured call, and {@link #stopMeasurement()} after the last one. Every {@code lap()} reads the clock once and
- * records the time since the previous reading:
+ * <p>Every {@code lap()} reads the clock once and records the time since the previous reading, which is the previous
+ * {@code lap()} or {@code startLaps()}:
  *
  * <pre>
- * startMeasurement()     reads the clock: t0
+ * startLaps()            reads the allocated bytes, then the clock: t0
  * operation(input1)
  * lap()                  reads the clock: t1, records t1 - t0
  * bh.consume(output1)    counted in the next latency
  * operation(input2)
  * lap()                  reads the clock: t2, records t2 - t1
+ * stopLaps()             reads the allocated bytes
  * </pre>
  *
  * <p>With a start and an end reading around each call, the clock would be read twice per call, and the time between
  * one end and the next start would not be measured at all. With one reading per call, no time is lost: the latencies
- * add up to the duration of the pass, so their mean agrees with JMH's own average. The price is that each latency also
- * contains the work between two calls, including the recording itself, so keep that work small.
+ * add up to the duration of the laps, so with one stretch of laps per invocation, their mean agrees with JMH's own
+ * average. The price is that each latency also contains the work between two calls, including the recording itself, so
+ * keep that work small.
  *
  * <h2>Leaving out work between calls</h2>
  *
- * <p>Some benchmarks run work between two measured calls that must not count, for example calls of the code under test
- * that another benchmark method measures. {@link #pause()}, right after a {@code lap()}, and {@link #resume()}, right
- * before the next measured call, leave that work out of the next latency and out of the allocation:
+ * <p>Work outside the laps counts neither in a latency nor in the allocation, for example preparing the input of the
+ * next call, or calls of the code under test that another benchmark method measures:
  *
  * <pre>
+ * startLaps()            reads the allocated bytes, then the clock: t0
+ * operation(input1)
  * lap()                  reads the clock: t1, records t1 - t0
- * pause()                reads the allocated bytes
+ * stopLaps()             reads the allocated bytes
  * otherWork()            neither timed nor counted in the allocation
- * resume()               reads the allocated bytes, then the clock: t2
+ * startLaps()            reads the allocated bytes, then the clock: t2
  * operation(input2)
  * lap()                  reads the clock: t3, records t3 - t2
+ * stopLaps()             reads the allocated bytes
  * </pre>
  *
- * <p>Each pause costs a clock read and two reads of the allocated bytes, outside the recorded latencies. A garbage
- * collection during a pause still discards the pass, because it can leave work for the measured calls.
+ * <p>Each stretch of laps costs a clock read and two reads of the allocated bytes, outside the recorded latencies. A
+ * garbage collection outside the laps still discards the invocation, because it can leave work for the measured calls.
  *
- * <p>{@code pause()} on a paused pass, {@code resume()} on a running one, and {@link #stopMeasurement()} on a paused one
- * throw, because each would count the allocation wrongly. A loop that times only some of its calls, and pauses only
- * where a timed call follows an untimed one or the other way round, asks {@link #isPaused()}.
+ * <p>{@code startLaps()} while laps are started, {@code stopLaps()} while none are, and {@code finalizeMeasurement()}
+ * while laps are started throw, because each would count the allocation wrongly.
  *
  * <p>Reading the clock takes time and has a limited resolution. On Apple Silicon, {@link System#nanoTime()} advances in
  * steps of about 42 ns, so latencies below a few microseconds are coarse on a Mac.
  *
- * <h2>Passes and garbage collection</h2>
+ * <h2>Discarded invocations</h2>
  *
- * <p>The calls between {@link #startMeasurement()} and {@link #stopMeasurement()} form a pass. A garbage collection
- * pauses the application, and a latency containing that pause measures the garbage collector, not the benchmarked code.
- * A pass during which a garbage collection ran is therefore discarded: its latencies and allocation are dropped, and
- * only the discarded pass is counted. Whether a collection falls into a pass is non-deterministic,
- * so a discarded pass is not an error. JMH keeps invoking the benchmark until the iteration ends, so the next pass
- * takes its place. The allocation per call stands in for the cost of garbage collection. To make collections during a
- * pass rare, call {@link System#gc()} at the end of the setup that runs before each pass, and give the JVM enough heap.
+ * <p>A garbage collection pauses the application, and a latency containing that pause measures the garbage collector,
+ * not the benchmarked code. An invocation during whose measured part a garbage collection ran is therefore discarded:
+ * the recorder drops its latencies and allocation and only counts it. JMH still includes it in its primary score.
+ * Whether a collection falls into the measured part is non-deterministic, so a discarded invocation is not an error.
+ * JMH keeps invoking the benchmark until the iteration ends, so the next invocation takes its place. The allocation per
+ * call stands in for the cost of garbage collection. To make collections during the measured part rare, call
+ * {@link System#gc()} at the end of the setup that runs before each invocation, and give the JVM enough heap.
  *
  * <h2>Using it</h2>
  *
  * <p>Obtain the recorder with {@link LatencyProfiler#recorder()} in a setup method that runs at least once per
  * iteration ({@code Level.Iteration} or {@code Level.Invocation}). Every iteration gets new recorders, and a recorder
- * kept from an earlier iteration is no longer reported. Run the benchmark with
- * {@code -prof org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler}.
+ * kept from an earlier iteration is no longer reported. Call {@code prepareToMeasure()} and
+ * {@code finalizeMeasurement()} once per invocation, so that the profiler's counts of discarded invocations are right.
+ * Run the benchmark with {@code -prof org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler}.
  *
  * <pre>{@code
  * @State(Scope.Thread)
@@ -94,13 +108,15 @@ import java.lang.management.ManagementFactory;
  *
  *     @Benchmark
  *     public void run(final Blackhole bh) {
- *         recorder.startMeasurement();
+ *         recorder.prepareToMeasure();
+ *         recorder.startLaps();
  *         for (final Input input : inputs) {
  *             final Output output = operation(input);
  *             recorder.lap();
  *             bh.consume(output);
  *         }
- *         recorder.stopMeasurement();
+ *         recorder.stopLaps();
+ *         recorder.finalizeMeasurement();
  *     }
  * }
  * }</pre>
@@ -117,127 +133,119 @@ import java.lang.management.ManagementFactory;
  * after all benchmark threads have finished, which makes their recorded values visible to it. The results then cover
  * the calls of all threads together.
  *
- * <p>Garbage collections are counted for the whole JVM, not per thread. A collection during the pass of one thread
- * therefore also discards the passes of the other threads that were running at the time.
+ * <p>Garbage collections are counted for the whole JVM, not per thread. A collection during the measured part of one
+ * thread's invocation therefore also discards the invocations of the other threads whose measured parts were running at
+ * the time.
  */
 public final class LatencyRecorder {
 
     /** The MXBean that measures the current thread's allocated bytes. */
     private static final ThreadMXBean THREAD_MX_BEAN = (ThreadMXBean) ManagementFactory.getThreadMXBean();
 
-    /** The latencies of the kept passes. */
+    /** The latencies of the kept invocations. */
     private final LatencyHistogram histogram = HistogramLayout.newHistogram();
 
-    /** The latencies of the running pass. */
-    private final LatencyHistogram passHistogram = HistogramLayout.newHistogram();
+    /** The latencies of the current invocation. */
+    private final LatencyHistogram invocationHistogram = HistogramLayout.newHistogram();
 
-    /** The timestamp of the previous lap, or of the start of the pass. */
+    /** The timestamp of the previous lap, or of {@link #startLaps()}. */
     private long lapStart;
 
-    /** The total bytes allocated by the kept passes. */
+    /** The total bytes allocated by the laps of the kept invocations. */
     private long allocatedBytes;
 
-    /** The bytes allocated by the running pass at its start, plus the bytes allocated while it was paused. */
-    private long allocatedBytesAtStart;
+    /** The bytes allocated by the stopped laps of the current invocation. */
+    private long invocationAllocatedBytes;
 
-    /** The bytes allocated by the current thread at the latest {@link #pause()}. */
-    private long allocatedBytesAtPause;
+    /** The bytes allocated by the current thread at the latest {@link #startLaps()}. */
+    private long allocatedBytesAtLapsStart;
 
-    /** Whether the running pass is paused. */
-    private boolean paused;
+    /** Whether laps are started: {@link #startLaps()} was called, and {@link #stopLaps()} not since. */
+    private boolean lapsStarted;
 
-    /** The number of garbage collections in the JVM at the start of the running pass. */
+    /** The number of garbage collections in the JVM at the start of the current invocation's measured part. */
     private long gcCountAtStart;
 
-    /** The number of passes discarded because a garbage collection ran during them. */
-    private long discardedPasses;
+    /** The number of invocations discarded because a garbage collection ran during their measured part. */
+    private long discardedInvocations;
 
     LatencyRecorder() {}
 
     /**
-     * Starts a pass: measures the allocation of the current thread and watches for garbage collections from now on,
-     * and starts the first lap. Call it right before the measured calls.
+     * Starts the measured part of an invocation: watches for garbage collections from now on. Call it once per
+     * invocation, at the start of the benchmark method.
      */
-    public void startMeasurement() {
-        passHistogram.reset();
-        paused = false;
+    public void prepareToMeasure() {
+        invocationHistogram.reset();
+        invocationAllocatedBytes = 0;
+        lapsStarted = false;
         gcCountAtStart = GarbageCollections.count();
-        allocatedBytesAtStart = THREAD_MX_BEAN.getCurrentThreadAllocatedBytes();
-        // last, so that the reads above are not part of the first latency
+    }
+
+    /**
+     * Starts laps: measures the allocation of the current thread from now on, and starts the first lap. Call it right
+     * before the first of consecutive measured calls.
+     *
+     * @throws IllegalStateException if laps are started already
+     */
+    public void startLaps() {
+        if (lapsStarted) {
+            throw new IllegalStateException("Laps are started already");
+        }
+        lapsStarted = true;
+        allocatedBytesAtLapsStart = THREAD_MX_BEAN.getCurrentThreadAllocatedBytes();
+        // last, so that the read above is not part of the first latency
         lapStart = System.nanoTime();
     }
 
     /**
-     * Records the latency of one call: the time since the previous lap, or since {@link #startMeasurement()}. Call it
-     * right after each measured call.
+     * Records the latency of one call: the time since the previous lap, or since {@link #startLaps()}. Call it right
+     * after each measured call.
      */
     public void lap() {
         final long now = System.nanoTime();
-        passHistogram.record(now - lapStart);
+        invocationHistogram.record(now - lapStart);
         lapStart = now;
     }
 
     /**
-     * Pauses the pass, so that the work until {@link #resume()} counts neither in a latency nor in the allocation. Call
-     * it right after {@link #lap()}, and call {@code resume()} before the next measured call.
+     * Stops the laps started by {@link #startLaps()}, so that the work until the next {@code startLaps()} counts
+     * neither in a latency nor in the allocation. Call it right after the last {@link #lap()} of consecutive measured
+     * calls.
      *
-     * @throws IllegalStateException if the pass is paused already
+     * @throws IllegalStateException if no laps are started
      */
-    public void pause() {
-        if (paused) {
-            throw new IllegalStateException("The pass is paused already");
+    public void stopLaps() {
+        if (!lapsStarted) {
+            throw new IllegalStateException("No laps are started");
         }
-        paused = true;
-        allocatedBytesAtPause = THREAD_MX_BEAN.getCurrentThreadAllocatedBytes();
+        lapsStarted = false;
+        invocationAllocatedBytes += THREAD_MX_BEAN.getCurrentThreadAllocatedBytes() - allocatedBytesAtLapsStart;
     }
 
     /**
-     * Resumes the pass paused by {@link #pause()} and starts the next lap. Call it right before the next measured call.
+     * Ends the measured part started by {@link #prepareToMeasure()}. Call it at the end of the benchmark method. Keeps
+     * the invocation's latencies and allocation if no garbage collection ran during the measured part, and discards
+     * them otherwise.
      *
-     * @throws IllegalStateException if the pass is not paused
+     * @throws IllegalStateException if laps are started
      */
-    public void resume() {
-        if (!paused) {
-            throw new IllegalStateException("The pass is not paused");
+    public void finalizeMeasurement() {
+        if (lapsStarted) {
+            throw new IllegalStateException("Laps are started; stop them before finalizing the measurement");
         }
-        paused = false;
-        allocatedBytesAtStart += THREAD_MX_BEAN.getCurrentThreadAllocatedBytes() - allocatedBytesAtPause;
-        // last, so that the read above is not part of the next latency
-        lapStart = System.nanoTime();
-    }
-
-    /**
-     * Returns whether the pass is paused: {@link #pause()} was called, and {@link #resume()} not since.
-     *
-     * @return true if the pass is paused
-     */
-    public boolean isPaused() {
-        return paused;
-    }
-
-    /**
-     * Ends the pass started by {@link #startMeasurement()}. Call it right after the measured calls. Keeps the pass's
-     * latencies and allocation if no garbage collection ran during it, and discards them otherwise.
-     *
-     * @throws IllegalStateException if the pass is paused
-     */
-    public void stopMeasurement() {
-        if (paused) {
-            throw new IllegalStateException("The pass is paused; resume it before stopping the measurement");
-        }
-        final long passAllocatedBytes = THREAD_MX_BEAN.getCurrentThreadAllocatedBytes() - allocatedBytesAtStart;
         if (GarbageCollections.count() == gcCountAtStart) {
-            histogram.add(passHistogram);
-            allocatedBytes += passAllocatedBytes;
+            histogram.add(invocationHistogram);
+            allocatedBytes += invocationAllocatedBytes;
         } else {
-            discardedPasses++;
+            discardedInvocations++;
         }
     }
 
     /**
-     * Returns the histogram of the kept passes. The caller may read it, but must not modify it.
+     * Returns the histogram of the kept invocations. The caller may read it, but must not modify it.
      *
-     * @return the histogram of the kept passes
+     * @return the histogram of the kept invocations
      */
     @NonNull
     LatencyHistogram histogram() {
@@ -245,20 +253,20 @@ public final class LatencyRecorder {
     }
 
     /**
-     * Returns the total bytes allocated by the kept passes.
+     * Returns the total bytes allocated by the laps of the kept invocations.
      *
-     * @return the total bytes allocated by the kept passes
+     * @return the total bytes allocated by the laps of the kept invocations
      */
     long allocatedBytes() {
         return allocatedBytes;
     }
 
     /**
-     * Returns the number of passes discarded because a garbage collection ran during them.
+     * Returns the number of invocations discarded because a garbage collection ran during their measured part.
      *
-     * @return the number of discarded passes
+     * @return the number of discarded invocations
      */
-    long discardedPasses() {
-        return discardedPasses;
+    long discardedInvocations() {
+        return discardedInvocations;
     }
 }

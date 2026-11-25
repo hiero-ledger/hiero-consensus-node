@@ -33,11 +33,11 @@ takes about a minute for the example's two parameter sets; `$PARAMS` runs one.
 ## Step 1: fix
 
 Apply [inputs and the measured region](/platform-sdk/docs/consensus-layer/benchmarks/writing.md#inputs-and-the-measured-region):
-seeded inputs, generated in `@Setup(Level.Trial)`; fresh copies per pass in `@Setup(Level.Invocation)` if the code
+seeded inputs, generated in `@Setup(Level.Trial)`; fresh copies per invocation in `@Setup(Level.Invocation)` if the code
 under test changes its input, ending with `System.gc()`; an exact output check in `@TearDown(Level.Invocation)`.
 Remove embedded results and comments about removed parameters.
 
-**Check:** two forks, each running the trial setup and several passes, all pass the output check.
+**Check:** two forks, each running the trial setup and several invocations, all pass the output check.
 
 ```bash
 java -jar "$JAR" "$BENCH" -foe true -prof "$PROFILER" -f 2 -wi 0 -i 2 -r 2s -rf json -rff "$OUT/step1.json"
@@ -53,8 +53,9 @@ Apply [latency](/platform-sdk/docs/consensus-layer/benchmarks/writing.md#latency
 [allocation](/platform-sdk/docs/consensus-layer/benchmarks/writing.md#allocation-and-garbage-collection):
 
 - **A single call:** obtain the recorder with `LatencyProfiler.recorder()` in the per-invocation setup, and follow the
-  pattern in the Javadoc of `LatencyRecorder`: `startMeasurement()`, `lap()` after each call, `stopMeasurement()`.
-  `@BenchmarkMode(Mode.AverageTime)` with `@OperationsPerInvocation` set to the calls per pass.
+  pattern in the Javadoc of `LatencyRecorder`: `prepareToMeasure()` and `startLaps()`, `lap()` after each call,
+  `stopLaps()` and `finalizeMeasurement()`. `@BenchmarkMode(Mode.AverageTime)` with `@OperationsPerInvocation` set to
+  the calls per invocation.
 - **A pipeline,** where items pass between threads: build a `PipelineTimer` in the per-trial setup, and follow the
   pattern in its Javadoc: `prepare()` in the per-invocation setup, `replay()` as the benchmark method, and the exact
   check of `arrivals()` in the per-invocation teardown
@@ -72,12 +73,12 @@ echo "exit $?"     # 1
 ```
 
 - Every parameter set has `latency.mean`, `latency.p50`, `latency.p90`, `latency.p99`, `latency.p99.9`,
-  `latency.p99.99`, `latency.max`, `latency.min`, `latency.samples`, `alloc.norm`, and `measured.gc.discardedPasses`;
-  a pipeline also `measured.saturation.discardedPasses`.
-- `measured.gc.discardedPasses` is 0. If it is not, the heap is too small
+  `latency.p99.99`, `latency.max`, `latency.min`, `latency.samples`, `alloc.norm`, and
+  `measured.gc.discardedInvocations`; a pipeline also `measured.saturation.discardedInvocations`.
+- `measured.gc.discardedInvocations` is 0. If it is not, the heap is too small
   ([heap](/platform-sdk/docs/consensus-layer/benchmarks/calibration.md#heap)).
-- `measured.saturation.discardedPasses` is 0. If it is not, the pipeline no longer keeps up with its recorded rate, or a
-  speedup is too high ([a pipeline](/platform-sdk/docs/consensus-layer/benchmarks/writing.md#a-pipeline)).
+- `measured.saturation.discardedInvocations` is 0. If it is not, the pipeline no longer keeps up with its recorded
+  rate, or a speedup is too high ([a pipeline](/platform-sdk/docs/consensus-layer/benchmarks/writing.md#a-pipeline)).
 - `alloc.norm` matches what the production code should allocate per call.
 - `latency.samples` divided by the iterations shows how long an iteration must be for p99.99, about 10⁶ calls
   ([reporting](/platform-sdk/docs/consensus-layer/benchmarks/writing.md#reporting)); step 6 sets it.

@@ -76,10 +76,10 @@ import org.openjdk.jmh.infra.Blackhole;
  * median reflects only the cheap calls.
  *
  * <p>Each invocation's setup ends with {@code System.gc()}, so usually no garbage collection falls into the measured
- * calls. A pass during which one does is discarded and replaced by the next invocation, so the latency results and
- * {@code latency.mean} exclude garbage collection. JMH's primary score, measured by JMH itself, still includes
- * discarded passes. As in {@link ConsensusImplBenchmark}, the heap is sized for the recording of 28 nodes. The
- * calibration on the benchmark machine discarded no pass.
+ * part. An invocation during whose measured part one does is discarded and replaced by the next invocation, so the
+ * latency results and {@code latency.mean} exclude garbage collection. JMH's primary score, measured by JMH itself,
+ * still includes discarded invocations. As in {@link ConsensusImplBenchmark}, the heap is sized for the recording of 28
+ * nodes. The calibration on the benchmark machine discarded no invocation.
  *
  * <p>Run with {@code -prof org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler}.
  *
@@ -273,7 +273,8 @@ public class ConsensusEngineBenchmark {
     @OutputTimeUnit(TimeUnit.MICROSECONDS)
     @OperationsPerInvocation(NUMBER_OF_EVENTS)
     public void addEvents(final Blackhole bh) {
-        recorder.startMeasurement();
+        recorder.prepareToMeasure();
+        recorder.startLaps();
         for (final PlatformEvent event : events) {
             final ConsensusEngineOutput output = engine.addEvent(event);
             // One timestamp per call: each latency also contains the bookkeeping of the previous call.
@@ -283,6 +284,7 @@ public class ConsensusEngineBenchmark {
             staleEvents += output.staleEvents().size();
             bh.consume(output);
         }
-        recorder.stopMeasurement();
+        recorder.stopLaps();
+        recorder.finalizeMeasurement();
     }
 }

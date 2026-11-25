@@ -20,9 +20,9 @@ public interface TimedInput {
     Instant time();
 
     /**
-     * Returns an instance of this input that no pass has touched. An input the pipeline can change returns a new copy
-     * in its original state on every call; an immutable input returns itself. The timer calls it on every input before
-     * every pass, outside the measured time.
+     * Returns an instance of this input that no invocation has touched. An input the pipeline can change returns a new
+     * copy in its original state on every call; an immutable input returns itself. The timer calls it on every input
+     * before every invocation, outside the measured time.
      *
      * @return an untouched instance of this input
      */

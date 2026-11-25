@@ -71,9 +71,9 @@ import org.openjdk.jmh.annotations.Warmup;
  *
  * <p>{@link FalconRecorder} records two full nodes of a simulated network once per trial, the node and its peer: a
  * network of {@link #numNodes} nodes with the ping times of mainnet and transactions of the shape of mainnet's. Each
- * invocation replays the node's recording into a new synchronizer, untimed ({@link LatencyRecorder#pause()}): every
- * event its orphan buffer released and every new event window, in order. During the replay, the node syncs with the
- * peer, as {@code RpcPeerHandler} does on the node that starts the sync:
+ * invocation replays the node's recording into a new synchronizer, untimed (outside the {@link
+ * LatencyRecorder#startLaps() laps}): every event its orphan buffer released and every new event window, in order.
+ * During the replay, the node syncs with the peer, as {@code RpcPeerHandler} does on the node that starts the sync:
  * <ol>
  *   <li>The node reserves its event window and takes its tips.</li>
  *   <li>When the sync data reaches the peer, the peer sends its own tips and event window, and answers which of the
@@ -102,8 +102,8 @@ import org.openjdk.jmh.annotations.Warmup;
  * contention is not measured.
  *
  * <p>{@link LatencyProfiler} reports the mean, the percentiles, and the allocation per decision. JMH's primary score is
- * the time of a whole pass, the untimed replay included. Each invocation's setup ends with {@code System.gc()}; a pass
- * during which a garbage collection runs is discarded and replaced by the next invocation.
+ * the time of a whole invocation, the untimed replay included. Each invocation's setup ends with {@code System.gc()};
+ * an invocation during whose measured part a garbage collection runs is discarded and replaced by the next invocation.
  *
  * <p>Run with {@code -prof org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler}.
  *
@@ -445,8 +445,7 @@ public class SyncDecisionBenchmark {
     @BenchmarkMode(Mode.AverageTime)
     @OutputTimeUnit(TimeUnit.MILLISECONDS)
     public void createSendList() {
-        recorder.startMeasurement();
-        recorder.pause();
+        recorder.prepareToMeasure();
         for (final Action action : actions) {
             switch (action.kind()) {
                 case ADD_EVENT -> synchronizer.addEvent(requireNonNull(action.event()));
@@ -455,8 +454,7 @@ public class SyncDecisionBenchmark {
                 case DECIDE -> decide(requireNonNull(action.scheduledSync()));
             }
         }
-        recorder.resume();
-        recorder.stopMeasurement();
+        recorder.finalizeMeasurement();
     }
 
     /** Starts a sync, as {@code RpcPeerHandler#sendSyncData} does, and keeps the node's tips that the peer will have. */
@@ -483,11 +481,11 @@ public class SyncDecisionBenchmark {
         }
         time.set(scheduledSync.decisionTime());
 
-        recorder.resume();
+        recorder.startLaps();
         final List<PlatformEvent> sendList =
                 synchronizer.sendList(selfId, knownSet, reservation.getEventWindow(), scheduledSync.peerWindow());
         recorder.lap();
-        recorder.pause();
+        recorder.stopLaps();
 
         reservation.close();
         reservation = null;

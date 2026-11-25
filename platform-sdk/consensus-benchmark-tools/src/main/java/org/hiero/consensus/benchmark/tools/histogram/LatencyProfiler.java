@@ -18,7 +18,7 @@ import org.openjdk.jmh.results.TextResult;
 
 /**
  * A JMH profiler that turns the measurements a benchmark records with a {@link LatencyRecorder}, or with a
- * {@link PipelineRecorder}, into results: latency percentiles, the allocation per call, and the number of passes
+ * {@link PipelineRecorder}, into results: latency percentiles, the allocation per call, and the number of invocations
  * discarded because of a garbage collection or, in a pipeline benchmark, because the pipeline did not keep up.
  *
  * <h2>What it is for</h2>
@@ -42,28 +42,28 @@ import org.openjdk.jmh.results.TextResult;
  *   <li>{@code latency.skipped}: text only, one line per iteration that skipped a percentile, with the number of calls
  *       it recorded and the number each skipped percentile needs;</li>
  *   <li>{@code alloc.norm}: the bytes allocated per call, by the measured calls only; in a pipeline benchmark, by all
- *       threads during the passes;</li>
- *   <li>{@code measured.gc.discardedPasses}: the number of passes discarded because a garbage collection ran during
- *       their measured calls (see {@link LatencyRecorder} and {@link PipelineRecorder});</li>
- *   <li>{@code measured.saturation.discardedPasses}: in a pipeline benchmark only, the number of passes discarded
- *       because the pipeline did not keep up (see {@link PipelineRecorder}).</li>
+ *       threads during the measured part of the invocations;</li>
+ *   <li>{@code measured.gc.discardedInvocations}: the number of invocations discarded because a garbage collection ran
+ *       during their measured part (see {@link LatencyRecorder} and {@link PipelineRecorder});</li>
+ *   <li>{@code measured.saturation.discardedInvocations}: in a pipeline benchmark only, the number of invocations
+ *       discarded because the pipeline did not keep up (see {@link PipelineRecorder}).</li>
  * </ul>
  *
  * <p>The latency results and {@code alloc.norm} are computed for each iteration, from the calls of that iteration.
  * JMH reports their average over all iterations and forks, with an error margin. {@code latency.p99} is therefore the
  * average of the iterations' p99 values, not the p99 of all calls of the run. The counters {@code latency.samples}
- * and {@code measured.*.discardedPasses} are summed over the run.
+ * and {@code measured.*.discardedInvocations} are summed over the run.
  *
  * <p>A percentile rests on the calls above it, so an iteration reports it only if at least 100 of its calls lie above
  * it: p50 needs 200 calls, p90 1,000, p99 10,000, p99.9 100,000, and p99.99 1,000,000. JMH averages a percentile over
  * the iterations that report it. If only some iterations report it, that average leans to the iterations with more
  * calls, and the JSON's {@code rawData} lacks the others, so lengthen the iterations until all of them report it.
  *
- * <p>The latency results cover only the passes that were not discarded. JMH's primary score also includes the
- * discarded passes, so {@code latency.mean} is the average to track. An occasional discarded pass is not an error. If
- * passes are discarded regularly, the heap is too small, or, for saturation, the pipeline gets its inputs faster than
- * it can process them. If every pass of an iteration is discarded, the iteration reports only its counters of
- * discarded passes.
+ * <p>The latency results cover only the invocations that were not discarded. JMH's primary score also includes the
+ * discarded invocations, so {@code latency.mean} is the average to track. An occasional discarded invocation is not an
+ * error. If invocations are discarded regularly, the heap is too small, or, for saturation, the pipeline gets its
+ * inputs faster than it can process them. If every invocation of an iteration is discarded, the iteration reports only
+ * its counters of discarded invocations.
  *
  * <h2>How it works</h2>
  *
@@ -91,7 +91,7 @@ import org.openjdk.jmh.results.TextResult;
  *
  * <p>Without the profiler, {@link #recorder()} throws, so the benchmark fails instead of silently reporting no
  * percentiles. The profiler applies to every benchmark in the run. A benchmark that records nothing reports only
- * {@code measured.gc.discardedPasses}, which is zero.
+ * {@code measured.gc.discardedInvocations}, which is zero.
  *
  * <h2>Several benchmark threads</h2>
  *
@@ -213,17 +213,17 @@ public final class LatencyProfiler implements InternalProfiler {
 
         final LatencyHistogram histogram = HistogramLayout.newHistogram();
         long allocatedBytes = 0;
-        long gcDiscardedPasses = 0;
+        long gcDiscardedInvocations = 0;
         for (final LatencyRecorder recorder : finished.values()) {
             histogram.add(recorder.histogram());
             allocatedBytes += recorder.allocatedBytes();
-            gcDiscardedPasses += recorder.discardedPasses();
+            gcDiscardedInvocations += recorder.discardedInvocations();
         }
         if (pipeline != null) {
             pipeline.endIteration();
             histogram.add(pipeline.histogram());
             allocatedBytes += pipeline.allocatedBytes();
-            gcDiscardedPasses += pipeline.gcDiscardedPasses();
+            gcDiscardedInvocations += pipeline.gcDiscardedInvocations();
         }
 
         final List<Result<?>> results = new ArrayList<>();
@@ -248,12 +248,13 @@ public final class LatencyProfiler implements InternalProfiler {
                 results.add(new TextResult(skipped.toString(), SKIPPED));
             }
         }
-        // reported even when every pass was discarded, so that such an iteration stays visible
-        results.add(new ScalarResult("measured.gc.discardedPasses", gcDiscardedPasses, "#", AggregationPolicy.SUM));
+        // reported even when every invocation was discarded, so that such an iteration stays visible
+        results.add(new ScalarResult(
+                "measured.gc.discardedInvocations", gcDiscardedInvocations, "#", AggregationPolicy.SUM));
         if (pipeline != null) {
             results.add(new ScalarResult(
-                    "measured.saturation.discardedPasses",
-                    pipeline.saturationDiscardedPasses(),
+                    "measured.saturation.discardedInvocations",
+                    pipeline.saturationDiscardedInvocations(),
                     "#",
                     AggregationPolicy.SUM));
         }

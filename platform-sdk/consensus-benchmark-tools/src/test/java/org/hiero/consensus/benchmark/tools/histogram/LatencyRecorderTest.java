@@ -8,114 +8,112 @@ import java.time.Duration;
 import org.junit.jupiter.api.Test;
 
 /**
- * Checks that {@link LatencyRecorder#pause()} and {@link LatencyRecorder#resume()} leave the work between them out of
- * the latencies and the allocation, and that they and {@link LatencyRecorder#stopMeasurement()} refuse the wrong state.
+ * Checks that work outside {@link LatencyRecorder#startLaps()} and {@link LatencyRecorder#stopLaps()} is left out of
+ * the latencies and the allocation, and that they and {@link LatencyRecorder#finalizeMeasurement()} refuse the wrong
+ * state.
  */
 class LatencyRecorderTest {
 
     /** Longer than any measured call in these tests, by far. */
-    private static final Duration PAUSED_WORK = Duration.ofMillis(50);
+    private static final Duration OTHER_WORK = Duration.ofMillis(50);
 
     /** Much more than the measured calls allocate, small enough not to trigger a garbage collection. */
-    private static final int PAUSED_ALLOCATION = 1 << 20;
+    private static final int OTHER_ALLOCATION = 1 << 20;
 
-    /** Keeps the allocation in the paused work from being optimized away. */
+    /** Keeps the allocation in the other work from being optimized away. */
     @SuppressWarnings("unused")
     private static byte[] sink;
 
     @Test
-    void pausedTimeIsNotRecorded() throws InterruptedException {
+    void timeOutsideLapsIsNotRecorded() throws InterruptedException {
         final LatencyRecorder recorder = new LatencyRecorder();
-        recorder.startMeasurement();
+        recorder.prepareToMeasure();
+        recorder.startLaps();
         recorder.lap();
-        recorder.pause();
-        Thread.sleep(PAUSED_WORK);
-        recorder.resume();
+        recorder.stopLaps();
+        Thread.sleep(OTHER_WORK);
+        recorder.startLaps();
         recorder.lap();
-        recorder.stopMeasurement();
+        recorder.stopLaps();
+        recorder.finalizeMeasurement();
 
-        assertThat(recorder.discardedPasses()).isZero();
+        assertThat(recorder.discardedInvocations()).isZero();
         assertThat(recorder.histogram().totalCount()).isEqualTo(2);
-        assertThat(recorder.histogram().max()).isLessThan(PAUSED_WORK.toNanos());
+        assertThat(recorder.histogram().max()).isLessThan(OTHER_WORK.toNanos());
     }
 
     @Test
-    void timeWithoutPauseIsRecorded() throws InterruptedException {
+    void timeWithinLapsIsRecorded() throws InterruptedException {
         final LatencyRecorder recorder = new LatencyRecorder();
-        recorder.startMeasurement();
+        recorder.prepareToMeasure();
+        recorder.startLaps();
         recorder.lap();
-        Thread.sleep(PAUSED_WORK);
+        Thread.sleep(OTHER_WORK);
         recorder.lap();
-        recorder.stopMeasurement();
+        recorder.stopLaps();
+        recorder.finalizeMeasurement();
 
-        assertThat(recorder.discardedPasses()).isZero();
-        assertThat(recorder.histogram().max()).isGreaterThanOrEqualTo(PAUSED_WORK.toNanos());
+        assertThat(recorder.discardedInvocations()).isZero();
+        assertThat(recorder.histogram().max()).isGreaterThanOrEqualTo(OTHER_WORK.toNanos());
     }
 
     @Test
-    void pausedAllocationIsNotCounted() {
+    void allocationOutsideLapsIsNotCounted() {
         System.gc();
         final LatencyRecorder recorder = new LatencyRecorder();
-        recorder.startMeasurement();
+        recorder.prepareToMeasure();
+        recorder.startLaps();
         recorder.lap();
-        recorder.pause();
-        sink = new byte[PAUSED_ALLOCATION];
-        recorder.resume();
+        recorder.stopLaps();
+        sink = new byte[OTHER_ALLOCATION];
+        recorder.startLaps();
         recorder.lap();
-        recorder.stopMeasurement();
+        recorder.stopLaps();
+        recorder.finalizeMeasurement();
 
-        assertThat(recorder.discardedPasses()).isZero();
-        assertThat(recorder.allocatedBytes()).isLessThan(PAUSED_ALLOCATION);
+        assertThat(recorder.discardedInvocations()).isZero();
+        assertThat(recorder.allocatedBytes()).isLessThan(OTHER_ALLOCATION);
     }
 
     @Test
-    void allocationWithoutPauseIsCounted() {
+    void allocationWithinLapsIsCounted() {
         System.gc();
         final LatencyRecorder recorder = new LatencyRecorder();
-        recorder.startMeasurement();
+        recorder.prepareToMeasure();
+        recorder.startLaps();
         recorder.lap();
-        sink = new byte[PAUSED_ALLOCATION];
+        sink = new byte[OTHER_ALLOCATION];
         recorder.lap();
-        recorder.stopMeasurement();
+        recorder.stopLaps();
+        recorder.finalizeMeasurement();
 
-        assertThat(recorder.discardedPasses()).isZero();
-        assertThat(recorder.allocatedBytes()).isGreaterThanOrEqualTo(PAUSED_ALLOCATION);
+        assertThat(recorder.discardedInvocations()).isZero();
+        assertThat(recorder.allocatedBytes()).isGreaterThanOrEqualTo(OTHER_ALLOCATION);
     }
 
     @Test
-    void isPausedFollowsPauseAndResume() {
+    void startLapsWhileStartedThrows() {
         final LatencyRecorder recorder = new LatencyRecorder();
-        recorder.startMeasurement();
-        assertThat(recorder.isPaused()).isFalse();
-        recorder.pause();
-        assertThat(recorder.isPaused()).isTrue();
-        recorder.resume();
-        assertThat(recorder.isPaused()).isFalse();
+        recorder.prepareToMeasure();
+        recorder.startLaps();
+
+        assertThatThrownBy(recorder::startLaps).isInstanceOf(IllegalStateException.class);
     }
 
     @Test
-    void pauseOnPausedPassThrows() {
+    void stopLapsWithoutStartThrows() {
         final LatencyRecorder recorder = new LatencyRecorder();
-        recorder.startMeasurement();
-        recorder.pause();
+        recorder.prepareToMeasure();
 
-        assertThatThrownBy(recorder::pause).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(recorder::stopLaps).isInstanceOf(IllegalStateException.class);
     }
 
     @Test
-    void resumeOnRunningPassThrows() {
+    void finalizeMeasurementWhileLapsStartedThrows() {
         final LatencyRecorder recorder = new LatencyRecorder();
-        recorder.startMeasurement();
+        recorder.prepareToMeasure();
+        recorder.startLaps();
 
-        assertThatThrownBy(recorder::resume).isInstanceOf(IllegalStateException.class);
-    }
-
-    @Test
-    void stopOnPausedPassThrows() {
-        final LatencyRecorder recorder = new LatencyRecorder();
-        recorder.startMeasurement();
-        recorder.pause();
-
-        assertThatThrownBy(recorder::stopMeasurement).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(recorder::finalizeMeasurement).isInstanceOf(IllegalStateException.class);
     }
 }

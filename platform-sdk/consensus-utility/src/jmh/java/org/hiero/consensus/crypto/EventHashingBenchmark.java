@@ -52,33 +52,35 @@ import org.openjdk.jmh.annotations.Warmup;
  *
  * <p>The intake hashes an event first, right after it has received it, with the event's data still in the CPU caches.
  * So the benchmark receives every event anew right before it hashes it, as a node receives it through gossip but
- * unhashed ({@link EventStreamGenerator#receiveUnhashed(List)}). Hashing the same objects in every pass could reuse
- * what the previous pass left in them, such as the encoded size that a PBJ record keeps after its first use.
+ * unhashed ({@link EventStreamGenerator#receiveUnhashed(List)}). Hashing the same objects in every invocation could
+ * reuse what the previous invocation left in them, such as the encoded size that a PBJ record keeps after its first
+ * use.
  *
  * <p>After every invocation, the SHA-256 digest of the hashes of all events, in order, must equal a constant. It
  * changes when the events or the hashing change.
  *
- * <p>One invocation, a pass, receives and hashes {@value #NUMBER_OF_EVENTS} events. A {@link LatencyRecorder} is paused
- * while an event is received, so the receiving counts neither in a latency nor in the allocation. It times each hash
- * from {@link LatencyRecorder#resume()} right before the call to {@link LatencyRecorder#lap()} right after it, and
- * {@link LatencyProfiler} reports the percentiles and the allocation per hash. JMH's primary score, the mean time per
- * event of the whole pass, includes the receiving; track {@code latency.mean} instead.
+ * <p>One invocation receives and hashes {@value #NUMBER_OF_EVENTS} events. Receiving an event lies outside the
+ * laps of a {@link LatencyRecorder}, so it counts neither in a latency nor in the allocation. The recorder times each
+ * hash from {@link LatencyRecorder#startLaps()} right before the call to {@link LatencyRecorder#lap()} right after it,
+ * and {@link LatencyProfiler} reports the percentiles and the allocation per hash. JMH's primary score, the mean time
+ * per event of the whole invocation, includes the receiving; track {@code latency.mean} instead.
  *
- * <p>The first call of a pass comes right after the setup and is much slower than the others, so it is hashed but not
- * timed. On an Apple M4 laptop, its median was 3.0–3.3 µs without transactions and 4.1–4.5 µs with two, against about
- * 0.38 µs and 1.0 µs for the other calls. One call in {@value #NUMBER_OF_EVENTS} is exactly the share above p99.99, so
- * timing the first call of every pass would set p99.99. Without transactions, p99.99 was 3.1–8.6 µs when the first
- * call was timed and 0.8–1.1 µs when it was not, in the same run; with two transactions, timing it made no measurable
- * difference, because other calls are as slow. No such setup precedes an event in production.
+ * <p>The first call of an invocation comes right after the setup and is much slower than the others, so it is hashed
+ * but not timed. On an Apple M4 laptop, its median was 3.0–3.3 µs without transactions and 4.1–4.5 µs with two, against
+ * about 0.38 µs and 1.0 µs for the other calls. One call in {@value #NUMBER_OF_EVENTS} is exactly the share above
+ * p99.99, so timing the first call of every invocation would set p99.99. Without transactions, p99.99 was 3.1–8.6 µs
+ * when the first call was timed and 0.8–1.1 µs when it was not, in the same run; with two transactions, timing it made
+ * no measurable difference, because other calls are as slow. No such setup precedes an event in production.
  *
  * <p>Each latency also contains one reading of the clock, which is a noticeable part of a call this short. On an Apple
- * M4 laptop, an empty call, {@code resume()} directly followed by {@code lap()}, took 11.2–11.3 ns on average, about 3%
- * of a hash without transactions and 1% of one with two; on the benchmark machine it is unmeasured. The share is about
- * constant, so a regression of the hasher still shows in full nanoseconds, but as a slightly smaller percentage.
+ * M4 laptop, an empty call, {@code startLaps()} directly followed by {@code lap()}, took 11.2–11.3 ns on average, about
+ * 3% of a hash without transactions and 1% of one with two; on the benchmark machine it is unmeasured. The share is
+ * about constant, so a regression of the hasher still shows in full nanoseconds, but as a slightly smaller percentage.
  *
- * <p>Each invocation's setup ends with {@code System.gc()}, so usually no garbage collection falls into the pass,
- * although receiving allocates several kilobytes per event. A pass during which one does is discarded and replaced by
- * the next invocation, so the latency results and {@code latency.mean} exclude garbage collection.
+ * <p>Each invocation's setup ends with {@code System.gc()}, so usually no garbage collection falls into the
+ * measured part, although receiving allocates several kilobytes per event. An invocation during whose measured part one
+ * does is discarded and replaced by the next invocation, so the latency results and {@code latency.mean} exclude
+ * garbage collection.
  *
  * <p>Each fork settles at its own latency level and keeps it, although every fork allocates the same and the machine
  * was quiet. On the benchmark machine, {@code latency.mean} varied between forks by 1.9–3.5% without transactions and
@@ -199,26 +201,24 @@ public class EventHashingBenchmark {
 
     /**
      * Receives every event anew and hashes it right away, as the intake does, and records the latency of each hash but
-     * the first. The recorder is paused while an event is received.
+     * the first. Receiving an event lies outside the recorder's laps.
      */
     @Benchmark
     @BenchmarkMode(Mode.AverageTime)
     @OutputTimeUnit(TimeUnit.MICROSECONDS)
     @OperationsPerInvocation(NUMBER_OF_EVENTS)
     public void hashEvents() {
-        recorder.startMeasurement();
-        recorder.pause();
+        recorder.prepareToMeasure();
         // The first call follows the setup, which makes it slow; it is hashed but not timed.
         events[0] = hasher.hashEvent(receiveUnhashed(generatedEvents.getFirst()));
         for (int i = 1; i < NUMBER_OF_EVENTS; i++) {
             final PlatformEvent event = receiveUnhashed(generatedEvents.get(i));
-            recorder.resume();
+            recorder.startLaps();
             hasher.hashEvent(event);
             recorder.lap();
-            recorder.pause();
+            recorder.stopLaps();
             events[i] = event;
         }
-        recorder.resume();
-        recorder.stopMeasurement();
+        recorder.finalizeMeasurement();
     }
 }

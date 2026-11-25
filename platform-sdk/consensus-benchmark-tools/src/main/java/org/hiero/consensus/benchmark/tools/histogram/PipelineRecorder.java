@@ -6,7 +6,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.lang.management.ManagementFactory;
 
 /**
- * Collects the latencies and the allocation of the passes of a pipeline benchmark during one JMH iteration.
+ * Collects the latencies and the allocation of the invocations of a pipeline benchmark during one JMH iteration.
  * {@link LatencyProfiler} turns them into the benchmark's latency results, as it does with the measurements of a
  * {@link LatencyRecorder}.
  *
@@ -16,95 +16,100 @@ import java.lang.management.ManagementFactory;
  * possible to measure the latency on a single thread. A timer such as
  * {@link org.hiero.consensus.benchmark.tools.pipeline.PipelineTimer PipelineTimer} computes each latency from the time
  * its input was due and the time the value arrived, and records it here. The pipeline allocates on its own threads, so
- * the recorder counts the bytes that all threads of the JVM allocate during a pass.
+ * the recorder counts the bytes that all threads of the JVM allocate during the measured part of an invocation.
  *
- * <h2>A pass</h2>
+ * <h2>The measured part of an invocation</h2>
  *
  * <pre>
- * startPass()              reads the allocated bytes of all threads and the number of garbage collections
+ * startMeasurement()             reads the allocated bytes of all threads and the number of garbage collections
  * replay the inputs and drain the pipeline
- * record(latency)          once for every value that arrived
- * endPass()                reads both again
- * discardSaturatedPass()   only if the pipeline did not keep up
+ * record(latency)                once for every value that arrived
+ * stopMeasurement()              reads both again
+ * discardSaturatedInvocation()   only if the pipeline did not keep up
  * </pre>
  *
- * <p>A pass counts once it has ended, unless it is discarded. Neither discard is an error: the next pass takes the
- * discarded one's place.
+ * <p>An invocation is kept once its measured part has ended, unless it is discarded. Neither discard is an error: the
+ * next invocation takes the discarded one's place. A discarded invocation's latencies and allocation are dropped; JMH
+ * still includes it in its primary score.
  *
  * <ul>
- *   <li>{@link #endPass()} discards a pass during which a garbage collection ran, as {@link LatencyRecorder} does: the
- *       collection pauses every thread of the pipeline, and the pause would disturb the latencies of one pass at random.
- *       The allocation per value stands in for the cost of garbage collection.</li>
- *   <li>{@link #discardSaturatedPass()} discards a pass in which the pipeline did not keep up, whose latencies grew with
- *       the length of the pass. The two are counted independently: a pass with a collection in which the pipeline also
- *       did not keep up counts in both.</li>
+ *   <li>{@link #stopMeasurement()} discards an invocation during whose measured part a garbage collection ran, as
+ *       {@link LatencyRecorder} does: the collection pauses every thread of the pipeline, and the pause would disturb
+ *       the latencies of one invocation at random. The allocation per value stands in for the cost of garbage
+ *       collection.</li>
+ *   <li>{@link #discardSaturatedInvocation()} discards an invocation in which the pipeline did not keep up, whose
+ *       latencies grew with the length of the measured part. The two are counted independently: an invocation with a
+ *       collection in which the pipeline also did not keep up counts in both.</li>
  * </ul>
  *
  * <h2>Using it</h2>
  *
  * <p>Obtain the recorder with {@link LatencyProfiler#pipelineRecorder()} in a setup method that runs at least once per
- * iteration ({@code Level.Iteration} or {@code Level.Invocation}). Every iteration gets a new recorder. The allocated
- * bytes and the collections are counted for the whole JVM, so the passes must not overlap: an iteration has one pipeline
- * recorder, for a benchmark that runs on one thread, and its methods throw when they are called out of order.
+ * iteration ({@code Level.Iteration} or {@code Level.Invocation}). Every iteration gets a new recorder. Call
+ * {@code startMeasurement()} and {@code stopMeasurement()} once per invocation. The allocated bytes and the collections
+ * are counted for the whole JVM, so the measured parts must not overlap: an iteration has one pipeline recorder, for a
+ * benchmark that runs on one thread, and its methods throw when they are called out of order.
  */
 public final class PipelineRecorder {
 
     /** The MXBean that measures the bytes allocated by all threads. */
     private static final ThreadMXBean THREAD_MX_BEAN = (ThreadMXBean) ManagementFactory.getThreadMXBean();
 
-    /** Where the latest pass stands. */
+    /** Where the latest invocation stands. */
     private enum State {
-        /** No pass has started, or the latest pass counts or was discarded. */
+        /** No invocation has started its measured part, or the latest invocation was kept or discarded. */
         IDLE,
-        /** A pass has started and not ended. */
+        /** The measured part of an invocation has started and not ended. */
         RUNNING,
-        /** The latest pass has ended and counts, unless it is discarded. */
+        /** The measured part of the latest invocation has ended, and the invocation is kept unless it is discarded. */
         ENDED,
-        /** The latest pass has ended and was discarded because a garbage collection ran during it. */
+        /** The latest invocation was discarded because a garbage collection ran during its measured part. */
         DISCARDED_FOR_GC
     }
 
-    /** The latencies of the passes that count. */
+    /** The latencies of the kept invocations. */
     private final LatencyHistogram histogram = HistogramLayout.newHistogram();
 
-    /** The latencies of the latest pass. */
-    private final LatencyHistogram passHistogram = HistogramLayout.newHistogram();
+    /** The latencies of the latest invocation. */
+    private final LatencyHistogram invocationHistogram = HistogramLayout.newHistogram();
 
-    /** Where the latest pass stands. */
+    /** Where the latest invocation stands. */
     private State state = State.IDLE;
 
-    /** The total bytes allocated by the passes that count. */
+    /** The total bytes allocated by the kept invocations. */
     private long allocatedBytes;
 
-    /** The bytes allocated by all threads at the start of the latest pass. */
+    /** The bytes allocated by all threads at the start of the latest invocation's measured part. */
     private long allocatedBytesAtStart;
 
-    /** The bytes allocated by all threads during the latest pass, once it has ended. */
-    private long passAllocatedBytes;
+    /** The bytes allocated by all threads during the latest invocation's measured part, once it has ended. */
+    private long invocationAllocatedBytes;
 
-    /** The number of garbage collections in the JVM at the start of the latest pass. */
+    /** The number of garbage collections in the JVM at the start of the latest invocation's measured part. */
     private long gcCountAtStart;
 
-    /** The number of passes discarded because a garbage collection ran during them. */
-    private long gcDiscardedPasses;
+    /** The number of invocations discarded because a garbage collection ran during their measured part. */
+    private long gcDiscardedInvocations;
 
-    /** The number of passes discarded because the pipeline did not keep up. */
-    private long saturationDiscardedPasses;
+    /** The number of invocations discarded because the pipeline did not keep up. */
+    private long saturationDiscardedInvocations;
 
     PipelineRecorder() {}
 
     /**
-     * Starts a pass: counts the bytes all threads allocate and watches for garbage collections from now on. Call it
-     * right before the first input. The previous pass counts from now on, unless it was discarded.
+     * Starts the measured part of an invocation: counts the bytes all threads allocate and watches for garbage
+     * collections from now on. Call it right before the first input. The previous invocation is kept from now on,
+     * unless it was discarded.
      *
-     * @throws IllegalStateException if a pass is running
+     * @throws IllegalStateException if a measured part is running
      */
-    public void startPass() {
+    public void startMeasurement() {
         if (state == State.RUNNING) {
-            throw new IllegalStateException("A pass is running; end it with endPass() before starting the next one");
+            throw new IllegalStateException(
+                    "A measured part is running; stop it with stopMeasurement() before starting the next one");
         }
-        countEndedPass();
-        passHistogram.reset();
+        keepEndedInvocation();
+        invocationHistogram.reset();
         state = State.RUNNING;
         gcCountAtStart = GarbageCollections.count();
         // last, so that the work above is not counted
@@ -112,74 +117,75 @@ public final class PipelineRecorder {
     }
 
     /**
-     * Records the latency of one value of the running pass.
+     * Records the latency of one value of the running measured part.
      *
      * @param latencyNanos the latency in nanoseconds
-     * @throws IllegalStateException if no pass is running
+     * @throws IllegalStateException if no measured part is running
      * @throws IllegalArgumentException if the latency is negative
      */
     public void record(final long latencyNanos) {
         if (state != State.RUNNING) {
-            throw new IllegalStateException("No pass is running; start one with startPass()");
+            throw new IllegalStateException("No measured part is running; start one with startMeasurement()");
         }
-        passHistogram.record(latencyNanos);
+        invocationHistogram.record(latencyNanos);
     }
 
     /**
-     * Ends the running pass. Call it right after the drain and the latencies, before work that allocates. The pass is
-     * discarded if a garbage collection ran during it.
+     * Ends the running measured part. Call it right after the drain and the latencies, before work that allocates. The
+     * invocation is discarded if a garbage collection ran during the measured part.
      *
-     * @throws IllegalStateException if no pass is running
+     * @throws IllegalStateException if no measured part is running
      */
-    public void endPass() {
+    public void stopMeasurement() {
         if (state != State.RUNNING) {
-            throw new IllegalStateException("No pass is running; start one with startPass()");
+            throw new IllegalStateException("No measured part is running; start one with startMeasurement()");
         }
-        passAllocatedBytes = THREAD_MX_BEAN.getTotalThreadAllocatedBytes() - allocatedBytesAtStart;
+        invocationAllocatedBytes = THREAD_MX_BEAN.getTotalThreadAllocatedBytes() - allocatedBytesAtStart;
         if (GarbageCollections.count() == gcCountAtStart) {
             state = State.ENDED;
         } else {
-            gcDiscardedPasses++;
+            gcDiscardedInvocations++;
             state = State.DISCARDED_FOR_GC;
         }
     }
 
     /**
-     * Discards the pass that ended last, because the pipeline did not keep up. A pass that {@link #endPass()} discarded
-     * for a garbage collection counts here too.
+     * Discards the invocation whose measured part ended last, because the pipeline did not keep up. An invocation that
+     * {@link #stopMeasurement()} discarded for a garbage collection counts here too.
      *
-     * @throws IllegalStateException if no pass has ended since the latest one started, or if this method discarded it
-     * already
+     * @throws IllegalStateException if no measured part has ended since the latest one started, or if this method
+     * discarded the invocation already
      */
-    public void discardSaturatedPass() {
+    public void discardSaturatedInvocation() {
         if (state != State.ENDED && state != State.DISCARDED_FOR_GC) {
-            throw new IllegalStateException("No pass to discard: it is running, or it counts or was discarded");
+            throw new IllegalStateException(
+                    "No invocation to discard: its measured part is running, or it was kept or discarded");
         }
-        saturationDiscardedPasses++;
+        saturationDiscardedInvocations++;
         state = State.IDLE;
     }
 
     /**
-     * Ends the iteration: the pass that ended last counts, unless it was discarded. A pass that is still running, because
-     * the benchmark failed during it, does not count.
+     * Ends the iteration: the invocation whose measured part ended last is kept, unless it was discarded. An invocation
+     * whose measured part is still running, because the benchmark failed during it, is not kept.
      */
     void endIteration() {
-        countEndedPass();
+        keepEndedInvocation();
     }
 
-    /** Adds the pass that ended last to the passes that count, unless it was discarded. */
-    private void countEndedPass() {
+    /** Adds the invocation whose measured part ended last to the kept invocations, unless it was discarded. */
+    private void keepEndedInvocation() {
         if (state == State.ENDED) {
-            histogram.add(passHistogram);
-            allocatedBytes += passAllocatedBytes;
+            histogram.add(invocationHistogram);
+            allocatedBytes += invocationAllocatedBytes;
             state = State.IDLE;
         }
     }
 
     /**
-     * Returns the histogram of the passes that count. The caller may read it, but must not modify it.
+     * Returns the histogram of the kept invocations. The caller may read it, but must not modify it.
      *
-     * @return the histogram of the passes that count
+     * @return the histogram of the kept invocations
      */
     @NonNull
     LatencyHistogram histogram() {
@@ -187,29 +193,29 @@ public final class PipelineRecorder {
     }
 
     /**
-     * Returns the total bytes allocated by the passes that count.
+     * Returns the total bytes allocated by the kept invocations.
      *
-     * @return the total bytes allocated by the passes that count
+     * @return the total bytes allocated by the kept invocations
      */
     long allocatedBytes() {
         return allocatedBytes;
     }
 
     /**
-     * Returns the number of passes discarded because a garbage collection ran during them.
+     * Returns the number of invocations discarded because a garbage collection ran during their measured part.
      *
-     * @return the number of passes discarded for a collection
+     * @return the number of invocations discarded for a collection
      */
-    long gcDiscardedPasses() {
-        return gcDiscardedPasses;
+    long gcDiscardedInvocations() {
+        return gcDiscardedInvocations;
     }
 
     /**
-     * Returns the number of passes discarded because the pipeline did not keep up.
+     * Returns the number of invocations discarded because the pipeline did not keep up.
      *
-     * @return the number of passes discarded for saturation
+     * @return the number of invocations discarded for saturation
      */
-    long saturationDiscardedPasses() {
-        return saturationDiscardedPasses;
+    long saturationDiscardedInvocations() {
+        return saturationDiscardedInvocations;
     }
 }

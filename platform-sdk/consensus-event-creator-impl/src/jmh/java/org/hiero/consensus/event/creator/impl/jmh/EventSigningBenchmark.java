@@ -56,7 +56,7 @@ import org.openjdk.jmh.infra.Blackhole;
  * bookkeeping of the previous call. {@link LatencyProfiler} reports the percentiles and the allocation per call.
  *
  * <p>Each invocation's setup ends with {@code System.gc()}, so usually no garbage collection falls into the measured
- * calls. A pass during which one does is discarded and replaced by the next invocation.
+ * part. An invocation during whose measured part one does is discarded and replaced by the next invocation.
  *
  * <p>Run with {@code -prof org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler}.
  *
@@ -183,14 +183,16 @@ public class EventSigningBenchmark {
     @OutputTimeUnit(TimeUnit.MICROSECONDS)
     @OperationsPerInvocation(NUMBER_OF_HASHES)
     public void signHashes(final Blackhole bh) {
-        recorder.startMeasurement();
+        recorder.prepareToMeasure();
+        recorder.startLaps();
         for (int i = 0; i < NUMBER_OF_HASHES; i++) {
             final Bytes signature = signer.sign(hashes[i]);
             // One timestamp per call: each latency also contains the bookkeeping of the previous call.
             recorder.lap();
             signatures[i] = signature;
         }
-        recorder.stopMeasurement();
+        recorder.stopLaps();
+        recorder.finalizeMeasurement();
         bh.consume(signatures);
     }
 

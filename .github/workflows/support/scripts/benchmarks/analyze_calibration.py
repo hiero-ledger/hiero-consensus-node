@@ -485,9 +485,9 @@ def print_units(all_units, mode_of, centers):
     rows = []
     for unit in all_units:
         samples = [s for f in iterations(unit, "latency.samples").values() for i, s in f if i >= unit.first]
-        discarded = sum(s for f in iterations(unit, "measured.gc.discardedPasses").values() for _, s in f)
+        discarded = sum(s for f in iterations(unit, "measured.gc.discardedInvocations").values() for _, s in f)
         # reported by pipeline benchmarks only
-        saturated = iterations(unit, "measured.saturation.discardedPasses")
+        saturated = iterations(unit, "measured.saturation.discardedInvocations")
         modes = defaultdict(int)
         for (label, _), m in mode_of.items():
             if label == unit.label:
@@ -572,7 +572,7 @@ def probe(units, key, args):
 
     probe_length = units[0].iteration_s
     overhead, overshoot = fork_costs(units)
-    # an iteration ends after whole passes, so it records the calls of its length plus the overshoot
+    # an iteration ends after whole invocations, so it records the calls of its length plus the overshoot
     samples = [s / (probe_length + overshoot) for u in units for f in iterations(u, "latency.samples").values()
                for i, s in f if i >= first]
     rate = st.median(samples) if samples else None
@@ -586,7 +586,7 @@ def probe(units, key, args):
           " buffer." if warmup_s > 0 else "- Warmup: none; the first iteration is already steady.")
     if overhead is not None:
         print(f"- Each fork costs {overhead:.1f} s besides its iterations, and each iteration runs"
-              f" {overshoot:.2f} s beyond its length (whole passes).")
+              f" {overshoot:.2f} s beyond its length (whole invocations).")
     print()
     return {"key": key, "units": units, "all_units": all_units, "warmup_s": warmup_s, "length": length,
             "warmup_length": warmup_length, "rate": rate, "overhead": overhead, "overshoot": overshoot,
@@ -754,7 +754,7 @@ def configuration(units, key, args, probe_summary):
         print(f"- Forks: unknown, {reason}.")
     if overhead is not None:
         print(f"- Each fork costs {overhead:.1f} s besides its measured iterations, warmup included, and each"
-              f" iteration runs {overshoot:.2f} s beyond its length (whole passes).")
+              f" iteration runs {overshoot:.2f} s beyond its length (whole invocations).")
     print()
     samples = [s for u in units for f in iterations(u, "latency.samples").values() for _, s in f]
     return {"key": key, "units": units, "all_units": all_units, "pooled": pooled, "forks": forks,

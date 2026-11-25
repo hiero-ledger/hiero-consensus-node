@@ -65,12 +65,12 @@ import org.openjdk.jmh.infra.Blackhole;
  * expensive, so the median reflects only the cheap calls.
  *
  * <p>Each invocation's setup ends with {@code System.gc()}, so usually no garbage collection falls into the measured
- * calls. A pass during which one does is discarded and replaced by the next invocation, so the latency results and
- * {@code latency.mean} exclude garbage collection. JMH's primary score, measured by JMH itself, still includes
- * discarded passes. The heap is sized for the recording of 28 nodes, which keeps less than 3 GB live: in a local heap
- * sweep, it did not finish within four minutes at 2 GB, and it needed 63 full collections at 3 GB, 2 at 4 GB, and 1 at
- * the configured 6 GB. No collection fell into the measured calls. The calibration on the benchmark machine discarded
- * no pass.
+ * part. An invocation during whose measured part one does is discarded and replaced by the next invocation, so the
+ * latency results and {@code latency.mean} exclude garbage collection. JMH's primary score, measured by JMH itself,
+ * still includes discarded invocations. The heap is sized for the recording of 28 nodes, which keeps less than 3 GB
+ * live: in a local heap sweep, it did not finish within four minutes at 2 GB, and it needed 63 full collections at 3
+ * GB, 2 at 4 GB, and 1 at the configured 6 GB. No collection fell into the measured calls. The calibration on the
+ * benchmark machine discarded no invocation.
  *
  * <p>Run with {@code -prof org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler}.
  *
@@ -218,7 +218,8 @@ public class ConsensusImplBenchmark {
     @OutputTimeUnit(TimeUnit.MICROSECONDS)
     @OperationsPerInvocation(NUMBER_OF_EVENTS)
     public void calculateConsensus(final Blackhole bh) {
-        recorder.startMeasurement();
+        recorder.prepareToMeasure();
+        recorder.startLaps();
         for (final EventImpl event : linkedEvents) {
             final List<ConsensusRound> rounds = consensus.addEvent(event);
             // One timestamp per call: each latency also contains the bookkeeping of the previous call.
@@ -226,6 +227,7 @@ public class ConsensusImplBenchmark {
             decidedRounds += rounds.size();
             bh.consume(rounds);
         }
-        recorder.stopMeasurement();
+        recorder.stopLaps();
+        recorder.finalizeMeasurement();
     }
 }

@@ -41,7 +41,7 @@ import org.openjdk.jmh.results.Result;
 class PipelineTimerTest {
 
     /**
-     * 1,000 items, 200 µs apart. A pass of 200 ms keeps the saturation check from mistaking a short stall of a busy
+     * 1,000 items, 200 µs apart. A replay of 200 ms keeps the saturation check from mistaking a short stall of a busy
      * machine for a pipeline that falls behind.
      */
     private static final List<Item> ITEMS = Item.evenlySpaced(1_000, 5_000);
@@ -77,7 +77,7 @@ class PipelineTimerTest {
         assertThat(timer.saturated()).isFalse();
         assertThat(results())
                 .containsEntry("latency.samples", (double) ITEMS.size())
-                .containsEntry("measured.saturation.discardedPasses", 0.0);
+                .containsEntry("measured.saturation.discardedInvocations", 0.0);
     }
 
     @Test
@@ -185,12 +185,12 @@ class PipelineTimerTest {
     }
 
     @Test
-    void aValueThatDidNotEnterInThisPassFails() {
+    void aValueThatDidNotEnterInThisInvocationFails() {
         final List<Fresh> inputs = Fresh.evenlySpaced(10);
-        final List<Fresh> firstPass = new ArrayList<>();
+        final List<Fresh> firstInvocation = new ArrayList<>();
         final PipelineTimer timer = PipelineTimer.builder(inputs)
                 .entryPoint(Fresh.class, fresh -> fresh, fresh -> {
-                    firstPass.add(fresh);
+                    firstInvocation.add(fresh);
                     output.accept(fresh);
                 })
                 .exitPoint(this::attach)
@@ -200,20 +200,20 @@ class PipelineTimerTest {
         timer.replay();
         assertThat(timer.arrivals()).isEqualTo(10);
 
-        // in the second pass, the output sees the copies of the first pass
+        // in the second invocation, the output sees the copies of the first invocation
         final PipelineTimer stale = PipelineTimer.builder(inputs)
-                .entryPoint(Fresh.class, fresh -> fresh, _ -> output.accept(firstPass.removeFirst()))
+                .entryPoint(Fresh.class, fresh -> fresh, _ -> output.accept(firstInvocation.removeFirst()))
                 .exitPoint(this::attach)
                 .drain(() -> {})
                 .build();
         stale.prepare();
         assertThatThrownBy(stale::replay)
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("did not enter the pipeline in this pass");
+                .hasMessageContaining("did not enter the pipeline in this invocation");
     }
 
     @Test
-    void aValueThatArrivesOutsideAPassFails() {
+    void aValueThatArrivesOutsideAReplayFails() {
         final PipelineTimer timer = builder(ITEMS)
                 .entryPoint(Item.class, item -> item, item -> output.accept(item))
                 .build();
@@ -224,17 +224,17 @@ class PipelineTimerTest {
         timer.prepare();
         assertThatThrownBy(timer::replay)
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("outside a pass");
+                .hasMessageContaining("outside a replay");
     }
 
     @Test
-    void eachPassNeedsItsOwnPreparation() {
+    void eachInvocationNeedsItsOwnPreparation() {
         final PipelineTimer timer = builder(ITEMS)
                 .entryPoint(Item.class, item -> item, item -> output.accept(item))
                 .build();
 
         assertThatThrownBy(timer::replay).hasMessageContaining("prepare()");
-        assertThatThrownBy(timer::arrivals).hasMessageContaining("No pass");
+        assertThatThrownBy(timer::arrivals).hasMessageContaining("No invocation");
         timer.prepare();
         timer.replay();
         assertThatThrownBy(timer::replay).hasMessageContaining("prepare()");
@@ -307,11 +307,11 @@ class PipelineTimerTest {
                 .build();
 
         timer.prepare();
-        // the pass starts after this clock read, and the last item is due 25 ms after the start
-        final long beforePass = System.nanoTime();
+        // the replay starts after this clock read, and the last item is due 25 ms after the start
+        final long beforeReplay = System.nanoTime();
         timer.replay();
 
-        assertThat(entries.getLast() - beforePass).isGreaterThanOrEqualTo(25_000_000L);
+        assertThat(entries.getLast() - beforeReplay).isGreaterThanOrEqualTo(25_000_000L);
         assertThat(entries.getLast() - entries.getFirst()).isLessThan(100_000_000L);
     }
 
@@ -360,7 +360,7 @@ class PipelineTimerTest {
     }
 
     @Test
-    void aPassWithAGarbageCollectionIsDiscarded() {
+    void anInvocationWithAGarbageCollectionIsDiscarded() {
         final AtomicInteger entered = new AtomicInteger();
         final PipelineTimer timer = builder(ITEMS)
                 .entryPoint(Item.class, item -> item, item -> {
@@ -377,8 +377,8 @@ class PipelineTimerTest {
         assertThat(timer.arrivals()).isEqualTo(ITEMS.size());
         assertThat(results())
                 .doesNotContainKey("latency.samples")
-                .containsEntry("measured.gc.discardedPasses", 1.0)
-                .containsEntry("measured.saturation.discardedPasses", 0.0);
+                .containsEntry("measured.gc.discardedInvocations", 1.0)
+                .containsEntry("measured.saturation.discardedInvocations", 0.0);
     }
 
     @Test
@@ -409,7 +409,7 @@ class PipelineTimerTest {
             assertThat(timer.arrivals()).isEqualTo(ITEMS.size());
             assertThat(results())
                     .doesNotContainKey("latency.samples")
-                    .containsEntry("measured.saturation.discardedPasses", 1.0);
+                    .containsEntry("measured.saturation.discardedInvocations", 1.0);
         } finally {
             worker.shutdownNow();
         }
@@ -430,14 +430,14 @@ class PipelineTimerTest {
                 .isCloseTo(0.05, within(1e-4));
         assertThat(PipelineTimer.latencyGrowth(due, latencies(due, t -> 50_000_000 - t / 50)))
                 .isCloseTo(-0.02, within(1e-4));
-        // a burst in the middle of the pass is no growth
+        // a burst in the middle of the replay is no growth
         assertThat(PipelineTimer.latencyGrowth(
                         due, latencies(due, t -> t > 400_000_000 && t < 600_000_000 ? 10_000_000 : 50_000)))
                 .isZero();
     }
 
     @Test
-    void theLatencyGrowthNeedsAPassWithEnoughLatenciesInBothQuarters() {
+    void theLatencyGrowthNeedsAReplayWithEnoughLatenciesInBothQuarters() {
         final long[] due = new long[1_001];
         for (int i = 0; i < due.length; i++) {
             due[i] = i * 1_000_000L;
