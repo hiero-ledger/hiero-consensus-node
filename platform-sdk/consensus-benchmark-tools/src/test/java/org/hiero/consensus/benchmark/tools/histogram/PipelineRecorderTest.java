@@ -26,8 +26,8 @@ class PipelineRecorderTest {
 
         assertThat(recorder.histogram().totalCount()).isEqualTo(3);
         assertThat(recorder.histogram().mean()).isEqualTo(3_000);
-        assertThat(recorder.gcDiscardedPasses()).isZero();
-        assertThat(recorder.saturationDiscardedPasses()).isZero();
+        assertThat(recorder.gcDiscardedInvocations()).isZero();
+        assertThat(recorder.saturationDiscardedInvocations()).isZero();
     }
 
     @Test
@@ -41,7 +41,7 @@ class PipelineRecorderTest {
 
         assertThat(recorder.histogram().totalCount()).isEqualTo(2);
         assertThat(recorder.histogram().max()).isEqualTo(3_000);
-        assertThat(recorder.saturationDiscardedPasses()).isEqualTo(1);
+        assertThat(recorder.saturationDiscardedInvocations()).isEqualTo(1);
     }
 
     @Test
@@ -56,8 +56,8 @@ class PipelineRecorderTest {
         recorder.endIteration();
 
         assertThat(recorder.histogram().totalCount()).isZero();
-        assertThat(recorder.gcDiscardedPasses()).isEqualTo(1);
-        assertThat(recorder.saturationDiscardedPasses()).isEqualTo(1);
+        assertThat(recorder.gcDiscardedInvocations()).isEqualTo(1);
+        assertThat(recorder.saturationDiscardedInvocations()).isEqualTo(1);
     }
 
     @Test
@@ -74,7 +74,7 @@ class PipelineRecorderTest {
             recorder.endPass();
             recorder.endIteration();
 
-            assertThat(recorder.gcDiscardedPasses()).isZero();
+            assertThat(recorder.gcDiscardedInvocations()).isZero();
             assertThat(recorder.allocatedBytes()).isGreaterThanOrEqualTo(ALLOCATION);
         } finally {
             pipelineThread.shutdown();
@@ -92,7 +92,7 @@ class PipelineRecorderTest {
         recorder.discardSaturatedPass();
         recorder.endIteration();
 
-        assertThat(recorder.gcDiscardedPasses()).isZero();
+        assertThat(recorder.gcDiscardedInvocations()).isZero();
         assertThat(recorder.allocatedBytes()).isZero();
     }
 

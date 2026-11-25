@@ -118,7 +118,7 @@ import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
  * compares the median latency of the inputs due in the last quarter of the pass's measured part with that of the first
  * quarter, and divides the difference by the time between the quarters' centers. If that growth exceeds
  * {@value #MAX_LATENCY_GROWTH} (1%), {@code replay()} discards the pass, which the profiler counts in
- * {@code measured.saturation.discardedPasses}, and {@link #saturated()} returns true. At the recorded rate, passes
+ * {@code measured.saturation.discardedInvocations}, and {@link #saturated()} returns true. At the recorded rate, passes
  * discarded regularly mean that the pipeline no longer keeps up with production; with a speedup, that the speedup is
  * too high. A pass with fewer than
  * {@value #MIN_LATENCIES_PER_QUARTER} latencies in either quarter is not judged. Below capacity, the event intake and

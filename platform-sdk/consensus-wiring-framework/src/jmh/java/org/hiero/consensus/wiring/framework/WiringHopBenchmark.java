@@ -61,8 +61,8 @@ import org.openjdk.jmh.runner.IterationType;
  * the code of the hop. At a few items per second it would stay interpreted for the whole run. On a node, all
  * schedulers of a type share that code, and the busiest one gets it compiled.
  *
- * <p>One invocation, a pass, replays {@value #PASS_SECONDS} s of items, but at least {@value #MIN_ITEMS_PER_PASS}. A
- * {@link PipelineTimer} hands each item to the input wire at its due time and records its latency, which
+ * <p>One invocation replays {@value #INVOCATION_SECONDS} s of items, but at least {@value #MIN_ITEMS_PER_INVOCATION}.
+ * A {@link PipelineTimer} hands each item to the input wire at its due time and records its latency, which
  * {@link LatencyProfiler} reports: run the benchmark with {@code -prof} and the profiler's class name. After every
  * invocation, every item must have reached the handler.
  *
@@ -89,14 +89,14 @@ import org.openjdk.jmh.runner.IterationType;
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 public class WiringHopBenchmark {
 
-    /** The length of a pass, in seconds of due times. */
-    private static final int PASS_SECONDS = 10;
+    /** The length of an invocation, in seconds of due times. */
+    private static final int INVOCATION_SECONDS = 10;
 
     /**
-     * The fewest items of a pass, so that an iteration of a single pass still reports the median:
+     * The fewest items of an invocation, so that an iteration of a single invocation still reports the median:
      * {@link LatencyProfiler} needs 100 latencies above a percentile.
      */
-    private static final int MIN_ITEMS_PER_PASS = 210;
+    private static final int MIN_ITEMS_PER_INVOCATION = 210;
 
     /** The rate of the warmup iterations, in items per second. */
     private static final int WARMUP_RATE = 20_000;
@@ -133,7 +133,7 @@ public class WiringHopBenchmark {
     /** The timer of the running iteration. */
     private PipelineTimer timer;
 
-    /** The number of items the timer of the running iteration replays in a pass. */
+    /** The number of items the timer of the running iteration replays in an invocation. */
     private int items;
 
     /** Receives the items of the running iteration; read by the handler on the scheduler's thread. */
@@ -177,13 +177,13 @@ public class WiringHopBenchmark {
         input.bindConsumer(item -> exit.accept(item));
         final Runnable drain = Boolean.TRUE.equals(schedulerConfiguration.flushingEnabled()) ? hop::flush : () -> {};
 
-        warmupItems = PASS_SECONDS / 2 * WARMUP_RATE;
+        warmupItems = INVOCATION_SECONDS / 2 * WARMUP_RATE;
         warmupTimer = PipelineTimer.builder(Item.evenlySpaced(warmupItems, WARMUP_RATE))
                 .entryPoint(Item.class, item -> item, input)
                 .exitPoint((Consumer<Item> consumer) -> warmupExit = consumer)
                 .drain(drain)
                 .build();
-        measurementItems = Math.max(MIN_ITEMS_PER_PASS, PASS_SECONDS * rate);
+        measurementItems = Math.max(MIN_ITEMS_PER_INVOCATION, INVOCATION_SECONDS * rate);
         measurementTimer = PipelineTimer.builder(Item.evenlySpaced(measurementItems, rate))
                 .entryPoint(Item.class, item -> item, input)
                 .exitPoint((Consumer<Item> consumer) -> measurementExit = consumer)
@@ -228,12 +228,12 @@ public class WiringHopBenchmark {
     public void prepareInvocation() {
         timer.prepare();
 
-        // Collect the garbage of the previous invocation now, so that it is not collected during the pass.
+        // Collect the garbage of the previous invocation now, so that it is not collected during the measured part.
         System.gc();
     }
 
     /**
-     * Replays the items of one pass into the input wire, each at its due time.
+     * Replays the items of one invocation into the input wire, each at its due time.
      */
     @Benchmark
     public void hop() {

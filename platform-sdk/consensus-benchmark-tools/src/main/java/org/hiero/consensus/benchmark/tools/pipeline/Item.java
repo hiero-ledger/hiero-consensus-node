@@ -28,7 +28,7 @@ public record Item(@NonNull Instant time) implements TimedInput {
     }
 
     /**
-     * Returns this item, which no pass can change.
+     * Returns this item, which no invocation can change.
      *
      * @return this item
      */

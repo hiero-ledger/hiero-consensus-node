@@ -12,7 +12,7 @@ import org.openjdk.jmh.results.Result;
 
 /**
  * Checks that {@link LatencyProfiler} reports a percentile only if the iteration recorded at least 100 calls above it,
- * and names the skipped percentiles in {@link LatencyProfiler#SKIPPED}, and that it reports the passes of a
+ * and names the skipped percentiles in {@link LatencyProfiler#SKIPPED}, and that it reports the invocations of a
  * {@link PipelineRecorder}.
  */
 class LatencyProfilerTest {
@@ -24,11 +24,11 @@ class LatencyProfilerTest {
         assertThat(results)
                 .containsKeys(
                         "latency.p50", "latency.p90", "latency.p99", "latency.p99.9", "latency.p99.99", "latency.max")
-                .doesNotContainKeys(LatencyProfiler.SKIPPED, "measured.saturation.discardedPasses");
+                .doesNotContainKeys(LatencyProfiler.SKIPPED, "measured.saturation.discardedInvocations");
     }
 
     @Test
-    void reportsThePassesOfThePipelineRecorderAndBothCounters() {
+    void reportsTheInvocationsOfThePipelineRecorderAndBothCounters() {
         final LatencyProfiler profiler = new LatencyProfiler();
         profiler.beforeIteration(null, null);
         final PipelineRecorder recorder = LatencyProfiler.pipelineRecorder();
@@ -45,14 +45,14 @@ class LatencyProfilerTest {
         recorder.discardSaturatedPass();
         final Map<String, Double> results = scores(profiler.afterIteration(null, null, null));
 
-        assertThat(recorder.gcDiscardedPasses())
-                .as("a garbage collection discarded a pass")
+        assertThat(recorder.gcDiscardedInvocations())
+                .as("a garbage collection discarded an invocation")
                 .isZero();
         assertThat(results)
                 .containsEntry("latency.samples", 2.0)
                 .containsEntry("latency.mean", 2_000.0)
-                .containsEntry("measured.gc.discardedPasses", 0.0)
-                .containsEntry("measured.saturation.discardedPasses", 1.0);
+                .containsEntry("measured.gc.discardedInvocations", 0.0)
+                .containsEntry("measured.saturation.discardedInvocations", 1.0);
     }
 
     @Test
@@ -89,8 +89,8 @@ class LatencyProfilerTest {
         recorder.stopMeasurement();
         final List<? extends Result<?>> results = profiler.afterIteration(null, null, null);
 
-        assertThat(recorder.discardedPasses())
-                .as("a garbage collection discarded the pass")
+        assertThat(recorder.discardedInvocations())
+                .as("a garbage collection discarded the invocation")
                 .isZero();
         return results.stream().collect(Collectors.toMap(Result::getLabel, Function.identity()));
     }

@@ -149,8 +149,8 @@ public final class LatencyRecorder {
     /** The number of garbage collections in the JVM at the start of the running pass. */
     private long gcCountAtStart;
 
-    /** The number of passes discarded because a garbage collection ran during them. */
-    private long discardedPasses;
+    /** The number of invocations discarded because a garbage collection ran during their pass. */
+    private long discardedInvocations;
 
     LatencyRecorder() {}
 
@@ -230,7 +230,7 @@ public final class LatencyRecorder {
             histogram.add(passHistogram);
             allocatedBytes += passAllocatedBytes;
         } else {
-            discardedPasses++;
+            discardedInvocations++;
         }
     }
 
@@ -254,11 +254,11 @@ public final class LatencyRecorder {
     }
 
     /**
-     * Returns the number of passes discarded because a garbage collection ran during them.
+     * Returns the number of invocations discarded because a garbage collection ran during their pass.
      *
-     * @return the number of discarded passes
+     * @return the number of discarded invocations
      */
-    long discardedPasses() {
-        return discardedPasses;
+    long discardedInvocations() {
+        return discardedInvocations;
     }
 }

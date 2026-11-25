@@ -133,7 +133,7 @@ recommendation); then the configuration for all parameter sets with its runtime 
   developer. Find their cause ([fork modes](/platform-sdk/docs/consensus-layer/benchmarks/calibration.md#fork-modes);
   `fork-modes.sh` records the allocation profiles and compile logs) only if the effect is comparable to the expected
   detectable regression.
-- **Discarded passes:** raise the heap and run the configuration again
+- **Discarded invocations:** raise the heap and run the configuration again
   ([heap](/platform-sdk/docs/consensus-layer/benchmarks/calibration.md#heap)).
 
 **Record** the choice ([the calibration record](/platform-sdk/docs/consensus-layer/benchmarks/calibration.md#the-calibration-record)):

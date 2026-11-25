@@ -57,4 +57,4 @@ benchmark needs no change to it. Claude cannot reach Grafana: ask the developer 
 parameter set.
 
 **Check:** the developer sees the night of step 8 in the panels for latency, allocation, percentiles, load, attempts,
-and discarded passes, and in the runs log. A change to the dashboard goes into that repository and keeps the uid.
+and discarded invocations, and in the runs log. A change to the dashboard goes into that repository and keeps the uid.
