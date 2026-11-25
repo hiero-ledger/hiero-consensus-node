@@ -3,6 +3,7 @@ relay:
   nodeSelector:
     chewie-group: aux
   config:
+    USE_ASYNC_TX_PROCESSING: true
     WORKERS_POOL_ENABLED: false
     NODE_OPTIONS: --max-old-space-size=192
     LOG_LEVEL: error
