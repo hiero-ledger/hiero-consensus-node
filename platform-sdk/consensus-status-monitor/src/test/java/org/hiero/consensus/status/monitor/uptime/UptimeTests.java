@@ -386,8 +386,8 @@ class UptimeTests {
         final NodeId selfId = roster.nodeIdAtIndex(0);
         final UptimeTracker tracker = new UptimeTracker(configuration, new NoOpMetrics(), time, selfId);
 
-        final List<PlatformEvent> events =
-                generateEvents(random, time, Duration.ofSeconds(1), roster, 20, Set.of(selfId), Set.of(), EventOrigin.RUNTIME);
+        final List<PlatformEvent> events = generateEvents(
+                random, time, Duration.ofSeconds(1), roster, 20, Set.of(selfId), Set.of(), EventOrigin.RUNTIME);
 
         assertEquals(SelfEventRoundSignal.NONE, tracker.trackRound(mockRound(events, roster, 1)));
     }
@@ -405,8 +405,8 @@ class UptimeTests {
         // Mix of other-node events plus one self event explicitly set to STORAGE origin, so the
         // round is guaranteed to contain a self event (no reliance on random) and no self event
         // has RUNTIME origin.
-        final List<PlatformEvent> events = new ArrayList<>(
-                generateEvents(random, time, Duration.ofSeconds(1), roster, 20, Set.of(selfId), Set.of(), EventOrigin.STORAGE));
+        final List<PlatformEvent> events = new ArrayList<>(generateEvents(
+                random, time, Duration.ofSeconds(1), roster, 20, Set.of(selfId), Set.of(), EventOrigin.STORAGE));
         events.add(new TestingEventBuilder(random)
                 .setCreatorId(selfId)
                 .setConsensusTimestamp(time.now())
@@ -427,8 +427,8 @@ class UptimeTests {
         final UptimeTracker tracker = new UptimeTracker(configuration, new NoOpMetrics(), time, selfId);
 
         // A round whose self events include at least one RUNTIME-origin event
-        final List<PlatformEvent> replayed =
-                generateEvents(random, time, Duration.ofSeconds(1), roster, 10, Set.of(), Set.of(), EventOrigin.STORAGE);
+        final List<PlatformEvent> replayed = generateEvents(
+                random, time, Duration.ofSeconds(1), roster, 10, Set.of(), Set.of(), EventOrigin.STORAGE);
         final PlatformEvent runtimeSelfEvent = new TestingEventBuilder(random)
                 .setCreatorId(selfId)
                 .setConsensusTimestamp(time.now())

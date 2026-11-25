@@ -98,8 +98,8 @@ class DefaultPlatformMonitorTests {
         time.tick(Duration.ofSeconds(11));
         assertEquals(
                 CHECKING,
-                monitor.submitStatusAction(new TimeElapsedAction(
-                        time.now(), new TimeElapsedAction.QuiescingStatus(false, time.now()))));
+                monitor.submitStatusAction(
+                        new TimeElapsedAction(time.now(), new TimeElapsedAction.QuiescingStatus(false, time.now()))));
     }
 
     /**
