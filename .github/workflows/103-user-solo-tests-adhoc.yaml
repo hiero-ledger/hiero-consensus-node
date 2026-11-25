@@ -36,7 +36,7 @@ on:
         type: string
         default: ""
       jumpstart-upgrade-tag:
-        description: "[Jumpstart] Consensus-node release tag to upgrade to. Blank → v0.75.0-rc.5; 'local' → the local build from the checked-out ref; or any release tag."
+        description: "[Jumpstart] Consensus-node release tag to upgrade to. Blank or 'local' → the local build from the checked-out ref; or a release tag from v0.80.0-alpha.3 on, since earlier releases expect SHA-384 jumpstart hashes."
         required: false
         type: string
         default: ""
@@ -315,15 +315,15 @@ jobs:
           kubectl version --client=true
 
       - name: Build Consensus Node Local Artifacts
-        # Only the explicit local-build opt-in (jumpstart-upgrade-tag=local) needs a local build; the
-        # default (v0.75.0-rc.5) and any release tag pull the published image instead.
-        if: ${{ inputs.jumpstart-upgrade-tag == 'local' }}
+        # The default (blank) and 'local' upgrade to the local build; a release tag pulls the published
+        # image instead.
+        if: ${{ inputs.jumpstart-upgrade-tag == '' || inputs.jumpstart-upgrade-tag == 'local' }}
         run: ${GRADLE_EXEC} assemble
 
       - name: Run WRB Solo Jumpstart Scenario
         env:
           INITIAL_RELEASE_TAG: ${{ inputs.jumpstart-starting-tag || 'v0.74.0' }}
-          # Raw input; the run step resolves blank → v0.75.0-rc.5 and the "local" sentinel → local build.
+          # Raw input; the run step resolves blank and the "local" sentinel → local build.
           RAW_UPGRADE_TAG: ${{ inputs.jumpstart-upgrade-tag }}
           CLUSTER_TARGET: ${{ inputs.cluster-target }}
           KUBE_CONTEXT: ${{ inputs.cluster-target == 'remote' && format('hashgraph.teleport.sh-{0}', needs.acquire-kubernetes-resources.outputs.fqdn) || '' }}
@@ -333,12 +333,12 @@ jobs:
           VERIFY_STATE_BLOCK_INFO: ${{ inputs.cluster-target == 'remote' && 'false' || 'true' }}
         run: |
           set -eo pipefail
-          # Resolve the upgrade target: blank → pinned v0.75.0-rc.5; "local" → local build (empty
-          # UPGRADE_TAG makes the script take its --local-build-path path); else → that release tag.
-          if [[ "${RAW_UPGRADE_TAG}" == "local" ]]; then
+          # Resolve the upgrade target: blank or "local" → local build (empty UPGRADE_TAG makes the
+          # script take its --local-build-path path); else → that release tag.
+          if [[ -z "${RAW_UPGRADE_TAG}" || "${RAW_UPGRADE_TAG}" == "local" ]]; then
             UPGRADE_TAG=""
           else
-            UPGRADE_TAG="${RAW_UPGRADE_TAG:-v0.75.0-rc.5}"
+            UPGRADE_TAG="${RAW_UPGRADE_TAG}"
           fi
           SCRIPT_PATH="hedera-node/test-clients/scripts/solo/wrapped-record-block-jumpstart/solo-wrb-jumpstart.sh"
           chmod +x "${SCRIPT_PATH}"
