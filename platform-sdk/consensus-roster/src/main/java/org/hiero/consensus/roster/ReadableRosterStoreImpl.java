@@ -19,7 +19,7 @@ import java.util.Map;
 import java.util.Optional;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.DigestType;
-import org.hiero.consensus.model.roster.ConsensusLayerRosterInputs;
+import org.hiero.consensus.main.model.ConsensusLayerRosterInputs;
 
 /**
  * Provides read-only methods for interacting with the underlying data storage mechanisms for

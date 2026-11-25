@@ -37,11 +37,11 @@ module org.hiero.sloth.fixtures {
     requires transitive com.swirlds.platform.core;
     requires transitive com.swirlds.state.api;
     requires transitive com.swirlds.state.impl;
+    requires transitive org.hiero.consensus.adapter;
     requires transitive org.hiero.consensus.gossip;
     requires transitive org.hiero.consensus.main.model;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.utility.test.fixtures;
-    requires transitive org.hiero.consensus.utility;
     requires transitive org.hiero.consensus.wiring.framework;
     requires transitive org.apache.logging.log4j.core;
     requires transitive org.apache.logging.log4j;
@@ -64,6 +64,7 @@ module org.hiero.sloth.fixtures {
     requires org.hiero.consensus.platformstate;
     requires org.hiero.consensus.roster;
     requires org.hiero.consensus.state;
+    requires org.hiero.consensus.utility;
     requires com.fasterxml.jackson.core;
     requires com.fasterxml.jackson.databind;
     requires com.fasterxml.jackson.dataformat.yaml;

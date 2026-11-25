@@ -7,7 +7,7 @@ import com.swirlds.platform.context.PlatformContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.main.model.NodeId;
-import org.hiero.consensus.model.quiescence.QuiescenceCommand;
+import org.hiero.consensus.main.model.QuiescenceCommand;
 
 /**
  * An interface for Swirlds Platform.

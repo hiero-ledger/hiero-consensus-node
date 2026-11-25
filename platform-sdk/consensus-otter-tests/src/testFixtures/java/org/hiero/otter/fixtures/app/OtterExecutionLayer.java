@@ -12,9 +12,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
 import java.util.Random;
+import org.hiero.consensus.adapter.transaction.TransactionPoolNexus;
 import org.hiero.consensus.main.model.TimestampedTransaction;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.transaction.TransactionPoolNexus;
 import org.hiero.otter.fixtures.TransactionFactory;
 import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 
@@ -25,7 +25,7 @@ public class OtterExecutionLayer implements ExecutionLayer {
     /** The maximum number of transaction to store in the transaction pool */
     private static final int TX_QUEUE_SIZE = 100_000;
 
-    /** the transaction pool, stores transactions that should be sumbitted to the network */
+    /** the transaction pool, stores transactions that should be submitted to the network */
     private final TransactionPoolNexus transactionPool;
 
     private final Random random;

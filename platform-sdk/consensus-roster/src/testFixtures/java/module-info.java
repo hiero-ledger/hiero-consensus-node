@@ -4,7 +4,6 @@ open module org.hiero.consensus.roster.test.fixtures {
 
     requires transitive com.hedera.node.hapi;
     requires transitive org.hiero.consensus.main.model;
-    requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.roster;
     requires transitive org.hiero.consensus.utility.test.fixtures;
     requires com.hedera.pbj.runtime;

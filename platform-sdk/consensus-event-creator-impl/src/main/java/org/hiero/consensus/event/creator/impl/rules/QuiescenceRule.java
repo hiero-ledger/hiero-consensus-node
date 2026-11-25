@@ -5,7 +5,7 @@ import static org.hiero.consensus.event.creator.impl.EventCreationStatus.QUIESCE
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.event.creator.impl.EventCreationStatus;
-import org.hiero.consensus.model.quiescence.QuiescenceCommand;
+import org.hiero.consensus.main.model.QuiescenceCommand;
 
 /**
  * Limits the creation of new events if system is in QUIESCE mode

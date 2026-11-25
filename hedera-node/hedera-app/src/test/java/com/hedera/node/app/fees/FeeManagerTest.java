@@ -133,6 +133,26 @@ class FeeManagerTest {
     }
 
     @Test
+    void updateSimpleFeesAcceptsScheduleNamingSeveralFunctionsThisBuildDoesNotDefine() {
+        // A schedule saved by an earlier release can name functions this build has since removed. Each one
+        // parses as UNRECOGNIZED, but their raw ordinals differ, so they are not duplicates.
+        final var schedule =
+                scheduleWith(makeServiceFee(CRYPTO_CREATE, 100), undefinedServiceFee(123), undefinedServiceFee(126));
+
+        assertEquals(SUCCESS, subject.updateSimpleFees(toBytes(schedule)));
+    }
+
+    @Test
+    void updateSimpleFeesRejectsRepeatedFunctionWithinService() {
+        final var repeatedKnown = scheduleWith(makeServiceFee(CRYPTO_CREATE, 100), makeServiceFee(CRYPTO_CREATE, 200));
+        assertEquals(FEE_SCHEDULE_FILE_PART_UPLOADED, subject.updateSimpleFees(toBytes(repeatedKnown)));
+
+        final var repeatedUndefined =
+                scheduleWith(makeServiceFee(CRYPTO_CREATE, 100), undefinedServiceFee(126), undefinedServiceFee(126));
+        assertEquals(FEE_SCHEDULE_FILE_PART_UPLOADED, subject.updateSimpleFees(toBytes(repeatedUndefined)));
+    }
+
+    @Test
     void getGasPriceInTinyCentsThrowsWhenSimpleFeesNotLoaded() {
         assertThrows(IllegalStateException.class, () -> subject.getGasPriceInTinyCents(Instant.ofEpochSecond(1L)));
     }
@@ -323,6 +343,11 @@ class FeeManagerTest {
                 .network(NetworkFee.DEFAULT.copyBuilder().multiplier(1).build())
                 .services(makeService("Test", fees))
                 .build();
+    }
+
+    /** Returns a fee for a function ordinal this build does not define, as parsing a stored schedule would. */
+    private static ServiceFeeDefinition undefinedServiceFee(final int protoOrdinal) {
+        return new ServiceFeeDefinition(Integer.valueOf(protoOrdinal), 100, List.of(), false, null, false);
     }
 
     private static Bytes toBytes(final FeeSchedule schedule) {

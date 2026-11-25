@@ -149,10 +149,11 @@ public class FeeScheduleUtils {
                 return false;
             }
 
-            // Unique transaction names within service
-            Set<HederaFunctionality> txNames = new HashSet<>();
+            // Unique transaction names within service. Compare raw ordinals, since every ordinal this build
+            // no longer defines parses as UNRECOGNIZED, and a stored schedule may name several retired ones.
+            Set<Integer> txNames = new HashSet<>();
             for (ServiceFeeDefinition def : service.schedule()) {
-                if (!txNames.add(def.name())) {
+                if (!txNames.add(def.nameProtoOrdinal())) {
                     logger.error(
                             "Transaction names must be unique within service in simple fee schedule {}", def.name());
                     return false;

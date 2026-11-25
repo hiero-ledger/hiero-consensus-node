@@ -16,12 +16,11 @@ import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.clprGetEndpointManifest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.clprGetLedgerConfiguration;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCreateChannel;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCreateConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprDeleteChannel;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprDeregisterConnector;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprDeleteConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprEvictPeerEndpoint;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprSubmitBundle;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprUpdateLedgerConfiguration;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
@@ -474,22 +473,18 @@ public class ClprDisabledSuite {
                         .verifierContract(VERIFIER_CONTRACT)
                         .configProofBytes(toConfigProofBytes(ledgerConfig())));
         txns.put(
-                "registerConnector",
-                clprRegisterConnector().channelId(crypto.channelId()).commitment(crypto.connectorCommitment()));
-        txns.put(
-                "completeConnector",
-                clprCompleteConnector()
+                "createConnector",
+                clprCreateConnector()
                         .connectorId(crypto.connectorId())
-                        .publicKey(crypto.publicKey())
-                        .signature(crypto.connectorSignature())
+                        .ed25519Identity(crypto.seed())
                         .salt(crypto.connectorSalt())
                         .channelId(crypto.channelId())
                         .connectorContract(CONNECTOR_CONTRACT)
                         .adminKeyName(GENESIS)
                         .lockedStake(100_000_000L));
         txns.put(
-                "deregisterConnector",
-                clprDeregisterConnector()
+                "deleteConnector",
+                clprDeleteConnector()
                         .channelId(crypto.channelId())
                         .connectorId(crypto.connectorId())
                         .adminKey(GENESIS)

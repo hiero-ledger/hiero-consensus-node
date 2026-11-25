@@ -36,6 +36,7 @@ import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -94,7 +95,13 @@ public class HintsControllerImpl implements HintsController {
      */
     private final Map<Long, Long> pendingCongruentVotes = new ConcurrentHashMap<>();
 
-    private final NavigableMap<Instant, CompletableFuture<Validation>> validationFutures = new TreeMap<>();
+    /**
+     * The validation of each published hinTS key in adoption order. Keys rotated together share an adoption time,
+     * so the party ID breaks ties.
+     */
+    private final NavigableMap<ValidationKey, CompletableFuture<Validation>> validationFutures =
+            new TreeMap<>(Comparator.comparing(ValidationKey::adoptionTime).thenComparingInt(ValidationKey::partyId));
+
     private final Supplier<Configuration> configurationSupplier;
     private final OnHintsFinished onHintsFinished;
     /**
@@ -129,6 +136,21 @@ public class HintsControllerImpl implements HintsController {
      * @param isValid whether the key is valid
      */
     private record Validation(int partyId, @NonNull Bytes hintsKey, boolean isValid) {}
+
+    /**
+     * The key of a party's hinTS key validation.
+     *
+     * @param adoptionTime the adoption time of the hinTS key
+     * @param partyId the party ID
+     */
+    private record ValidationKey(@NonNull Instant adoptionTime, int partyId) {
+        /**
+         * Returns a key that sorts after every validation of a hinTS key adopted at or before the given time.
+         */
+        static ValidationKey upTo(@NonNull final Instant time) {
+            return new ValidationKey(time, Integer.MAX_VALUE);
+        }
+    }
 
     public HintsControllerImpl(
             final long selfId,
@@ -590,7 +612,9 @@ public class HintsControllerImpl implements HintsController {
         final long nodeId = publication.nodeId();
         nodePartyIds.put(nodeId, partyId);
         partyNodeIds.put(partyId, nodeId);
-        validationFutures.put(publication.adoptionTime(), validationFuture(crs, partyId, publication.hintsKey()));
+        validationFutures.put(
+                new ValidationKey(publication.adoptionTime(), partyId),
+                validationFuture(crs, partyId, publication.hintsKey()));
         log.info(
                 "Updated hinTS key for node #{} (weight={} of target threshold={})",
                 nodeId,
@@ -669,7 +693,7 @@ public class HintsControllerImpl implements HintsController {
      * @return the weight of the nodes with valid hinTS keys
      */
     private long weightOfValidHintsKeysAt(@NonNull final Instant now) {
-        return validationFutures.headMap(now, true).values().stream()
+        return validationFutures.headMap(ValidationKey.upTo(now), true).values().stream()
                 .map(CompletableFuture::join)
                 .filter(Validation::isValid)
                 .mapToLong(validation -> weights.targetWeightOf(partyNodeIds.get(validation.partyId())))
@@ -706,7 +730,7 @@ public class HintsControllerImpl implements HintsController {
     }
 
     private TreeMap<Integer, Bytes> validHintsAt(final Instant cutoff) {
-        return validationFutures.headMap(cutoff, true).values().stream()
+        return validationFutures.headMap(ValidationKey.upTo(cutoff), true).values().stream()
                 .map(CompletableFuture::join)
                 .filter(Validation::isValid)
                 .collect(toMap(Validation::partyId, Validation::hintsKey, (a, b) -> a, TreeMap::new));

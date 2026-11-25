@@ -85,6 +85,7 @@ module org.hiero.otter.fixtures {
     requires com.swirlds.platform.core.test.fixtures;
     requires com.swirlds.virtualmap;
     requires org.hiero.base.concurrent;
+    requires org.hiero.consensus.adapter;
     requires org.hiero.consensus.event.creator.impl;
     requires org.hiero.consensus.event.creator;
     requires org.hiero.consensus.event.intake.impl;

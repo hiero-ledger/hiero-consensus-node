@@ -30,8 +30,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.hiero.consensus.fakes.crypto.KeysAndCertsGenerator;
+import org.hiero.consensus.main.model.KeysAndCerts;
 import org.hiero.consensus.main.model.NodeId;
-import org.hiero.consensus.model.node.KeysAndCerts;
 
 /**
  * Utility class for generating an address book configuration file.

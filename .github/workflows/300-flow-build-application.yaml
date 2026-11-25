@@ -99,7 +99,7 @@ jobs:
     runs-on: hl-cn-default-lin-sm
     needs:
       - mats-tests
-    if: ${{ needs.mats-tests.result == 'success' && github.event.repository.visibility == 'public' }}
+    if: ${{ needs.mats-tests.result == 'success' && github.event.repository.visibility == 'public' && !github.event.repository.fork }}
     steps:
       - name: Prepare Runner
         id: prepare-runner
@@ -148,7 +148,7 @@ jobs:
       - deploy-ci-trigger
     if:
       ${{ (needs.mats-tests.result != 'success' || needs.deploy-ci-trigger.result != 'success') && always() &&
-      github.event.repository.visibility == 'public' }}
+      github.event.repository.visibility == 'public' && !github.event.repository.fork }}
 
     steps:
       - name: Prepare Runner
@@ -385,7 +385,7 @@ jobs:
       - report-mats-result
       - deploy-ci-trigger
       - report-status
-    if: ${{ always() && github.event.repository.visibility == 'public' }}
+    if: ${{ always() && github.event.repository.visibility == 'public' && !github.event.repository.fork }}
     uses: ./.github/workflows/865-call-publish-run-metrics.yaml
     with:
       context: >-

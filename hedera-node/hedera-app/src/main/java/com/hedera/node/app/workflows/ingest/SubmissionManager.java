@@ -26,8 +26,8 @@ import java.util.ArrayList;
 import java.util.List;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.hiero.consensus.adapter.transaction.TransactionPoolNexus;
 import org.hiero.consensus.metrics.SpeedometerMetric;
-import org.hiero.consensus.transaction.TransactionPoolNexus;
 
 /**
  * The {@code SubmissionManager} submits transactions to the platform. As this is an honest node, it makes a strong

@@ -12,7 +12,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.transaction.TransactionPoolNexus;
+import org.hiero.consensus.adapter.transaction.TransactionPoolNexus;
 import org.hiero.sloth.fixtures.SlothTransactionType;
 import org.hiero.sloth.fixtures.TransactionFactory;
 import org.hiero.sloth.fixtures.network.transactions.SlothTransaction;
