@@ -26,8 +26,8 @@ import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import org.hiero.consensus.benchmark.tools.event.EventShape;
 import org.hiero.consensus.benchmark.tools.event.EventStreamGenerator;
+import org.hiero.consensus.benchmark.tools.histogram.LappingLatencyHistogramRecorder;
 import org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler;
-import org.hiero.consensus.benchmark.tools.histogram.LatencyRecorder;
 import org.hiero.consensus.gossip.config.SocketConfig;
 import org.hiero.consensus.gossip.impl.gossip.sync.SyncInputStream;
 import org.hiero.consensus.gossip.impl.gossip.sync.SyncOutputStream;
@@ -83,9 +83,10 @@ import org.openjdk.jmh.annotations.Warmup;
  * reads must equal the generated event.
  *
  * <p>One invocation writes or reads {@value #NUMBER_OF_EVENTS} events. The primary score is the mean time per
- * event. A {@link LatencyRecorder} also times every call but the first of {@code read}, with one timestamp per call
- * ({@link LatencyRecorder#lap()}). {@link LatencyProfiler} reports the percentiles and the allocation per call. The
- * allocation is measured around the timed calls only, because {@code -prof gc} also counts the setup.
+ * event. A {@link LappingLatencyHistogramRecorder} also times every call but the first of {@code read}, with one
+ * timestamp per call ({@link LappingLatencyHistogramRecorder#lap()}). {@link LatencyProfiler} reports the percentiles
+ * and the allocation per call. The allocation is measured around the timed calls only, because {@code -prof gc} also
+ * counts the setup.
  *
  * <p>The first call of a {@code read} invocation comes right after the setup and is much slower than the others, so it
  * reads an event but is not timed. On an Apple M4 laptop, its median was 6.8–6.9 µs without transactions and 7.0–7.6 µs
@@ -180,7 +181,7 @@ public class GossipEventSerializationBenchmark {
         private long bytesBefore;
 
         /** The latency recorder for the benchmark. */
-        private LatencyRecorder recorder;
+        private LappingLatencyHistogramRecorder recorder;
 
         /**
          * Generates the events and creates the stream under test. This method is called once per trial.
@@ -206,7 +207,7 @@ public class GossipEventSerializationBenchmark {
         @Setup(Level.Invocation)
         public void prepareInvocation() {
             bytesBefore = output.connectionByteCounter().getTotalCount();
-            recorder = LatencyProfiler.recorder();
+            recorder = LatencyProfiler.lappingRecorder();
         }
 
         /**
@@ -251,7 +252,7 @@ public class GossipEventSerializationBenchmark {
         private GossipEvent[] events;
 
         /** The latency recorder for the benchmark. */
-        private LatencyRecorder recorder;
+        private LappingLatencyHistogramRecorder recorder;
 
         /**
          * Generates and serializes the events. This method is called once per trial.
@@ -273,7 +274,7 @@ public class GossipEventSerializationBenchmark {
             final int bufferSize =
                     configuration.getConfigData(SocketConfig.class).bufferSize();
             input = createSyncInputStream(configuration, new ByteArrayInputStream(serializedEvents), bufferSize);
-            recorder = LatencyProfiler.recorder();
+            recorder = LatencyProfiler.lappingRecorder();
 
             // Collect the garbage of the setup and of the previous invocation now, so that it is not collected during
             // the measured calls.
@@ -316,7 +317,7 @@ public class GossipEventSerializationBenchmark {
     public void write(final Writer writer) throws IOException {
         final SyncOutputStream output = writer.output;
         final GossipEvent[] events = writer.events;
-        final LatencyRecorder recorder = writer.recorder;
+        final LappingLatencyHistogramRecorder recorder = writer.recorder;
         recorder.prepareToMeasure();
         recorder.startLaps();
         for (int i = 0; i < NUMBER_OF_EVENTS; i++) {
@@ -341,7 +342,7 @@ public class GossipEventSerializationBenchmark {
     public void read(final Reader reader) throws IOException {
         final SyncInputStream input = reader.input;
         final GossipEvent[] events = reader.events;
-        final LatencyRecorder recorder = reader.recorder;
+        final LappingLatencyHistogramRecorder recorder = reader.recorder;
         recorder.prepareToMeasure();
         // The first call follows the setup, which makes it slow; it reads an event but is not timed.
         events[0] = input.readPbjRecord(GossipEvent.PROTOBUF);

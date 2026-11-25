@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.StringJoiner;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 import org.openjdk.jmh.infra.BenchmarkParams;
 import org.openjdk.jmh.infra.IterationParams;
 import org.openjdk.jmh.profile.InternalProfiler;
@@ -17,9 +18,10 @@ import org.openjdk.jmh.results.ScalarResult;
 import org.openjdk.jmh.results.TextResult;
 
 /**
- * A JMH profiler that turns the measurements a benchmark records with a {@link LatencyRecorder}, or with a
- * {@link PipelineRecorder}, into results: latency percentiles, the allocation per call, and the number of invocations
- * discarded because of a garbage collection or, in a pipeline benchmark, because the pipeline did not keep up.
+ * A JMH profiler that turns the measurements a benchmark records with a {@link LatencyHistogramRecorder}, a
+ * {@link LappingLatencyHistogramRecorder}, or a {@link PipelineRecorder}, into results: latency percentiles, the
+ * allocation per call, and the number of invocations discarded because of a garbage collection or, in a pipeline
+ * benchmark, because the pipeline did not keep up.
  *
  * <h2>What it is for</h2>
  *
@@ -44,7 +46,7 @@ import org.openjdk.jmh.results.TextResult;
  *   <li>{@code alloc.norm}: the bytes allocated per call, by the measured calls only; in a pipeline benchmark, by all
  *       threads during the measured part of the invocations;</li>
  *   <li>{@code measured.gc.discardedInvocations}: the number of invocations discarded because a garbage collection ran
- *       during their measured part (see {@link LatencyRecorder} and {@link PipelineRecorder});</li>
+ *       during their measured part (see {@link LatencyHistogramRecorder} and {@link PipelineRecorder});</li>
  *   <li>{@code measured.saturation.discardedInvocations}: in a pipeline benchmark only, the number of invocations
  *       discarded because the pipeline did not keep up (see {@link PipelineRecorder}).</li>
  * </ul>
@@ -68,11 +70,12 @@ import org.openjdk.jmh.results.TextResult;
  * <h2>How it works</h2>
  *
  * <p>JMH creates the profiler itself and calls it before and after every iteration. It gives the benchmark no reference
- * to the profiler, so the two share only the static {@link #recorder()}:
+ * to the profiler, so the two share only the static {@link #recorder()} and {@link #lappingRecorder()}:
  * <ol>
  *   <li>Before the iteration, the profiler creates an empty registry of recorders.</li>
- *   <li>During the iteration, each benchmark thread calls {@link #recorder()}, which returns the thread's recorder and
- *       registers it on the thread's first call and records its calls into it.</li>
+ *   <li>During the iteration, each benchmark thread calls {@link #recorder()} or {@link #lappingRecorder()}, which
+ *       returns the thread's recorder and registers it on the thread's first call, and records its calls into it. A
+ *       thread uses one kind of recorder per iteration: asking for the other kind throws.</li>
  *   <li>After the iteration, the profiler combines the recorders of all threads, computes the results, and clears
  *       the registry.</li>
  * </ol>
@@ -89,18 +92,18 @@ import org.openjdk.jmh.results.TextResult;
  *     -prof org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler
  * </pre>
  *
- * <p>Without the profiler, {@link #recorder()} throws, so the benchmark fails instead of silently reporting no
- * percentiles. The profiler applies to every benchmark in the run. A benchmark that records nothing reports only
- * {@code measured.gc.discardedInvocations}, which is zero.
+ * <p>Without the profiler, the methods that return a recorder throw, so the benchmark fails instead of silently
+ * reporting no percentiles. The profiler applies to every benchmark in the run. A benchmark that records nothing
+ * reports only {@code measured.gc.discardedInvocations}, which is zero.
  *
  * <h2>Several benchmark threads</h2>
  *
  * <p>With several benchmark threads ({@code @Threads}), each thread gets a recorder of its own from
- * {@link #recorder()}, and records without any synchronization. The registry is a concurrent map, so the threads can
- * register at the same time. JMH calls the profiler after the iteration only once all benchmark threads have
- * finished, which makes their recorded values visible to it. The results then cover the calls of all threads together:
- * the percentiles are those of all their calls, and {@code alloc.norm} is their total allocation divided by their total
- * number of calls.
+ * {@link #recorder()} or {@link #lappingRecorder()}, and records without any synchronization. The registry is a
+ * concurrent map, so the threads can register at the same time. JMH calls the profiler after the iteration only once
+ * all benchmark threads have finished, which makes their recorded values visible to it. The results then cover the
+ * calls of all threads together: the percentiles are those of all their calls, and {@code alloc.norm} is their total
+ * allocation divided by their total number of calls.
  *
  * <p>A pipeline benchmark runs on one benchmark thread, because {@link PipelineRecorder} counts the allocation and the
  * garbage collections of the whole JVM.
@@ -131,26 +134,64 @@ public final class LatencyProfiler implements InternalProfiler {
     static final String SKIPPED = "latency.skipped";
 
     /** The recorders of the running iteration by thread, or {@code null} outside an iteration. */
-    private static volatile Map<Thread, LatencyRecorder> recorders;
+    private static volatile Map<Thread, AbstractLatencyHistogramRecorder> recorders;
 
     /** The pipeline recorder of the running iteration, or {@code null} before its first use and outside an iteration. */
     private static volatile PipelineRecorder pipelineRecorder;
 
     /**
-     * Returns the calling thread's recorder for the running iteration. Call it in a setup method that runs at least
-     * once per iteration ({@code Level.Iteration} or {@code Level.Invocation}), outside the measured calls, and use the
-     * recorder only on the calling thread. A recorder obtained in an earlier iteration is no longer reported.
+     * Returns the calling thread's recorder of single calls for the running iteration. Call it in a setup method that
+     * runs at least once per iteration ({@code Level.Iteration} or {@code Level.Invocation}), outside the measured
+     * calls, and use the recorder only on the calling thread. A recorder obtained in an earlier iteration is no longer
+     * reported.
      *
      * @return the recorder of the calling thread
-     * @throws IllegalStateException if the benchmark runs without this profiler
+     * @throws IllegalStateException if the benchmark runs without this profiler, or if the calling thread obtained a
+     * {@link LappingLatencyHistogramRecorder} in this iteration
      */
     @NonNull
-    public static LatencyRecorder recorder() {
-        final Map<Thread, LatencyRecorder> current = recorders;
+    public static LatencyHistogramRecorder recorder() {
+        return recorderOfThread(LatencyHistogramRecorder.class, LatencyHistogramRecorder::new);
+    }
+
+    /**
+     * Returns the calling thread's recorder of laps for the running iteration. Call it in a setup method that runs at
+     * least once per iteration ({@code Level.Iteration} or {@code Level.Invocation}), outside the measured calls, and
+     * use the recorder only on the calling thread. A recorder obtained in an earlier iteration is no longer reported.
+     *
+     * @return the recorder of the calling thread
+     * @throws IllegalStateException if the benchmark runs without this profiler, or if the calling thread obtained a
+     * {@link LatencyHistogramRecorder} in this iteration
+     */
+    @NonNull
+    public static LappingLatencyHistogramRecorder lappingRecorder() {
+        return recorderOfThread(LappingLatencyHistogramRecorder.class, LappingLatencyHistogramRecorder::new);
+    }
+
+    /**
+     * Returns the calling thread's recorder of the given kind, and registers a new one on the thread's first call in
+     * the running iteration.
+     *
+     * @param kind the kind of recorder
+     * @param factory creates a recorder of that kind
+     * @return the recorder of the calling thread
+     * @throws IllegalStateException if the benchmark runs without this profiler, or if the calling thread obtained a
+     * recorder of another kind in this iteration
+     */
+    @NonNull
+    private static <R extends AbstractLatencyHistogramRecorder> R recorderOfThread(
+            @NonNull final Class<R> kind, @NonNull final Supplier<R> factory) {
+        final Map<Thread, AbstractLatencyHistogramRecorder> current = recorders;
         if (current == null) {
             throw missingProfilerException();
         }
-        return current.computeIfAbsent(Thread.currentThread(), _ -> new LatencyRecorder());
+        final AbstractLatencyHistogramRecorder recorder =
+                current.computeIfAbsent(Thread.currentThread(), _ -> factory.get());
+        if (!kind.isInstance(recorder)) {
+            throw new IllegalStateException("This thread uses a %s in this iteration and cannot use a %s too"
+                    .formatted(recorder.getClass().getSimpleName(), kind.getSimpleName()));
+        }
+        return kind.cast(recorder);
     }
 
     /**
@@ -206,7 +247,7 @@ public final class LatencyProfiler implements InternalProfiler {
             @NonNull final IterationParams iterationParams,
             @NonNull final IterationResult result) {
         // JMH calls this after all benchmark threads have finished the iteration.
-        final Map<Thread, LatencyRecorder> finished = recorders;
+        final Map<Thread, AbstractLatencyHistogramRecorder> finished = recorders;
         final PipelineRecorder pipeline = pipelineRecorder;
         recorders = null;
         pipelineRecorder = null;
@@ -214,7 +255,7 @@ public final class LatencyProfiler implements InternalProfiler {
         final LatencyHistogram histogram = HistogramLayout.newHistogram();
         long allocatedBytes = 0;
         long gcDiscardedInvocations = 0;
-        for (final LatencyRecorder recorder : finished.values()) {
+        for (final AbstractLatencyHistogramRecorder recorder : finished.values()) {
             histogram.add(recorder.histogram());
             allocatedBytes += recorder.allocatedBytes();
             gcDiscardedInvocations += recorder.discardedInvocations();

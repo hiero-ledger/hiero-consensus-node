@@ -5,8 +5,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import org.hiero.consensus.benchmark.tools.histogram.LappingLatencyHistogramRecorder;
 import org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler;
-import org.hiero.consensus.benchmark.tools.histogram.LatencyRecorder;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -68,13 +68,14 @@ import org.openjdk.jmh.annotations.Warmup;
  *   round that leaves the ancient threshold unchanged.</li>
  * </ul>
  * The replay runs in segments of consecutive calls of one kind. Each method times the segments of its kind, each as one
- * stretch of laps ({@link LatencyRecorder#startLaps()}), and runs the other segments outside the laps, so they count
- * neither in its latencies nor in its allocation.
+ * stretch of laps ({@link LappingLatencyHistogramRecorder#startLaps()}), and runs the other segments outside the laps,
+ * so they count neither in its latencies nor in its allocation.
  *
- * <p>Each latency includes one clock read ({@link LatencyRecorder#lap()}). On an Apple M4 laptop, one more clock read
- * after each event added about 17 ns, 10% of the latency of {@link #addEvent()}. A call of {@link #shiftWindow()} takes
- * over a microsecond on average, so the clock read is about 1% of it or less. The read costs nearly the same for every
- * call, so it does not hide a regression, but it makes one look smaller: by about a tenth for {@link #addEvent()}.
+ * <p>Each latency includes one clock read ({@link LappingLatencyHistogramRecorder#lap()}). On an Apple M4 laptop, one
+ * more clock read after each event added about 17 ns, 10% of the latency of {@link #addEvent()}. A call of
+ * {@link #shiftWindow()} takes over a microsecond on average, so the clock read is about 1% of it or less. The read
+ * costs nearly the same for every call, so it does not hide a regression, but it makes one look smaller: by about a
+ * tenth for {@link #addEvent()}.
  *
  * <p>The recording runs the event creator and the consensus code, so a change to them can change the events. The
  * check after every invocation then fails, and the expected values change in the same pull request.
@@ -161,7 +162,7 @@ public class SequenceMapBenchmark {
     private long foundParents;
 
     /** The latency recorder of the invocation. */
-    private LatencyRecorder recorder;
+    private LappingLatencyHistogramRecorder recorder;
 
     /**
      * Records the network, turns what the recorded node's orphan buffer released and the event windows into the calls
@@ -223,7 +224,7 @@ public class SequenceMapBenchmark {
             execute(calls[i]);
         }
         foundParents = 0;
-        recorder = LatencyProfiler.recorder();
+        recorder = LatencyProfiler.lappingRecorder();
 
         // Collect the garbage of the setup and of the previous invocation now, so that it is not collected during the
         // measured calls.

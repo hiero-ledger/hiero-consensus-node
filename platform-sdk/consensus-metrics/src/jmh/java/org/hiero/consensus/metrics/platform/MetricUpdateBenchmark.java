@@ -7,8 +7,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
+import org.hiero.consensus.benchmark.tools.histogram.LappingLatencyHistogramRecorder;
 import org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler;
-import org.hiero.consensus.benchmark.tools.histogram.LatencyRecorder;
 import org.hiero.consensus.metrics.RunningAverageMetric;
 import org.hiero.consensus.metrics.SpeedometerMetric;
 import org.hiero.consensus.metrics.config.MetricsConfig;
@@ -69,9 +69,9 @@ import org.openjdk.jmh.annotations.Warmup;
  * {@link #FILL_STEP_NANOS} apart. After the invocation, the mean, minimum, maximum, and standard deviation of the
  * metric must equal the expected values exactly.
  *
- * <p>The primary score is the mean time per update. A {@link LatencyRecorder} also times every update, with one
- * timestamp per call ({@link LatencyRecorder#lap()}), so each latency also contains the clock step of the next update.
- * {@link LatencyProfiler} reports the percentiles and the allocation per call.
+ * <p>The primary score is the mean time per update. A {@link LappingLatencyHistogramRecorder} also times every update,
+ * with one timestamp per call ({@link LappingLatencyHistogramRecorder#lap()}), so each latency also contains the clock
+ * step of the next update. {@link LatencyProfiler} reports the percentiles and the allocation per call.
  *
  * <p>An update takes so little time that the timing is a large part of every latency. On an Apple M4 laptop,
  * {@code lap()} added 17–21 ns to a speedometer update (23–27% of the timed call) and 7–13 ns to a running-average
@@ -185,7 +185,7 @@ public class MetricUpdateBenchmark {
         private PlatformSpeedometerMetric metric;
 
         /** The latency recorder for the benchmark. */
-        private LatencyRecorder recorder;
+        private LappingLatencyHistogramRecorder recorder;
 
         /**
          * Creates a new speedometer and brings it to the steady state. This method is called once per invocation.
@@ -199,7 +199,7 @@ public class MetricUpdateBenchmark {
                 time.advance(FILL_STEP_NANOS);
                 metric.cycle();
             }
-            recorder = LatencyProfiler.recorder();
+            recorder = LatencyProfiler.lappingRecorder();
 
             // Collect the garbage of the setup and of the previous invocation now, so that it is not collected during
             // the measured calls.
@@ -243,7 +243,7 @@ public class MetricUpdateBenchmark {
         private PlatformRunningAverageMetric metric;
 
         /** The latency recorder for the benchmark. */
-        private LatencyRecorder recorder;
+        private LappingLatencyHistogramRecorder recorder;
 
         /**
          * Generates the values for the benchmark. This method is called once per trial.
@@ -269,7 +269,7 @@ public class MetricUpdateBenchmark {
                 time.advance(FILL_STEP_NANOS);
                 metric.update(values[i % NUMBER_OF_VALUES]);
             }
-            recorder = LatencyProfiler.recorder();
+            recorder = LatencyProfiler.lappingRecorder();
 
             // Collect the garbage of the setup and of the previous invocation now, so that it is not collected during
             // the measured calls.
@@ -332,7 +332,7 @@ public class MetricUpdateBenchmark {
     public void speedometerCycle(final SpeedometerState state) {
         final SteppingTime time = state.time;
         final PlatformSpeedometerMetric metric = state.metric;
-        final LatencyRecorder recorder = state.recorder;
+        final LappingLatencyHistogramRecorder recorder = state.recorder;
         recorder.prepareToMeasure();
         recorder.startLaps();
         for (int i = 0; i < CALLS_PER_INVOCATION; i++) {
@@ -357,7 +357,7 @@ public class MetricUpdateBenchmark {
         final double[] values = state.values;
         final SteppingTime time = state.time;
         final PlatformRunningAverageMetric metric = state.metric;
-        final LatencyRecorder recorder = state.recorder;
+        final LappingLatencyHistogramRecorder recorder = state.recorder;
         recorder.prepareToMeasure();
         recorder.startLaps();
         for (int i = 0; i < CALLS_PER_INVOCATION; i++) {

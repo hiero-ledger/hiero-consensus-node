@@ -15,8 +15,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import org.hiero.consensus.benchmark.tools.event.EventShape;
 import org.hiero.consensus.benchmark.tools.event.EventStreamGenerator;
+import org.hiero.consensus.benchmark.tools.histogram.LatencyHistogramRecorder;
 import org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler;
-import org.hiero.consensus.benchmark.tools.histogram.LatencyRecorder;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
 import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
@@ -69,20 +69,21 @@ import org.openjdk.jmh.annotations.Warmup;
  * <p>After every invocation, the number of valid events must equal the number of events. The validator stops at the
  * first check that fails, so an event is valid only if all checks ran on it.
  *
- * <p>One invocation receives and validates {@value #NUMBER_OF_EVENTS} events. Receiving an event lies outside
- * the laps of a {@link LatencyRecorder}, so it counts neither in a latency nor in the allocation. The recorder times
- * each validation from {@link LatencyRecorder#startLaps()} right before the call to {@link LatencyRecorder#lap()} right
- * after it, and {@link LatencyProfiler} reports the percentiles and the allocation per validation. JMH's primary score,
- * the mean time per event of the whole invocation, includes the receiving; track {@code latency.mean} instead.
+ * <p>One invocation receives and validates {@value #NUMBER_OF_EVENTS} events. A {@link LatencyHistogramRecorder} times
+ * each validation from {@link LatencyHistogramRecorder#startMeasurement()} right before the call to
+ * {@link LatencyHistogramRecorder#stopMeasurement()} right after it, so the receiving counts neither in a latency nor
+ * in the allocation, and {@link LatencyProfiler} reports the percentiles and the allocation per validation. JMH's
+ * primary score, the mean time per event of the whole invocation, includes the receiving; track {@code latency.mean}
+ * instead.
  *
  * <p>The first call of an invocation, right after the setup, is validated but not timed: it is much slower than the
  * others. On an Apple M4 laptop, timing it put p99.99 at 0.6–1.0 µs, against 0.17–0.54 µs without it, in alternating
  * runs. No such setup precedes an event in production.
  *
  * <p>Each latency also contains one reading of the clock, which is a noticeable part of a call this short. On an Apple
- * M4 laptop, an empty call, {@code startLaps()} directly followed by {@code lap()}, took 11.1–11.3 ns on average, about
- * a fifth of a validation (53–59 ns); on the benchmark machine it is unmeasured. The share is about constant, so a
- * regression of the validator still shows in full nanoseconds, but as a smaller percentage.
+ * M4 laptop, an empty call, {@code startMeasurement()} directly followed by {@code stopMeasurement()}, took 11.1–11.3
+ * ns on average, about a fifth of a validation (53–59 ns); on the benchmark machine it is unmeasured. The share is
+ * about constant, so a regression of the validator still shows in full nanoseconds, but as a smaller percentage.
  *
  * <p>Each invocation's setup ends with {@code System.gc()}, so usually no garbage collection falls into the measured
  * part, although receiving allocates several kilobytes per event. An invocation during whose measured part one does is
@@ -153,7 +154,7 @@ public class EventFieldValidatorBenchmark {
     private int validEvents;
 
     /** The latency recorder for the benchmark. */
-    private LatencyRecorder recorder;
+    private LatencyHistogramRecorder recorder;
 
     /**
      * Generates the events and creates the validator. This method is called once per trial.
@@ -216,7 +217,7 @@ public class EventFieldValidatorBenchmark {
 
     /**
      * Receives every event anew and validates it right away, as the intake does, and records the latency of each
-     * validation but the first. Receiving an event lies outside the recorder's laps.
+     * validation but the first. Receiving an event is not measured.
      */
     @Benchmark
     @BenchmarkMode(Mode.AverageTime)
@@ -230,10 +231,9 @@ public class EventFieldValidatorBenchmark {
         }
         for (int i = 1; i < NUMBER_OF_EVENTS; i++) {
             final PlatformEvent event = receive(generatedEvents.get(i));
-            recorder.startLaps();
+            recorder.startMeasurement();
             final boolean valid = validator.isValid(event);
-            recorder.lap();
-            recorder.stopLaps();
+            recorder.stopMeasurement();
             if (valid) {
                 validEvents++;
             }

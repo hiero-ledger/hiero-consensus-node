@@ -49,10 +49,10 @@ class PipelineRecorderTest {
     @Test
     void aSaturatedInvocationWithAGarbageCollectionCountsInBoth() {
         final PipelineRecorder recorder = new PipelineRecorder();
-        recorder.startMeasurement();
+        recorder.prepareToMeasure();
         recorder.record(1_000);
         System.gc();
-        recorder.stopMeasurement();
+        recorder.finalizeMeasurement();
         recorder.discardSaturatedInvocation();
         recorder.endIteration();
 
@@ -65,12 +65,12 @@ class PipelineRecorderTest {
     void allocationOnAnotherThreadIsCounted() throws InterruptedException {
         System.gc();
         final PipelineRecorder recorder = new PipelineRecorder();
-        recorder.startMeasurement();
+        recorder.prepareToMeasure();
         final Thread pipelineThread = new Thread(() -> sink = new byte[ALLOCATION]);
         pipelineThread.start();
         pipelineThread.join();
         recorder.record(1_000);
-        recorder.stopMeasurement();
+        recorder.finalizeMeasurement();
         recorder.endIteration();
 
         assertThat(recorder.gcDiscardedInvocations()).isZero();
@@ -81,9 +81,9 @@ class PipelineRecorderTest {
     void theAllocationOfADiscardedInvocationIsNotCounted() {
         System.gc();
         final PipelineRecorder recorder = new PipelineRecorder();
-        recorder.startMeasurement();
+        recorder.prepareToMeasure();
         sink = new byte[ALLOCATION];
-        recorder.stopMeasurement();
+        recorder.finalizeMeasurement();
         recorder.discardSaturatedInvocation();
         recorder.endIteration();
 
@@ -94,7 +94,7 @@ class PipelineRecorderTest {
     @Test
     void anInvocationStillRunningAtTheEndOfTheIterationIsNotKept() {
         final PipelineRecorder recorder = new PipelineRecorder();
-        recorder.startMeasurement();
+        recorder.prepareToMeasure();
         recorder.record(1_000);
         recorder.endIteration();
 
@@ -105,14 +105,14 @@ class PipelineRecorderTest {
     void callsOutOfOrderThrow() {
         final PipelineRecorder recorder = new PipelineRecorder();
         assertThatThrownBy(() -> recorder.record(1_000)).hasMessageContaining("No measured part is running");
-        assertThatThrownBy(recorder::stopMeasurement).hasMessageContaining("No measured part is running");
+        assertThatThrownBy(recorder::finalizeMeasurement).hasMessageContaining("No measured part is running");
         assertThatThrownBy(recorder::discardSaturatedInvocation).hasMessageContaining("No invocation to discard");
 
-        recorder.startMeasurement();
-        assertThatThrownBy(recorder::startMeasurement).hasMessageContaining("A measured part is running");
+        recorder.prepareToMeasure();
+        assertThatThrownBy(recorder::prepareToMeasure).hasMessageContaining("A measured part is running");
         assertThatThrownBy(recorder::discardSaturatedInvocation).hasMessageContaining("No invocation to discard");
 
-        recorder.stopMeasurement();
+        recorder.finalizeMeasurement();
         assertThatThrownBy(() -> recorder.record(1_000)).hasMessageContaining("No measured part is running");
         recorder.discardSaturatedInvocation();
         assertThatThrownBy(recorder::discardSaturatedInvocation).hasMessageContaining("No invocation to discard");
@@ -120,10 +120,10 @@ class PipelineRecorderTest {
 
     /** Runs the measured part of an invocation that records the given latencies. */
     private static void measure(final PipelineRecorder recorder, final long... latencies) {
-        recorder.startMeasurement();
+        recorder.prepareToMeasure();
         for (final long latency : latencies) {
             recorder.record(latency);
         }
-        recorder.stopMeasurement();
+        recorder.finalizeMeasurement();
     }
 }

@@ -8,11 +8,11 @@ import java.time.Duration;
 import org.junit.jupiter.api.Test;
 
 /**
- * Checks that work outside {@link LatencyRecorder#startLaps()} and {@link LatencyRecorder#stopLaps()} is left out of
- * the latencies and the allocation, and that they and {@link LatencyRecorder#finalizeMeasurement()} refuse the wrong
- * state.
+ * Checks that work outside {@link LappingLatencyHistogramRecorder#startLaps()} and
+ * {@link LappingLatencyHistogramRecorder#stopLaps()} is left out of the latencies and the allocation, and that they and
+ * {@link LappingLatencyHistogramRecorder#finalizeMeasurement()} refuse the wrong state.
  */
-class LatencyRecorderTest {
+class LappingLatencyHistogramRecorderTest {
 
     /** Longer than any measured call in these tests, by far. */
     private static final Duration OTHER_WORK = Duration.ofMillis(50);
@@ -26,7 +26,7 @@ class LatencyRecorderTest {
 
     @Test
     void timeOutsideLapsIsNotRecorded() throws InterruptedException {
-        final LatencyRecorder recorder = new LatencyRecorder();
+        final LappingLatencyHistogramRecorder recorder = new LappingLatencyHistogramRecorder();
         recorder.prepareToMeasure();
         recorder.startLaps();
         recorder.lap();
@@ -44,7 +44,7 @@ class LatencyRecorderTest {
 
     @Test
     void timeWithinLapsIsRecorded() throws InterruptedException {
-        final LatencyRecorder recorder = new LatencyRecorder();
+        final LappingLatencyHistogramRecorder recorder = new LappingLatencyHistogramRecorder();
         recorder.prepareToMeasure();
         recorder.startLaps();
         recorder.lap();
@@ -60,7 +60,7 @@ class LatencyRecorderTest {
     @Test
     void allocationOutsideLapsIsNotCounted() {
         System.gc();
-        final LatencyRecorder recorder = new LatencyRecorder();
+        final LappingLatencyHistogramRecorder recorder = new LappingLatencyHistogramRecorder();
         recorder.prepareToMeasure();
         recorder.startLaps();
         recorder.lap();
@@ -78,7 +78,7 @@ class LatencyRecorderTest {
     @Test
     void allocationWithinLapsIsCounted() {
         System.gc();
-        final LatencyRecorder recorder = new LatencyRecorder();
+        final LappingLatencyHistogramRecorder recorder = new LappingLatencyHistogramRecorder();
         recorder.prepareToMeasure();
         recorder.startLaps();
         recorder.lap();
@@ -93,7 +93,7 @@ class LatencyRecorderTest {
 
     @Test
     void startLapsWhileStartedThrows() {
-        final LatencyRecorder recorder = new LatencyRecorder();
+        final LappingLatencyHistogramRecorder recorder = new LappingLatencyHistogramRecorder();
         recorder.prepareToMeasure();
         recorder.startLaps();
 
@@ -102,7 +102,7 @@ class LatencyRecorderTest {
 
     @Test
     void stopLapsWithoutStartThrows() {
-        final LatencyRecorder recorder = new LatencyRecorder();
+        final LappingLatencyHistogramRecorder recorder = new LappingLatencyHistogramRecorder();
         recorder.prepareToMeasure();
 
         assertThatThrownBy(recorder::stopLaps).isInstanceOf(IllegalStateException.class);
@@ -110,7 +110,7 @@ class LatencyRecorderTest {
 
     @Test
     void finalizeMeasurementWhileLapsStartedThrows() {
-        final LatencyRecorder recorder = new LatencyRecorder();
+        final LappingLatencyHistogramRecorder recorder = new LappingLatencyHistogramRecorder();
         recorder.prepareToMeasure();
         recorder.startLaps();
 

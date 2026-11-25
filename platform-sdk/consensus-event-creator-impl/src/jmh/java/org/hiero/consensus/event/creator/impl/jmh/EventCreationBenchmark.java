@@ -18,8 +18,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import org.hiero.base.crypto.BytesSigner;
 import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.benchmark.tools.histogram.LappingLatencyHistogramRecorder;
 import org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler;
-import org.hiero.consensus.benchmark.tools.histogram.LatencyRecorder;
 import org.hiero.consensus.event.creator.impl.DefaultEventCreationManager;
 import org.hiero.consensus.event.creator.impl.tipset.DefaultTipsetTracker;
 import org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator;
@@ -74,8 +74,8 @@ import org.openjdk.jmh.annotations.Warmup;
  * recorded events of the other nodes refer to as parents.
  *
  * <p>The replay runs in segments of consecutive calls of one kind. Each benchmark method times the segments of one
- * kind, each as one stretch of laps ({@link LatencyRecorder#startLaps()}), and runs the rest of the replay outside the
- * laps, so that the rest counts neither in its latencies nor in its allocation:
+ * kind, each as one stretch of laps ({@link LappingLatencyHistogramRecorder#startLaps()}), and runs the rest of the
+ * replay outside the laps, so that the rest counts neither in its latencies nor in its allocation:
  * <ul>
  *   <li>{@link #createEvent()} times every call of {@link DefaultEventCreationManager#maybeCreateEvent()} that creates
  *   an event. The node's heartbeat makes the call every 10 ms, and the creation rules refuse most calls at once, mostly
@@ -90,9 +90,9 @@ import org.openjdk.jmh.annotations.Warmup;
  * long as the later ones, and the event creator's collections grow from empty. Timed, these calls would set the slowest
  * percentiles. They are replayed outside the laps.
  *
- * <p>Each latency includes one clock read ({@link LatencyRecorder#lap()}). A registration takes well under a
- * microsecond, so the clock read is a few percent of its latency: in profiles on an Apple M4 laptop, 3% to 5%. It is
- * nearly the same for every call, so it does not hide a regression.
+ * <p>Each latency includes one clock read ({@link LappingLatencyHistogramRecorder#lap()}). A registration takes well
+ * under a microsecond, so the clock read is a few percent of its latency: in profiles on an Apple M4 laptop, 3% to 5%.
+ * It is nearly the same for every call, so it does not hide a regression.
  *
  * <p>Each created event gets the transactions it got in the recording, prepared before the invocations. In production,
  * the transaction pool hands them over; it is not part of this benchmark. Signing is replaced by an empty signature;
@@ -222,7 +222,7 @@ public class EventCreationBenchmark {
     private int nextTransactions;
 
     /** The latency recorder of the invocation. */
-    private LatencyRecorder recorder;
+    private LappingLatencyHistogramRecorder recorder;
 
     /**
      * Records the calls of one node. This method is called once per trial.
@@ -329,7 +329,7 @@ public class EventCreationBenchmark {
         Arrays.fill(results, null);
         attempts = 0;
         nextTransactions = 0;
-        recorder = LatencyProfiler.recorder();
+        recorder = LatencyProfiler.lappingRecorder();
 
         // Collect the garbage of the setup and of the previous invocation now, so that it is not collected during the
         // measured calls.

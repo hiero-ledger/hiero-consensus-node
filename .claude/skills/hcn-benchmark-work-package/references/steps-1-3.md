@@ -52,10 +52,10 @@ fails here.
 Apply [latency](/platform-sdk/docs/consensus-layer/benchmarks/writing.md#latency) and
 [allocation](/platform-sdk/docs/consensus-layer/benchmarks/writing.md#allocation-and-garbage-collection):
 
-- **A single call:** obtain the recorder with `LatencyProfiler.recorder()` in the per-invocation setup, and follow the
-  pattern in the Javadoc of `LatencyRecorder`: `prepareToMeasure()` and `startLaps()`, `lap()` after each call,
-  `stopLaps()` and `finalizeMeasurement()`. `@BenchmarkMode(Mode.AverageTime)` with `@OperationsPerInvocation` set to
-  the calls per invocation.
+- **A single call:** obtain the recorder in the per-invocation setup, and follow the pattern in its Javadoc: for the
+  calls of a loop, `LappingLatencyHistogramRecorder` from `LatencyProfiler.lappingRecorder()`; for single calls with
+  untimed work between them, `LatencyHistogramRecorder` from `LatencyProfiler.recorder()`.
+  `@BenchmarkMode(Mode.AverageTime)` with `@OperationsPerInvocation` set to the calls per invocation.
 - **A pipeline,** where items pass between threads: build a `PipelineTimer` in the per-trial setup, and follow the
   pattern in its Javadoc: `prepare()` in the per-invocation setup, `replay()` as the benchmark method, and the exact
   check of `arrivals()` in the per-invocation teardown
@@ -110,8 +110,8 @@ and teardown methods.
 
 - the code under test takes nearly all of the benchmark method's samples (the example on a laptop: 99.3% and 99.5%
   for 4 and 10 nodes);
-- the timing, `LatencyRecorder.lap`, and the benchmark's other frames take under 1% (the example: 0.8% and 0.5%, from
-  about 1,000 samples each, so about 0.1% per sample);
+- the timing, `LappingLatencyHistogramRecorder.lap`, and the benchmark's other frames take under 1% (the example: 0.8%
+  and 0.5%, from about 1,000 samples each, so about 0.1% per sample);
 - the hot frames of the code under test are the methods the benchmark is meant to measure; "waiting" is 0% and no
   thread under "other" does the work instead;
 - clock reads, logging, or locks inside the code under test are production cost, measured rightly; tell the developer.

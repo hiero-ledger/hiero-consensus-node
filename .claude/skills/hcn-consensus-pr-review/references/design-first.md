@@ -72,9 +72,9 @@ files. The linked issue, #28190, is two sentences, with no discussion. The revie
 two reasons:
 
 - **Overlap with existing code.** It adds `ConsensusLatencyRecorder` and `ConsensusLatencyResult`, about 400 lines, to
-  record latencies into a `LatencyHistogram` and report them. `LatencyRecorder` in `consensus-benchmark-tools` already
-  does that for benchmarks. The PR uses its `LatencyHistogram` but writes a new recorder beside it. The team should
-  decide whether to write it from scratch or to extend `LatencyRecorder`.
+  record latencies into a `LatencyHistogram` and report them. `LatencyHistogramRecorder` in `consensus-benchmark-tools`
+  already does that for benchmarks. The PR uses its `LatencyHistogram` but writes a new recorder beside it. The team
+  should decide whether to write it from scratch or to extend `LatencyHistogramRecorder`.
 - **Always on, rarely needed.** `FalconNetwork` creates a `ConsensusLatencyRecorder` for every network and passes it to
   every `FalconNode` and `FalconMiniNode`. Every node feeds it its created events and solders it to its consensus round
   output, although about 99% of Falcon tests don't use it.

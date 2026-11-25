@@ -8,8 +8,8 @@ import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import org.hiero.consensus.benchmark.tools.histogram.LappingLatencyHistogramRecorder;
 import org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler;
-import org.hiero.consensus.benchmark.tools.histogram.LatencyRecorder;
 import org.hiero.consensus.event.DefaultIntakeEventCounter;
 import org.hiero.consensus.gossip.impl.gossip.shadowgraph.Shadowgraph;
 import org.hiero.consensus.metrics.config.MetricsConfig;
@@ -64,13 +64,14 @@ import org.openjdk.jmh.annotations.Warmup;
  *   also removes the expired events.</li>
  * </ul>
  * The replay runs in segments of consecutive calls of one kind. Each method times the segments of its kind, each as one
- * stretch of laps ({@link LatencyRecorder#startLaps()}), and runs the other segments outside the laps, so they count
- * neither in its latencies nor in its allocation.
+ * stretch of laps ({@link LappingLatencyHistogramRecorder#startLaps()}), and runs the other segments outside the laps,
+ * so they count neither in its latencies nor in its allocation.
  *
- * <p>Each latency includes one clock read ({@link LatencyRecorder#lap()}). Adding an event takes well under a
- * microsecond, so the clock read is a noticeable part of its latency. On an Apple M4 laptop, one more clock read after
- * each call added 11 to 12 ns: 4% to 5% of {@link #addEvent()} and under 0.5% of {@link #updateEventWindow()}. It is
- * nearly the same for every call, so it does not hide a regression, but it makes one look slightly smaller.
+ * <p>Each latency includes one clock read ({@link LappingLatencyHistogramRecorder#lap()}). Adding an event takes well
+ * under a microsecond, so the clock read is a noticeable part of its latency. On an Apple M4 laptop, one more clock
+ * read after each call added 11 to 12 ns: 4% to 5% of {@link #addEvent()} and under 0.5% of
+ * {@link #updateEventWindow()}. It is nearly the same for every call, so it does not hide a regression, but it makes
+ * one look slightly smaller.
  *
  * <p>The shadowgraph updates the production metrics implementation, {@link DefaultPlatformMetrics}, and the
  * production {@link DefaultIntakeEventCounter}, which counts the events from each peer by the sender they had in the
@@ -165,7 +166,7 @@ public class ShadowgraphBenchmark {
     private int addedEvents;
 
     /** The latency recorder of the invocation. */
-    private LatencyRecorder recorder;
+    private LappingLatencyHistogramRecorder recorder;
 
     /**
      * Records the network and turns what the recorded node's gossip gets into the calls of the replay. This method is
@@ -227,7 +228,7 @@ public class ShadowgraphBenchmark {
             execute(calls[i]);
         }
         addedEvents = 0;
-        recorder = LatencyProfiler.recorder();
+        recorder = LatencyProfiler.lappingRecorder();
 
         // Collect the garbage of the setup and of the previous invocation now, so that it is not collected during the
         // measured calls.

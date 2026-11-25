@@ -2,6 +2,7 @@
 package org.hiero.consensus.benchmark.tools.histogram;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import java.util.Map;
@@ -12,10 +13,33 @@ import org.openjdk.jmh.results.Result;
 
 /**
  * Checks that {@link LatencyProfiler} reports a percentile only if the iteration recorded at least 100 calls above it,
- * and names the skipped percentiles in {@link LatencyProfiler#SKIPPED}, and that it reports the invocations of a
- * {@link PipelineRecorder}.
+ * and names the skipped percentiles in {@link LatencyProfiler#SKIPPED}, that it reports the invocations of a
+ * {@link PipelineRecorder}, and that a thread gets one kind of recorder per iteration.
  */
 class LatencyProfilerTest {
+
+    @Test
+    void aThreadGetsTheSameRecorderOfOneKind() {
+        new LatencyProfiler().beforeIteration(null, null);
+
+        assertThat(LatencyProfiler.recorder()).isSameAs(LatencyProfiler.recorder());
+    }
+
+    @Test
+    void aThreadWithARecorderCannotGetALappingRecorder() {
+        new LatencyProfiler().beforeIteration(null, null);
+        LatencyProfiler.recorder();
+
+        assertThatThrownBy(LatencyProfiler::lappingRecorder).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void aThreadWithALappingRecorderCannotGetARecorder() {
+        new LatencyProfiler().beforeIteration(null, null);
+        LatencyProfiler.lappingRecorder();
+
+        assertThatThrownBy(LatencyProfiler::recorder).isInstanceOf(IllegalStateException.class);
+    }
 
     @Test
     void reportsEveryPercentileWithEnoughCalls() {
@@ -33,13 +57,13 @@ class LatencyProfilerTest {
         profiler.beforeIteration(null, null);
         final PipelineRecorder recorder = LatencyProfiler.pipelineRecorder();
         assertThat(LatencyProfiler.pipelineRecorder()).isSameAs(recorder);
-        recorder.startMeasurement();
+        recorder.prepareToMeasure();
         recorder.record(1_000);
         recorder.record(3_000);
-        recorder.stopMeasurement();
-        recorder.startMeasurement();
+        recorder.finalizeMeasurement();
+        recorder.prepareToMeasure();
         recorder.record(9_000);
-        recorder.stopMeasurement();
+        recorder.finalizeMeasurement();
         recorder.discardSaturatedInvocation();
         final Map<String, Double> results = scores(profiler.afterIteration(null, null, null));
 
@@ -79,7 +103,7 @@ class LatencyProfilerTest {
     private static Map<String, Result<?>> runIteration(final int calls) {
         final LatencyProfiler profiler = new LatencyProfiler();
         profiler.beforeIteration(null, null);
-        final LatencyRecorder recorder = LatencyProfiler.recorder();
+        final LappingLatencyHistogramRecorder recorder = LatencyProfiler.lappingRecorder();
         recorder.prepareToMeasure();
         recorder.startLaps();
         for (int i = 0; i < calls; i++) {

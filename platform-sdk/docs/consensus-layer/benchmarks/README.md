@@ -22,7 +22,7 @@ which also lists the developer scripts.
 
 ```
 writing.md       benchmark class in src/jmh
-                 LatencyRecorder times every call, LatencyProfiler reports the percentiles and alloc.norm
+                 a latency recorder times every call, LatencyProfiler reports the percentiles and alloc.norm
                  profile-regions.sh proves that the measured time is spent in the code under test
                      │
 calibration.md   007 calibration workflow on the benchmark machine: the probe, then the configuration run

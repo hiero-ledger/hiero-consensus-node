@@ -8,7 +8,7 @@ import java.lang.management.ManagementFactory;
 /**
  * Collects the latencies and the allocation of the invocations of a pipeline benchmark during one JMH iteration.
  * {@link LatencyProfiler} turns them into the benchmark's latency results, as it does with the measurements of a
- * {@link LatencyRecorder}.
+ * {@link LatencyHistogramRecorder}.
  *
  * <h2>What it is for</h2>
  *
@@ -21,10 +21,10 @@ import java.lang.management.ManagementFactory;
  * <h2>The measured part of an invocation</h2>
  *
  * <pre>
- * startMeasurement()             reads the allocated bytes of all threads and the number of garbage collections
+ * prepareToMeasure()             reads the allocated bytes of all threads and the number of garbage collections
  * replay the inputs and drain the pipeline
  * record(latency)                once for every value that arrived
- * stopMeasurement()              reads both again
+ * finalizeMeasurement()          reads both again
  * discardSaturatedInvocation()   only if the pipeline did not keep up
  * </pre>
  *
@@ -33,9 +33,9 @@ import java.lang.management.ManagementFactory;
  * still includes it in its primary score.
  *
  * <ul>
- *   <li>{@link #stopMeasurement()} discards an invocation during whose measured part a garbage collection ran, as
- *       {@link LatencyRecorder} does: the collection pauses every thread of the pipeline, and the pause would disturb
- *       the latencies of one invocation at random. The allocation per value stands in for the cost of garbage
+ *   <li>{@link #finalizeMeasurement()} discards an invocation during whose measured part a garbage collection ran, as
+ *       {@link LatencyHistogramRecorder} does: the collection pauses every thread of the pipeline, and the pause would
+ *       disturb the latencies of one invocation at random. The allocation per value stands in for the cost of garbage
  *       collection.</li>
  *   <li>{@link #discardSaturatedInvocation()} discards an invocation in which the pipeline did not keep up, whose
  *       latencies grew with the length of the measured part. The two are counted independently: an invocation with a
@@ -46,9 +46,9 @@ import java.lang.management.ManagementFactory;
  *
  * <p>Obtain the recorder with {@link LatencyProfiler#pipelineRecorder()} in a setup method that runs at least once per
  * iteration ({@code Level.Iteration} or {@code Level.Invocation}). Every iteration gets a new recorder. Call
- * {@code startMeasurement()} and {@code stopMeasurement()} once per invocation. The allocated bytes and the collections
- * are counted for the whole JVM, so the measured parts must not overlap: an iteration has one pipeline recorder, for a
- * benchmark that runs on one thread, and its methods throw when they are called out of order.
+ * {@code prepareToMeasure()} and {@code finalizeMeasurement()} once per invocation. The allocated bytes and the
+ * collections are counted for the whole JVM, so the measured parts must not overlap: an iteration has one pipeline
+ * recorder, for a benchmark that runs on one thread, and its methods throw when they are called out of order.
  */
 public final class PipelineRecorder {
 
@@ -103,10 +103,10 @@ public final class PipelineRecorder {
      *
      * @throws IllegalStateException if a measured part is running
      */
-    public void startMeasurement() {
+    public void prepareToMeasure() {
         if (state == State.RUNNING) {
             throw new IllegalStateException(
-                    "A measured part is running; stop it with stopMeasurement() before starting the next one");
+                    "A measured part is running; end it with finalizeMeasurement() before preparing the next one");
         }
         keepEndedInvocation();
         invocationHistogram.reset();
@@ -125,7 +125,7 @@ public final class PipelineRecorder {
      */
     public void record(final long latencyNanos) {
         if (state != State.RUNNING) {
-            throw new IllegalStateException("No measured part is running; start one with startMeasurement()");
+            throw new IllegalStateException("No measured part is running; begin one with prepareToMeasure()");
         }
         invocationHistogram.record(latencyNanos);
     }
@@ -136,9 +136,9 @@ public final class PipelineRecorder {
      *
      * @throws IllegalStateException if no measured part is running
      */
-    public void stopMeasurement() {
+    public void finalizeMeasurement() {
         if (state != State.RUNNING) {
-            throw new IllegalStateException("No measured part is running; start one with startMeasurement()");
+            throw new IllegalStateException("No measured part is running; begin one with prepareToMeasure()");
         }
         invocationAllocatedBytes = THREAD_MX_BEAN.getTotalThreadAllocatedBytes() - allocatedBytesAtStart;
         if (GarbageCollections.count() == gcCountAtStart) {
@@ -151,7 +151,7 @@ public final class PipelineRecorder {
 
     /**
      * Discards the invocation whose measured part ended last, because the pipeline did not keep up. An invocation that
-     * {@link #stopMeasurement()} discarded for a garbage collection counts here too.
+     * {@link #finalizeMeasurement()} discarded for a garbage collection counts here too.
      *
      * @throws IllegalStateException if no measured part has ended since the latest one started, or if this method
      * discarded the invocation already

@@ -8,8 +8,8 @@ import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import org.hiero.consensus.benchmark.tools.histogram.LappingLatencyHistogramRecorder;
 import org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler;
-import org.hiero.consensus.benchmark.tools.histogram.LatencyRecorder;
 import org.hiero.consensus.hashgraph.impl.ConsensusEngine;
 import org.hiero.consensus.hashgraph.impl.ConsensusEngineOutput;
 import org.hiero.consensus.hashgraph.impl.DefaultConsensusEngine;
@@ -66,10 +66,10 @@ import org.openjdk.jmh.infra.Blackhole;
  * periodic updaters and snapshots run on other threads, outside {@code addEvent}.
  *
  * <p>One invocation adds all recorded events. The primary score is the mean time per event. A
- * {@link LatencyRecorder} also times every call, with one timestamp per call ({@link LatencyRecorder#lap()}), so each
- * latency also contains the output counting and the blackhole of the previous call. {@link LatencyProfiler} reports
- * the percentiles and the allocation per call. The allocation is measured around the calls only, because
- * {@code -prof gc} also counts the copying in the setup.
+ * {@link LappingLatencyHistogramRecorder} also times every call, with one timestamp per call
+ * ({@link LappingLatencyHistogramRecorder#lap()}), so each latency also contains the output counting and the blackhole
+ * of the previous call. {@link LatencyProfiler} reports the percentiles and the allocation per call. The allocation is
+ * measured around the calls only, because {@code -prof gc} also counts the copying in the setup.
  *
  * <p>As in {@link ConsensusImplBenchmark}, the mean matters as much as the percentiles: it is the time to add all
  * events, divided by the number of events. Most calls are cheap and the few that decide a round are expensive, so the
@@ -151,7 +151,7 @@ public class ConsensusEngineBenchmark {
     private int staleEvents;
 
     /** The latency recorder for the benchmark. */
-    private LatencyRecorder recorder;
+    private LappingLatencyHistogramRecorder recorder;
 
     /**
      * Records the events for the benchmark. This method is called once per trial.
@@ -215,7 +215,7 @@ public class ConsensusEngineBenchmark {
         decidedRounds = 0;
         preConsensusEvents = 0;
         staleEvents = 0;
-        recorder = LatencyProfiler.recorder();
+        recorder = LatencyProfiler.lappingRecorder();
 
         // Collect the garbage of the setup and of the previous invocation now, so that it is not collected during the
         // measured calls.

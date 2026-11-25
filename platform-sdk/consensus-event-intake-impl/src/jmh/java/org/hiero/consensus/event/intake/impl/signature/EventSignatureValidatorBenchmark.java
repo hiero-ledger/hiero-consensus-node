@@ -18,8 +18,8 @@ import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.SigningSchema;
 import org.hiero.consensus.benchmark.tools.event.EventShape;
 import org.hiero.consensus.benchmark.tools.event.EventStreamGenerator;
+import org.hiero.consensus.benchmark.tools.histogram.LappingLatencyHistogramRecorder;
 import org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler;
-import org.hiero.consensus.benchmark.tools.histogram.LatencyRecorder;
 import org.hiero.consensus.event.DefaultIntakeEventCounter;
 import org.hiero.consensus.metrics.config.MetricsConfig_;
 import org.hiero.consensus.metrics.platform.DefaultMetricsProvider;
@@ -60,10 +60,10 @@ import org.openjdk.jmh.infra.Blackhole;
  * {@link DefaultIntakeEventCounter}. Only the metrics output is disabled, so that the benchmark opens no Prometheus port
  * and writes no CSV file.
  *
- * <p>One invocation validates all events. The primary score is the mean time per event. A {@link LatencyRecorder}
- * also times every call, with one timestamp per call ({@link LatencyRecorder#lap()}), so each latency also contains
- * the counting and the blackhole of the previous call. {@link LatencyProfiler} reports the percentiles and the
- * allocation per call.
+ * <p>One invocation validates all events. The primary score is the mean time per event. A
+ * {@link LappingLatencyHistogramRecorder} also times every call, with one timestamp per call
+ * ({@link LappingLatencyHistogramRecorder#lap()}), so each latency also contains the counting and the blackhole of the
+ * previous call. {@link LatencyProfiler} reports the percentiles and the allocation per call.
  *
  * <p>Each invocation's setup ends with {@code System.gc()}, so usually no garbage collection falls into the measured
  * part. An invocation during whose measured part one does is discarded and replaced by the next invocation.
@@ -133,7 +133,7 @@ public class EventSignatureValidatorBenchmark {
     private int acceptedEvents;
 
     /** The latency recorder for the benchmark. */
-    private LatencyRecorder recorder;
+    private LappingLatencyHistogramRecorder recorder;
 
     /**
      * Generates the keys and the signed events, and creates the validator. This method is called once per trial.
@@ -176,7 +176,7 @@ public class EventSignatureValidatorBenchmark {
     public void prepareInvocation() {
         events = EventStreamGenerator.receive(generatedEvents);
         acceptedEvents = 0;
-        recorder = LatencyProfiler.recorder();
+        recorder = LatencyProfiler.lappingRecorder();
 
         // Collect the garbage of the setup and of the previous invocation now, so that it is not collected during the
         // measured calls.

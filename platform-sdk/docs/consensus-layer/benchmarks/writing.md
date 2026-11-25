@@ -65,18 +65,19 @@ The measured region is the part of the benchmark method that is timed: the calls
 
 ### A single call
 
-Record the time of every call in a histogram with
-[`LatencyRecorder`](../../../consensus-benchmark-tools/src/main/java/org/hiero/consensus/benchmark/tools/histogram/LatencyRecorder.java).
-Its Javadoc shows the pattern: `prepareToMeasure()` and `startLaps()`, `lap()` after each call, `stopLaps()` and
-`finalizeMeasurement()`, once per invocation.
+Record the time of every call in a histogram, with one of two recorders.
+[`LappingLatencyHistogramRecorder`](../../../consensus-benchmark-tools/src/main/java/org/hiero/consensus/benchmark/tools/histogram/LappingLatencyHistogramRecorder.java)
+times the calls of a loop: `startLaps()`, `lap()` after each call, `stopLaps()`.
+[`LatencyHistogramRecorder`](../../../consensus-benchmark-tools/src/main/java/org/hiero/consensus/benchmark/tools/histogram/LatencyHistogramRecorder.java)
+times single calls with untimed work between them: `startMeasurement()` and `stopMeasurement()` around each call. With
+both, `prepareToMeasure()` and `finalizeMeasurement()` enclose the measured part of each invocation.
 
-- **Read the clock once per call.** `lap()` records the time since the previous `lap()`, so no time between calls is
-  lost, and the recorded times add up to the laps. Each recorded time also includes the benchmark's work between two
-  calls; keep that work small.
-- **Leave work that must not count outside the laps,** such as calls of the code under test that another benchmark
-  method measures: `stopLaps()` after the last `lap()` of consecutive measured calls, `startLaps()` right before the
-  next one. Work outside the laps counts neither in a latency nor in `alloc.norm`, but JMH's primary score includes it.
-  A replay that mixes timed and untimed calls runs in segments of consecutive calls of one kind.
+- **In a loop, read the clock once per call.** `lap()` records the time since the previous `lap()`, so no time between
+  calls is lost, and the recorded times add up to the laps. Each recorded time also includes the benchmark's work
+  between two calls; keep that work small.
+- **Leave work that must not count outside the laps or measurements,** such as calls of the code under test that
+  another benchmark method measures. It counts neither in a latency nor in `alloc.norm`, but JMH's primary score
+  includes it. A replay that mixes timed and untimed calls runs in segments of consecutive calls of one kind.
 - **Do not use JMH's `Mode.SampleTime`.** It gets the slow calls wrong, and they matter most:
   - it times at most about 20 calls per millisecond, a random selection, which adds noise to the slow end;
   - when its buffer is full, it halves every count but keeps counts of 1, so rare slow calls weigh too much, and p99.99
@@ -134,16 +135,16 @@ turns the recorded times into JMH results. Its Javadoc lists them and how JMH co
 ## Allocation and garbage collection
 
 - **Measure allocation around the measured calls, not with `-prof gc`.** `-prof gc` counts everything the iteration
-  allocates, the setup included. `LatencyRecorder` reads the bytes the thread has allocated
+  allocates, the setup included. The latency recorders read the bytes the thread has allocated
   (`com.sun.management.ThreadMXBean.getCurrentThreadAllocatedBytes()`, which requires `jdk.management`) before and
-  after the calls, and `LatencyProfiler` reports the bytes per call as `alloc.norm`.
+  after the timed calls, and `LatencyProfiler` reports the bytes per call as `alloc.norm`.
 - **The bytes allocated per call hardly vary between runs.** They show the work the code makes for the garbage
   collector, which the latency leaves out (see the next point). A rise in allocation is the earliest sign that garbage
   collection will make the slow calls slower.
 - **A garbage collection during the measured part discards the invocation; it never fails the run.** Whether a
   collection falls into the measured part varies from run to run, because the G1 collector adjusts the size of its
-  young generation while the program runs. `LatencyRecorder` and `PipelineRecorder` drop the invocation's times, count
-  it in `measured.gc.discardedInvocations`, and the next invocation replaces it.
+  young generation while the program runs. The latency recorders and `PipelineRecorder` drop the invocation's times,
+  count it in `measured.gc.discardedInvocations`, and the next invocation replaces it.
   - A GC log cannot do this check: it does not show whether a collection fell into the setup or into the measured
     calls.
   - The price is the time of the `System.gc()` and the setup of every invocation, which calibration includes.
@@ -206,7 +207,7 @@ in different forks; [calibration.md](calibration.md#fork-modes) explains how to 
 - **Compare two versions in alternating short runs** (old, new, old, new), and compare each run with its neighbor, not
   two long runs.
 - **Timer resolution:** `System.nanoTime` advances in steps of about 42 ns on Apple Silicon, so local latencies below a
-  few µs are coarse (`LatencyRecorder` Javadoc). This does not apply on Linux x86.
+  few µs are coarse (`AbstractLatencyHistogramRecorder` Javadoc). This does not apply on Linux x86.
 - **Judge run time by JMH's "Total time"**, not by its progress estimate or Gradle's build time.
 - **Run the jar directly** for quick checks: `java -jar <module>/build/libs/*-jmh-merged.jar <pattern>` after
   `./gradlew :<module>:jmhJarWithMergedServiceFiles`, with `-prof` for each profiler the benchmark needs.

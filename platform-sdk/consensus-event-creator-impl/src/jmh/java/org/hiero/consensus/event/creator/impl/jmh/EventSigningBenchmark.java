@@ -11,8 +11,8 @@ import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.SigningSchema;
+import org.hiero.consensus.benchmark.tools.histogram.LappingLatencyHistogramRecorder;
 import org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler;
-import org.hiero.consensus.benchmark.tools.histogram.LatencyRecorder;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator;
 import org.hiero.consensus.fakes.crypto.KeysAndCertsGenerator;
@@ -51,9 +51,10 @@ import org.openjdk.jmh.infra.Blackhole;
  * the SHA-256 digest of all signatures is compared with a constant, so a signer that does less work, or signs other
  * data, fails the run.
  *
- * <p>One invocation signs all hashes. The primary score is the mean time per signature. A {@link LatencyRecorder} also
- * times every call, with one timestamp per call ({@link LatencyRecorder#lap()}), so each latency also contains the
- * bookkeeping of the previous call. {@link LatencyProfiler} reports the percentiles and the allocation per call.
+ * <p>One invocation signs all hashes. The primary score is the mean time per signature. A
+ * {@link LappingLatencyHistogramRecorder} also times every call, with one timestamp per call
+ * ({@link LappingLatencyHistogramRecorder#lap()}), so each latency also contains the bookkeeping of the previous call.
+ * {@link LatencyProfiler} reports the percentiles and the allocation per call.
  *
  * <p>Each invocation's setup ends with {@code System.gc()}, so usually no garbage collection falls into the measured
  * part. An invocation during whose measured part one does is discarded and replaced by the next invocation.
@@ -118,7 +119,7 @@ public class EventSigningBenchmark {
     private Bytes[] signatures;
 
     /** The latency recorder for the benchmark. */
-    private LatencyRecorder recorder;
+    private LappingLatencyHistogramRecorder recorder;
 
     /**
      * Generates the keys and the hashes, and creates the signer. This method is called once per trial.
@@ -153,7 +154,7 @@ public class EventSigningBenchmark {
             hashes[i] = Bytes.wrap(hashBytes[i]);
         }
         Arrays.fill(signatures, null);
-        recorder = LatencyProfiler.recorder();
+        recorder = LatencyProfiler.lappingRecorder();
 
         // Collect the garbage of the previous invocation now, so that it is not collected during the measured calls.
         System.gc();

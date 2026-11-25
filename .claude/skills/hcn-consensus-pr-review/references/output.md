@@ -125,8 +125,8 @@ nothing shows that it did.
 
 Decisions in this PR:
 1. ConsensusLatencyRecorder.java, ConsensusLatencyResult.java: a new recorder of latencies into a
-   LatencyHistogram. LatencyRecorder in consensus-benchmark-tools already does that for benchmarks.
-   Write a new one, or extend LatencyRecorder?
+   LatencyHistogram. LatencyHistogramRecorder in consensus-benchmark-tools already does that for benchmarks.
+   Write a new one, or extend LatencyHistogramRecorder?
 2. FalconNetwork.java, FalconNode.java, FalconMiniNode.java: every Falcon node now feeds a latency
    recorder, although most Falcon tests don't use it. Should it be opt-in?
 

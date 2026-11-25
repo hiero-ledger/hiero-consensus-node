@@ -16,8 +16,8 @@ import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.benchmark.tools.event.EventShape;
 import org.hiero.consensus.benchmark.tools.event.EventStreamGenerator;
+import org.hiero.consensus.benchmark.tools.histogram.LatencyHistogramRecorder;
 import org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler;
-import org.hiero.consensus.benchmark.tools.histogram.LatencyRecorder;
 import org.hiero.consensus.model.event.EventHashFactory;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.roster.RosterWrapper;
@@ -59,11 +59,11 @@ import org.openjdk.jmh.annotations.Warmup;
  * <p>After every invocation, the SHA-256 digest of the hashes of all events, in order, must equal a constant. It
  * changes when the events or the hashing change.
  *
- * <p>One invocation receives and hashes {@value #NUMBER_OF_EVENTS} events. Receiving an event lies outside the
- * laps of a {@link LatencyRecorder}, so it counts neither in a latency nor in the allocation. The recorder times each
- * hash from {@link LatencyRecorder#startLaps()} right before the call to {@link LatencyRecorder#lap()} right after it,
- * and {@link LatencyProfiler} reports the percentiles and the allocation per hash. JMH's primary score, the mean time
- * per event of the whole invocation, includes the receiving; track {@code latency.mean} instead.
+ * <p>One invocation receives and hashes {@value #NUMBER_OF_EVENTS} events. A {@link LatencyHistogramRecorder} times
+ * each hash from {@link LatencyHistogramRecorder#startMeasurement()} right before the call to
+ * {@link LatencyHistogramRecorder#stopMeasurement()} right after it, so the receiving counts neither in a latency nor
+ * in the allocation, and {@link LatencyProfiler} reports the percentiles and the allocation per hash. JMH's primary
+ * score, the mean time per event of the whole invocation, includes the receiving; track {@code latency.mean} instead.
  *
  * <p>The first call of an invocation comes right after the setup and is much slower than the others, so it is hashed
  * but not timed. On an Apple M4 laptop, its median was 3.0–3.3 µs without transactions and 4.1–4.5 µs with two, against
@@ -73,9 +73,10 @@ import org.openjdk.jmh.annotations.Warmup;
  * no measurable difference, because other calls are as slow. No such setup precedes an event in production.
  *
  * <p>Each latency also contains one reading of the clock, which is a noticeable part of a call this short. On an Apple
- * M4 laptop, an empty call, {@code startLaps()} directly followed by {@code lap()}, took 11.2–11.3 ns on average, about
- * 3% of a hash without transactions and 1% of one with two; on the benchmark machine it is unmeasured. The share is
- * about constant, so a regression of the hasher still shows in full nanoseconds, but as a slightly smaller percentage.
+ * M4 laptop, an empty call, {@code startMeasurement()} directly followed by {@code stopMeasurement()}, took 11.2–11.3
+ * ns on average, about 3% of a hash without transactions and 1% of one with two; on the benchmark machine it is
+ * unmeasured. The share is about constant, so a regression of the hasher still shows in full nanoseconds, but as a
+ * slightly smaller percentage.
  *
  * <p>Each invocation's setup ends with {@code System.gc()}, so usually no garbage collection falls into the
  * measured part, although receiving allocates several kilobytes per event. An invocation during whose measured part one
@@ -144,7 +145,7 @@ public class EventHashingBenchmark {
     private PlatformEvent[] events;
 
     /** The latency recorder for the benchmark. */
-    private LatencyRecorder recorder;
+    private LatencyHistogramRecorder recorder;
 
     /**
      * Generates the events and creates the hasher. This method is called once per trial.
@@ -201,7 +202,7 @@ public class EventHashingBenchmark {
 
     /**
      * Receives every event anew and hashes it right away, as the intake does, and records the latency of each hash but
-     * the first. Receiving an event lies outside the recorder's laps.
+     * the first. Receiving an event is not measured.
      */
     @Benchmark
     @BenchmarkMode(Mode.AverageTime)
@@ -213,10 +214,9 @@ public class EventHashingBenchmark {
         events[0] = hasher.hashEvent(receiveUnhashed(generatedEvents.getFirst()));
         for (int i = 1; i < NUMBER_OF_EVENTS; i++) {
             final PlatformEvent event = receiveUnhashed(generatedEvents.get(i));
-            recorder.startLaps();
+            recorder.startMeasurement();
             hasher.hashEvent(event);
-            recorder.lap();
-            recorder.stopLaps();
+            recorder.stopMeasurement();
             events[i] = event;
         }
         recorder.finalizeMeasurement();

@@ -20,8 +20,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.benchmark.tools.histogram.LatencyHistogramRecorder;
 import org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler;
-import org.hiero.consensus.benchmark.tools.histogram.LatencyRecorder;
 import org.hiero.consensus.event.DefaultIntakeEventCounter;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.NoOpIntakeEventCounter;
@@ -71,8 +71,8 @@ import org.openjdk.jmh.annotations.Warmup;
  *
  * <p>{@link FalconRecorder} records two full nodes of a simulated network once per trial, the node and its peer: a
  * network of {@link #numNodes} nodes with the ping times of mainnet and transactions of the shape of mainnet's. Each
- * invocation replays the node's recording into a new synchronizer, untimed (outside the {@link
- * LatencyRecorder#startLaps() laps}): every event its orphan buffer released and every new event window, in order.
+ * invocation replays the node's recording into a new synchronizer, untimed (outside the measurements of a
+ * {@link LatencyHistogramRecorder}): every event its orphan buffer released and every new event window, in order.
  * During the replay, the node syncs with the peer, as {@code RpcPeerHandler} does on the node that starts the sync:
  * <ol>
  *   <li>The node reserves its event window and takes its tips.</li>
@@ -228,7 +228,7 @@ public class SyncDecisionBenchmark {
     private long checksum;
 
     /** The latency recorder of the invocation. */
-    private LatencyRecorder recorder;
+    private LatencyHistogramRecorder recorder;
 
     /**
      * Records the node and its peer, and prepares the actions of the replay. This method is called once per trial.
@@ -481,11 +481,10 @@ public class SyncDecisionBenchmark {
         }
         time.set(scheduledSync.decisionTime());
 
-        recorder.startLaps();
+        recorder.startMeasurement();
         final List<PlatformEvent> sendList =
                 synchronizer.sendList(selfId, knownSet, reservation.getEventWindow(), scheduledSync.peerWindow());
-        recorder.lap();
-        recorder.stopLaps();
+        recorder.stopMeasurement();
 
         reservation.close();
         reservation = null;

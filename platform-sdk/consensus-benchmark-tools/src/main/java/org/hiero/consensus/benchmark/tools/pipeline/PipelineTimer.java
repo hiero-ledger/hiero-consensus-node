@@ -19,8 +19,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import org.hiero.consensus.benchmark.tools.histogram.LatencyHistogramRecorder;
 import org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler;
-import org.hiero.consensus.benchmark.tools.histogram.LatencyRecorder;
 import org.hiero.consensus.benchmark.tools.histogram.PipelineRecorder;
 import org.hiero.consensus.wiring.framework.wires.SolderType;
 import org.hiero.consensus.wiring.framework.wires.input.InputWire;
@@ -33,10 +33,10 @@ import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
  *
  * <h2>What it is for</h2>
  *
- * <p>{@link LatencyRecorder} times calls on one thread. It cannot time an input that enters on one thread and leaves on
- * another. This timer hands every input to the pipeline at its due time, whether or not the pipeline has finished the
- * earlier ones, so that the latency includes the time an input waits in the pipeline's queues. A benchmark that hands
- * on the next input only when the previous one is done would leave that waiting out.
+ * <p>{@link LatencyHistogramRecorder} times calls on one thread. It cannot time an input that enters on one thread and
+ * leaves on another. This timer hands every input to the pipeline at its due time, whether or not the pipeline has
+ * finished the earlier ones, so that the latency includes the time an input waits in the pipeline's queues. A benchmark
+ * that hands on the next input only when the previous one is done would leave that waiting out.
  *
  * <h2>Using it</h2>
  *
@@ -130,7 +130,7 @@ import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
  *
  * <p>A pipeline allocates on its own threads, so {@link PipelineRecorder} counts the bytes all threads of the JVM
  * allocate during the replay, and {@code LatencyProfiler} reports them per counted value as {@code alloc.norm}. An
- * invocation during whose replay a garbage collection ran is discarded, as with {@link LatencyRecorder}.
+ * invocation during whose replay a garbage collection ran is discarded, as with {@link LatencyHistogramRecorder}.
  *
  * <h2>Threads</h2>
  *
@@ -275,7 +275,7 @@ public final class PipelineTimer {
         prepared = false;
         final PipelineRecorder iterationRecorder = requireNonNull(recorder);
         output.replaying = true;
-        iterationRecorder.startMeasurement();
+        iterationRecorder.prepareToMeasure();
         final long start = System.nanoTime();
         try {
             for (int i = 0; i < invocationValues.length; i++) {
@@ -307,7 +307,7 @@ public final class PipelineTimer {
             }
         }
         // before the saturation check, which allocates
-        iterationRecorder.stopMeasurement();
+        iterationRecorder.finalizeMeasurement();
         arrivals = arrived;
 
         saturated = latencyGrowth(dueNanos, invocationLatencies) > MAX_LATENCY_GROWTH;
