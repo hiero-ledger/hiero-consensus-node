@@ -344,6 +344,66 @@ class HintsControllerImplTest {
     }
 
     @Test
+    void keysRotatedAtTheSameTimeAreAllValidatedAndPreprocessed() {
+        // Keys rotated together by startHintsKeyGracePeriod() share an adoption time
+        final var rotationTime = PREPROCESSING_START_TIME.minusSeconds(1);
+        final var nodeOne = new HintsKeyPublication(1L, Bytes.wrap("ONE"), 1, rotationTime);
+        final var nodeTwo = new HintsKeyPublication(2L, Bytes.wrap("TWO"), 2, rotationTime);
+        given(library.validateHintsKey(any(), any(), anyInt(), anyInt())).willReturn(true);
+        setupWith(
+                UNFINISHED_CONSTRUCTION,
+                List.of(nodeOne, nodeTwo),
+                CRSState.newBuilder().stage(CRSStage.COMPLETED).crs(INITIAL_CRS).build());
+        runScheduledTasks();
+        given(weights.targetNodeWeights()).willReturn(TARGET_NODE_WEIGHTS);
+        given(weights.numTargetNodesInSource()).willReturn(2);
+        given(store.setPreprocessingStartTime(CONSTRUCTION_ID, PREPROCESSING_START_TIME, 10L))
+                .willReturn(CONSTRUCTION_WITH_START_TIME
+                        .copyBuilder()
+                        .preprocessingRosterWeight(10L)
+                        .build());
+
+        subject.advanceConstruction(PREPROCESSING_START_TIME, store, true);
+
+        final var voteTask = requireNonNull(scheduledTasks.poll());
+        given(library.preprocess(any(), any(), any(), eq(EXPECTED_PARTY_SIZE))).willReturn(ENCODED_PREPROCESSED_KEYS);
+        given(submissions.submitHintsVote(CONSTRUCTION_ID, PREPROCESSED_KEYS))
+                .willReturn(CompletableFuture.completedFuture(null));
+        given(weights.targetIncludes(anyLong())).willReturn(true);
+        voteTask.run();
+        verify(library)
+                .preprocess(
+                        INITIAL_CRS,
+                        new TreeMap<>(Map.of(1, nodeOne.hintsKey(), 2, nodeTwo.hintsKey())),
+                        new TreeMap<>(Map.of(1, 8L, 2, 2L)),
+                        EXPECTED_PARTY_SIZE);
+    }
+
+    @Test
+    void keysRotatedAtTheSameTimeAllCountTowardTheThresholdAfterTheGracePeriod() {
+        final var now = CONSENSUS_NOW.plusSeconds(2);
+        final var nodeOne = new HintsKeyPublication(1L, Bytes.wrap("ONE"), 1, now);
+        final var nodeTwo = new HintsKeyPublication(2L, Bytes.wrap("TWO"), 2, now);
+        given(library.validateHintsKey(any(), any(), anyInt(), anyInt())).willReturn(true);
+        setupWith(
+                UNFINISHED_CONSTRUCTION,
+                List.of(nodeOne, nodeTwo),
+                CRSState.newBuilder().stage(CRSStage.COMPLETED).crs(INITIAL_CRS).build());
+        runScheduledTasks();
+        // A third target node never publishes, so only the weight check can start preprocessing
+        given(weights.numTargetNodesInSource()).willReturn(3);
+        given(weights.targetWeightOf(1L)).willReturn(8L);
+        given(weights.targetWeightOf(2L)).willReturn(2L);
+        given(weights.targetWeightThreshold()).willReturn(10L);
+        given(weights.targetNodeWeights()).willReturn(TARGET_NODE_WEIGHTS);
+        given(store.setPreprocessingStartTime(CONSTRUCTION_ID, now, 10L)).willReturn(CONSTRUCTION_WITH_START_TIME);
+
+        subject.advanceConstruction(now, store, false);
+
+        verify(store).setPreprocessingStartTime(CONSTRUCTION_ID, now, 10L);
+    }
+
+    @Test
     void doesNotStartPreprocessingEarlyBeforeCurrentRosterNodeOutsideSourcePublishes() {
         // Node 2 is in the current roster but not a party in the source scheme, e.g. it was added at the last upgrade
         setupWithCurrentRosterNodesOutsideSource(UNFINISHED_CONSTRUCTION, Set.of(2L));
