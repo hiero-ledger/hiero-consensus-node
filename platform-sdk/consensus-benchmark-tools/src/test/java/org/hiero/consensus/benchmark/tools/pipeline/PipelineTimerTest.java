@@ -43,11 +43,15 @@ import org.openjdk.jmh.results.Result;
 class PipelineTimerTest {
 
     public static final int ITEMS_PER_SECOND = 5_000;
-    /**
-     * 1,000 items, 200 µs apart. A pass of 200 ms keeps the saturation check from mistaking a short stall of a busy
-     * machine for a pipeline that falls behind.
-     */
+
+    /** 1,000 items, 200 µs apart. */
     private static final List<Item> ITEMS = Item.evenlySpaced(1_000, ITEMS_PER_SECOND);
+
+    /** How far {@link #tickingClock()} moves each time it is read. */
+    private static final long READ_NANOS = 1_000;
+
+    /** How late an input may enter on {@link #tickingClock()}: the few clock reads between its due time and entry. */
+    private static final long ENTRY_TOLERANCE_NANOS = 10 * READ_NANOS;
 
     /** The time between two of {@link #ITEMS}. */
     private static final long SPACING_NANOS = 1_000_000_000L / ITEMS_PER_SECOND;
@@ -76,6 +80,7 @@ class PipelineTimerTest {
     @Test
     void everyInputOfADirectPipelineArrives() {
         final PipelineTimer timer = builder(ITEMS)
+                .time(tickingClock())
                 .entryPoint(Item.class, item -> item, item -> output.accept(item))
                 .build();
 
@@ -90,8 +95,37 @@ class PipelineTimerTest {
     }
 
     @Test
-    void latenciesFromSeveralThreadsContainTheirDelay() {
-        final long delayNanos = 200_000;
+    void latenciesFromOtherThreadsContainTheirDelay() {
+        final FakeTime time = tickingClock();
+        final ExecutorService pool = Executors.newFixedThreadPool(4);
+        try {
+            final PipelineTimer timer = builder(ITEMS)
+                    .time(time)
+                    .entryPoint(
+                            Item.class,
+                            item -> item,
+                            item -> CompletableFuture.runAsync(
+                                            () -> {
+                                                time.tick(HOLD_NANOS);
+                                                output.accept(item);
+                                            },
+                                            pool)
+                                    .join())
+                    .build();
+
+            timer.prepare();
+            timer.replay();
+
+            assertThat(timer.arrivals()).isEqualTo(ITEMS.size());
+            assertThat(results().get("latency.min")).isGreaterThanOrEqualTo((double) HOLD_NANOS);
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
+    @Test
+    void valuesFromSeveralThreadsAtOnceAllArrive() {
+        // In real time, so that the threads hand values to the output at the same time.
         final ExecutorService pool = Executors.newFixedThreadPool(4);
         try {
             final List<CompletableFuture<?>> tasks = new ArrayList<>();
@@ -101,7 +135,7 @@ class PipelineTimerTest {
                             item -> item,
                             item -> tasks.add(CompletableFuture.runAsync(
                                     () -> {
-                                        spin(delayNanos);
+                                        spin(SPACING_NANOS);
                                         output.accept(item);
                                     },
                                     pool)))
@@ -114,7 +148,6 @@ class PipelineTimerTest {
             timer.replay();
 
             assertThat(timer.arrivals()).isEqualTo(ITEMS.size());
-            assertThat(results().get("latency.min")).isGreaterThanOrEqualTo((double) delayNanos);
         } finally {
             pool.shutdownNow();
         }
@@ -142,6 +175,7 @@ class PipelineTimerTest {
     void valuesThatNeverArriveAreSkipped() {
         final AtomicInteger entered = new AtomicInteger();
         final PipelineTimer timer = builder(ITEMS)
+                .time(tickingClock())
                 .entryPoint(Item.class, item -> item, item -> {
                     if (entered.getAndIncrement() % 2 == 0) {
                         output.accept(item);
@@ -304,10 +338,12 @@ class PipelineTimerTest {
     void theSpeedupDividesTheTimes() {
         // 101 items over 100 ms, replayed in 25 ms
         final List<Item> items = Item.evenlySpaced(101, 1_000);
+        final FakeTime time = tickingClock();
         final List<Long> entries = new ArrayList<>();
         final PipelineTimer timer = PipelineTimer.builder(items)
+                .time(time)
                 .entryPoint(Item.class, item -> item, item -> {
-                    entries.add(System.nanoTime());
+                    entries.add(time.nanoTime());
                     output.accept(item);
                 })
                 .exitPoint(this::attach)
@@ -316,12 +352,14 @@ class PipelineTimerTest {
                 .build();
 
         timer.prepare();
-        // the pass starts after this clock read, and the last item is due 25 ms after the start
-        final long beforePass = System.nanoTime();
+        // the pass starts after this clock read, and the items are due 250 µs apart
+        final long beforePass = time.nanoTime();
         timer.replay();
 
-        assertThat(entries.getLast() - beforePass).isGreaterThanOrEqualTo(25_000_000L);
-        assertThat(entries.getLast() - entries.getFirst()).isLessThan(100_000_000L);
+        for (int i = 0; i < items.size(); i++) {
+            final long due = i * 250_000L;
+            assertThat(entries.get(i) - beforePass).as("item " + i).isBetween(due, due + ENTRY_TOLERANCE_NANOS);
+        }
     }
 
     @Test
@@ -372,6 +410,7 @@ class PipelineTimerTest {
     void aPassWithAGarbageCollectionIsDiscarded() {
         final AtomicInteger entered = new AtomicInteger();
         final PipelineTimer timer = builder(ITEMS)
+                .time(tickingClock())
                 .entryPoint(Item.class, item -> item, item -> {
                     if (entered.getAndIncrement() == 0) {
                         System.gc();
@@ -392,57 +431,50 @@ class PipelineTimerTest {
 
     @Test
     void aPipelineThatFallsBehindIsDiscardedAndCounted() {
-        // one thread that needs 300 µs per item gets one every 200 µs: the latency grows by half the elapsed time
-        final ExecutorService worker = Executors.newSingleThreadExecutor();
-        try {
-            final List<CompletableFuture<?>> tasks = new ArrayList<>();
-            final PipelineTimer timer = PipelineTimer.builder(ITEMS)
-                    .entryPoint(
-                            Item.class,
-                            item -> item,
-                            item -> tasks.add(CompletableFuture.runAsync(
-                                    () -> {
-                                        spin(300_000);
-                                        output.accept(item);
-                                    },
-                                    worker)))
-                    .exitPoint(this::attach)
-                    .drain(() -> CompletableFuture.allOf(tasks.toArray(new CompletableFuture<?>[0]))
-                            .join())
-                    .build();
+        // a pipeline that needs 300 µs per item gets one every 200 µs: the latency grows by half the elapsed time
+        final FakeTime time = tickingClock();
+        final PipelineTimer timer = builder(ITEMS)
+                .time(time)
+                .entryPoint(Item.class, item -> item, item -> {
+                    time.tick(300_000);
+                    output.accept(item);
+                })
+                .build();
 
-            timer.prepare();
-            timer.replay();
+        timer.prepare();
+        timer.replay();
 
-            assertThat(timer.saturated()).isTrue();
-            assertThat(timer.arrivals()).isEqualTo(ITEMS.size());
-            assertThat(results())
-                    .doesNotContainKey("latency.samples")
-                    .containsEntry("measured.saturation.discardedPasses", 1.0);
-        } finally {
-            worker.shutdownNow();
-        }
+        assertThat(timer.saturated()).isTrue();
+        assertThat(timer.arrivals()).isEqualTo(ITEMS.size());
+        assertThat(results())
+                .doesNotContainKey("latency.samples")
+                .containsEntry("measured.saturation.discardedPasses", 1.0);
     }
 
     @Test
     void theInputsBeforeTheFirstMeasuredOneFillThePipelineAtTheirDueTimes() {
         final Item firstMeasured = ITEMS.get(400);
+        final FakeTime time = tickingClock();
         final List<Long> entries = new ArrayList<>();
         final PipelineTimer timer = builder(ITEMS)
+                .time(time)
                 .entryPoint(Item.class, item -> item, item -> {
-                    entries.add(System.nanoTime());
+                    entries.add(time.nanoTime());
                     output.accept(item);
                 })
                 .measureFrom(firstMeasured::equals)
                 .build();
 
         timer.prepare();
-        // the pass starts after this clock read, and input 399 is due 79.8 ms after the start
-        final long beforePass = System.nanoTime();
+        // the pass starts after this clock read
+        final long beforePass = time.nanoTime();
         timer.replay();
 
         assertThat(entries).hasSize(ITEMS.size());
-        assertThat(entries.get(399) - beforePass).isGreaterThanOrEqualTo(79_800_000L);
+        for (int i = 0; i < 400; i++) {
+            final long due = i * SPACING_NANOS;
+            assertThat(entries.get(i) - beforePass).as("input " + i).isBetween(due, due + ENTRY_TOLERANCE_NANOS);
+        }
         assertThat(timer.arrivals()).isEqualTo(600);
         assertThat(results()).containsEntry("latency.samples", 600.0);
     }
@@ -453,6 +485,7 @@ class PipelineTimerTest {
         final int fillArrays = 4_000;
         final List<byte[]> kept = new ArrayList<>();
         final PipelineTimer timer = builder(ITEMS)
+                .time(tickingClock())
                 .entryPoint(Item.class, item -> item, item -> {
                     if (item.equals(ITEMS.getFirst())) {
                         for (int i = 0; i < fillArrays; i++) {
@@ -477,6 +510,7 @@ class PipelineTimerTest {
     @Test
     void aPassWithAGarbageCollectionDuringTheFillIsStored() {
         final PipelineTimer timer = builder(ITEMS)
+                .time(tickingClock())
                 .entryPoint(Item.class, item -> item, item -> {
                     if (item.equals(ITEMS.getFirst())) {
                         System.gc();
@@ -582,6 +616,16 @@ class PipelineTimerTest {
                 .containsEntry("latency.samples", 500.0)
                 .containsEntry("latency.min", (double) HOLD_NANOS)
                 .containsEntry("latency.max", (double) HOLD_NANOS);
+    }
+
+    /**
+     * A clock that moves on by {@link #READ_NANOS} each time it is read. The timer reads it while it waits for an input's
+     * due time, so the wait ends without real time passing, and a stall of the machine cannot delay an input and make
+     * the pass look saturated.
+     */
+    @NonNull
+    private static FakeTime tickingClock() {
+        return new FakeTime(Instant.EPOCH, Duration.ofNanos(READ_NANOS));
     }
 
     /**

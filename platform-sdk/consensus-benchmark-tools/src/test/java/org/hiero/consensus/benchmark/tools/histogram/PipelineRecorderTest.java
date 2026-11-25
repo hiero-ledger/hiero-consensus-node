@@ -4,6 +4,8 @@ package org.hiero.consensus.benchmark.tools.histogram;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -59,20 +61,24 @@ class PipelineRecorderTest {
     }
 
     @Test
-    void allocationOnAnotherThreadIsCounted() throws InterruptedException {
-        System.gc();
-        final PipelineRecorder recorder = new PipelineRecorder();
-        recorder.preparePass();
-        recorder.startPass();
-        final Thread pipelineThread = new Thread(() -> SmallArrays.allocate(ALLOCATION));
-        pipelineThread.start();
-        pipelineThread.join();
-        recorder.record(1_000);
-        recorder.endPass();
-        recorder.endIteration();
+    void allocationOnAnotherThreadIsCounted() throws Exception {
+        final ExecutorService pipelineThread = Executors.newSingleThreadExecutor();
+        try {
+            System.gc();
+            final PipelineRecorder recorder = new PipelineRecorder();
+            recorder.preparePass();
+            recorder.startPass();
+            // A PipelineRecorder tracks allocations on all threads
+            pipelineThread.submit(() -> SmallArrays.allocate(ALLOCATION)).get();
+            recorder.record(1_000);
+            recorder.endPass();
+            recorder.endIteration();
 
-        assertThat(recorder.gcDiscardedPasses()).isZero();
-        assertThat(recorder.allocatedBytes()).isGreaterThanOrEqualTo(ALLOCATION);
+            assertThat(recorder.gcDiscardedPasses()).isZero();
+            assertThat(recorder.allocatedBytes()).isGreaterThanOrEqualTo(ALLOCATION);
+        } finally {
+            pipelineThread.shutdown();
+        }
     }
 
     @Test
