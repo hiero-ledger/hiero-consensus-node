@@ -12,6 +12,7 @@ import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Duration;
 import java.util.Queue;
 import java.util.function.Consumer;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -27,6 +28,7 @@ import org.hiero.consensus.transaction.handling.config.TransactionHandlingConfig
 import org.hiero.consensus.transaction.handling.config.TransactionHandlingWiringConfig;
 import org.hiero.consensus.transaction.handling.internal.DefaultTransactionHandler;
 import org.hiero.consensus.transaction.handling.internal.DefaultTransactionPrehandler;
+import org.hiero.consensus.transaction.handling.internal.HandlerSaturationMonitor;
 import org.hiero.consensus.transaction.handling.internal.StateWithHashComplexityReserver;
 import org.hiero.consensus.transaction.handling.internal.StateWithHashComplexityToStateReserver;
 import org.hiero.consensus.transaction.handling.internal.TransactionHandler;
@@ -43,6 +45,9 @@ public class TransactionHandlingModule {
 
     public static final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> NO_OP_CONSUMER = _ -> {};
 
+    /** How often the handler's queue is checked for being full. */
+    private static final Duration SATURATION_CHECK_PERIOD = Duration.ofMillis(100);
+
     private final ComponentWiring<TransactionPrehandler, Queue<ScopedSystemTransaction<StateSignatureTransaction>>>
             prehanderWiring;
     private final ComponentWiring<TransactionHandler, TransactionHandlerResult> handlerWiring;
@@ -50,6 +55,7 @@ public class TransactionHandlingModule {
     private final OutputWire<Queue<ScopedSystemTransaction<StateSignatureTransaction>>> handleSignaturesOutputWire;
     private final OutputWire<ReservedSignedState> stateOutputWire;
     private final OutputWire<StateWithHashComplexity> stateWithHashComplexityOutputWire;
+    private final OutputWire<Duration> handlerSaturationOutputWire;
 
     private final InputWire<PlatformEvent> preHandleEventInputWire;
     private final InputWire<ConsensusRound> handleConsensusRoundInputWire;
@@ -97,6 +103,11 @@ public class TransactionHandlingModule {
                 TransactionHandlerDataCounter.create(wiringConfig.handler(), lowTpsTargetRounds));
         final ComponentWiring<SignedStateNexus, Void> latestImmutableStateNexusWiring =
                 new ComponentWiring<>(model, SignedStateNexus.class, DIRECT_THREADSAFE_CONFIGURATION);
+
+        final HandlerSaturationMonitor saturationMonitor =
+                new HandlerSaturationMonitor(handlerWiring::getUnprocessedTaskCount, handlerWiring.getCapacity());
+        this.handlerSaturationOutputWire = model.buildHeartbeatWire(SATURATION_CHECK_PERIOD)
+                .buildTransformer("handlerSaturationMonitor", "heartbeat", saturationMonitor::check);
 
         // Set up input wires
         preHandleEventInputWire = prehanderWiring.getInputWire(TransactionPrehandler::prehandleApplicationTransactions);
@@ -202,6 +213,17 @@ public class TransactionHandlingModule {
     @NonNull
     public OutputWire<StateWithHashComplexity> stateWithHashComplexityOutputWire() {
         return stateWithHashComplexityOutputWire;
+    }
+
+    /**
+     * Get the output wire that reports, periodically, how long the handler's queue has been full, or
+     * {@link Duration#ZERO} if it is not full.
+     *
+     * @return the output wire for the duration the handler's queue has been full
+     */
+    @NonNull
+    public OutputWire<Duration> handlerSaturationOutputWire() {
+        return handlerSaturationOutputWire;
     }
 
     /**

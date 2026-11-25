@@ -279,7 +279,11 @@ public class ConsensusLayerWiring {
         final OutputWire<Duration> healthMonitor = buildingBlocks.wiringModel().getHealthMonitorWire();
         healthMonitor.solderTo(buildingBlocks.eventCreatorModule().healthStatusInputWire());
         healthMonitor.solderTo(buildingBlocks.gossipModule().healthStatusInputWire());
-        healthMonitor.solderTo(
-                "executionHealthInput", "healthyDuration", inputs.executionLayer()::reportUnhealthyDuration);
+        // The execution layer refuses client transactions while the transaction handler's queue stays full
+        buildingBlocks
+                .transactionHandlingModule()
+                .handlerSaturationOutputWire()
+                .solderTo(
+                        "executionHealthInput", "handlerSaturation", inputs.executionLayer()::reportUnhealthyDuration);
     }
 }

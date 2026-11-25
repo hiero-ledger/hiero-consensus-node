@@ -739,4 +739,22 @@ public class ComponentWiring<COMPONENT_TYPE, OUTPUT_TYPE> {
     public String getSchedulerName() {
         return scheduler.getName();
     }
+
+    /**
+     * Get the number of tasks waiting for or being handled by the scheduler that is running this component.
+     *
+     * @return the number of unprocessed tasks, as {@link TaskScheduler#getUnprocessedTaskCount()} counts them
+     */
+    public long getUnprocessedTaskCount() {
+        return scheduler.getUnprocessedTaskCount();
+    }
+
+    /**
+     * Get the capacity of the scheduler that is running this component.
+     *
+     * @return the capacity, as {@link TaskScheduler#getCapacity()} returns it
+     */
+    public long getCapacity() {
+        return scheduler.getCapacity();
+    }
 }
