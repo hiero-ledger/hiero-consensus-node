@@ -1683,6 +1683,32 @@ class DispatchProcessorTest {
     }
 
     @Test
+    void throttleRebuildingUpdateIsCapturedAndAppliedUnderTheIngestMonitor() {
+        givenSuccessfulDispatch(CRYPTO_TRANSFER_TXN_INFO);
+        final var monitor = new Object();
+        final var capturedUnderMonitor = new AtomicBoolean();
+        final var appliedUnderMonitor = new AtomicBoolean();
+        given(systemFileUpdates.throttleRebuildMonitor(CRYPTO_TRANSFER_TXN_INFO.txBody()))
+                .willReturn(monitor);
+        given(systemFileUpdates.resyncTarget(stack, CRYPTO_TRANSFER_TXN_INFO.txBody()))
+                .willAnswer(invocation -> {
+                    capturedUnderMonitor.set(Thread.holdsLock(monitor));
+                    return Optional.empty();
+                });
+        given(systemFileUpdates.handleTxBody(stack, CRYPTO_TRANSFER_TXN_INFO.txBody()))
+                .willAnswer(invocation -> {
+                    appliedUnderMonitor.set(Thread.holdsLock(monitor));
+                    return SUCCESS;
+                });
+
+        subject.processDispatch(dispatch);
+
+        assertThat(capturedUnderMonitor).isTrue();
+        assertThat(appliedUnderMonitor).isTrue();
+        assertThat(Thread.holdsLock(monitor)).isFalse();
+    }
+
+    @Test
     void nestedNodeUpdateRefreshesNodeInfoAgainOnceTransactionCommits() {
         givenSuccessfulDispatch(NODE_UPDATE_TXN_INFO);
         // First a dispatch within a transaction, then the transaction's root dispatch

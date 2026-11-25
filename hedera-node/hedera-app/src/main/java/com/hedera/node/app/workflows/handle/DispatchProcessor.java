@@ -106,6 +106,13 @@ public class DispatchProcessor {
     private final SavepointStackImpl.RollbackObserver rollbackObserver = this::recoverDiscardedUpdates;
     private boolean pendingNodeInfoResync;
 
+    /**
+     * Marks a {@code NodeUpdate} applied to the node info in memory. It is anchored to the savepoint holding the
+     * dispatch's changes like a {@link PendingResync}, so a rollback of any savepoint holding those changes refreshes the
+     * node info from the state that remains right away, not only when the transaction completes.
+     */
+    private record NodeInfoUpdate() {}
+
     @Inject
     public DispatchProcessor(
             @NonNull final Authorizer authorizer,
@@ -332,7 +339,29 @@ public class DispatchProcessor {
                 discarded.add(pending);
             }
         }
-        recoverRolledBack(stack, discarded);
+        Throwable firstFailure = null;
+        try {
+            recoverRolledBack(stack, discarded);
+        } catch (final Throwable e) {
+            firstFailure = e;
+        }
+        if (anchors.stream().anyMatch(NodeInfoUpdate.class::isInstance)) {
+            // A node update was discarded, so the cached node info must match the restored node entries before the
+            // transaction goes on. The flag stays set, so the end-of-transaction pass refreshes it again as well.
+            try {
+                networkInfo.updateFrom(stack);
+            } catch (final Throwable e) {
+                logger.error("Failed to re-derive node info from the rolled-back state", e);
+                if (firstFailure == null) {
+                    firstFailure = e;
+                } else {
+                    firstFailure.addSuppressed(e);
+                }
+            }
+        }
+        if (firstFailure != null) {
+            sneakyRethrow(firstFailure);
+        }
     }
 
     /**
@@ -651,6 +680,47 @@ public class DispatchProcessor {
      * @param dispatch the dispatch to be processed
      */
     private void handleSystemUpdates(final Dispatch dispatch) {
+        if (dispatch.txnInfo().functionality() == NODE_UPDATE) {
+            pendingNodeInfoResync = true;
+            // Like a facility update, the node info follows the dispatch's changes through the savepoints they are
+            // committed into, and is refreshed as soon as one of them is rolled back
+            dispatch.stack().anchorToCurrentSavepoint(new NodeInfoUpdate(), rollbackObserver);
+        }
+
+        // Ingest threads charge the ingest buckets concurrently. For an update that rebuilds throttles, hold their
+        // monitor from the capture of the usage the rebuild discards to the rebuild itself, so no ingest charge lands
+        // on an outgoing bucket in between and is lost if recovery restores the capture
+        final var ingestMonitor =
+                systemFileUpdates.throttleRebuildMonitor(dispatch.txnInfo().txBody());
+        final ResponseCodeEnum fileUpdateResult;
+        if (ingestMonitor == null) {
+            fileUpdateResult = recordAndApplyFileUpdate(dispatch);
+        } else {
+            synchronized (ingestMonitor) {
+                fileUpdateResult = recordAndApplyFileUpdate(dispatch);
+            }
+        }
+
+        // In case we just changed the exchange rates via 0.0.112 update, reset them now
+        dispatch.streamBuilder()
+                .exchangeRate(exchangeRateManager.exchangeRates())
+                .status(fileUpdateResult);
+
+        // Notify if platform state was updated
+        platformStateUpdates.handleTxBody(dispatch.stack(), dispatch.txnInfo().txBody(), dispatch.config());
+
+        if (dispatch.txnInfo().functionality() == NODE_UPDATE) {
+            networkInfo.updateFrom(dispatch.stack());
+        }
+    }
+
+    /**
+     * Records the facility update the dispatch applies in memory, if any, and then applies it.
+     *
+     * @param dispatch the dispatch to be processed
+     * @return the status of the file update, SUCCESS if no system file was uploaded
+     */
+    private ResponseCodeEnum recordAndApplyFileUpdate(final Dispatch dispatch) {
         // The transaction can still be rolled back or abandoned after this dispatch, and applying an update can fail
         // partway, so first remember what it updates in memory; it is re-derived from the committed state once the
         // transaction completes
@@ -669,26 +739,10 @@ public class DispatchProcessor {
                     // is recovered as soon as one of them is rolled back
                     dispatch.stack().anchorToCurrentSavepoint(pending, rollbackObserver);
                 });
-        if (dispatch.txnInfo().functionality() == NODE_UPDATE) {
-            pendingNodeInfoResync = true;
-        }
-
         // Notify responsible facility if system-file was uploaded.
         // Returns SUCCESS if no system-file was uploaded
-        final var fileUpdateResult = systemFileUpdates.handleTxBody(
+        return systemFileUpdates.handleTxBody(
                 dispatch.stack(), dispatch.txnInfo().txBody());
-
-        // In case we just changed the exchange rates via 0.0.112 update, reset them now
-        dispatch.streamBuilder()
-                .exchangeRate(exchangeRateManager.exchangeRates())
-                .status(fileUpdateResult);
-
-        // Notify if platform state was updated
-        platformStateUpdates.handleTxBody(dispatch.stack(), dispatch.txnInfo().txBody(), dispatch.config());
-
-        if (dispatch.txnInfo().functionality() == NODE_UPDATE) {
-            networkInfo.updateFrom(dispatch.stack());
-        }
     }
 
     /**

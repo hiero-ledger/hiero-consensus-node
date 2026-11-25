@@ -247,6 +247,18 @@ public class ThrottleServiceManager {
                 ingestUsage);
     }
 
+    /**
+     * Returns the monitor under which the ingest buckets are charged (see {@link SynchronizedThrottleAccumulator}).
+     * Holding it from {@link #captureThrottleUsage()} through a forward rebuild of the throttles keeps a concurrent
+     * ingest decision from charging an outgoing bucket after its usage was captured, which a recovery restoring the
+     * capture would otherwise drop.
+     *
+     * @return the ingest monitor
+     */
+    public Object ingestMonitor() {
+        return ingestThrottle;
+    }
+
     private static List<ThrottleUsageSnapshot> usageOf(@NonNull final List<DeterministicThrottle> buckets) {
         return buckets.stream().map(DeterministicThrottle::usageSnapshot).toList();
     }

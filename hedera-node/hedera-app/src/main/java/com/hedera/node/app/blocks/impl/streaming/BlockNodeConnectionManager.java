@@ -210,24 +210,28 @@ public class BlockNodeConnectionManager extends BlockStreamingBase {
     }
 
     /**
-     * Keeps the block buffer on the given committed configuration while a transaction tries out an update of a
-     * configuration file; see {@link BlockBufferService#holdConfiguration(Configuration)}. Only the block buffer is
-     * held: it makes the pruning, acknowledgement and back pressure decisions that must follow the committed
-     * configuration.
+     * Keeps this manager and the block buffer on the given committed configuration while a transaction tries out an
+     * update of a configuration file; see {@link BlockStreamingBase#holdConfiguration(Configuration)}. Both are held:
+     * the block buffer makes the pruning, acknowledgement and back pressure decisions, and this manager decides how
+     * many observing connections to keep from the same acknowledgement requirement, so it must not close observers the
+     * buffer still counts on.
      *
      * @param configuration the committed configuration to hold
      */
     @Override
     public void holdConfiguration(@NonNull final Configuration configuration) {
+        super.holdConfiguration(configuration);
         blockBufferService.holdConfiguration(configuration);
     }
 
     /**
-     * Returns the block buffer to the current configuration once the outcome of the transaction is final.
+     * Returns this manager and the block buffer to the current configuration once the outcome of the transaction is
+     * final.
      */
     @Override
     public void releaseConfiguration() {
         blockBufferService.releaseConfiguration();
+        super.releaseConfiguration();
     }
 
     /**

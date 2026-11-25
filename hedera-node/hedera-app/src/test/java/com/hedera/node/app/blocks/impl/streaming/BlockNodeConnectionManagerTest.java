@@ -3952,6 +3952,46 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
+    void testObserverDecisionsUseTheHeldAcknowledgementThreshold() throws Throwable {
+        final ConfigProvider localConfigProvider = mock(ConfigProvider.class);
+        final VersionedConfiguration committed = configurationRequiringAcks(3);
+        final VersionedConfiguration tentative = configurationRequiringAcks(1);
+        when(localConfigProvider.getConfiguration()).thenReturn(committed);
+        connectionManager = new BlockNodeConnectionManager(
+                localConfigProvider,
+                bufferService,
+                metrics,
+                networkInfo,
+                blockingIoExecutorSupplier,
+                blockNodeConfigService,
+                streamingObs);
+        activeObservingConnections().put(mock(BlockNode.class), mock(BlockNodeObservingConnection.class));
+        activeObservingConnections().put(mock(BlockNode.class), mock(BlockNodeObservingConnection.class));
+        activeObservingConnections().put(mock(BlockNode.class), mock(BlockNodeObservingConnection.class));
+
+        // A transaction holds the committed configuration and then applies an update that lowers the requirement
+        connectionManager.holdConfiguration(committed);
+        when(localConfigProvider.getConfiguration()).thenReturn(tentative);
+
+        // The observers the committed requirement calls for are kept, and nothing is pruned
+        assertThat(invoke_isObservingUpdateNeeded()).isFalse();
+        assertThat(invoke_refreshObservingConnections()).isFalse();
+        assertThat(activeObservingConnections()).hasSize(3);
+
+        // Once the outcome is final, the committed requirement is the provider's again
+        connectionManager.releaseConfiguration();
+        assertThat(invoke_isObservingUpdateNeeded()).isTrue();
+    }
+
+    private static VersionedConfiguration configurationRequiringAcks(final int minAcks) {
+        final VersionedConfiguration configuration = mock(VersionedConfiguration.class);
+        final BlockBufferConfig bufferConfig = mock(BlockBufferConfig.class);
+        when(configuration.getConfigData(BlockBufferConfig.class)).thenReturn(bufferConfig);
+        when(bufferConfig.minAcksRequiredPerBlock()).thenReturn(minAcks);
+        return configuration;
+    }
+
+    @Test
     void testHoldAndReleaseConfigurationArePassedToTheBufferService() {
         final VersionedConfiguration configuration = mock(VersionedConfiguration.class);
 

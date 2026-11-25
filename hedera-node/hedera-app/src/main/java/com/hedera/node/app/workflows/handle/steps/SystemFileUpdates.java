@@ -323,6 +323,33 @@ public class SystemFileUpdates {
             @NonNull FileID networkPropertiesId, @NonNull FileID hapiPermissionsId) {}
 
     /**
+     * Returns the monitor to hold from {@link #resyncTarget(State, TransactionBody)} through
+     * {@link #handleTxBody(State, TransactionBody)} when the given body updates a file whose update rebuilds throttles
+     * (network properties or throttle definitions). The usage captured for recovery is then exactly the usage of the
+     * buckets the update replaces: no concurrent ingest decision charges them in between.
+     *
+     * @param txBody the transaction body of a successfully handled dispatch
+     * @return the ingest throttle monitor if the body may rebuild throttles, otherwise null
+     */
+    @Nullable
+    public Object throttleRebuildMonitor(@NonNull final TransactionBody txBody) {
+        requireNonNull(txBody);
+        final FileID fileID;
+        if (txBody.hasFileUpdate()) {
+            fileID = txBody.fileUpdateOrThrow().fileIDOrThrow();
+        } else if (txBody.hasFileAppend()) {
+            fileID = txBody.fileAppendOrThrow().fileIDOrThrow();
+        } else {
+            return null;
+        }
+        final var filesConfig = configProvider.getConfiguration().getConfigData(FilesConfig.class);
+        final var fileNum = fileID.fileNum();
+        return fileNum == filesConfig.networkProperties() || fileNum == filesConfig.throttleDefinitions()
+                ? throttleServiceManager.ingestMonitor()
+                : null;
+    }
+
+    /**
      * If the given transaction body would update a process-global facility that must always reflect committed state
      * (exchange rates, simple fee schedule, network properties, HAPI permissions, or throttle definitions), returns
      * that facility together with its backing file and the file contents in the given state, which are the contents

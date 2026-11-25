@@ -2,6 +2,7 @@
 package com.hedera.node.app.workflows.handle;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
+import static com.hedera.hapi.node.base.HederaFunctionality.NODE_UPDATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.spi.authorization.SystemPrivilege.UNNECESSARY;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.CHILD;
@@ -91,6 +92,8 @@ class DispatchProcessorFrameRollbackTest {
             .build();
     private static final TransactionInfo TXN_INFO = new TransactionInfo(
             SignedTransaction.DEFAULT, TXN_BODY, SignatureMap.DEFAULT, Bytes.EMPTY, CRYPTO_TRANSFER, null);
+    private static final TransactionInfo NODE_UPDATE_TXN_INFO = new TransactionInfo(
+            SignedTransaction.DEFAULT, TXN_BODY, SignatureMap.DEFAULT, Bytes.EMPTY, NODE_UPDATE, null);
     private static final FileID THROTTLES_FILE =
             FileID.newBuilder().fileNum(123).build();
     private static final SystemFileUpdates.ConfigRecoveryContext FIRST_CONTEXT =
@@ -173,6 +176,10 @@ class DispatchProcessorFrameRollbackTest {
         given(authorizer.isAuthorized(PAYER_ACCOUNT_ID, CRYPTO_TRANSFER)).willReturn(true);
         given(authorizer.hasPrivilegedAuthorization(PAYER_ACCOUNT_ID, CRYPTO_TRANSFER, TXN_BODY))
                 .willReturn(UNNECESSARY);
+        given(authorizer.isAuthorized(PAYER_ACCOUNT_ID, NODE_UPDATE)).willReturn(true);
+        given(authorizer.hasPrivilegedAuthorization(PAYER_ACCOUNT_ID, NODE_UPDATE, TXN_BODY))
+                .willReturn(UNNECESSARY);
+        given(systemFileUpdates.resyncTarget(any(), eq(TXN_BODY))).willReturn(Optional.empty());
         given(systemFileUpdates.handleTxBody(any(), eq(TXN_BODY))).willReturn(SUCCESS);
         given(exchangeRateManager.exchangeRates()).willReturn(ExchangeRateSet.DEFAULT);
         given(recordBuilder.exchangeRate(ExchangeRateSet.DEFAULT)).willReturn(recordBuilder);
@@ -325,6 +332,51 @@ class DispatchProcessorFrameRollbackTest {
         verify(systemFileUpdates, never()).needsResync(any(), any());
     }
 
+    @Test
+    void nodeInfoIsRefreshedWhenTheFrameANodeUpdateWasCommittedIntoIsRolledBack() {
+        // A dispatch made within a frame updates a node, which updates the node info in memory right away
+        rootStack.createSavepoint();
+        final var updateStack = childOf(rootStack);
+        subject.processDispatch(dispatchOn(updateStack, NODE_UPDATE_TXN_INFO));
+        verify(networkInfo).updateFrom(updateStack);
+        verify(networkInfo, never()).updateFrom(rootStack);
+
+        // The frame reverts, and the node info is refreshed right then from the stack without the update
+        rootStack.rollback();
+        verify(networkInfo).updateFrom(rootStack);
+
+        // The end-of-transaction pass refreshes it once more from the final state
+        subject.processDispatch(dispatchOn(rootStack));
+        verify(networkInfo, times(2)).updateFrom(rootStack);
+    }
+
+    @Test
+    void nodeInfoIsNotRefreshedEarlyWhenTheFrameANodeUpdateWasCommittedIntoCommits() {
+        rootStack.createSavepoint();
+        final var updateStack = childOf(rootStack);
+        subject.processDispatch(dispatchOn(updateStack, NODE_UPDATE_TXN_INFO));
+
+        // The frame completes normally, so only the end-of-transaction pass refreshes the node info
+        rootStack.commit();
+        verify(networkInfo, never()).updateFrom(rootStack);
+        subject.processDispatch(dispatchOn(rootStack));
+        verify(networkInfo, times(1)).updateFrom(rootStack);
+    }
+
+    @Test
+    void failedNodeInfoRefreshOnRollbackIsRethrownAndRetriedAtTheEndOfTheTransaction() {
+        rootStack.createSavepoint();
+        final var updateStack = childOf(rootStack);
+        subject.processDispatch(dispatchOn(updateStack, NODE_UPDATE_TXN_INFO));
+        final var failure = new IllegalStateException("cannot read the node entries");
+        doThrow(failure).doNothing().when(networkInfo).updateFrom(rootStack);
+
+        assertThatThrownBy(rootStack::rollback).isSameAs(failure);
+
+        subject.processDispatch(dispatchOn(rootStack));
+        verify(networkInfo, times(2)).updateFrom(rootStack);
+    }
+
     private static SystemFileUpdates.ResyncTarget throttlesTarget(
             final String appliedContents, final ThrottleServiceManager.PreservedThrottleUsage priorUsage) {
         return new SystemFileUpdates.ResyncTarget(
@@ -359,6 +411,10 @@ class DispatchProcessorFrameRollbackTest {
     }
 
     private Dispatch dispatchOn(final SavepointStackImpl stack) {
+        return dispatchOn(stack, TXN_INFO);
+    }
+
+    private Dispatch dispatchOn(final SavepointStackImpl stack, final TransactionInfo txnInfo) {
         final var dispatch = mock(Dispatch.class);
         given(dispatch.stack()).willReturn(stack);
         given(dispatch.streamBuilder()).willReturn(recordBuilder);
@@ -367,7 +423,7 @@ class DispatchProcessorFrameRollbackTest {
         given(dispatchValidator.validateFeeChargingScenario(dispatch))
                 .willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
         given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
-        given(dispatch.txnInfo()).willReturn(TXN_INFO);
+        given(dispatch.txnInfo()).willReturn(txnInfo);
         given(dispatch.handleContext()).willReturn(context);
         given(dispatch.txnCategory()).willReturn(USER);
         doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());

@@ -642,6 +642,37 @@ class SystemFileUpdatesTest implements TransactionFactory {
     }
 
     @Test
+    void throttleRebuildingUpdatesAreAppliedUnderTheIngestMonitor() {
+        final var monitor = new Object();
+        when(throttleServiceManager.ingestMonitor()).thenReturn(monitor);
+        final var config = configProvider.getConfiguration().getConfigData(FilesConfig.class);
+
+        assertThat(subject.throttleRebuildMonitor(fileUpdateOf(config.networkProperties())))
+                .isSameAs(monitor);
+        assertThat(subject.throttleRebuildMonitor(fileAppendOf(config.throttleDefinitions())))
+                .isSameAs(monitor);
+        assertThat(subject.throttleRebuildMonitor(fileUpdateOf(config.hapiPermissions())))
+                .isNull();
+        assertThat(subject.throttleRebuildMonitor(fileUpdateOf(config.exchangeRates())))
+                .isNull();
+        assertThat(subject.throttleRebuildMonitor(TransactionBody.DEFAULT)).isNull();
+    }
+
+    private static TransactionBody fileUpdateOf(final long fileNum) {
+        return TransactionBody.newBuilder()
+                .fileUpdate(FileUpdateTransactionBody.newBuilder()
+                        .fileID(FileID.newBuilder().fileNum(fileNum).build()))
+                .build();
+    }
+
+    private static TransactionBody fileAppendOf(final long fileNum) {
+        return TransactionBody.newBuilder()
+                .fileAppend(FileAppendTransactionBody.newBuilder()
+                        .fileID(FileID.newBuilder().fileNum(fileNum).build()))
+                .build();
+    }
+
+    @Test
     void throttleMangerUpdatedOnFileUpdate() {
         // given
         final var configuration = configProvider.getConfiguration();
