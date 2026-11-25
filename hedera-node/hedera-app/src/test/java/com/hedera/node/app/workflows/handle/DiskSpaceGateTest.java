@@ -80,6 +80,18 @@ class DiskSpaceGateTest {
     }
 
     @Test
+    void waitsUntilEveryLowVolumeHasTheReserveAgain() throws IOException {
+        // The block volume is checked first and recovers first
+        given(blockStore.getUsableSpace()).willReturn(RESERVE - 1, RESERVE);
+        given(savedStore.getUsableSpace()).willReturn(RESERVE - 1, RESERVE - 1, RESERVE - 1, RESERVE);
+
+        gateWith(RESERVE_MB, Map.of(SAVED, savedStore, BLOCKS, blockStore)).awaitFreeSpace();
+
+        assertThat(sleeps).hasSize(3);
+        verify(savedStore, times(4)).getUsableSpace();
+    }
+
+    @Test
     void zeroReserveChecksNothing() throws IOException {
         gateWith(0, Map.of(SAVED, savedStore)).awaitFreeSpace();
 
