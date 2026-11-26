@@ -8,8 +8,9 @@
 #   Step 1 — Version detection
 #     Read version.txt, derive MAJOR.MINOR, compute the previous minor series,
 #     pick the latest v<MAJOR>.<MINOR-1>.* tag by semantic-version precedence
-#     as the baseline (source) version. The upgrade target is always the
-#     local build; its version is read from HederaNode.jar's manifest.
+#     whose build is published as the baseline (source) version. The upgrade
+#     target is always the local build; its version is read from
+#     HederaNode.jar's manifest.
 #
 #   Step 2 — Solo 3-node + Mirror Node deployment at the previous-minor tag
 #     kind cluster + solo {init, cluster-ref, deployment, cluster-ref-setup,
@@ -215,12 +216,24 @@ run_command_with_timeout() {
   wait "${cmd_pid}"
 }
 
+# True when builds.hedera.com serves the release build (zip and checksum) that
+# solo downloads for the tag.
+release_build_published() {
+  local series="$1" tag="$2"
+  local url="https://builds.hedera.com/node/software/v${series}/build-${tag}"
+  local ext
+  for ext in zip sha384; do
+    curl -fsSI --retry 3 --retry-delay 2 --connect-timeout 10 --max-time 30 \
+      "${url}.${ext}" </dev/null >/dev/null 2>&1 || return 1
+  done
+}
+
 # === Step 1 ====================================================================
 # Read version.txt -> extract MAJOR.MINOR -> previous minor -> latest matching
-# tag by semver precedence (release or RC); that tag is the BASELINE (source)
-# version the network is first deployed at. The upgrade TARGET is always the
-# local build staged via --local-build-path; its real version comes from
-# HederaNode.jar's manifest.
+# tag by semver precedence (release or RC) whose build is published; that tag is
+# the BASELINE (source) version the network is first deployed at. The upgrade
+# TARGET is always the local build staged via --local-build-path; its real
+# version comes from HederaNode.jar's manifest.
 compute_versions() {
   local raw major_minor major minor prev_series prev_tag
   raw="$(cat "${REPO_ROOT}/version.txt")"
@@ -241,8 +254,16 @@ compute_versions() {
   # below (v0.79.2-rc.2 < v0.79.2 < v0.79.3-rc.1). Turning the pre-release '-'
   # into '~' gives semver order, because `sort -V` sorts '~' before everything,
   # even the end of the string.
-  prev_tag="$(git -C "${REPO_ROOT}" tag -l "v${prev_series}.*" \
-    | sed 's/-/~/' | sort -V | tail -n 1 | sed 's/~/-/')"
+  # A tag can exist days before solo can download its build, so skip those.
+  local tag
+  prev_tag=""
+  while IFS= read -r tag; do
+    if release_build_published "${prev_series}" "${tag}"; then
+      prev_tag="${tag}"
+      break
+    fi
+    log "Skipping ${tag}: its build is not published yet"
+  done < <(git -C "${REPO_ROOT}" tag -l "v${prev_series}.*" | sed 's/-/~/' | sort -rV | sed 's/~/-/')
 
   TARGET_VERSION="$(local_build_implementation_version)"
   [[ -n "${TARGET_VERSION}" ]] || {
@@ -258,12 +279,12 @@ compute_versions() {
     DEPLOY_VERSION_LABEL="${prev_tag}"
     BASELINE_DESC="${prev_tag} (latest released v${prev_series}.* tag)"
   else
-    # Fallback: no v${prev_series}.* tag yet — the window between a version roll
-    # and the previous minor's first tag. Build the previous minor's
-    # release/${prev_series} branch from source and deploy it as the baseline
-    # via --local-build-path (a git branch is not a valid --release-tag, and
-    # solo does not build from source itself).
-    log "No v${prev_series}.* tag found; falling back to a release/${prev_series} source build"
+    # Fallback: no v${prev_series}.* tag with a published build yet — the window
+    # between a version roll and the previous minor's first published build.
+    # Build the previous minor's release/${prev_series} branch from source and
+    # deploy it as the baseline via --local-build-path (a git branch is not a
+    # valid --release-tag, and solo does not build from source itself).
+    log "No published v${prev_series}.* build found; falling back to a release/${prev_series} source build"
     build_baseline_from_release_branch "${prev_series}"
   fi
 
@@ -276,25 +297,13 @@ compute_versions() {
 # Solo's default application.properties sets blockStream.streamMode=RECORDS next to
 # tss.hintsEnabled=true. In RECORDS mode the node skips all TSS work, so a TSS-enabled
 # baseline never advances its genesis hinTS state, which the upgrade target then
-# rejects as "legacy" state (V079HintsSchema). Override the stream mode so TSS runs:
-#   baseline < 0.80  : BOTH   (block stream alongside the record stream)
-#   baseline >= 0.80 : BLOCKS (block stream only) with real, not mock, signatures
+# rejects as "legacy" state (V079HintsSchema). BOTH runs TSS and keeps writing the
+# record files the mirror node reads; BLOCKS would leave step 4 nothing to find.
 # Only called for baselines that keep TSS on; sets BASELINE_APP_PROPS.
 configure_baseline_stream_mode() {
-  local label="${DEPLOY_VERSION_LABEL#v}"
-  local series
-  series="$(cut -d. -f1,2 <<<"${label}")"
-
   BASELINE_APP_PROPS="${WORK_DIR}/baseline-application.properties"
-  if [[ "$(printf '%s\n' "0.80" "${series}" | sort -V | head -n 1)" == "0.80" ]]; then
-    printf '%s\n' \
-      "blockStream.streamMode=BLOCKS" \
-      "tss.forceMockSignatures=false" > "${BASELINE_APP_PROPS}"
-    log "Baseline ${series} >= 0.80: deploying with blockStream.streamMode=BLOCKS, tss.forceMockSignatures=false"
-  else
-    printf '%s\n' "blockStream.streamMode=BOTH" > "${BASELINE_APP_PROPS}"
-    log "Baseline ${series} < 0.80: deploying with blockStream.streamMode=BOTH"
-  fi
+  printf '%s\n' "blockStream.streamMode=BOTH" > "${BASELINE_APP_PROPS}"
+  log "Baseline ${DEPLOY_VERSION_LABEL}: deploying with blockStream.streamMode=BOTH"
 }
 
 # Reads the baseline's TSS library (hedera-cryptography) version and, when it is
