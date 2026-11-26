@@ -2,6 +2,8 @@
 package com.hedera.node.app.service.contract.impl.test.exec;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.*;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_CONTRACT_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALL_DATA;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_DATA_WITHOUT_TO_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_DATA_WITH_TO_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.GAS_LIMIT;
@@ -9,10 +11,13 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HALT_RE
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HEVM_CREATION;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HEVM_Exception;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HEVM_OversizeException;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.MAINNET_CHAIN_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NONCE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.RELAYER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS_RESULT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS_RESULT_WITH_SIGNER_NONCE;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.VALUE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertFailsWith;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.EMPTY_METADATA;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -24,7 +29,11 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.HookCall;
+import com.hedera.hapi.node.base.HookEntityId;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.hooks.HookDispatchTransactionBody;
+import com.hedera.hapi.node.hooks.HookExecution;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.streams.ContractBytecode;
 import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
@@ -640,9 +649,8 @@ class ContextTransactionProcessorTest {
         given(context.payer()).willReturn(payer);
         given(hevmTransactionFactory.fromHapiTransaction(transactionBody, payer, (ClprDispatchMetadata) null))
                 .willReturn(HEVM_CREATION);
-        given(transactionBody.transactionIDOrThrow()).willReturn(transactionID);
         given(transactionBody.transactionIDOrElse(any())).willReturn(transactionID);
-        given(transactionID.accountIDOrThrow()).willReturn(SENDER_ID);
+        given(transactionID.accountIDOrElse(any())).willReturn(SENDER_ID);
         given(rootProxyWorldUpdater.enhancement()).willReturn(enhancement);
         given(enhancement.operations()).willReturn(hederaOperations);
         final var throttleAdviser = mock(ThrottleAdviser.class);
@@ -655,6 +663,70 @@ class ContextTransactionProcessorTest {
 
         verify(opsDurationMetrics).recordTransactionThrottledByOpsDuration();
         verify(customGasCharging).chargeGasForAbortedTransaction(any(), any(), any(), any());
+        verify(rootProxyWorldUpdater).commit();
+        assertEquals(CONSENSUS_GAS_EXHAUSTED, outcome.status());
+    }
+
+    @Test
+    void throttlesHookDispatchWithoutTransactionIdIfOutOfOpsDurationThrottleCapacity() {
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("contracts.throttle.throttleByOpsDuration", "true")
+                .getOrCreateConfig();
+        final var contractsConfig = config.getConfigData(ContractsConfig.class);
+        final var subject = new ContextTransactionProcessor(
+                null,
+                context,
+                contractsConfig,
+                config,
+                hederaEvmContext,
+                null,
+                tracer,
+                rootProxyWorldUpdater,
+                hevmTransactionFactory,
+                processor,
+                customGasCharging,
+                contractMetrics);
+
+        // A hook dispatch body is synthetic and carries no TransactionID
+        final var hookDispatch = HookDispatchTransactionBody.newBuilder()
+                .execution(HookExecution.newBuilder()
+                        .hookEntityId(HookEntityId.newBuilder().accountId(SENDER_ID))
+                        .call(HookCall.newBuilder().hookId(1L)))
+                .build();
+        final var hookDispatchBody =
+                TransactionBody.newBuilder().hookDispatch(hookDispatch).build();
+        final var hookHevm = new HederaEvmTransaction(
+                SENDER_ID,
+                null,
+                CALLED_CONTRACT_ID,
+                NONCE,
+                CALL_DATA,
+                MAINNET_CHAIN_ID,
+                VALUE,
+                GAS_LIMIT,
+                0L,
+                0L,
+                null,
+                null,
+                hookDispatch,
+                false);
+        final var payer = AccountID.DEFAULT;
+        given(context.body()).willReturn(hookDispatchBody);
+        given(context.payer()).willReturn(payer);
+        given(hevmTransactionFactory.fromHapiTransaction(hookDispatchBody, payer, (ClprDispatchMetadata) null))
+                .willReturn(hookHevm);
+        given(rootProxyWorldUpdater.enhancement()).willReturn(enhancement);
+        given(enhancement.operations()).willReturn(hederaOperations);
+        final var throttleAdviser = mock(ThrottleAdviser.class);
+        given(hederaOperations.getThrottleAdviser()).willReturn(throttleAdviser);
+        given(throttleAdviser.availableOpsDurationCapacity()).willReturn(0L);
+        final var opsDurationMetrics = mock(OpsDurationMetrics.class);
+        given(contractMetrics.opsDurationMetrics()).willReturn(opsDurationMetrics);
+
+        final var outcome = subject.call();
+
+        verify(opsDurationMetrics).recordTransactionThrottledByOpsDuration();
+        verify(customGasCharging, never()).chargeGasForAbortedTransaction(any(), any(), any(), any());
         verify(rootProxyWorldUpdater).commit();
         assertEquals(CONSENSUS_GAS_EXHAUSTED, outcome.status());
     }
