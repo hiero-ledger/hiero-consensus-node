@@ -28,7 +28,7 @@
       "throttleGroups": [
         {
           "opsPerSec": 1000,
-          "operations": [ "CryptoCreate", "CryptoTransfer" ]
+          "operations": [ "CryptoCreate" ]
         }
       ]
     },

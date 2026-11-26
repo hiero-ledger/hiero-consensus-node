@@ -21,8 +21,12 @@ This does not cover legacy congestion multipliers unrelated to HIP-1313 high-vol
 For operations outside the high-volume set, the `high_volume` flag is ignored: they use their normal throttles and
 prices, and need no `HV*` bucket, `HVTotalThrottles` entry or `highVolumeRates`.
 
-A high-volume `CryptoTransfer` that creates accounts takes those creations from the `CryptoCreate` high-volume buckets
-and the transfer itself from the normal `CryptoTransfer` throttles; it has no dedicated `HV*` bucket.
+`CryptoTransfer` is high-volume only for the accounts it creates, so it has no `HV*` bucket or `HVTotalThrottles` entry
+of its own. With the `high_volume` flag, a transfer that creates N accounts takes one unit of the normal
+`CryptoTransfer` throttles for the transfer, and N units of the `CryptoCreate` high-volume throttles (its dedicated
+`HV*` bucket and `HVTotalThrottles`) for the creations. Without the flag, the same transfer takes N units of the normal
+`CryptoCreate` throttles and no `CryptoTransfer` unit. A flagged transfer that creates no accounts is throttled as an
+ordinary transfer.
 
 ## Runtime Model
 
@@ -217,12 +221,14 @@ When updating high-volume data, verify all of the following:
 3. Final point reaches `10000` basis points unless intentionally capped earlier.
 4. Multipliers are in scaled units (`1000 = 1x`).
 5. `maxMultiplier` is >= highest curve multiplier.
-6. Every high-volume operation except `CryptoTransfer` exists in both:
-   - a dedicated `HV*` bucket
+6. Every high-volume operation except `CryptoTransfer`, whose creations count against the `CryptoCreate` buckets,
+   exists in both:
+   - a dedicated `HV*` bucket, for that operation only
    - `HVTotalThrottles`
-7. `HVTotalThrottles` contains exactly the high-volume operation set intended by product. `HighVolumeConfigTest`
-   checks that the operations in the shipped high-volume buckets and `highVolumeRates` match
-   `HighVolumePricingCalculator`'s high-volume sets.
+7. `HVTotalThrottles` contains exactly the high-volume operation set intended by product, except `CryptoTransfer`.
+   `HighVolumeConfigTest` checks rules 6 and 7 for the shipped throttle files against
+   `HighVolumePricingCalculator`'s high-volume sets, and that the shipped `highVolumeRates` cover exactly its pricing
+   set.
 8. End-to-end tests validate observed fees vs expected multipliers for representative operations.
 
 ## Common Mistakes

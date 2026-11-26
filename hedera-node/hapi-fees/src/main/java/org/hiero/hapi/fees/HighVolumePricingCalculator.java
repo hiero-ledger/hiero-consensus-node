@@ -67,7 +67,10 @@ public final class HighVolumePricingCalculator {
             TOKEN_CLAIM_AIRDROP,
             TOKEN_MINT,
             TOKEN_CREATE);
-    /** The set of operations eligible for high-volume throttle bucket routing. */
+    /**
+     * The set of operations eligible for high-volume throttle bucket routing. CryptoTransfer is included only so its
+     * implicit creations use the CryptoCreate high-volume buckets; it has no high-volume bucket of its own.
+     */
     public static final Set<HederaFunctionality> HIGH_VOLUME_THROTTLE_FUNCTIONS = Set.of(
             CRYPTO_CREATE,
             CONSENSUS_CREATE_TOPIC,

@@ -31,6 +31,16 @@
       ]
     },
     {
+      "name": "HookStoreLimits",
+      "burstPeriod": 1,
+      "throttleGroups": [
+        {
+          "opsPerSec": 1,
+          "operations": [ "HookStore" ]
+        }
+      ]
+    },
+    {
       "name": "HVFileAppendThrottles",
       "burstPeriod": 1,
       "highVolume": true,
@@ -53,13 +63,24 @@
       ]
     },
     {
+      "name": "HVHookStoreThrottles",
+      "burstPeriod": 1,
+      "highVolume": true,
+      "throttleGroups": [
+        {
+          "opsPerSec": 1000,
+          "operations": [ "HookStore" ]
+        }
+      ]
+    },
+    {
       "name": "HVTotalThrottles",
       "burstPeriod": 1,
       "highVolume": true,
       "throttleGroups": [
         {
           "opsPerSec": 1000,
-          "operations": [ "FileAppend", "ScheduleCreate" ]
+          "operations": [ "FileAppend", "ScheduleCreate", "HookStore" ]
         }
       ]
     },

@@ -1,20 +1,24 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.throttle;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.hapi.fees.HighVolumePricingCalculator.HIGH_VOLUME_PRICING_FUNCTIONS;
 import static org.hiero.hapi.fees.HighVolumePricingCalculator.HIGH_VOLUME_THROTTLE_FUNCTIONS;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.transaction.ThrottleBucket;
 import com.hedera.hapi.node.transaction.ThrottleDefinitions;
 import com.hedera.node.app.service.file.impl.schemas.V0490FileSchema;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.hiero.hapi.support.fees.FeeSchedule;
 import org.hiero.hapi.support.fees.ServiceFeeDefinition;
@@ -27,13 +31,18 @@ import org.junit.jupiter.params.provider.ValueSource;
  * capacity or pricing to a function the code does not route or price as high volume, or the other way round.
  */
 class HighVolumeConfigTest {
+    private static final String TOTAL_BUCKET = "HVTotalThrottles";
+    // CryptoTransfer takes its implicit creations from the CryptoCreate buckets, so it has no bucket of its own
+    private static final Set<HederaFunctionality> BUCKETED_FUNCTIONS = HIGH_VOLUME_THROTTLE_FUNCTIONS.stream()
+            .filter(function -> function != CRYPTO_TRANSFER)
+            .collect(Collectors.toUnmodifiableSet());
+
     @ParameterizedTest
     @ValueSource(strings = {"mainnet", "testnet", "previewnet"})
     void upgradeFilesMatchTheHighVolumeSets(final String network) throws Exception {
         // build.gradle.kts declares these files as test inputs
         final var dir = Path.of("..", "configuration", network, "upgrade");
-        assertThat(highVolumeBucketFunctions(Files.readString(dir.resolve("throttles.json"))))
-                .isEqualTo(HIGH_VOLUME_THROTTLE_FUNCTIONS);
+        assertBucketsMatchTheHighVolumeSet(Files.readString(dir.resolve("throttles.json")));
         final var fees = Files.readAllBytes(dir.resolve("simpleFeesSchedules.json"));
         assertThat(highVolumeRateFunctions(
                         FeeSchedule.JSON.parse(Bytes.wrap(fees).toReadableSequentialData())))
@@ -44,8 +53,7 @@ class HighVolumeConfigTest {
     @ValueSource(strings = {"genesis/throttles.json", "genesis/throttles-dev.json"})
     void genesisThrottlesMatchTheHighVolumeSet(final String resource) throws Exception {
         try (final var in = Objects.requireNonNull(V0490FileSchema.loadResourceInPackage(resource))) {
-            assertThat(highVolumeBucketFunctions(new String(in.readAllBytes(), UTF_8)))
-                    .isEqualTo(HIGH_VOLUME_THROTTLE_FUNCTIONS);
+            assertBucketsMatchTheHighVolumeSet(new String(in.readAllBytes(), UTF_8));
         }
     }
 
@@ -57,14 +65,34 @@ class HighVolumeConfigTest {
                 .isEqualTo(HIGH_VOLUME_PRICING_FUNCTIONS);
     }
 
-    private static Set<HederaFunctionality> highVolumeBucketFunctions(final String throttlesJson) throws Exception {
-        final var defs =
-                ThrottleDefinitions.PROTOBUF.parse(Bytes.wrap(V0490FileSchema.parseThrottleDefinitions(throttlesJson)));
-        return defs.throttleBuckets().stream()
-                .filter(bucket -> bucket.highVolume())
+    private static void assertBucketsMatchTheHighVolumeSet(final String throttlesJson) throws Exception {
+        final var buckets = ThrottleDefinitions.PROTOBUF
+                .parse(Bytes.wrap(V0490FileSchema.parseThrottleDefinitions(throttlesJson)))
+                .throttleBuckets()
+                .stream()
+                .filter(ThrottleBucket::highVolume)
+                .toList();
+        final Predicate<ThrottleBucket> isTotal = bucket -> TOTAL_BUCKET.equals(bucket.name());
+        assertThat(operationsOf(buckets, isTotal))
+                .as("operations in %s", TOTAL_BUCKET)
+                .containsExactlyInAnyOrderElementsOf(BUCKETED_FUNCTIONS);
+        assertThat(buckets)
+                .filteredOn(isTotal.negate())
+                .allSatisfy(bucket -> assertThat(operationsOf(List.of(bucket), b -> true))
+                        .as("operations in %s", bucket.name())
+                        .hasSize(1));
+        assertThat(operationsOf(buckets, isTotal.negate()))
+                .as("operations in the dedicated high-volume buckets")
+                .containsExactlyInAnyOrderElementsOf(BUCKETED_FUNCTIONS);
+    }
+
+    private static List<HederaFunctionality> operationsOf(
+            final List<ThrottleBucket> buckets, final Predicate<ThrottleBucket> filter) {
+        return buckets.stream()
+                .filter(filter)
                 .flatMap(bucket -> bucket.throttleGroups().stream())
                 .flatMap(group -> group.operations().stream())
-                .collect(Collectors.toSet());
+                .toList();
     }
 
     private static Set<HederaFunctionality> highVolumeRateFunctions(final FeeSchedule schedule) {
