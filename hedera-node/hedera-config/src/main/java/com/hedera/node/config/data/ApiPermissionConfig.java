@@ -2,16 +2,15 @@
 package com.hedera.node.config.data;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
-import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CONNECTOR;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_CREATE_CHANNEL;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_CREATE_CONNECTOR;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_DELETE_CHANNEL;
-import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_DEREGISTER_CONNECTOR;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_DELETE_CONNECTOR;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_ENDPOINT_PUBLICATION;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_EVICT_PEER_ENDPOINT;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_GET_ENDPOINT_MANIFEST;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_GET_LEDGER_CONFIGURATION;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_MAINTENANCE;
-import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_REGISTER_CONNECTOR;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SUBMIT_BUNDLE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_UPDATE_LEDGER_CONFIGURATION;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
@@ -315,9 +314,8 @@ public record ApiPermissionConfig(
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange clprCreateChannel,
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange clprDeleteChannel,
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange clprEvictPeerEndpoint,
-        @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange clprRegisterConnector,
-        @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange clprCompleteConnector,
-        @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange clprDeregisterConnector,
+        @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange clprCreateConnector,
+        @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange clprDeleteConnector,
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange clprSubmitBundle,
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange clprGetLedgerConfiguration,
         @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange clprEndpointPublication,
@@ -422,9 +420,8 @@ public record ApiPermissionConfig(
         permissionKeys.put(CLPR_CREATE_CHANNEL, c -> c.clprCreateChannel);
         permissionKeys.put(CLPR_DELETE_CHANNEL, c -> c.clprDeleteChannel);
         permissionKeys.put(CLPR_EVICT_PEER_ENDPOINT, c -> c.clprEvictPeerEndpoint);
-        permissionKeys.put(CLPR_REGISTER_CONNECTOR, c -> c.clprRegisterConnector);
-        permissionKeys.put(CLPR_COMPLETE_CONNECTOR, c -> c.clprCompleteConnector);
-        permissionKeys.put(CLPR_DEREGISTER_CONNECTOR, c -> c.clprDeregisterConnector);
+        permissionKeys.put(CLPR_CREATE_CONNECTOR, c -> c.clprCreateConnector);
+        permissionKeys.put(CLPR_DELETE_CONNECTOR, c -> c.clprDeleteConnector);
         permissionKeys.put(CLPR_SUBMIT_BUNDLE, c -> c.clprSubmitBundle);
         permissionKeys.put(CLPR_GET_LEDGER_CONFIGURATION, c -> c.clprGetLedgerConfiguration);
         permissionKeys.put(CLPR_ENDPOINT_PUBLICATION, c -> c.clprEndpointPublication);

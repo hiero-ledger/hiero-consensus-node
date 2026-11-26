@@ -56,7 +56,7 @@ public record BlockStreamConfig(
         @ConfigProperty(defaultValue = "20971520") @Min(0) @NetworkProperty
         long maxBlockSizeBytes,
 
-        @ConfigProperty(defaultValue = "104857600") @Min(0) @NetworkProperty
+        @ConfigProperty(defaultValue = "41943040") @Min(0) @NetworkProperty
         long maxBlockExecutionSizeBytes,
 
         @ConfigProperty(defaultValue = "true") @NetworkProperty
@@ -64,9 +64,6 @@ public record BlockStreamConfig(
 
         @ConfigProperty(defaultValue = "8192") @Min(1) @NetworkProperty
         int receiptEntriesBatchSize,
-
-        @ConfigProperty(defaultValue = "10ms") @Min(1) @NodeProperty
-        Duration workerLoopSleepDuration,
 
         @ConfigProperty(defaultValue = "100") @Min(1) @NodeProperty
         int maxConsecutiveScheduleSecondsToProbe,

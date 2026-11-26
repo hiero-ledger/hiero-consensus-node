@@ -77,7 +77,7 @@ public abstract class BlockStreamingBase {
      * @return true if back pressure is enabled, else false
      */
     final boolean isBackpressureEnabled() {
-        final var config = bsConfig();
+        final BlockStreamConfig config = bsConfig();
         return config.streamMode() == StreamMode.BLOCKS && config.writerMode() == BlockStreamWriterMode.GRPC;
     }
 

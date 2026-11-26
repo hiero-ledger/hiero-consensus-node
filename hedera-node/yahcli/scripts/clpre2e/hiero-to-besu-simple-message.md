@@ -155,14 +155,12 @@ dev Besu = the same deployer key).
 - Reads Besu’s chain ID and throttles from the deployed service’s `getLedgerConfiguration()`. For a Besu `eip155:1337` ↔ Hiero `eip155:298` channel, the proof carries `eip155:1337`.
 - Passes that configuration to `hedera-node/tools/build-besu-qbft-config-payload.py` to build the QBFT configuration proof.
 3. `create-channel` uses the shared ID and salt, the EVM verifier address, and the peer config proof.
+4. Connector identity bundle via `derive-clpr-connector-identity.py` using
+`CONNECTOR_PK=0xc044ec` + `salt=0` (matches `CreateConnector.s.sol`).
+5. `contracts create` for `PassThroughAuth` (the connector contract).
+6. `create-connector` signs the binding with the connector identity key.
 
-6. Connector identity bundle via `sign-clpr-connector-identity.py` using
-   `CONNECTOR_PK=0xc044ec` + `salt=0` (matches `CreateConnector.s.sol`).
-7. `register-connector`.
-8. `contracts create` for `PassThroughAuth` (the connector contract).
-9. `complete-connector`.
-
-If everything passes you'll see `ok: complete-connector` and a summary block:
+If everything passes you'll see `ok: create-connector` and a summary block:
 
 ```
 Besu side (from clpr-smart-contracts/deployments/<chainId>/):

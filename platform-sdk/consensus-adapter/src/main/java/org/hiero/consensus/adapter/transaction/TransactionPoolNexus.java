@@ -1,0 +1,433 @@
+// SPDX-License-Identifier: Apache-2.0
+package org.hiero.consensus.adapter.transaction;
+
+import static org.hiero.base.CompareTo.isLessThan;
+
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.metrics.api.Metrics;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.InstantSource;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Objects;
+import java.util.Queue;
+import java.util.function.IntConsumer;
+import org.hiero.consensus.main.model.TimestampedTransaction;
+import org.hiero.consensus.main.model.TransactionLimits;
+import org.hiero.consensus.main.model.legacy.EventTransactionSupplier;
+import org.hiero.consensus.model.status.PlatformStatus;
+
+/**
+ * Store a list of transactions created by self, both system and non-system, for wrapping in the next event to be
+ * created. An application transaction may be given a drop time; if it is still waiting when an event is built after
+ * that time, it is dropped instead of being put in the event.
+ */
+public class TransactionPoolNexus implements EventTransactionSupplier {
+    /**
+     * The default maximum amount of time the platform may be in an unhealthy state before we start rejecting
+     * transactions.
+     */
+    public static final Duration DEFAULT_MAXIMUM_PERMISSIBLE_UNHEALTHY_DURATION = Duration.ofSeconds(1);
+
+    /**
+     * The maximum amount of time the platform may be in an unhealthy state before we start rejecting transactions.
+     */
+    private final Duration maximumPermissibleUnhealthyDuration;
+
+    /**
+     * A list of timestamped transactions created by this node waiting to be put into a self-event, each with its drop
+     * time, if any.
+     */
+    private final Queue<PooledTransaction> bufferedTransactions = new LinkedList<>();
+
+    /**
+     * A list of high-priority timestamped transactions created by this node waiting to be put into a self-event.
+     * Transactions in this queue are always inserted into an event before transactions waiting in {@link #bufferedTransactions}.
+     */
+    private final Queue<TimestampedTransaction> priorityBufferedTransactions = new LinkedList<>();
+
+    /**
+     * The number of buffered signature transactions waiting to be put into events.
+     */
+    private int bufferedSignatureTransactionCount = 0;
+
+    /**
+     * Whether application transactions were drained; once set, new application transactions are rejected.
+     */
+    private boolean applicationTransactionsDrained = false;
+
+    /**
+     * The maximum number of bytes of transactions that can be put in an event.
+     */
+    private final int maxTransactionBytesPerEvent;
+
+    /**
+     * The maximum desired size of the transaction queue. If the queue is larger than this, then new app transactions
+     * are rejected.
+     */
+    private final int throttleTransactionQueueSize;
+
+    /**
+     * Metrics for the transaction pool.
+     */
+    private final TransactionPoolMetrics transactionPoolMetrics;
+
+    /**
+     * The maximum size of a transaction in bytes.
+     */
+    private final int maximumTransactionSize;
+
+    /**
+     * The current status of the platform.
+     */
+    private PlatformStatus platformStatus = PlatformStatus.STARTING_UP;
+
+    /**
+     * Whether the platform is currently in a healthy state.
+     */
+    private boolean healthy = true;
+
+    /**
+     * Time source for timestamping transactions.
+     */
+    private final InstantSource time;
+
+    /**
+     * A consumer of the number of application transactions dropped past their drop time. It is updated when an event asks for transactions.
+     */
+    private final IntConsumer droppedTransactionsListener;
+
+    /**
+     * Creates a new transaction pool for transactions waiting to be put in an event.
+     *
+     * @param transactionLimits                     the configuration to use
+     * @param throttleTransactionQueueSize          the maximum number of transactions that can be buffered before new
+     *                                              application transactions are rejected
+     * @param maximumPermissibleUnhealthyDuration   the maximum duration the platform may be unhealthy before rejecting
+     *                                              transactions
+     * @param metrics                               the metrics to use
+     * @param time                                  the time source for timestamping transactions
+     */
+    public TransactionPoolNexus(
+            @NonNull final TransactionLimits transactionLimits,
+            final int throttleTransactionQueueSize,
+            @NonNull final Duration maximumPermissibleUnhealthyDuration,
+            @NonNull final Metrics metrics,
+            @NonNull final InstantSource time) {
+        this(
+                transactionLimits,
+                throttleTransactionQueueSize,
+                maximumPermissibleUnhealthyDuration,
+                metrics,
+                time,
+                dropped -> {});
+    }
+
+    /**
+     * Creates a new transaction pool for transactions waiting to be put in an event.
+     *
+     * @param transactionLimits                     the configuration to use
+     * @param throttleTransactionQueueSize          the maximum number of transactions that can be buffered before new
+     *                                              application transactions are rejected
+     * @param maximumPermissibleUnhealthyDuration   the maximum duration the platform may be unhealthy before rejecting
+     *                                              transactions
+     * @param metrics                               the metrics to use
+     * @param time                                  the time source for timestamping transactions and for drop times
+     * @param droppedTransactionsListener           a consumer of the number of application transactions dropped past their drop
+     *                                              time, whenever an event build drops any; it runs while this pool's
+     *                                              lock is held and after the event's transactions have left the queue,
+     *                                              so it must be quick, must not throw and must not call back into the
+     *                                              pool
+     */
+    public TransactionPoolNexus(
+            @NonNull final TransactionLimits transactionLimits,
+            final int throttleTransactionQueueSize,
+            @NonNull final Duration maximumPermissibleUnhealthyDuration,
+            @NonNull final Metrics metrics,
+            @NonNull final InstantSource time,
+            @NonNull final IntConsumer droppedTransactionsListener) {
+        maxTransactionBytesPerEvent = transactionLimits.maxTransactionBytesPerEvent();
+        this.throttleTransactionQueueSize = throttleTransactionQueueSize;
+        this.maximumPermissibleUnhealthyDuration =
+                Objects.requireNonNull(maximumPermissibleUnhealthyDuration, "maximumPermissibleUnhealthyDuration");
+        this.time = Objects.requireNonNull(time, "time must not be null");
+        this.droppedTransactionsListener =
+                Objects.requireNonNull(droppedTransactionsListener, "droppedTransactionsListener must not be null");
+
+        transactionPoolMetrics = new TransactionPoolMetrics(
+                metrics, this::getBufferedTransactionCount, this::getPriorityBufferedTransactionCount);
+
+        maximumTransactionSize = transactionLimits.transactionMaxBytes();
+    }
+
+    // FUTURE WORK: these checks should be unified with the checks performed when a system transaction is submitted.
+    // The reason why this method coexists with submitTransaction() is due to legacy reasons, not because it
+    // actually makes sense to have this distinction.
+
+    /**
+     * Attempt to submit an application transaction that is never dropped. Similar to
+     * {@link #submitTransaction} but with extra safeguards.
+     *
+     * @param appTransaction the transaction to submit
+     * @return true if the transaction passed all validity checks and was accepted by the consumer
+     */
+    public synchronized boolean submitApplicationTransaction(@NonNull final Bytes appTransaction) {
+        return submitApplicationTransaction(appTransaction, null);
+    }
+
+    /**
+     * Attempt to submit an application transaction. Similar to {@link #submitTransaction} but with extra safeguards.
+     *
+     * @param appTransaction the transaction to submit
+     * @param dropAfter      if not null, the transaction is dropped instead of being put in an event built after this
+     *                       time, as read from this pool's time source
+     * @return true if the transaction passed all validity checks and was accepted by the consumer
+     */
+    public synchronized boolean submitApplicationTransaction(
+            @NonNull final Bytes appTransaction, @Nullable final Instant dropAfter) {
+        if (!healthy || platformStatus != PlatformStatus.ACTIVE || applicationTransactionsDrained) {
+            return false;
+        }
+
+        if (appTransaction == null) {
+            // FUTURE WORK: This really should throw, but to avoid changing existing API this will be changed later.
+            return false;
+        }
+        if (appTransaction.length() > maximumTransactionSize) {
+            // FUTURE WORK: This really should throw, but to avoid changing existing API this will be changed later.
+            return false;
+        }
+
+        return submitTransaction(appTransaction, false, dropAfter);
+    }
+
+    /**
+     * Submit a transaction that is considered a priority transaction. This transaction will be submitted before other
+     * waiting transactions that are not marked with the priority flag. Priority transactions are never dropped.
+     *
+     * @param transaction the transaction to submit
+     */
+    public synchronized void submitPriorityTransaction(@NonNull final Bytes transaction) {
+        submitTransaction(transaction, true, null);
+    }
+
+    /**
+     * Attempt to submit a transaction.
+     *
+     * @param transaction The transaction. It must have been created by self.
+     * @param priority    if true, then this transaction will be submitted before other waiting transactions that are
+     *                    not marked with the priority flag. Use with moderation, adding too many priority transactions
+     *                    (i.e. thousands per second) may disrupt the ability of the platform to perform some core
+     *                    functionalities.
+     * @param dropAfter   for an application transaction, the time after which it is dropped instead of being put in an
+     *                    event, or null to never drop it
+     * @return true if successful
+     */
+    private synchronized boolean submitTransaction(
+            @NonNull final Bytes transaction, final boolean priority, @Nullable final Instant dropAfter) {
+        Objects.requireNonNull(transaction);
+
+        // Always submit system transactions. If it's not a system transaction, then only submit it if we
+        // don't violate queue size capacity restrictions.
+        if (!priority
+                && (bufferedTransactions.size() + priorityBufferedTransactions.size()) > throttleTransactionQueueSize) {
+            transactionPoolMetrics.recordRejectedAppTransaction();
+            return false;
+        }
+
+        if (priority) {
+            bufferedSignatureTransactionCount++;
+            transactionPoolMetrics.recordSubmittedPlatformTransaction();
+        } else {
+            transactionPoolMetrics.recordAcceptedAppTransaction();
+        }
+
+        final TimestampedTransaction timestampedTransaction =
+                new TimestampedTransaction(transaction, time.instant(), priority);
+
+        if (priority) {
+            priorityBufferedTransactions.add(timestampedTransaction);
+        } else {
+            bufferedTransactions.add(new PooledTransaction(timestampedTransaction, dropAfter));
+        }
+
+        return true;
+    }
+
+    /**
+     * Update the platform status.
+     *
+     * @param platformStatus the new platform status
+     */
+    public synchronized void updatePlatformStatus(@NonNull final PlatformStatus platformStatus) {
+        this.platformStatus = platformStatus;
+        if (platformStatus == PlatformStatus.BEHIND) {
+            clear();
+        }
+    }
+
+    /**
+     * Get the next transaction that should be inserted into an event, or null if there is no available transaction.
+     *
+     * @param currentEventSize the current size in bytes of the event being constructed
+     * @return the next timestamped transaction, or null if no transaction is available
+     */
+    @Nullable
+    private TimestampedTransaction getNextTransaction(final long currentEventSize) {
+        final long maxSize = maxTransactionBytesPerEvent - currentEventSize;
+
+        if (maxSize <= 0) {
+            // the event is at capacity
+            return null;
+        }
+
+        if (!priorityBufferedTransactions.isEmpty()
+                && priorityBufferedTransactions.peek().transaction().length() <= maxSize) {
+            bufferedSignatureTransactionCount--;
+            return priorityBufferedTransactions.poll();
+        }
+
+        if (!bufferedTransactions.isEmpty()
+                && bufferedTransactions.peek().transaction().transaction().length() <= maxSize) {
+            return bufferedTransactions.poll().transaction();
+        }
+
+        return null;
+    }
+
+    /**
+     * Removes as many transactions from the list waiting to be in an event that can fit (FIFO ordering), and returns
+     * them as timestamped transactions. Application transactions past their drop time are removed and dropped instead.
+     */
+    @NonNull
+    @Override
+    public synchronized List<TimestampedTransaction> getTransactionsForEvent() {
+        // Early return due to no transactions waiting
+        if (bufferedTransactions.isEmpty() && priorityBufferedTransactions.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        final Instant now = time.instant();
+        int dropped = 0;
+        final List<TimestampedTransaction> selectedTrans = new LinkedList<>();
+        long currEventSize = 0;
+
+        while (true) {
+            // Drop before the size check, so a stale transaction neither blocks the event nor takes room in it
+            dropped += dropApplicationTransactionsPastDropTime(now);
+            final TimestampedTransaction timestampedTransaction = getNextTransaction(currEventSize);
+
+            if (timestampedTransaction == null) {
+                // No transaction of suitable size is available
+                break;
+            }
+
+            currEventSize += timestampedTransaction.transaction().length();
+            selectedTrans.add(timestampedTransaction);
+        }
+
+        if (dropped > 0) {
+            transactionPoolMetrics.recordDroppedAppTransactions(dropped);
+            droppedTransactionsListener.accept(dropped);
+        }
+        return selectedTrans;
+    }
+
+    /**
+     * Removes the application transactions at the head of the queue whose drop time is before the given time.
+     *
+     * @param now the current time
+     * @return the number of transactions removed
+     */
+    private int dropApplicationTransactionsPastDropTime(@NonNull final Instant now) {
+        int dropped = 0;
+        while (!bufferedTransactions.isEmpty() && bufferedTransactions.peek().isPastDropTime(now)) {
+            bufferedTransactions.poll();
+            dropped++;
+        }
+        return dropped;
+    }
+
+    /**
+     * Check if there are any buffered signature transactions waiting to be put into events.
+     *
+     * @return true if there are any buffered signature transactions
+     */
+    public synchronized boolean hasBufferedSignatureTransactions() {
+        return bufferedSignatureTransactionCount > 0;
+    }
+
+    /**
+     * Removes all buffered application transactions and rejects new ones from now on. Priority transactions are kept,
+     * so {@link #getTransactionsForEvent()} returns only priority transactions afterwards.
+     *
+     * @return the removed application transactions, oldest first
+     */
+    @NonNull
+    public synchronized List<Bytes> drainApplicationTransactions() {
+        final List<Bytes> drained = new ArrayList<>(bufferedTransactions.size());
+        for (final PooledTransaction transaction : bufferedTransactions) {
+            drained.add(transaction.transaction().transaction());
+        }
+        bufferedTransactions.clear();
+        applicationTransactionsDrained = true;
+        return drained;
+    }
+
+    /**
+     * get the number of buffered transactions
+     *
+     * @return the number of transactions
+     */
+    private synchronized int getBufferedTransactionCount() {
+        return bufferedTransactions.size();
+    }
+
+    /**
+     * get the number of priority buffered transactions
+     *
+     * @return the number of transactions
+     */
+    private synchronized int getPriorityBufferedTransactionCount() {
+        return priorityBufferedTransactions.size();
+    }
+
+    /**
+     * Report the amount of time that the system has been in an unhealthy state. Will receive a report of
+     * {@link Duration#ZERO} when the system enters a healthy state.
+     *
+     * @param duration the amount of time that the system has been in an unhealthy state
+     */
+    public synchronized void reportUnhealthyDuration(@NonNull final Duration duration) {
+        healthy = isLessThan(duration, maximumPermissibleUnhealthyDuration);
+    }
+
+    /**
+     * Clear all the transactions
+     */
+    synchronized void clear() {
+        bufferedTransactions.clear();
+        priorityBufferedTransactions.clear();
+        bufferedSignatureTransactionCount = 0;
+    }
+
+    /**
+     * An application transaction waiting to be put into an event.
+     *
+     * @param transaction the timestamped transaction
+     * @param dropAfter   the time after which the transaction is dropped instead of being put in an event, or null to
+     *                    never drop it
+     */
+    private record PooledTransaction(
+            @NonNull TimestampedTransaction transaction,
+            @Nullable Instant dropAfter) {
+        boolean isPastDropTime(@NonNull final Instant now) {
+            return dropAfter != null && now.isAfter(dropAfter);
+        }
+    }
+}

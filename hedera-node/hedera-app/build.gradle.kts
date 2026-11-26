@@ -88,7 +88,6 @@ jmhModuleInfo {
     requires("com.swirlds.platform.core")
     requires("com.swirlds.state.api")
     requires("org.hiero.base.crypto")
-    requires("org.hiero.consensus.model")
     requires("org.hiero.consensus.platformstate")
     requires("io.helidon.common")
     requires("io.helidon.webserver")

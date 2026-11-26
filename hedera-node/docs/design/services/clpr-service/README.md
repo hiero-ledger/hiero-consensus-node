@@ -88,8 +88,8 @@ Each file is self-contained; load only what you need.
   post-upgrade setup. Both use `V0780ClprSchema.initializeSingletons()` and the active network
   configuration, preserving existing values. Schema versions only order schemas; they do not gate initialization.
 - **`HederaFunctionality` values:** `CLPR_CREATE_CHANNEL`,
-  `CLPR_DELETE_CHANNEL`, `CLPR_REGISTER_CONNECTOR`, `CLPR_COMPLETE_CONNECTOR`,
-  `CLPR_DEREGISTER_CONNECTOR`, `CLPR_SUBMIT_BUNDLE`, `CLPR_REDACT_MESSAGE`,
+  `CLPR_DELETE_CHANNEL`, `CLPR_CREATE_CONNECTOR`,
+  `CLPR_DELETE_CONNECTOR`, `CLPR_SUBMIT_BUNDLE`, `CLPR_REDACT_MESSAGE`,
   `CLPR_UPDATE_LEDGER_CONFIGURATION`, plus the `CLPR_GET_LEDGER_CONFIGURATION` query.
   All map to `ClprService.NAME` in `ServiceScopeLookup`.
 - **Two gRPC services, distinct purposes:**

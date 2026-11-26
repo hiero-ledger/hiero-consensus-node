@@ -20,6 +20,19 @@
 # Keys are the hedera-mirror umbrella chart's sub-chart aliases; each maps to that sub-chart's
 # .Values.nodeSelector/.Values.tolerations. Setting an alias whose component is disabled is harmless
 # (ignored).
+#
+# postgresql and redis are disabled in the mirror chart, so the mirror chart ignores them. Solo
+# (v0.78.0+) reads them from this file instead and passes them to the solo-shared-resources chart it
+# installs first: postgresql.primary to its Postgres, redis to its Redis master and replicas. Without
+# them, solo-shared-resources-postgres-0 stays Pending on the tainted machines, and Solo's database
+# init fails with "does not have a host assigned" before the toleration patcher can move it.
+postgresql:
+  primary:
+    nodeSelector:
+      chewie-group: aux
+redis:
+  nodeSelector:
+    chewie-group: aux
 grpc:
   nodeSelector:
     chewie-group: aux

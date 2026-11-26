@@ -14,7 +14,7 @@ import java.util.List;
 import org.hiero.base.crypto.KeyGeneratingException;
 import org.hiero.base.crypto.SigningSchema;
 import org.hiero.consensus.fakes.crypto.KeysAndCertsGenerator;
-import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.main.model.KeysAndCerts;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;

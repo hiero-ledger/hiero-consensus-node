@@ -8,6 +8,7 @@ module org.hiero.consensus.event.intake.concurrent {
     requires transitive com.swirlds.metrics.api;
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.consensus.event.intake;
+    requires transitive org.hiero.consensus.main.model;
     requires transitive org.hiero.consensus.metrics;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.utility;
@@ -15,7 +16,6 @@ module org.hiero.consensus.event.intake.concurrent {
     requires com.hedera.pbj.runtime;
     requires com.swirlds.logging;
     requires org.hiero.base.concurrent;
-    requires org.hiero.consensus.main.model;
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
 

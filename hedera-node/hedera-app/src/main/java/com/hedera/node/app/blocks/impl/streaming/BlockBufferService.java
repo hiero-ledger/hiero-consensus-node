@@ -1029,6 +1029,7 @@ public class BlockBufferService extends BlockStreamingBase {
                 now, unackedBlockCountSaturation, unackedBlockBytesSaturation, inProgressBlocksSaturation);
         final int liveBlockCount = blockBuffer.size();
         final long liveByteCount = bufferSizeInBytes.sum();
+        final int minAcknowledgementsRequired = bufferConfig().minAcksRequiredPerBlock();
 
         blockStreamMetrics.recordBufferedBlocks(liveBlockCount);
         blockStreamMetrics.recordBufferedBlocksPendingAck(finalUnackedBlockCount);
@@ -1037,13 +1038,15 @@ public class BlockBufferService extends BlockStreamingBase {
         blockStreamMetrics.recordInProgressBlocksSaturation(inProgressBlocksSaturation.percentage());
         blockStreamMetrics.recordUnackedBlocksSaturation(unackedBlockCountSaturation.percentage());
         blockStreamMetrics.recordUnackedBytesSaturation(unackedBlockBytesSaturation.percentage());
+        blockStreamMetrics.recordMinimumAcknowledgementsRequired(minAcknowledgementsRequired);
 
         if (logger.isDebugEnabled()) {
             logger.debug(
-                    "Block Buffer Status - Config(MaxBlocks: {}, MaxBytes: {}, MaxAckedBlocksToRetain: {}) CheckInfo(Checked: {}, InProgress: {}, PendingAck: {}) PruneInfo(Blocks: {}, Bytes: {}) LiveInfo(Blocks: {}, Bytes: {}, HighestBlockAcked: {}) SaturationInfo(ByBlockCount: {}%, ByTotalBytes: {}%, ByInProgressBlocks: {}%)",
+                    "Block Buffer Status - Config(MaxBlocks: {}, MaxBytes: {}, MaxAckedBlocksToRetain: {}, MinAcksRequired: {}) CheckInfo(Checked: {}, InProgress: {}, PendingAck: {}) PruneInfo(Blocks: {}, Bytes: {}) LiveInfo(Blocks: {}, Bytes: {}, HighestBlockAcked: {}) SaturationInfo(ByBlockCount: {}%, ByTotalBytes: {}%, ByInProgressBlocks: {}%)",
                     maxBlocksAllowed,
                     maxBytesAllowed,
                     maxAckedBlocksToRetain,
+                    minAcknowledgementsRequired,
                     numChecked,
                     finalNumInProgress,
                     finalUnackedBlockCount,
@@ -1059,7 +1062,7 @@ public class BlockBufferService extends BlockStreamingBase {
 
         return new PruneResult(
                 now,
-                new PruneConfig(maxBlocksAllowed, maxBytesAllowed, maxAckedBlocksToRetain),
+                new PruneConfig(maxBlocksAllowed, maxBytesAllowed, maxAckedBlocksToRetain, minAcknowledgementsRequired),
                 new CheckInfo(numChecked, finalNumInProgress, finalUnackedBlockCount),
                 new PruneInfo(numPruned, bytesPruned, blocksPruned),
                 new LiveBufferInfo(liveBlockCount, liveByteCount, finalHighestAckedBlock),
@@ -1077,8 +1080,8 @@ public class BlockBufferService extends BlockStreamingBase {
         return new SaturationDetail(percentage.doubleValue(), isAtActionStage, current, maxAllowed);
     }
 
-    record PruneConfig(int maxBlocks, long maxBytes, int maxAckedBlocksToRetain) {
-        static final PruneConfig NIL = new PruneConfig(-1, -1, -1);
+    record PruneConfig(int maxBlocks, long maxBytes, int maxAckedBlocksToRetain, int minAcksRequired) {
+        static final PruneConfig NIL = new PruneConfig(-1, -1, -1, -1);
     }
 
     record CheckInfo(int blocksChecked, int blocksInProgress, int blocksPendingAck) {

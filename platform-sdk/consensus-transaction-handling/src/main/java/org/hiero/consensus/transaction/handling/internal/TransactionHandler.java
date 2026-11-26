@@ -3,8 +3,8 @@ package org.hiero.consensus.transaction.handling.internal;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import org.hiero.consensus.main.model.RunningEventHashOverride;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
-import org.hiero.consensus.model.stream.RunningEventHashOverride;
 import org.hiero.consensus.wiring.framework.component.InputWireLabel;
 
 /**

@@ -212,11 +212,11 @@ jobs:
           setup-node: "true"
           node-version: "24"
 
-      - name: Checkout Block Node (main)
+      - name: Checkout Block Node Tools
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           repository: hiero-ledger/hiero-block-node
-          ref: main
+          ref: ${{ needs.extract-citr-vars.outputs.bn-release-version }}
           path: hiero-block-node
           fetch-depth: 0
           token: ${{ github.token }}
@@ -439,7 +439,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           repository: hiero-ledger/hiero-block-node
-          ref: ${{ needs.extract-citr-vars.outputs.block-node-version }}
+          ref: ${{ needs.extract-citr-vars.outputs.bn-release-version }}
           path: hiero-block-node
           fetch-depth: 0
           token: ${{ github.token }}

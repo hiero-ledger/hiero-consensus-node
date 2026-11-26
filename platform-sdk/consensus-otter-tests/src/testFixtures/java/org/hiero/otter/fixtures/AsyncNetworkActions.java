@@ -2,7 +2,7 @@
 package org.hiero.otter.fixtures;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.consensus.model.quiescence.QuiescenceCommand;
+import org.hiero.consensus.main.model.QuiescenceCommand;
 
 /**
  * Interface for performing asynchronous network actions such as starting, freezing, and shutting down the network with

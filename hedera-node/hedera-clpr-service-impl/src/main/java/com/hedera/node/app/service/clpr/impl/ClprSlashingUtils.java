@@ -81,7 +81,7 @@ public final class ClprSlashingUtils {
 
         if (newSlashCount >= config.slashBanThreshold()) {
             // Ban: forfeit all remaining stake and remove connector. As with deregistration, its
-            // ownership commitment stays registered so the connector ID cannot be registered again.
+            // registration history prevents reuse on this channel.
             final var forfeited = connector.lockedStake();
             connectorStore.remove(new ClprConnectorKey(connector.channelId(), connector.connectorId()));
             return new SlashResult(null, forfeited, true);

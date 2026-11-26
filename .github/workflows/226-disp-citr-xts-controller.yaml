@@ -535,8 +535,16 @@ jobs:
   report-failure:
     name: Report XTS execution failure
     runs-on: hl-cn-default-lin-sm
+    # Every job xts-execution waits on is listed, so a run cancelled before XTS starts is reported as
+    # cancelled rather than as a test failure: xts-execution itself is then skipped, not cancelled.
     needs:
+      - extract-citr-vars
+      - verify-citr-vars
+      - compute-solo-ge-0440
+      - parameters
       - fetch-xts-candidate
+      - extract-jdk-version
+      - state-validator-uberjar
       - xts-execution
       - tag-for-promotion
     # A candidate that was resolved but rejected (xts-proceed=false) is not a failure; stay quiet.
@@ -559,11 +567,12 @@ jobs:
       - name: Determine Report Category
         id: report-category
         run: |
-          if [[ "${{ needs.xts-execution.result }}" == "cancelled" ]] \
-            || [[ "${{ needs.fetch-xts-candidate.result }}" == "cancelled" ]]; then
+          if [[ "${{ contains(needs.*.result, 'cancelled') }}" == "true" ]]; then
             echo "category=cancelled" >> "${GITHUB_OUTPUT}"
           elif [[ "${{ needs.fetch-xts-candidate.result }}" =~ ^(skipped|failure)$ ]] \
-            || [[ "${{ needs.xts-execution.outputs.failure-mode }}" == "workflow" ]]; then
+            || [[ "${{ needs.xts-execution.outputs.failure-mode }}" == "workflow" ]] \
+            || [[ "${{ needs.xts-execution.result }}" == "skipped" ]]; then
+            # A skipped xts-execution means a job it depends on failed: nothing was tested.
             echo "category=environment" >> "${GITHUB_OUTPUT}"
           else
             echo "category=test" >> "${GITHUB_OUTPUT}"
@@ -764,8 +773,15 @@ jobs:
   # Required: a failed report fails the run.
   report-xts-result:
     name: Report XTS Result to Chewie
+    # The jobs xts-execution depends on are listed so a run cancelled before XTS starts reports cancelled.
     needs:
+      - extract-citr-vars
+      - verify-citr-vars
+      - compute-solo-ge-0440
+      - parameters
       - fetch-xts-candidate
+      - extract-jdk-version
+      - state-validator-uberjar
       - report-xts-running # keeps the terminal report after the running one, so it is the latest
       - xts-execution
     if: ${{ always() && needs.fetch-xts-candidate.outputs.xts-tag-commit != '' }}
@@ -779,7 +795,7 @@ jobs:
         ${{ needs.fetch-xts-candidate.outputs.xts-proceed != 'true' && 'not_run'
         || needs.xts-execution.result == 'success' && 'passed'
         || needs.xts-execution.result == 'failure' && 'failed'
-        || needs.xts-execution.result == 'cancelled' && 'cancelled'
+        || contains(needs.*.result, 'cancelled') && 'cancelled'
         || 'not_run' }}
     secrets:
       chewie-key: ${{ secrets.CHEWIE_REPO_IDENTITY_KEY }}
@@ -804,7 +820,7 @@ jobs:
       - report-success
       - report-failure
       - report-xts-result
-    if: ${{ always() && github.event.repository.visibility == 'public' }}
+    if: ${{ always() && github.event.repository.visibility == 'public' && !github.event.repository.fork }}
     uses: ./.github/workflows/865-call-publish-run-metrics.yaml
     with:
       context: >-

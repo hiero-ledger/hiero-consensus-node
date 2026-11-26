@@ -5,7 +5,7 @@ import static org.hiero.consensus.wiring.framework.model.diagram.HyperlinkBuilde
 import static org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerType.DIRECT_THREADSAFE;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.consensus.model.stream.RunningEventHashOverride;
+import org.hiero.consensus.main.model.RunningEventHashOverride;
 import org.hiero.consensus.wiring.framework.model.WiringModel;
 import org.hiero.consensus.wiring.framework.schedulers.TaskScheduler;
 import org.hiero.consensus.wiring.framework.wires.input.BindableInputWire;

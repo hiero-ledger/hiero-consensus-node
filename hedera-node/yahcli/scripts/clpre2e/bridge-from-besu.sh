@@ -11,8 +11,7 @@
 #   - Besu QBFT validator address         (← derived from .env PRIVATE_KEY)
 #   - CLPR service code hash              (← cast keccak of cast code, live)
 #   - Besu chain ID for the config proof (← Besu's on-chain ledger configuration)
-# Uses the SAME secp256k1 keys as CreateChannel.s.sol / CreateConnector.s.sol
-# so the on-chain commitments match without hand-edits.
+# Uses the same connector key and salt as CreateConnector.s.sol to derive its ID.
 #
 # REQUIRED env:
 #   VERIFIER_CONTRACT   id (0.0.X) of a pre-deployed Besu-QBFT verifier on this
@@ -183,9 +182,9 @@ for tool in jq cast python3; do
 done
 
 CONFIG_PAYLOAD_PY="${TOOLS_DIR}/build-besu-qbft-config-payload.py"
-SIGN_CONNECTOR_PY="${TOOLS_DIR}/sign-clpr-connector-identity.py"
+DERIVE_CONNECTOR_PY="${TOOLS_DIR}/derive-clpr-connector-identity.py"
 [[ -f "${CONFIG_PAYLOAD_PY}" ]]  || die "missing ${CONFIG_PAYLOAD_PY}"
-[[ -f "${SIGN_CONNECTOR_PY}" ]]  || die "missing ${SIGN_CONNECTOR_PY}"
+[[ -f "${DERIVE_CONNECTOR_PY}" ]]  || die "missing ${DERIVE_CONNECTOR_PY}"
 
 echo "  JAVA_HOME            : ${JAVA_HOME:-(system default)}"
 echo "  SMART_CONTRACTS_REPO : ${SMART_CONTRACTS_REPO}"
@@ -287,8 +286,8 @@ echo "  HIERO_PEER_CHAIN_ID : ${HIERO_PEER_CHAIN_ID}"
 echo "  CONNECTOR_PK   : (set; not printed)"
 ok "Besu state resolved"
 
-# ─── [1/9] Push local Hiero ledger configuration ──────────────────────────
-header "[1/9] update-ledger-configuration on ${NET}"
+# ─── [1/6] Push local Hiero ledger configuration ──────────────────────────
+header "[1/6] update-ledger-configuration on ${NET}"
 HIERO_CONFIG="${SCRIPT_DIR}/.bridge/hiero-ledger-config.json"
 yh "check Hiero peer chain ID" "${LOG_DIR}/01-get-cfg.log" \
     -n "${NET}" -p "${PAYER}" clpr get-ledger-configuration --out "${HIERO_CONFIG}"
@@ -301,8 +300,8 @@ yh "update-ledger-configuration on ${NET}" "${LOG_DIR}/01-update-cfg.log" \
     -n "${NET}" -p "${PAYER}" \
     clpr update-ledger-configuration --config-file "${CONFIG_LOCAL}"
 
-# ─── [2/9] Build Besu QBFT config payload → config-proof hex ──────────────
-header "[2/9] build Besu QBFT config proof (with throttles from on-chain)"
+# ─── [2/6] Build Besu QBFT config payload → config-proof hex ──────────────
+header "[2/6] build Besu QBFT config proof (with throttles from on-chain)"
 
 # Decode the LedgerConfiguration returned by the one-step EVM service.
 step "cast call getLedgerConfiguration() on ${BESU_RPC}"
@@ -365,7 +364,7 @@ note "config-proof hex (${#CONFIG_PROOF_HEX} chars): ${CONFIG_PROOF_HEX:0:60}…
 # Use the same salt and EVM-side verifier used when the EVM channel was opened.
 : "${CHANNEL_SALT:?Set CHANNEL_SALT to the EVM channel salt (32-byte hex)}"
 : "${EVM_VERIFIER_ADDRESS:?Set EVM_VERIFIER_ADDRESS to the verifier on the EVM ledger (20-byte hex)}"
-header "create-channel on ${NET} via verifier ${VERIFIER_CONTRACT}"
+header "[3/6] create-channel on ${NET} via verifier ${VERIFIER_CONTRACT}"
 yh_allow_status "CLPR_CHANNEL_ALREADY_EXISTS" "create-channel" "${LOG_DIR}/05-complete-conn.log" \
     -n "${NET}" -p "${PAYER}" \
     clpr create-channel \
@@ -373,39 +372,28 @@ yh_allow_status "CLPR_CHANNEL_ALREADY_EXISTS" "create-channel" "${LOG_DIR}/05-co
         --verifier-contract "${VERIFIER_CONTRACT}" \
         --config-proof-hex "${CONFIG_PROOF_HEX}"
 
-# ─── [6/9] Build connector identity bundle (using CONNECTOR_PK + salt=0) ─
-header "[6/9] generate connector identity (using CONNECTOR_PK from smart-contracts side)"
+# ─── [4/6] Build connector identity bundle (using CONNECTOR_PK + salt=0) ─
+header "[4/6] generate connector identity (using CONNECTOR_PK from smart-contracts side)"
 # Public-only stub (no key material); the private key goes to ${CONNECTOR_FILE}.key (0600).
 CONNECTOR_STUB="$(mktemp)"
 cat > "${CONNECTOR_STUB}" <<JSON
 {
-  "channelId":   "${CHANNEL_ID}",
   "signatureScheme":"ECDSA_SECP256K1",
   "salt":           "0x0000000000000000000000000000000000000000000000000000000000000000"
 }
 JSON
 kf_write_key_file "${CONNECTOR_FILE}.key" "${CONNECTOR_PK_HEX}"
-python3 "${SIGN_CONNECTOR_PY}" "${CONNECTOR_STUB}" --key-file "${CONNECTOR_FILE}.key" --out "${CONNECTOR_FILE}" \
-    | tee "${LOG_DIR}/06-sign-connector.log" >/dev/null
+python3 "${DERIVE_CONNECTOR_PY}" "${CONNECTOR_STUB}" --key-file "${CONNECTOR_FILE}.key" --out "${CONNECTOR_FILE}" \
+    | tee "${LOG_DIR}/06-derive-connector.log" >/dev/null
 rm -f "${CONNECTOR_STUB}"
-CONNECTOR_COMMIT="$(jq -r '.commitment'  "${CONNECTOR_FILE}")"
 CONNECTOR_ID_HIERO="$(jq -r '.connectorId' "${CONNECTOR_FILE}")"
-[[ -n "${CONNECTOR_COMMIT}" && "${CONNECTOR_COMMIT}" != "null" ]] || die "no commitment in ${CONNECTOR_FILE}"
 note "connectorId (hiero): ${CONNECTOR_ID_HIERO}"
-note "commitment:          ${CONNECTOR_COMMIT}"
 if [[ "${CONNECTOR_ID_HIERO}" != "${CONNECTOR_ID}" ]]; then
-    note "${YELLOW}warn:${RESET} connectorId derived here ≠ value in smart-contracts/connector.json"
-    note "       Hiero will accept this, but it diverges from Besu's view."
+    die "Peer connector ID differs from keccak256(publicKey || salt). Check the peer deployment, key and salt."
 fi
 
-# ─── [7/9] register-connector on Hiero ────────────────────────────────────
-header "[7/9] register-connector on ${NET}"
-yh "register-connector" "${LOG_DIR}/07-register-connector.log" \
-    -n "${NET}" -p "${PAYER}" \
-    clpr register-connector --channel-id "${CHANNEL_ID}" --commitment "${CONNECTOR_COMMIT}"
-
-# ─── [8/9] deploy PassThroughAuth ─────────────────────────────────────────
-header "[8/9] deploy PassThroughAuth on ${NET}"
+# ─── [5/6] deploy PassThroughAuth ─────────────────────────────────────────
+header "[5/6] deploy PassThroughAuth on ${NET}"
 yh "contracts create PassThroughAuth" "${LOG_DIR}/08-create-pta.log" \
     -n "${NET}" -p "${PAYER}" contracts create \
         --init-code-file "${PASS_THROUGH_AUTH}" \
@@ -413,11 +401,11 @@ yh "contracts create PassThroughAuth" "${LOG_DIR}/08-create-pta.log" \
 CONNECTOR_CONTRACT="$(capture_contract_id "${LOG_DIR}/08-create-pta.log")"
 [[ -n "${CONNECTOR_CONTRACT}" ]] || die "could not capture PassThroughAuth contract id"
 
-# ─── [9/9] complete-connector on Hiero ────────────────────────────────────
-header "[9/9] complete-connector on ${NET}"
-yh "complete-connector" "${LOG_DIR}/09-complete-connector.log" \
+# ─── [6/6] create-connector on Hiero ────────────────────────────────────
+header "[6/6] create-connector on ${NET}"
+yh "create-connector" "${LOG_DIR}/09-create-connector.log" \
     -n "${NET}" -p "${PAYER}" \
-    clpr complete-connector \
+    clpr create-connector --channel-id "${CHANNEL_ID}" \
         --identity "${CONNECTOR_FILE}" \
         --connector-contract "${CONNECTOR_CONTRACT}" \
         --locked-stake "${LOCKED_STAKE}"

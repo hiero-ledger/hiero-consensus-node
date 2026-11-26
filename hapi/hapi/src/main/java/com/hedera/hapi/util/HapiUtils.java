@@ -270,9 +270,8 @@ public class HapiUtils {
             case CLPR_EVICT_PEER_ENDPOINT -> HederaFunctionality.CLPR_EVICT_PEER_ENDPOINT;
             case CLPR_CREATE_CHANNEL -> HederaFunctionality.CLPR_CREATE_CHANNEL;
             case CLPR_SUBMIT_BUNDLE -> HederaFunctionality.CLPR_SUBMIT_BUNDLE;
-            case CLPR_REGISTER_CONNECTOR -> HederaFunctionality.CLPR_REGISTER_CONNECTOR;
-            case CLPR_COMPLETE_CONNECTOR -> HederaFunctionality.CLPR_COMPLETE_CONNECTOR;
-            case CLPR_DEREGISTER_CONNECTOR -> HederaFunctionality.CLPR_DEREGISTER_CONNECTOR;
+            case CLPR_CREATE_CONNECTOR -> HederaFunctionality.CLPR_CREATE_CONNECTOR;
+            case CLPR_DELETE_CONNECTOR -> HederaFunctionality.CLPR_DELETE_CONNECTOR;
             case CLPR_ENDPOINT_PUBLICATION -> HederaFunctionality.CLPR_ENDPOINT_PUBLICATION;
             case CLPR_MAINTENANCE -> HederaFunctionality.CLPR_MAINTENANCE;
             case UNSET -> throw new UnknownHederaFunctionality();
