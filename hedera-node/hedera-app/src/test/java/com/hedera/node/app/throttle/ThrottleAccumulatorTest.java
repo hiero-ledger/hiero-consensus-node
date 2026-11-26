@@ -2796,6 +2796,69 @@ public class ThrottleAccumulatorTest {
     void highVolumeCryptoTransferWithImplicitCreationStillUsesNormalTransferCapacity(
             ThrottleAccumulator.ThrottleType throttleType) throws IOException, ParseException {
         // given
+        givenHighVolumeTransferThrottles(throttleType);
+        givenTransferWithImplicitCreations(1, true);
+
+        // when - submit high-volume transfers, each with one implicit creation, until throttled
+        var throttled = false;
+        for (int i = 0; i < 250 && !throttled; i++) {
+            throttled = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null, false);
+        }
+
+        // then - the normal transfer capacity runs out while the high-volume creation bucket still has room
+        assertTrue(throttled, "High-volume transfers must also be limited by the normal CryptoTransfer capacity");
+        assertEquals(
+                1_000,
+                subject.getHighVolumeThrottleInstantaneousUtilizationBps(CRYPTO_CREATE, TIME_INSTANT),
+                "Each admitted transfer takes one unit of the high-volume CryptoCreate bucket");
+        // and a plain transfer now finds the normal CryptoTransfer capacity used up
+        assertEquals(0, admittedPlainTransfers());
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
+    void highVolumeCryptoTransferThrottledOnItsCreationsReturnsItsNormalTransferCapacity(
+            ThrottleAccumulator.ThrottleType throttleType) throws IOException, ParseException {
+        // given - each transfer takes 20 of the 1,000 high-volume creations and 1 of the 100 normal transfers
+        givenHighVolumeTransferThrottles(throttleType);
+        givenTransferWithImplicitCreations(20, true);
+
+        // when - 50 transfers use up the high-volume creations, and the next 30 are throttled on them
+        int admitted = 0;
+        for (int i = 0; i < 80; i++) {
+            final List<ThrottleUsage> usages = new ArrayList<>();
+            if (subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, usages, false)) {
+                assertTrue(usages.isEmpty(), "A throttled transfer should keep no usage");
+            } else {
+                admitted++;
+            }
+        }
+
+        // then - the throttled transfers gave their normal CryptoTransfer capacity back
+        assertEquals(50, admitted);
+        assertEquals(50, admittedPlainTransfers());
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
+    void reclaimingHighVolumeCryptoTransferUsageReturnsItsNormalTransferCapacity(
+            ThrottleAccumulator.ThrottleType throttleType) throws IOException, ParseException {
+        // given - an admitted high-volume transfer with one implicit creation
+        givenHighVolumeTransferThrottles(throttleType);
+        givenTransferWithImplicitCreations(1, true);
+        final List<ThrottleUsage> usages = new ArrayList<>();
+        assertFalse(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, usages, false));
+
+        // when - a later check fails the transaction, so its recorded usage is reclaimed
+        usages.forEach(ThrottleUsage::reclaimCapacity);
+
+        // then - both its normal CryptoTransfer and its high-volume CryptoCreate capacity are back
+        assertEquals(0, subject.getHighVolumeThrottleInstantaneousUtilizationBps(CRYPTO_CREATE, TIME_INSTANT));
+        assertEquals(100, admittedPlainTransfers());
+    }
+
+    private void givenHighVolumeTransferThrottles(@NonNull final ThrottleAccumulator.ThrottleType throttleType)
+            throws IOException, ParseException {
         subject = new ThrottleAccumulator(
                 () -> CAPACITY_SPLIT,
                 configProvider::getConfiguration,
@@ -2817,28 +2880,21 @@ public class ThrottleAccumulatorTest {
         given(readableStates.get(anyInt())).willReturn(aliases);
         given(transactionInfo.payerID()).willReturn(PAYER_ID);
         given(transactionInfo.functionality()).willReturn(CRYPTO_TRANSFER);
-        givenTransferWithImplicitCreations(1, true);
-
         // The fixture's normal CryptoTransfer buckets hold a tenth of its high-volume CryptoCreate bucket
         subject.rebuildFor(getThrottleDefs("bootstrap/high-volume-throttles.json"));
+    }
 
-        // when - submit high-volume transfers, each with one implicit creation, until throttled
-        var throttled = false;
-        for (int i = 0; i < 250 && !throttled; i++) {
-            throttled = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null, false);
-        }
-
-        // then - the normal transfer capacity runs out while the high-volume creation bucket still has room
-        assertTrue(throttled, "High-volume transfers must also be limited by the normal CryptoTransfer capacity");
-        assertTrue(
-                subject.getHighVolumeThrottleInstantaneousUtilizationBps(CRYPTO_CREATE, TIME_INSTANT) < 5_000,
-                "The high-volume CryptoCreate bucket should still have room");
-        // and a plain transfer now finds the normal CryptoTransfer capacity used up
+    private int admittedPlainTransfers() {
         given(transactionInfo.txBody())
                 .willReturn(TransactionBody.newBuilder()
                         .cryptoTransfer(CryptoTransferTransactionBody.DEFAULT)
                         .build());
-        assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null, false));
+        int admitted = 0;
+        while (admitted < 1_000
+                && !subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null, false)) {
+            admitted++;
+        }
+        return admitted;
     }
 
     @Test

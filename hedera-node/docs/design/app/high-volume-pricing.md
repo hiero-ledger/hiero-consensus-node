@@ -18,9 +18,11 @@ This covers:
 
 This does not cover legacy congestion multipliers unrelated to HIP-1313 high-volume pricing.
 
-`FileAppend`, `ScheduleCreate` and `HookStore` are not high-volume operations. As for any other operation outside
-the high-volume set, the `high_volume` flag is ignored for them: they use their normal throttles and prices, and
-must not get an `HV*` bucket, an `HVTotalThrottles` entry or `highVolumeRates`.
+For operations outside the high-volume set, the `high_volume` flag is ignored: they use their normal throttles and
+prices, and need no `HV*` bucket, `HVTotalThrottles` entry or `highVolumeRates`.
+
+A high-volume `CryptoTransfer` that creates accounts takes those creations from the `CryptoCreate` high-volume buckets
+and the transfer itself from the normal `CryptoTransfer` throttles; it has no dedicated `HV*` bucket.
 
 ## Runtime Model
 
@@ -215,11 +217,12 @@ When updating high-volume data, verify all of the following:
 3. Final point reaches `10000` basis points unless intentionally capped earlier.
 4. Multipliers are in scaled units (`1000 = 1x`).
 5. `maxMultiplier` is >= highest curve multiplier.
-6. Every high-volume operation exists in both:
+6. Every high-volume operation except `CryptoTransfer` exists in both:
    - a dedicated `HV*` bucket
    - `HVTotalThrottles`
 7. `HVTotalThrottles` contains exactly the high-volume operation set intended by product. `HighVolumeConfigTest`
-   checks the shipped files against `HighVolumePricingCalculator`'s high-volume sets.
+   checks that the operations in the shipped high-volume buckets and `highVolumeRates` match
+   `HighVolumePricingCalculator`'s high-volume sets.
 8. End-to-end tests validate observed fees vs expected multipliers for representative operations.
 
 ## Common Mistakes

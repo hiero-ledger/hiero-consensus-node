@@ -29,6 +29,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdW
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsAssertion.ALL_TX_IDS;
 import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
+import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
@@ -334,6 +335,39 @@ public class Hip1313EnabledTest {
             assertEquals(0L, txnRecord.getHighVolumePricingMultiplier(), txnName + " high-volume multiplier");
             fee.set(txnRecord.getTransactionFee());
         });
+    }
+
+    @LeakyHapiTest(
+            requirement = {THROTTLE_OVERRIDES},
+            throttles = "testSystemFiles/hip1313-one-tps-append-and-schedule-with-hv-buckets.json")
+    final Stream<DynamicTest> highVolumeFlagIsIgnoredForFileAppendAndScheduleCreateWithHighVolumeBuckets() {
+        return hapiTest(
+                fileCreate("hvBucketsTarget").contents("0").payingWith(CIVILIAN_PAYER),
+                fileAppend("hvBucketsTarget")
+                        .content("1")
+                        .payingWith(CIVILIAN_PAYER)
+                        .withHighVolume()
+                        .deferStatusResolution()
+                        .hasPrecheck(OK),
+                // Both have high-volume buckets with room, but their one-per-second normal capacity is used up
+                fileAppend("hvBucketsTarget")
+                        .content("2")
+                        .payingWith(CIVILIAN_PAYER)
+                        .withHighVolume()
+                        .hasPrecheck(BUSY),
+                scheduleCreate(
+                                "hvBucketsSchedule1",
+                                cryptoTransfer(movingHbar(1).between(CIVILIAN_PAYER, GENESIS)))
+                        .payingWith(CIVILIAN_PAYER)
+                        .withHighVolume()
+                        .deferStatusResolution()
+                        .hasPrecheck(OK),
+                scheduleCreate(
+                                "hvBucketsSchedule2",
+                                cryptoTransfer(movingHbar(2).between(CIVILIAN_PAYER, GENESIS)))
+                        .payingWith(CIVILIAN_PAYER)
+                        .withHighVolume()
+                        .hasPrecheck(BUSY));
     }
 
     @HapiTest

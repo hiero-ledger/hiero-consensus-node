@@ -1,0 +1,83 @@
+{
+  "buckets": [
+    {
+      "name": "ThroughputLimits",
+      "burstPeriod": 1,
+      "throttleGroups": [
+        {
+          "opsPerSec": 1000,
+          "operations": [ "CryptoCreate", "CryptoTransfer", "FileCreate" ]
+        }
+      ]
+    },
+    {
+      "name": "FileAppendLimits",
+      "burstPeriod": 1,
+      "throttleGroups": [
+        {
+          "opsPerSec": 1,
+          "operations": [ "FileAppend" ]
+        }
+      ]
+    },
+    {
+      "name": "ScheduleCreateLimits",
+      "burstPeriod": 1,
+      "throttleGroups": [
+        {
+          "opsPerSec": 1,
+          "operations": [ "ScheduleCreate" ]
+        }
+      ]
+    },
+    {
+      "name": "HVFileAppendThrottles",
+      "burstPeriod": 1,
+      "highVolume": true,
+      "throttleGroups": [
+        {
+          "opsPerSec": 1000,
+          "operations": [ "FileAppend" ]
+        }
+      ]
+    },
+    {
+      "name": "HVScheduleCreateThrottles",
+      "burstPeriod": 1,
+      "highVolume": true,
+      "throttleGroups": [
+        {
+          "opsPerSec": 1000,
+          "operations": [ "ScheduleCreate" ]
+        }
+      ]
+    },
+    {
+      "name": "HVTotalThrottles",
+      "burstPeriod": 1,
+      "highVolume": true,
+      "throttleGroups": [
+        {
+          "opsPerSec": 1000,
+          "operations": [ "FileAppend", "ScheduleCreate" ]
+        }
+      ]
+    },
+    {
+      "name": "MiscQueryLimits",
+      "burstPeriod": 1,
+      "throttleGroups": [
+        {
+          "opsPerSec": 100000,
+          "operations": [
+            "TransactionGetReceipt",
+            "TransactionGetRecord",
+            "CryptoGetAccountBalance",
+            "FileGetInfo",
+            "FileGetContents"
+          ]
+        }
+      ]
+    }
+  ]
+}

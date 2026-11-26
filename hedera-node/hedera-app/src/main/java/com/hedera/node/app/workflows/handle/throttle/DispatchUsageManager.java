@@ -167,7 +167,8 @@ public class DispatchUsageManager {
      * two legs are additive, so a transfer doing both charges both buckets, and auto associations are charged
      * only when {@link EntitiesConfig#unlimitedAutoAssociationsEnabled()} is set. The claim picks one bucket
      * (normal or high-volume) for both legs from the implicit creation count, so the reclaim leaks each leg it
-     * charged back into that same bucket.
+     * charged back into that same bucket. A high-volume transfer also claims one normal CryptoTransfer unit,
+     * which is not reclaimed, as for any other transfer.
      *
      * @param dispatch the failed dispatch
      * @param function the functionality of the dispatch

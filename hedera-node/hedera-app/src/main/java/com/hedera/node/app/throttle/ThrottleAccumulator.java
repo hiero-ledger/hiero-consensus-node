@@ -660,9 +660,7 @@ public class ThrottleAccumulator {
         }
 
         return switch (function) {
-            case SCHEDULE_CREATE ->
-                shouldThrottleScheduleCreate(
-                        effectiveManager, txnInfo, now, state, throttleUsages, useHighVolumeBucket);
+            case SCHEDULE_CREATE -> shouldThrottleScheduleCreate(effectiveManager, txnInfo, now, state, throttleUsages);
             case TOKEN_MINT ->
                 shouldThrottleMint(effectiveManager, txBody.tokenMintOrThrow(), now, configuration, throttleUsages);
             case CRYPTO_TRANSFER -> {
@@ -725,8 +723,7 @@ public class ThrottleAccumulator {
             final TransactionInfo txnInfo,
             final Instant now,
             final State state,
-            List<ThrottleUsage> throttleUsages,
-            final boolean useHighVolumeBucket) {
+            List<ThrottleUsage> throttleUsages) {
         final var txnBody = txnInfo.txBody();
         final var op = txnBody.scheduleCreateOrThrow();
         if (!op.hasScheduledTransactionBody()) {
@@ -761,8 +758,7 @@ public class ThrottleAccumulator {
                             .build();
                     final int implicitCreationsCount = getImplicitCreationsCount(transferTxnBody, accountStore);
                     if (implicitCreationsCount > 0) {
-                        return shouldThrottleImplicitCreations(
-                                implicitCreationsCount, now, throttleUsages, useHighVolumeBucket);
+                        return shouldThrottleImplicitCreations(implicitCreationsCount, now, throttleUsages, false);
                     }
                 }
             }

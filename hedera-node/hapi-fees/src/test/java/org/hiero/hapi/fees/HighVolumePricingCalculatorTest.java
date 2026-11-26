@@ -6,17 +6,13 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_APPROVE_ALLOWANCE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
-import static com.hedera.hapi.node.base.HederaFunctionality.FILE_APPEND;
 import static com.hedera.hapi.node.base.HederaFunctionality.FILE_CREATE;
-import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_STORE;
-import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_AIRDROP;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_ASSOCIATE_TO_ACCOUNT;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_CLAIM_AIRDROP;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_MINT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import java.util.List;
 import java.util.Set;
@@ -63,15 +59,6 @@ class HighVolumePricingCalculatorTest {
                         TOKEN_CREATE,
                         CRYPTO_TRANSFER),
                 HighVolumePricingCalculator.HIGH_VOLUME_THROTTLE_FUNCTIONS);
-    }
-
-    @Test
-    @DisplayName("Never prices or routes FileAppend, ScheduleCreate or HookStore as high volume")
-    void excludesFileAppendScheduleCreateAndHookStore() {
-        for (final var function : List.of(FILE_APPEND, SCHEDULE_CREATE, HOOK_STORE)) {
-            assertFalse(HighVolumePricingCalculator.HIGH_VOLUME_PRICING_FUNCTIONS.contains(function), function.name());
-            assertFalse(HighVolumePricingCalculator.HIGH_VOLUME_THROTTLE_FUNCTIONS.contains(function), function.name());
-        }
     }
 
     @Test

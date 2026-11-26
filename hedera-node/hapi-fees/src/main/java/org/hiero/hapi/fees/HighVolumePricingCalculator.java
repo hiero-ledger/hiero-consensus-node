@@ -54,7 +54,7 @@ public final class HighVolumePricingCalculator {
     public static final long DEFAULT_HIGH_VOLUME_MULTIPLIER = 1_000L;
     /**
      * The set of operations eligible for high-volume pricing multipliers. CryptoTransfer is not included.
-     * FileAppend, ScheduleCreate and HookStore are not eligible and always use their normal throttles and prices.
+     * Operations outside this set ignore the high_volume flag and use their normal throttles and prices.
      */
     public static final Set<HederaFunctionality> HIGH_VOLUME_PRICING_FUNCTIONS = Set.of(
             CRYPTO_CREATE,
