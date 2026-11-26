@@ -109,8 +109,8 @@ public class ContainerTransactionGenerator implements TransactionGenerator {
             if (node.platformStatus() == PlatformStatus.ACTIVE) {
                 final OtterTransaction transaction = TransactionFactory.createEmptyTransaction(random.nextLong());
                 try {
-                    ((ContainerNode) node).submitTransaction(transaction);
-                } catch (final Exception e) {
+                    node.submitTransaction(transaction);
+                } catch (final Exception | AssertionError e) {
                     log.debug("Unable to submit transaction to node {}", node.selfId(), e);
                 }
             }
