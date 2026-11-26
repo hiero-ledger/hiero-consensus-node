@@ -6,8 +6,9 @@ module org.hiero.consensus.platformstate {
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.state.api;
     requires transitive org.hiero.base.crypto;
-    requires transitive org.hiero.consensus.model;
+    requires transitive org.hiero.consensus.main.model;
     requires com.hedera.pbj.runtime;
     requires com.swirlds.base;
+    requires org.hiero.consensus.model;
     requires static transitive com.github.spotbugs.annotations;
 }

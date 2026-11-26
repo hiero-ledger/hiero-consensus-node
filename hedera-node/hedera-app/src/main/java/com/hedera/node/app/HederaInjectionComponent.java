@@ -83,7 +83,7 @@ import java.util.function.Supplier;
 import javax.inject.Named;
 import javax.inject.Provider;
 import javax.inject.Singleton;
-import org.hiero.consensus.transaction.TransactionPoolNexus;
+import org.hiero.consensus.adapter.transaction.TransactionPoolNexus;
 
 /**
  * The infrastructure used to implement the platform contract for a Hedera Services node.

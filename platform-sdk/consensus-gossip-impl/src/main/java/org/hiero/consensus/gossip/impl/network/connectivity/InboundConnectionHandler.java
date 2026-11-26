@@ -26,7 +26,7 @@ import org.hiero.consensus.gossip.impl.network.NetworkPeerIdentifier;
 import org.hiero.consensus.gossip.impl.network.NetworkUtils;
 import org.hiero.consensus.gossip.impl.network.PeerInfo;
 import org.hiero.consensus.gossip.impl.network.SocketConnection;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * Accept inbound connections and executes the platform handshake. This class is thread-safe

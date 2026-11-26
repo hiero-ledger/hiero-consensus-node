@@ -361,6 +361,7 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
         assertThat(currentBufferSize).isGreaterThanOrEqualTo(MAX_BUFFERED_BLOCKS / 2);
         assertThat(currentBufferSize).isLessThanOrEqualTo(MAX_BUFFERED_BLOCKS);
 
+        verify(blockStreamMetrics).recordMinimumAcknowledgementsRequired(anyLong());
         verify(blockStreamMetrics).recordBufferedBlocks(anyInt());
         verify(blockStreamMetrics).recordBufferedBlocksPendingAck(anyInt());
         verify(blockStreamMetrics).recordBufferSizeInBytes(anyLong());

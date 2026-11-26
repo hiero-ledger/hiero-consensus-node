@@ -43,10 +43,10 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.PathsConfig;
 import org.hiero.consensus.event.stream.config.EventConfig;
+import org.hiero.consensus.main.model.KeysAndCerts;
+import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.main.model.QuiescenceCommand;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.ProfilerEvent;
@@ -501,7 +501,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
                 new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
         try {
             final Path databaseDirectory = getDatabaseDirectory(
-                    configuration, fileSystemManager, org.hiero.consensus.model.node.NodeId.of(selfId.id()));
+                    configuration, fileSystemManager, org.hiero.consensus.main.model.NodeId.of(selfId.id()));
             final Path localPcesDirectory = localOutputDirectory.resolve(databaseDirectory);
 
             Files.createDirectories(localPcesDirectory);

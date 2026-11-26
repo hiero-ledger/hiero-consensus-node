@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.quiescence;
 
-import static org.hiero.consensus.model.quiescence.QuiescenceCommand.BREAK_QUIESCENCE;
-import static org.hiero.consensus.model.quiescence.QuiescenceCommand.DONT_QUIESCE;
-import static org.hiero.consensus.model.quiescence.QuiescenceCommand.QUIESCE;
+import static org.hiero.consensus.main.model.QuiescenceCommand.BREAK_QUIESCENCE;
+import static org.hiero.consensus.main.model.QuiescenceCommand.DONT_QUIESCE;
+import static org.hiero.consensus.main.model.QuiescenceCommand.QUIESCE;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;

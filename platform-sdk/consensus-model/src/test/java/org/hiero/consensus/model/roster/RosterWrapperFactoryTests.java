@@ -12,7 +12,7 @@ import java.security.PublicKey;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.crypto.PlatformSigner;
-import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.main.model.KeysAndCerts;
 import org.hiero.consensus.model.test.fixtures.roster.RosterWithKeys;
 import org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory;
 import org.hiero.consensus.test.fixtures.Randotron;

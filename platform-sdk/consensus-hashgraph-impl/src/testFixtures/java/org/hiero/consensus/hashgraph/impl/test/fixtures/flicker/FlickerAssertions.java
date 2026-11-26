@@ -2,7 +2,7 @@
 package org.hiero.consensus.hashgraph.impl.test.fixtures.flicker;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.hiero.consensus.model.event.EventConstants.DEFAULT_EVENT_DIGEST_TYPE;
+import static org.hiero.consensus.main.model.ConsensusLayerConstants.DEFAULT_EVENT_DIGEST_TYPE;
 
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import edu.umd.cs.findbugs.annotations.NonNull;

@@ -3,6 +3,7 @@ open module org.hiero.consensus.network.simulation.test.fixtures {
     exports org.hiero.consensus.network.simulation.fixtures;
 
     requires transitive com.swirlds.config.api;
+    requires transitive org.hiero.consensus.main.model;
     requires transitive org.hiero.consensus.model;
     requires com.hedera.pbj.runtime;
     requires com.swirlds.base.test.fixtures;

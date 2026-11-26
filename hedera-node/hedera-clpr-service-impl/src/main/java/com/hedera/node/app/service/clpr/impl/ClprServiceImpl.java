@@ -44,14 +44,9 @@ public final class ClprServiceImpl implements ClprService {
                 new ClprFeeCalculator(
                         HederaFunctionality.CLPR_DELETE_CHANNEL, TransactionBody.DataOneOfType.CLPR_DELETE_CHANNEL),
                 new ClprFeeCalculator(
-                        HederaFunctionality.CLPR_REGISTER_CONNECTOR,
-                        TransactionBody.DataOneOfType.CLPR_REGISTER_CONNECTOR),
+                        HederaFunctionality.CLPR_CREATE_CONNECTOR, TransactionBody.DataOneOfType.CLPR_CREATE_CONNECTOR),
                 new ClprFeeCalculator(
-                        HederaFunctionality.CLPR_COMPLETE_CONNECTOR,
-                        TransactionBody.DataOneOfType.CLPR_COMPLETE_CONNECTOR),
-                new ClprFeeCalculator(
-                        HederaFunctionality.CLPR_DEREGISTER_CONNECTOR,
-                        TransactionBody.DataOneOfType.CLPR_DEREGISTER_CONNECTOR),
+                        HederaFunctionality.CLPR_DELETE_CONNECTOR, TransactionBody.DataOneOfType.CLPR_DELETE_CONNECTOR),
                 new ClprFeeCalculator(
                         HederaFunctionality.CLPR_SUBMIT_BUNDLE, TransactionBody.DataOneOfType.CLPR_SUBMIT_BUNDLE),
                 new ClprFeeCalculator(

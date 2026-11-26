@@ -128,14 +128,6 @@ public abstract class BlockNodePublisherConnection extends AbstractBlockNodeConn
     }
 
     /**
-     * @return the connection manager
-     */
-    @NonNull
-    final BlockNodeConnectionManager connectionManager() {
-        return connectionManager;
-    }
-
-    /**
      * @return the metrics instance
      */
     @NonNull
@@ -248,29 +240,6 @@ public abstract class BlockNodePublisherConnection extends AbstractBlockNodeConn
         final long timeout = baseMillis + millisToAdd;
 
         return Math.min(timeout, maxMillis);
-    }
-
-    /**
-     * Calculates the duration between the specified start and end nanoseconds and converts it to microseconds.
-     *
-     * @param startNanos the starting nanosecond timestamp
-     * @param endNanos the ending nanosecond timestamp
-     * @return the duration between the start and end in microseconds
-     */
-    private static long calculateDurationMicros(final long startNanos, final long endNanos) {
-        final long totalNanos;
-
-        if (startNanos == -1 && endNanos == -1) {
-            // if both start and end are -1 it probably means the request never actually was attempted
-            return -1;
-        } else if (endNanos == -1) {
-            // if the endNanos is -1 it probably means the request failed so default to the current time as the end
-            totalNanos = System.nanoTime() - startNanos;
-        } else {
-            totalNanos = endNanos - startNanos;
-        }
-
-        return TimeUnit.NANOSECONDS.toMicros(totalNanos);
     }
 
     @Override
@@ -591,6 +560,7 @@ public abstract class BlockNodePublisherConnection extends AbstractBlockNodeConn
             connStats.recordRequestSendAttempt();
             future = blockingIoExecutor.submit(() -> {
                 startNanos.set(System.nanoTime());
+                updateMetricsPreSend(request);
                 call.sendRequest(request.streamRequest(), false);
                 endNanos.set(System.nanoTime());
                 sentTimestamp.set(Instant.now());
@@ -632,9 +602,9 @@ public abstract class BlockNodePublisherConnection extends AbstractBlockNodeConn
                     "{} Request successfully sent (duration: {}μs)", connectionContext(correlationId), durationMicros);
         }
 
-        final SendRequestResult result = new SendRequestResult(SendRequestStatus.SUCCESS, ctx);
+        metrics.recordRequestLatency(connectionType(), ctx.durationMicros());
 
-        updateSendMetrics(request, ctx);
+        final SendRequestResult result = new SendRequestResult(SendRequestStatus.SUCCESS, ctx);
 
         try {
             postSuccessfulRequestSend(request, result);
@@ -806,26 +776,16 @@ public abstract class BlockNodePublisherConnection extends AbstractBlockNodeConn
         }
     }
 
-    private void updateSendMetrics(final PublisherRequest request, final SendRequestContext ctx) {
-        // spotless:off
-        metrics.recordRequestLatency(connectionType(), ctx.durationMicros());
+    private void updateMetricsPreSend(final PublisherRequest request) {
+        metrics.recordRequestBytes(connectionType(), request.streamRequest().protobufSize());
+        metrics.recordPublisherRequestSent(connectionType(), request.streamRequestType());
 
-        switch (request) {
-            case final PublisherEndStreamRequest r -> metrics.recordRequestEndStreamSent(connectionType(), r.code());
-            case final PublisherBlockRequest br -> {
-                switch (br) {
-                    case final PublisherBlockEndRequest r -> metrics.recordRequestSent(connectionType(), r.streamRequestType());
-                    case final PublisherBlockItemsRequest r -> {
-                        metrics.recordRequestSent(connectionType(), r.streamRequestType());
-                        metrics.recordBlockItemsSent(r.numItems());
-                        metrics.recordRequestBlockItemCount(r.numItems());
-                        metrics.recordRequestBytes(connectionType(), r.streamRequest().protobufSize());
-                    }
-                }
-            }
-            case final PublisherAcknowledgeOnlyRequest r -> metrics.recordRequestSent(connectionType(), r.streamRequestType());
+        if (request instanceof final PublisherEndStreamRequest req) {
+            metrics.recordPublisherRequestEndStreamSent(connectionType(), req.code());
+        } else if (request instanceof final PublisherBlockItemsRequest req) {
+            metrics.recordBlockItemsSent(req.numItems());
+            metrics.recordRequestBlockItemCount(req.numItems());
         }
-        // spotless:on
     }
 
     /**

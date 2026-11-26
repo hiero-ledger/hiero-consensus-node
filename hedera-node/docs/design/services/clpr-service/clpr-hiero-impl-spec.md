@@ -46,10 +46,10 @@ The following new `oneof` variants are added to `TransactionBody`:
 | `updateLedgerConfiguration` | `ClprUpdateLedgerConfiguration` | `clprUpdateLedgerConfiguration` | CLPR admin (council key)                                |
 | `createChannel`             | `ClprCreateChannel`             | `clprCreateChannel`             | Any payer with a valid peer proof                       |
 | `deleteChannel`             | `ClprDeleteChannel`             | `clprDeleteChannel`             | CLPR admin (ACTIVE/PAUSED → CLOSING → DRAINED → CLOSED) |
-| `registerConnector`         | `ClprRegisterConnector`         | `clprRegisterConnector`         | Any (requires initial funds)                            |
+| `createConnector`           | `ClprCreateConnector`           | `clprCreateConnector`           | Payer and connector identity key                        |
 | `topUpConnector`            | `ClprTopUpConnector`            | `clprTopUpConnector`            | Connector admin                                         |
 | `withdrawConnectorBalance`  | `ClprWithdrawConnectorBalance`  | `clprWithdrawConnectorBalance`  | Connector admin                                         |
-| `deregisterConnector`       | `ClprDeregisterConnector`       | `clprDeregisterConnector`       | Connector admin                                         |
+| `deleteConnector`           | `ClprDeleteConnector`           | `clprDeleteConnector`           | Connector admin                                         |
 | `submitBundle`              | `ClprSubmitBundle`              | `clprSubmitBundle`              | Any (typically endpoint)                                |
 | `redactMessage`             | `ClprRedactMessage`             | `clprRedactMessage`             | CLPR admin                                              |
 
@@ -121,20 +121,15 @@ message ClprDeleteChannelTransactionBody {
 ### 1.2.3 Connector Management
 
 ```protobuf
-// Registers a Connector on a Channel.
-message ClprRegisterConnectorTransactionBody {
-  bytes channel_id = 1;
-  // Address of the counterpart Connector on the source (peer) ledger.
-  bytes source_connector_address = 2;
-  // Account ID of the Connector's authorization contract (system contract).
-  AccountID connector_contract = 3;
-  // Initial balance in tinybars for message execution on this ledger.
-  uint64 initial_balance = 4;
-  // Stake in tinybars locked against misbehavior.
-  uint64 stake = 5;
-  // Account authorized to manage this Connector (top-up, withdraw, deregister).
-  // Defaults to the transaction payer if not specified.
-  AccountID admin = 6;
+// Creates a connector on a channel.
+message ClprCreateConnectorTransactionBody {
+  bytes channel_id = 2;
+  bytes connector_id = 3;     // keccak256(publicKey || salt)
+  Key identity_key = 4;       // Ed25519 or ECDSA_secp256k1 transaction signer
+  bytes salt = 5;
+  ContractID connector_contract = 6;
+  Key admin_key = 7;
+  uint64 locked_stake = 8;
 }
 
 // Adds funds to a Connector's balance.
@@ -151,10 +146,11 @@ message ClprWithdrawConnectorBalanceTransactionBody {
   uint64 amount = 3;
 }
 
-// Deregisters a Connector and returns remaining funds and stake.
-message ClprDeregisterConnectorTransactionBody {
+// Deletes a connector and returns its locked stake to the recipient.
+message ClprDeleteConnectorTransactionBody {
   bytes channel_id = 1;
-  bytes source_connector_address = 2;
+  bytes connector_id = 2;
+  AccountID stake_recipient = 3;
 }
 ```
 
@@ -203,8 +199,7 @@ Each CLPR transaction produces a `TransactionRecord` with a standard `Transactio
 - `ClprSubmitBundle` records include the count of messages processed, any generated response message IDs,
   and a list of slash events (if any).
 - A successful `ClprCreateChannel` creates an ACTIVE channel with the submitted ID.
-- `ClprRegisterConnector` records include the connector key
-  `(channel_id, source_connector_address)`.
+- `ClprCreateConnector` identifies the connector by `(channel_id, connector_id)`.
 
 ## 1.3 Query Definitions
 
@@ -260,10 +255,10 @@ These remain as they are in the prototype, served by the `ClprEndpointService` g
 | `ClprUpdateLedgerConfiguration` | CLPR admin key (Hedera council key, file `0.0.150` or equivalent system key) |
 | `ClprCreateChannel`             | Transaction payer only                                                       |
 | `ClprDeleteChannel`             | CLPR admin key                                                               |
-| `ClprRegisterConnector`         | Transaction payer + Connector admin key                                      |
+| `ClprCreateConnector`           | Transaction payer + connector identity key                                   |
 | `ClprTopUpConnector`            | Connector admin key                                                          |
 | `ClprWithdrawConnectorBalance`  | Connector admin key                                                          |
-| `ClprDeregisterConnector`       | Connector admin key                                                          |
+| `ClprDeleteConnector`           | Connector admin key                                                          |
 | `ClprSubmitBundle`              | Transaction payer only (typically consensus node account)                    |
 | `ClprRedactMessage`             | CLPR admin key                                                               |
 
@@ -482,10 +477,10 @@ Each HAPI transaction type maps to a `TransactionHandler` implementation. Handle
 | `ClprUpdateLedgerConfigurationHandler` | `ClprUpdateLedgerConfiguration` | Medium (admin key check, store config). The handler preserves immutable fields (`chain_id`, `protocol_version`) from the genesis configuration and updates only mutable fields (throttles, endpoints); `service_address` is fixed. Timestamp is set to the consensus time of the transaction. |
 | `ClprCreateChannelHandler`             | `ClprCreateChannel`             | Verify the peer proofs, check the derived ID, and store an ACTIVE channel.                                                                                                                                                                                                                    |
 | `ClprDeleteChannelHandler`             | `ClprDeleteChannel`             | Low (PENDING → immediate deletion; ACTIVE/PAUSED → graceful drain through CLOSING/DRAINED; DRAINED → CLOSED admin recovery; peer status and acknowledgements complete automatic closure per §2.1.1)                                                                                           |
-| `ClprRegisterConnectorHandler`         | `ClprRegisterConnector`         | Medium (fund transfer, mapping setup). Records the `admin` field on the Connector state (defaults to the transaction payer if not specified in the body). The signing requirement includes the admin key if an explicit admin is provided; otherwise the payer key suffices.                  |
+| `ClprCreateConnectorHandler`           | `ClprCreateConnector`           | Verifies the derived ID, locks the stake, and records the local contract and admin key for this channel.                                                                                                                                                                                      |
 | `ClprTopUpConnectorHandler`            | `ClprTopUpConnector`            | Low (balance update)                                                                                                                                                                                                                                                                          |
 | `ClprWithdrawConnectorBalanceHandler`  | `ClprWithdrawConnectorBalance`  | Low (balance check + transfer)                                                                                                                                                                                                                                                                |
-| `ClprDeregisterConnectorHandler`       | `ClprDeregisterConnector`       | Medium (in-flight check, fund return)                                                                                                                                                                                                                                                         |
+| `ClprDeleteConnectorHandler`           | `ClprDeleteConnector`           | Medium (in-flight check, fund return)                                                                                                                                                                                                                                                         |
 | `ClprSubmitBundleHandler`              | `ClprSubmitBundle`              | **High** (per-endpoint throttle check, verifier call, replay defense, hash chain verify, per-message dispatch, response generation, slashing)                                                                                                                                                 |
 | `ClprRedactMessageHandler`             | `ClprRedactMessage`             | Low (payload removal, slot retention)                                                                                                                                                                                                                                                         |
 
@@ -904,10 +899,10 @@ Each handler registers a `ServiceFeeCalculator`:
 | `ClprCreateChannel`             | Base fee, verifier gas and stored channel bytes             | Creates an ACTIVE channel                                                                               |
 | `ClprUpdateEndpointRoster`      | Fixed base + verification cost                              |                                                                                                         |
 | `ClprDeleteChannel`             | Fixed base                                                  | Low; transition to CLOSING                                                                              |
-| `ClprRegisterConnector`         | Fixed base                                                  |                                                                                                         |
+| `ClprCreateConnector`           | Fixed base                                                  |                                                                                                         |
 | `ClprTopUpConnector`            | Fixed base                                                  |                                                                                                         |
 | `ClprWithdrawConnectorBalance`  | Fixed base                                                  |                                                                                                         |
-| `ClprDeregisterConnector`       | Fixed base                                                  |                                                                                                         |
+| `ClprDeleteConnector`           | Fixed base                                                  |                                                                                                         |
 | `ClprSendMessage`               | Fixed base + per-byte payload cost + queue depth escalation | Primary user-facing fee                                                                                 |
 | `ClprSubmitBundle`              | Fixed base + per-message processing cost                    | Typically paid by endpoint node; reimbursed by Connector margin                                         |
 | `ClprRedactMessage`             | Fixed base                                                  | Admin operation                                                                                         |

@@ -17,13 +17,13 @@ import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.WritableRegisteredNodeStore;
 import com.hedera.node.app.service.clpr.ClprService;
 import com.hedera.node.app.service.clpr.impl.WritableChannelStore;
+import com.hedera.node.app.service.clpr.impl.WritableConnectorRegistrationStore;
 import com.hedera.node.app.service.clpr.impl.WritableConnectorStore;
 import com.hedera.node.app.service.clpr.impl.WritableEndpointManifestConstructionStore;
 import com.hedera.node.app.service.clpr.impl.WritableEndpointManifestStore;
 import com.hedera.node.app.service.clpr.impl.WritableLedgerConfigurationStore;
 import com.hedera.node.app.service.clpr.impl.WritableMessageQueueStore;
 import com.hedera.node.app.service.clpr.impl.WritablePendingCommitmentStore;
-import com.hedera.node.app.service.clpr.impl.WritablePendingConnectorCommitmentStore;
 import com.hedera.node.app.service.consensus.ConsensusService;
 import com.hedera.node.app.service.consensus.impl.WritableTopicStore;
 import com.hedera.node.app.service.contract.ContractService;
@@ -152,10 +152,9 @@ public class WritableStoreFactory {
                 new StoreEntry(
                         ClprService.NAME, (states, entityCounters) -> new WritablePendingCommitmentStore(states)));
         newMap.put(
-                WritablePendingConnectorCommitmentStore.class,
+                WritableConnectorRegistrationStore.class,
                 new StoreEntry(
-                        ClprService.NAME,
-                        (states, entityCounters) -> new WritablePendingConnectorCommitmentStore(states)));
+                        ClprService.NAME, (states, entityCounters) -> new WritableConnectorRegistrationStore(states)));
         newMap.put(
                 WritableMessageQueueStore.class,
                 new StoreEntry(ClprService.NAME, (states, entityCounters) -> new WritableMessageQueueStore(states)));
