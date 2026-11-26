@@ -6,6 +6,9 @@ import static com.hedera.services.yahcli.config.ConfigUtils.configFrom;
 
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.services.yahcli.suites.ClprTxnSuite;
+import com.hederahashgraph.api.proto.java.Timestamp;
+import edu.umd.cs.findbugs.annotations.Nullable;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.concurrent.Callable;
 import picocli.CommandLine.Command;
@@ -119,51 +122,12 @@ public class CreateChannelCommand implements Callable<Integer> {
                 .salt(ClprArgs.requiredBytes("salt", saltHex))
                 .peerVerifier(ClprArgs.requiredBytes("peer-verifier", peerVerifierHex))
                 .verifierContractId(ClprArgs.parseContractId(verifierContract));
-        final var peerConfig = peerConfigFile == null || peerConfigFile.isBlank()
-                ? null
-                : ClprLedgerConfigFile.read(Path.of(peerConfigFile));
-        var configProofBytes = ClprArgs.optionalBytesFromFileOrHex(
-                "config-proof", configProofFile, "config-proof-hex", configProofHex);
-        if (configProofBytes == null && peerConfig != null) {
-            configProofBytes = peerConfig.stateProof();
-        }
-        if (configProofBytes == null) {
-            throw new IllegalArgumentException(
-                    "One of --config-proof, --config-proof-hex or --peer-config is required");
-        }
-        op.configProofBytes(configProofBytes);
-        final var trustAnchor = trustAnchorHex != null
-                ? ClprArgs.parseHex(trustAnchorHex)
-                : peerConfig == null ? null : peerConfig.initialTrustAnchor();
-        if (trustAnchor == null || trustAnchor.length == 0) {
-            throw new IllegalArgumentException("A peer trust anchor is required: pass --trust-anchor or --peer-config");
-        }
-        op.trustAnchor(trustAnchor);
-        final var localConfig = localConfigFile == null || localConfigFile.isBlank()
-                ? null
-                : ClprLedgerConfigFile.read(Path.of(localConfigFile));
-        final var timestamp = localConfigTimestamp != null
-                ? ClprLedgerConfigFile.parseTimestamp(localConfigTimestamp)
-                : localConfig == null ? null : localConfig.timestamp();
-        if (timestamp == null) {
-            throw new IllegalArgumentException(
-                    "A local configuration timestamp is required: pass --local-config or --local-config-timestamp");
-        }
-        op.localConfigTimestamp(timestamp);
-        if (localTrustAnchorHashHex != null) {
-            op.localTrustAnchorHash(ClprArgs.parseHex(localTrustAnchorHashHex));
-        } else if (localConfig != null) {
-            op.localTrustAnchorHash(MiscCryptoUtils.keccak256DigestOf(localConfig.initialTrustAnchor()));
-        } else {
-            throw new IllegalArgumentException(
-                    "A local trust anchor hash is required: pass --local-config or --local-trust-anchor-hash");
-        }
-
-        final var endpointManifestProofBytes = ClprArgs.optionalBytesFromFileOrHex(
-                "endpoint-manifest-proof",
-                endpointManifestProofFile,
-                "endpoint-manifest-proof-hex",
-                endpointManifestProofHex);
+        final var fields = resolveFields();
+        op.configProofBytes(fields.configProof())
+                .trustAnchor(fields.trustAnchor())
+                .localConfigTimestamp(fields.localConfigTimestamp())
+                .localTrustAnchorHash(fields.localTrustAnchorHash());
+        final var endpointManifestProofBytes = fields.endpointManifestProof();
         if (endpointManifestProofBytes != null) {
             op.endpointManifestProofBytes(endpointManifestProofBytes);
         }
@@ -178,6 +142,69 @@ public class CreateChannelCommand implements Callable<Integer> {
         final var delegate = new ClprTxnSuite(config, "ClprCreateChannel", op);
         delegate.runSuiteSync();
         return ClprOutcome.reportTxn(config, delegate, op, "created CLPR channel", "could not create CLPR channel");
+    }
+
+    /**
+     * The proof and channel identity values of the transaction, each from its explicit option or else from the
+     * peer or local configuration file.
+     *
+     * @param configProof the peer configuration proof
+     * @param trustAnchor the peer initial trust anchor
+     * @param localConfigTimestamp the local configuration version the peer holds
+     * @param localTrustAnchorHash keccak256 of the trust anchor the peer holds for the local ledger
+     * @param endpointManifestProof the peer endpoint manifest proof, or {@code null} if not given
+     */
+    record Fields(
+            byte[] configProof,
+            byte[] trustAnchor,
+            Timestamp localConfigTimestamp,
+            byte[] localTrustAnchorHash,
+            @Nullable byte[] endpointManifestProof) {}
+
+    Fields resolveFields() throws IOException {
+        final var peerConfig = peerConfigFile == null || peerConfigFile.isBlank()
+                ? null
+                : ClprLedgerConfigFile.read(Path.of(peerConfigFile));
+        var configProof = ClprArgs.optionalBytesFromFileOrHex(
+                "config-proof", configProofFile, "config-proof-hex", configProofHex);
+        if (configProof == null && peerConfig != null) {
+            configProof = peerConfig.stateProof();
+        }
+        if (configProof == null) {
+            throw new IllegalArgumentException(
+                    "One of --config-proof, --config-proof-hex or --peer-config is required");
+        }
+        final var trustAnchor = trustAnchorHex != null
+                ? ClprArgs.parseHex(trustAnchorHex)
+                : peerConfig == null ? null : peerConfig.initialTrustAnchor();
+        if (trustAnchor == null || trustAnchor.length == 0) {
+            throw new IllegalArgumentException("A peer trust anchor is required: pass --trust-anchor or --peer-config");
+        }
+        final var localConfig = localConfigFile == null || localConfigFile.isBlank()
+                ? null
+                : ClprLedgerConfigFile.read(Path.of(localConfigFile));
+        final var timestamp = localConfigTimestamp != null
+                ? ClprLedgerConfigFile.parseTimestamp(localConfigTimestamp)
+                : localConfig == null ? null : localConfig.timestamp();
+        if (timestamp == null) {
+            throw new IllegalArgumentException(
+                    "A local configuration timestamp is required: pass --local-config or --local-config-timestamp");
+        }
+        final byte[] localTrustAnchorHash;
+        if (localTrustAnchorHashHex != null) {
+            localTrustAnchorHash = ClprArgs.parseHex(localTrustAnchorHashHex);
+        } else if (localConfig != null) {
+            localTrustAnchorHash = MiscCryptoUtils.keccak256DigestOf(localConfig.initialTrustAnchor());
+        } else {
+            throw new IllegalArgumentException(
+                    "A local trust anchor hash is required: pass --local-config or --local-trust-anchor-hash");
+        }
+        final var endpointManifestProof = ClprArgs.optionalBytesFromFileOrHex(
+                "endpoint-manifest-proof",
+                endpointManifestProofFile,
+                "endpoint-manifest-proof-hex",
+                endpointManifestProofHex);
+        return new Fields(configProof, trustAnchor, timestamp, localTrustAnchorHash, endpointManifestProof);
     }
 
     /** True when {@code --verifier-contract} names the Hiero TSS verifier (0.0.366). */
