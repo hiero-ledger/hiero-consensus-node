@@ -44,6 +44,10 @@ RUN set -eux; \
     JDK_MAJOR="${OPENJDK_VERSION%%.*}"; \
     JDK_TAR="OpenJDK${JDK_MAJOR}U-jdk_x64_linux_hotspot_${OPENJDK_VERSION}_${OPENJDK_BUILD}.tar.gz"; \
     JDK_CHECKSUMS="/tmp/checksums/temurin-${OPENJDK_VERSION}_${OPENJDK_BUILD}_linux-x64"; \
+    if [ ! -f "${JDK_CHECKSUMS}.tar.gz.sha256" ]; then \
+        echo "ERROR: JDK ${OPENJDK_VERSION}+${OPENJDK_BUILD} is not supported. Only Temurin builds with checksum files can be built. Supported: $(ls /tmp/checksums | sed -n 's/^temurin-\(.*\)_linux-x64\.tar\.gz\.sha256$/\1/p' | tr '\n' ' ')" >&2; \
+        exit 1; \
+    fi; \
     wget --quiet "https://github.com/adoptium/temurin${JDK_MAJOR}-binaries/releases/download/jdk-${OPENJDK_VERSION}%2B${OPENJDK_BUILD}/${JDK_TAR}"; \
     sha256sum -c "${JDK_CHECKSUMS}.tar.gz.sha256"; \
     mkdir -p /usr/local/java; \
