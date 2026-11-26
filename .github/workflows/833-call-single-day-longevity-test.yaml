@@ -395,7 +395,7 @@ jobs:
           cd "${{ github.workspace }}"/solo-containers
           cd docker/debian-s6-java25
           sed -i -e 's/FROM debian:trixie-20260623-slim@sha256:63f19e1cf7f3e375045a9f9e5828042ae448364c289153c3f6156eba3934cf52/FROM debian:trixie-20261123-slim@sha256:8aa5a7bf5a1955bddbe7d74fcdd0b91ab30e74362a8b73af672b0481b35b44a0/g' Dockerfile
-          docker build -t mylocal:kernel7 .
+          docker build -t ghcr.io/hiero-ledger/solo-containers/debian-s6-java25:kernel7 .
           cd "${{ github.workspace }}"
 
       - name: Install Solo

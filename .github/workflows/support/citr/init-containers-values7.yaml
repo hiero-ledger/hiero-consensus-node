@@ -137,8 +137,8 @@ defaults:
       - name: MALLOC_ARENA_MAX
         value: "4"
     image:
-      registry: ""
-      repository: "mylocal"
+      registry: "ghcr.io"
+      repository: "hiero-ledger/solo-containers/debian-s6-java25"
       tag: "kernel7"
       pullPolicy: "IfNotPresent"
 
