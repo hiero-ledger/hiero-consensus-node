@@ -2,11 +2,11 @@
 package com.hedera.node.app.hapi.utils.sysfiles.validation;
 
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprCreateChannel;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprCreateConnector;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprDeleteChannel;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprDeregisterConnector;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprDeleteConnector;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprEvictPeerEndpoint;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprGetLedgerConfiguration;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprRegisterConnector;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprSubmitBundle;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprUpdateLedgerConfiguration;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ConsensusCreateTopic;
@@ -133,8 +133,8 @@ public final class ExpectedCustomThrottles {
             ClprEvictPeerEndpoint,
             ClprGetLedgerConfiguration,
             ClprSubmitBundle,
-            ClprRegisterConnector,
-            ClprDeregisterConnector));
+            ClprCreateConnector,
+            ClprDeleteConnector));
 
     /**
      * The CLPR operations in {@link #ACTIVE_OPS}, which throttle definitions are only expected to customize
@@ -147,8 +147,8 @@ public final class ExpectedCustomThrottles {
             ClprEvictPeerEndpoint,
             ClprGetLedgerConfiguration,
             ClprSubmitBundle,
-            ClprRegisterConnector,
-            ClprDeregisterConnector));
+            ClprCreateConnector,
+            ClprDeleteConnector));
 
     private ExpectedCustomThrottles() {
         throw new UnsupportedOperationException("Utility Class");

@@ -18,6 +18,7 @@ testModuleInfo {
     requires("org.hiero.consensus.event.creator")
     requires("org.hiero.consensus.hashgraph")
     requires("org.hiero.consensus.hashgraph.impl")
+    requires("org.hiero.consensus.main.model")
     requires("org.hiero.consensus.model")
     requires("org.hiero.consensus.model.test.fixtures")
     requires("org.hiero.consensus.network.simulation.test.fixtures")

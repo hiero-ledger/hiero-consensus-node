@@ -50,8 +50,8 @@ import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.RunningHash;
-import org.hiero.consensus.model.event.ConsensusEvent;
-import org.hiero.consensus.model.hashgraph.Round;
+import org.hiero.consensus.main.model.ConsensusEvent;
+import org.hiero.consensus.main.model.Round;
 import org.hiero.consensus.platformstate.V0540PlatformStateSchema;
 
 /**

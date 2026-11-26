@@ -27,8 +27,8 @@
             "ClprCreateChannel",
             "ClprDeleteChannel",
             "ClprEvictPeerEndpoint",
-            "ClprRegisterConnector",
-            "ClprDeregisterConnector"
+            "ClprCreateConnector",
+            "ClprDeleteConnector"
           ]
         }
       ]
@@ -96,8 +96,8 @@
             "ClprCreateChannel",
             "ClprDeleteChannel",
             "ClprEvictPeerEndpoint",
-            "ClprRegisterConnector",
-            "ClprDeregisterConnector",
+            "ClprCreateConnector",
+            "ClprDeleteConnector",
             "ClprSubmitBundle",
             "ClprGetLedgerConfiguration",
             "ClprGetEndpointManifest"

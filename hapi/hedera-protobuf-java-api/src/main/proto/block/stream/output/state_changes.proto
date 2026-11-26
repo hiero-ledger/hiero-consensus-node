@@ -546,9 +546,9 @@ enum StateIdentifier {
     STATE_ID_CLPR_CONNECTORS = 63;
 
     /**
-     * A state identifier for CLPR pending connector commitments. Key/value state.
+     * A state identifier for CLPR connector registration history and legacy commitments.
      */
-    STATE_ID_CLPR_PENDING_CONNECTOR_COMMITMENTS = 64;
+    STATE_ID_CLPR_CONNECTOR_REGISTRATION_HISTORY = 64;
 
     /**
      * A state identifier for the CLPR endpoint manifest. Singleton state.

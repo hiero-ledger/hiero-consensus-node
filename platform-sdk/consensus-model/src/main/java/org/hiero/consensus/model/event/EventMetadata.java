@@ -13,7 +13,8 @@ import java.util.Collections;
 import java.util.List;
 import org.hiero.base.crypto.AbstractHashable;
 import org.hiero.base.utility.ListUtils;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.EventDescriptorWrapper;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 
 /**

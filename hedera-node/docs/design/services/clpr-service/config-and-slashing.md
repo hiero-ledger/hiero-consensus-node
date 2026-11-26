@@ -38,7 +38,7 @@ derived from the network's HIP-26 EVM chain ID, `contracts.chainId`, as `eip155:
 
 |            Key            |            Default            | Network? |                                  Purpose                                   |
 |---------------------------|-------------------------------|----------|----------------------------------------------------------------------------|
-| `minLockedStake`          | `100 000 000` tinybars        | yes      | Required stake for `completeConnector`; transferred to `stakingAccount`.   |
+| `minLockedStake`          | `100 000 000` tinybars        | yes      | Required stake for `createConnector`; transferred to `stakingAccount`.     |
 | `stakingAccount`          | `0.0.803` (account num `803`) | yes      | Holds locked connector stake; created at genesis/upgrade if CLPR enabled.  |
 | `slashBasePenalty`        | `10 000 000` tinybars         | yes      | Base slash on first offence.                                               |
 | `slashMultiplier`         | `2`                           | yes      | Geometric escalation factor per repeat offence.                            |
@@ -76,7 +76,7 @@ derived from the network's HIP-26 EVM chain ID, `contracts.chainId`, as `eip155:
 
 |        Key         |   Default   | Network? |                                  Purpose                                  |
 |--------------------|-------------|----------|---------------------------------------------------------------------------|
-| `verifierGasLimit` | `2 000 000` | yes      | Gas for `ClprVerifier.verifyBundle` / `verifyConfig` (`EvmClprVerifier`). |
+| `verifierGasLimit` | `3 000 000` | yes      | Gas for `ClprVerifier.verifyBundle` / `verifyConfig` (`EvmClprVerifier`). |
 
 > `ClprCreateChannel` and `ClprSubmitBundle` each reserve `verifierGasLimit` from the network gas throttle
 > (`contracts.maxGasPerSec` / `maxGasPerSecBackend`), the same way a contract call reserves its gas limit, so verifier
@@ -85,7 +85,8 @@ derived from the network's HIP-26 EVM chain ID, `contracts.chainId`, as `eip155:
 > The dispatched verifier call must carry at least the EIP-7623 calldata floor for its input, about 40 gas per byte
 > of (mostly non-zero) proof data. A Hiero state proof carries a ~13.7 KB TSS signature, so a `verifyConfig` call
 > needs ~0.6M gas, a `verifyConfig` with an endpoint manifest proof ~1.2M, and a `verifyBundle` ~0.6M plus ~60K per
-> message.
+> message. An Ethereum mainnet-preset `verifyConfig` carries both sync committees' full key sets (2 × 512 keys,
+> ~50 KB), so it needs ~2.1M, and ~2.2M with an endpoint manifest proof.
 >
 > Application-message dispatch gas is **not** a node-config value. `ClprSubmitBundleHandler`
 > caps each application callback (`onClprMessage` / `onClprResponse`) at the per-Channel
@@ -178,7 +179,7 @@ new_locked_stake = max(0, connector.locked_stake − penalty)
 Returned `SlashResult(updatedConnector, penaltyAmount, banned)` is consumed by
 `ClprSubmitBundleHandler`, which also credits the submitting endpoint with
 `endpoint_payout`. If `banned`, the connector record stays in state but
-`deregisterConnector` is blocked while banned (per `ClprDeregisterConnectorHandler`).
+`deleteConnector` is blocked while banned (per `ClprDeleteConnectorHandler`).
 
 ### Which `ClprMessageReplyStatus` triggers a slash?
 

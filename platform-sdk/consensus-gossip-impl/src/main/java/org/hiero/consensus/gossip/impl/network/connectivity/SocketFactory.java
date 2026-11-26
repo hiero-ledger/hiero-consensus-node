@@ -14,7 +14,7 @@ import org.hiero.consensus.gossip.config.GossipConfig;
 import org.hiero.consensus.gossip.config.NetworkEndpoint;
 import org.hiero.consensus.gossip.config.SocketConfig;
 import org.hiero.consensus.gossip.impl.network.PeerInfo;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * Creates, binds and connects server and client sockets

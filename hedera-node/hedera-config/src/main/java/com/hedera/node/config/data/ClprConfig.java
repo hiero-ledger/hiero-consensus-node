@@ -80,8 +80,9 @@ public record ClprConfig(
 
         // --- Verifier contract dispatch (CLPR-5.3) ---
         // The dispatched call's gas must cover the EIP-7623 calldata floor (~40 gas per proof byte); a Hiero
-        // state proof carrying a WRAPS proof is ~15 KB, so even a single-message bundle needs ~640K gas
-        @ConfigProperty(defaultValue = "2000000") @NetworkProperty
+        // state proof carrying a WRAPS proof is ~15 KB, so even a single-message bundle needs ~640K gas. An Ethereum
+        // mainnet-preset verifyConfig carries two 512-key sync committees (~50 KB) and needs ~2.2M gas
+        @ConfigProperty(defaultValue = "3000000") @NetworkProperty
         long verifierGasLimit,
 
         // --- Node-submitted ClprSubmitBundle fee cap (tinybars) ---

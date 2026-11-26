@@ -14,6 +14,7 @@ module org.hiero.consensus.iss.detection {
     requires transitive com.swirlds.metrics.api;
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
+    requires transitive org.hiero.consensus.main.model;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.state;
     requires transitive org.hiero.consensus.utility;

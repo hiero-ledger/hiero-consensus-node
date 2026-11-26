@@ -4,10 +4,10 @@ package com.swirlds.platform.builder;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
+import org.hiero.consensus.main.model.TransactionLimits;
+import org.hiero.consensus.main.model.legacy.EventTransactionSupplier;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.model.transaction.EventTransactionSupplier;
 import org.hiero.consensus.model.transaction.SignatureTransactionCheck;
-import org.hiero.consensus.transaction.TransactionLimits;
 
 /**
  * An interface via which the consensus layer can interact with the execution layer (AKA the application).

@@ -98,7 +98,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.file.FileSystemManager;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.platformstate.PlatformStateUtils;
 import org.hiero.consensus.roster.RosterUtils;

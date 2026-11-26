@@ -77,7 +77,9 @@ jobs:
   # report-mats-running does.
   report-mats-result:
     name: Report MATS Result to Chewie
+    # extract-jdk-version is listed so a run cancelled before MATS starts reports cancelled.
     needs:
+      - extract-jdk-version
       - report-mats-running # keeps the terminal report after the running one, so it is the latest
       - mats-tests
     if: ${{ always() && vars.CHEWIE_MATS_REPORTING_ENABLED == 'true' }}
@@ -87,7 +89,7 @@ jobs:
       commit: ${{ github.sha }}
       branch: ${{ github.ref_name }}
       disposition: ${{ needs.mats-tests.result == 'success' && 'passed'
-        || needs.mats-tests.result == 'cancelled' && 'cancelled'
+        || contains(needs.*.result, 'cancelled') && 'cancelled'
         || needs.mats-tests.result == 'skipped' && 'not_run'
         || 'failed' }}
     secrets:
@@ -99,7 +101,7 @@ jobs:
     runs-on: hl-cn-default-lin-sm
     needs:
       - mats-tests
-    if: ${{ needs.mats-tests.result == 'success' && github.event.repository.visibility == 'public' }}
+    if: ${{ needs.mats-tests.result == 'success' && github.event.repository.visibility == 'public' && !github.event.repository.fork }}
     steps:
       - name: Prepare Runner
         id: prepare-runner
@@ -143,12 +145,15 @@ jobs:
   report-status:
     name: Report MATS execution status
     runs-on: hl-cn-default-lin-sm
+    # extract-jdk-version is listed so a run cancelled or broken before MATS starts is reported as
+    # cancelled or as an environment failure, not as a test failure.
     needs:
+      - extract-jdk-version
       - mats-tests
       - deploy-ci-trigger
     if:
       ${{ (needs.mats-tests.result != 'success' || needs.deploy-ci-trigger.result != 'success') && always() &&
-      github.event.repository.visibility == 'public' }}
+      github.event.repository.visibility == 'public' && !github.event.repository.fork }}
 
     steps:
       - name: Prepare Runner
@@ -194,10 +199,12 @@ jobs:
       - name: Determine Report Category
         id: report-category
         run: |
-          if [[ "${{ needs.mats-tests.result }}" == "cancelled" ]]; then
+          if [[ "${{ contains(needs.*.result, 'cancelled') }}" == "true" ]]; then
             echo "category=cancelled" >> "${GITHUB_OUTPUT}"
-          elif [[ "${{ needs.deploy-ci-trigger.result }}" =~ ^(cancelled|failure)$ ]] \
-            || [[ "${{ needs.mats-tests.outputs.failure-mode }}" == "workflow" ]]; then
+          elif [[ "${{ needs.deploy-ci-trigger.result }}" == "failure" ]] \
+            || [[ "${{ needs.mats-tests.outputs.failure-mode }}" == "workflow" ]] \
+            || [[ "${{ needs.mats-tests.result }}" == "skipped" ]]; then
+            # A skipped mats-tests means a job it depends on failed: nothing was tested.
             echo "category=environment" >> "${GITHUB_OUTPUT}"
           else
             echo "category=test" >> "${GITHUB_OUTPUT}"
@@ -385,7 +392,7 @@ jobs:
       - report-mats-result
       - deploy-ci-trigger
       - report-status
-    if: ${{ always() && github.event.repository.visibility == 'public' }}
+    if: ${{ always() && github.event.repository.visibility == 'public' && !github.event.repository.fork }}
     uses: ./.github/workflows/865-call-publish-run-metrics.yaml
     with:
       context: >-

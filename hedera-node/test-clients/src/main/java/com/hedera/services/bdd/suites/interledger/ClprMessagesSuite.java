@@ -2,9 +2,8 @@
 package com.hedera.services.bdd.suites.interledger;
 
 import static com.hedera.services.bdd.spec.HapiSpec.networkHapiTest;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCreateChannel;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterConnector;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCreateConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprUpdateLedgerConfiguration;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
@@ -25,9 +24,7 @@ import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.CLPR_SERVICE_ADDRESS_20;
 import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.CONNECTOR_SALT;
 import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.CONNECTOR_SECRET_KEY;
-import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.computeCommitment;
 import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.deriveConnectorId;
-import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.signConnectorMessage;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -41,7 +38,6 @@ import com.hedera.services.bdd.junit.TestTags;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.spec.queries.QueryVerbs;
 import com.hederahashgraph.api.proto.java.ClprLedgerConfiguration;
-import com.hederahashgraph.api.proto.java.ClprSignatureScheme;
 import com.hederahashgraph.api.proto.java.ClprThrottles;
 import com.hederahashgraph.api.proto.java.ContractID;
 import java.math.BigInteger;
@@ -150,9 +146,7 @@ public class ClprMessagesSuite {
         // ── Connector keypair ─────────────────────────────────────────────────────────────────────
         final var connectorPubKey64 = ECDSASecp256k1.derivePublicKey(CONNECTOR_SECRET_KEY);
         final var connectorPubKeyBytes = Bytes.wrap(connectorPubKey64);
-        final var connectorId = deriveConnectorId(channelId, connectorPubKeyBytes, CONNECTOR_SALT);
-        final var connectorCommitment = computeCommitment(connectorId, connectorPubKeyBytes);
-        final var connectorSig = signConnectorMessage(CONNECTOR_SECRET_KEY, connectorId);
+        final var connectorId = deriveConnectorId(connectorPubKeyBytes, CONNECTOR_SALT);
 
         // ── CLPR system contract (precompile) ContractID — used as both networks' verifier
         final var clprSystemContract =
@@ -228,23 +222,16 @@ public class ClprMessagesSuite {
                                         manifestProofForNetB.get().toByteArray())
                                 .payingWith(GENESIS)
                                 .via("createChannelB")),
-                        clprRegisterConnector()
-                                .channelId(channelId.toByteArray())
-                                .commitment(connectorCommitment.toByteArray())
-                                .payingWith(GENESIS)
-                                .via("registerConnectorB"),
-                        clprCompleteConnector()
+                        clprCreateConnector()
                                 .connectorId(connectorId.toByteArray())
-                                .publicKey(connectorPubKey64)
-                                .signature(connectorSig)
-                                .signatureScheme(ClprSignatureScheme.ECDSA_SECP256K1)
+                                .secp256k1Identity(CONNECTOR_SECRET_KEY)
                                 .salt(CONNECTOR_SALT.toByteArray())
                                 .channelId(channelId.toByteArray())
                                 .connectorContract(ECHO_APP)
                                 .adminKeyName(GENESIS)
                                 .lockedStake(MIN_STAKE)
                                 .payingWith(GENESIS)
-                                .via("completeConnectorB"),
+                                .via("createConnectorB"),
                         withOpContext((spec, opLog) ->
                                 echoContractIdRef.set(spec.registry().getContractId(ECHO_APP))))
                 .findFirst()
@@ -293,23 +280,16 @@ public class ClprMessagesSuite {
                                         manifestProofForNetA.get().toByteArray())
                                 .payingWith(GENESIS)
                                 .via("createChannelA")),
-                        clprRegisterConnector()
-                                .channelId(channelId.toByteArray())
-                                .commitment(connectorCommitment.toByteArray())
-                                .payingWith(GENESIS)
-                                .via("registerConnectorA"),
-                        clprCompleteConnector()
+                        clprCreateConnector()
                                 .connectorId(connectorId.toByteArray())
-                                .publicKey(connectorPubKey64)
-                                .signature(connectorSig)
-                                .signatureScheme(ClprSignatureScheme.ECDSA_SECP256K1)
+                                .secp256k1Identity(CONNECTOR_SECRET_KEY)
                                 .salt(CONNECTOR_SALT.toByteArray())
                                 .channelId(channelId.toByteArray())
                                 .connectorContract(CONNECTOR_AUTH)
                                 .adminKeyName(GENESIS)
                                 .lockedStake(MIN_STAKE)
                                 .payingWith(GENESIS)
-                                .via("completeConnectorA"),
+                                .via("createConnectorA"),
                         withOpContext((spec, opLog) ->
                                 sourceAppIdRef.set(spec.registry().getContractId(SOURCE_APP))))
                 .findFirst()

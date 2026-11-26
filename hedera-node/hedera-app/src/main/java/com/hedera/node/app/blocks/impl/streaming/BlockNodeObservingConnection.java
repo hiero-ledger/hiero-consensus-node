@@ -102,7 +102,7 @@ public class BlockNodeObservingConnection extends BlockNodePublisherConnection {
 
         final long acknowledgedBlockNumber = ack.blockNumber();
 
-        metrics().recordResponseReceived(connectionType(), ResponseOneOfType.ACKNOWLEDGEMENT);
+        metrics().recordPublisherResponseReceived(connectionType(), ResponseOneOfType.ACKNOWLEDGEMENT);
         logger.debug("{} Acknowledgement received for block {}", this, acknowledgedBlockNumber);
 
         bufferService.acknowledgeBlock(

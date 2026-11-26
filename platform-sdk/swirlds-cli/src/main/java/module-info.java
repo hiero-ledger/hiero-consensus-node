@@ -36,6 +36,7 @@ module org.hiero.consensus.pcli {
     requires org.hiero.consensus.hashgraph.impl;
     requires org.hiero.consensus.hashgraph;
     requires org.hiero.consensus.iss.detection;
+    requires org.hiero.consensus.main.model;
     requires org.hiero.consensus.model;
     requires org.hiero.consensus.pces.impl;
     requires org.hiero.consensus.pces;

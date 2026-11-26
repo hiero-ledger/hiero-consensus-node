@@ -191,20 +191,20 @@ import org.hiero.base.constructable.RuntimeConstructable;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signature;
 import org.hiero.base.file.FileSystemManager;
-import org.hiero.consensus.model.event.Event;
-import org.hiero.consensus.model.hashgraph.Round;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.adapter.transaction.TransactionPoolNexus;
+import org.hiero.consensus.main.model.Event;
+import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.main.model.Round;
+import org.hiero.consensus.main.model.TimestampedTransaction;
+import org.hiero.consensus.main.model.Transaction;
+import org.hiero.consensus.main.model.TransactionLimits;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
-import org.hiero.consensus.model.transaction.TimestampedTransaction;
-import org.hiero.consensus.model.transaction.Transaction;
 import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.platformstate.ReadablePlatformStateStore;
 import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.consensus.roster.ReadableRosterStoreImpl;
 import org.hiero.consensus.roster.RosterUtils;
-import org.hiero.consensus.transaction.TransactionLimits;
-import org.hiero.consensus.transaction.TransactionPoolNexus;
 
 /*
  ****************        ****************************************************************************************

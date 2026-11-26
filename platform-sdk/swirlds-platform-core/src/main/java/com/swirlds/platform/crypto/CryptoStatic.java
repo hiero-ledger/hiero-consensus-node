@@ -31,8 +31,8 @@ import org.hiero.base.crypto.KeyGeneratingException;
 import org.hiero.base.utility.CommonUtils;
 import org.hiero.consensus.PathsConfig;
 import org.hiero.consensus.exceptions.ThrowableUtilities;
-import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.KeysAndCerts;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.system.SystemExitCode;
 import org.hiero.consensus.system.SystemExitUtils;
 

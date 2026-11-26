@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package com.hedera.hapi.node.clpr;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.clpr">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/basic_types.proto";
+
+/**
+ * Create a connector on an existing channel. Both the payer and identity_key
+ * must sign the transaction. A connector ID can be used only once per channel,
+ * including after deletion or a ban.
+ */
+message ClprCreateConnectorTransactionBody {
+    /** The existing channel's 32-byte ID. */
+    bytes channel_id = 2;
+
+    /** Expected keccak256(publicKey || salt), using raw Ed25519 or secp256k1 X||Y bytes. */
+    bytes connector_id = 3;
+
+    /** The Ed25519 or ECDSA_secp256k1 key authorizing this registration. */
+    proto.Key identity_key = 4;
+
+    /** A 32-byte salt chosen by the identity owner. */
+    bytes salt = 5;
+
+    /** Deployed local contract authorizing connector messages. */
+    proto.ContractID connector_contract = 6;
+
+    /** Key authorizing administrative operations on this channel's connector. */
+    proto.Key admin_key = 7;
+
+    /** Slashable bond in tinybars, transferred from the payer on creation. */
+    uint64 locked_stake = 8;
+}

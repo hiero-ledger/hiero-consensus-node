@@ -4,7 +4,7 @@ package org.hiero.consensus.gossip.impl.gossip.permits;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import org.hiero.consensus.gossip.impl.network.PeerInfo;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * Control for making sure that in case of limited amount of concurrent syncs we are not synchronizing with the same

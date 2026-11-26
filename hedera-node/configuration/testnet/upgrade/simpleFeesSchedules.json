@@ -819,17 +819,12 @@
           "extras": []
         },
         {
-          "name": "ClprRegisterConnector",
+          "name": "ClprCreateConnector",
           "baseFee": 10000000,
           "extras": []
         },
         {
-          "name": "ClprCompleteConnector",
-          "baseFee": 10000000,
-          "extras": []
-        },
-        {
-          "name": "ClprDeregisterConnector",
+          "name": "ClprDeleteConnector",
           "baseFee": 10000000,
           "extras": []
         },

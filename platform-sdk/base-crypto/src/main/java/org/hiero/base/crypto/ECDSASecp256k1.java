@@ -189,13 +189,16 @@ public final class ECDSASecp256k1 {
         if (LIBSECP256K1.secp256k1EcdsaRecoverableSignatureParseCompact(
                         parsedSignatureSeg, MemorySegment.ofArray(signature), recId)
                 == 0) {
-            throw new IllegalArgumentException("Could not parse signature");
+            throw new IllegalArgumentException("Could not parse signature of size " + signature.length + " (expected "
+                    + Libsecp256k1.SIGNATURE_BYTES + " bytes) and recId " + recId);
         }
         final byte[] newPubKey = new byte[Libsecp256k1.PUBLIC_KEY_BYTES];
         if (LIBSECP256K1.secp256k1EcdsaRecover(
                         MemorySegment.ofArray(newPubKey), parsedSignatureSeg, MemorySegment.ofArray(digest))
                 == 0) {
-            throw new IllegalArgumentException("Could not recover signature");
+            throw new IllegalArgumentException(
+                    "Could not recover public key from a parsed signature and a digest of size " + digest.length
+                            + " (expected 32 bytes)");
         } else {
             return newPubKey;
         }

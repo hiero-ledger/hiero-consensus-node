@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.test.calculator;
 
-import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CONNECTOR;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_CREATE_CHANNEL;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_CREATE_CONNECTOR;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_DELETE_CHANNEL;
-import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_DEREGISTER_CONNECTOR;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_DELETE_CONNECTOR;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_EVICT_PEER_ENDPOINT;
-import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_REGISTER_CONNECTOR;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SUBMIT_BUNDLE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_UPDATE_LEDGER_CONFIGURATION;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -52,9 +51,8 @@ class ClprGenesisFeeScheduleTest {
             CLPR_CREATE_CHANNEL,
             CLPR_DELETE_CHANNEL,
             CLPR_EVICT_PEER_ENDPOINT,
-            CLPR_REGISTER_CONNECTOR,
-            CLPR_COMPLETE_CONNECTOR,
-            CLPR_DEREGISTER_CONNECTOR,
+            CLPR_CREATE_CONNECTOR,
+            CLPR_DELETE_CONNECTOR,
             CLPR_SUBMIT_BUNDLE);
 
     @Test

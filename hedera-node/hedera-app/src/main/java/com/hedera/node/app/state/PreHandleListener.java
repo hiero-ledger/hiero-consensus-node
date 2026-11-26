@@ -3,7 +3,7 @@ package com.hedera.node.app.state;
 
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.consensus.model.event.Event;
+import org.hiero.consensus.main.model.Event;
 
 /** Listener invoked whenever an event is ready for pre-handle */
 @FunctionalInterface

@@ -531,7 +531,7 @@ public class BlockNodeStreamingConnection extends BlockNodePublisherConnection {
         // Process the response
         if (response.hasAcknowledgement()) {
             metrics()
-                    .recordResponseReceived(
+                    .recordPublisherResponseReceived(
                             connectionType(), response.response().kind());
             handleAcknowledgement(response.acknowledgement());
         } else if (response.hasEndStream()) {
@@ -542,19 +542,19 @@ public class BlockNodeStreamingConnection extends BlockNodePublisherConnection {
             handleEndOfStream(response.endStream());
         } else if (response.hasSkipBlock()) {
             metrics()
-                    .recordResponseReceived(
+                    .recordPublisherResponseReceived(
                             connectionType(), response.response().kind());
             metrics().recordLatestBlockSkipBlock(response.skipBlock().blockNumber());
             handleSkipBlock(response.skipBlock());
         } else if (response.hasResendBlock()) {
             metrics()
-                    .recordResponseReceived(
+                    .recordPublisherResponseReceived(
                             connectionType(), response.response().kind());
             metrics().recordLatestBlockResendBlock(response.resendBlock().blockNumber());
             handleResendBlock(response.resendBlock());
         } else if (response.hasNodeBehindPublisher()) {
             metrics()
-                    .recordResponseReceived(
+                    .recordPublisherResponseReceived(
                             connectionType(), response.response().kind());
             metrics()
                     .recordLatestBlockBehindPublisher(

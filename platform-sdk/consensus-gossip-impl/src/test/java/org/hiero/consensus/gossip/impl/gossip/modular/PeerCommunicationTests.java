@@ -30,8 +30,8 @@ import org.hiero.consensus.gossip.impl.network.communication.handshake.VersionCo
 import org.hiero.consensus.gossip.impl.network.protocol.HeartbeatProtocol;
 import org.hiero.consensus.gossip.impl.network.protocol.Protocol;
 import org.hiero.consensus.gossip.impl.network.protocol.ProtocolRunnable;
-import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.KeysAndCerts;
+import org.hiero.consensus.main.model.NodeId;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

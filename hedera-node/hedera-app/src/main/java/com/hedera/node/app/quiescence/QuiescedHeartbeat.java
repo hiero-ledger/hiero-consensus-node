@@ -2,8 +2,8 @@
 package com.hedera.node.app.quiescence;
 
 import static java.util.Objects.requireNonNull;
-import static org.hiero.consensus.model.quiescence.QuiescenceCommand.DONT_QUIESCE;
-import static org.hiero.consensus.model.quiescence.QuiescenceCommand.QUIESCE;
+import static org.hiero.consensus.main.model.QuiescenceCommand.DONT_QUIESCE;
+import static org.hiero.consensus.main.model.QuiescenceCommand.QUIESCE;
 
 import com.hedera.node.app.blocks.impl.BlockStreamManagerImpl;
 import com.swirlds.platform.system.Platform;
@@ -19,7 +19,7 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.quiescence.QuiescenceCommand;
+import org.hiero.consensus.main.model.QuiescenceCommand;
 
 /**
  * The {@link BlockStreamManagerImpl} (re)starts the heartbeat when the {@link QuiescenceController} first reports a
