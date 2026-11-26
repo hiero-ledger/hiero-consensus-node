@@ -3,8 +3,11 @@ package com.hedera.node.app.service.clpr.impl;
 
 import static java.util.Objects.requireNonNull;
 
+import com.google.common.base.CharMatcher;
+import com.google.common.net.InetAddresses;
 import com.hedera.hapi.node.state.clpr.ClprEndpoint;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
+import com.hedera.node.app.service.clpr.impl.roster.ClprEndpointBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 
@@ -12,6 +15,10 @@ import java.util.List;
 public final class ClprPeerManifestPolicy {
     /** Maximum serialized bytes retained per channel, including certificates and manifest framing. */
     public static final int MAX_STORED_MANIFEST_BYTES = 16_384;
+    /** Maximum characters in a peer chain id. */
+    public static final int MAX_CHAIN_ID_LENGTH = 128;
+
+    private static final CharMatcher PRINTABLE_ASCII = CharMatcher.inRange('!', '~');
 
     private ClprPeerManifestPolicy() {}
 
@@ -22,7 +29,8 @@ public final class ClprPeerManifestPolicy {
      * @param manifest the authenticated peer manifest
      * @param maxPeerEndpoints the local count limit, or zero for no count restriction
      * @return the bounded manifest, retaining its authenticated version and service address
-     * @throws IllegalArgumentException if the manifest framing alone exceeds the storage ceiling
+     * @throws IllegalArgumentException if the manifest framing alone exceeds the storage ceiling, or a retained
+     *     endpoint lacks a service endpoint or carries a host that is neither a numeric IP address nor a DNS hostname
      */
     @NonNull
     public static ClprEndpointManifest boundedManifest(
@@ -46,11 +54,45 @@ public final class ClprPeerManifestPolicy {
             storedBytes += framedBytes;
             retained++;
         }
+        for (int i = 0; i < retained; i++) {
+            final var serviceEndpoint = endpoints.get(i).serviceEndpoint();
+            if (serviceEndpoint == null || !isValidHost(serviceEndpoint.ipAddress())) {
+                throw new IllegalArgumentException("Peer manifest endpoint host is not an IP address or DNS hostname");
+            }
+        }
         return retained == endpoints.size()
                 ? manifest
                 : manifest.copyBuilder()
                         .endpoints(List.copyOf(endpoints.subList(0, retained)))
                         .build();
+    }
+
+    /**
+     * Whether a peer endpoint host may be stored: a numeric IPv4 or IPv6 address without a scope, or a DNS hostname.
+     * Rejects empty hosts, which cannot be dialed, and control characters such as NUL, which downstream consumers of
+     * the block stream cannot store.
+     *
+     * @param host the peer-supplied host
+     * @return whether the host is well formed
+     */
+    public static boolean isValidHost(@NonNull final String host) {
+        requireNonNull(host);
+        if (host.isEmpty() || !PRINTABLE_ASCII.matchesAllOf(host) || host.indexOf('%') >= 0) {
+            return false;
+        }
+        return InetAddresses.isInetAddress(host) || ClprEndpointBuilder.isDnsHostname(host);
+    }
+
+    /**
+     * Whether a peer chain id may be stored: non-empty, at most {@value #MAX_CHAIN_ID_LENGTH} characters, and
+     * printable ASCII only.
+     *
+     * @param chainId the peer-supplied chain id
+     * @return whether the chain id is well formed
+     */
+    public static boolean isValidChainId(@NonNull final String chainId) {
+        requireNonNull(chainId);
+        return !chainId.isEmpty() && chainId.length() <= MAX_CHAIN_ID_LENGTH && PRINTABLE_ASCII.matchesAllOf(chainId);
     }
 
     private static int varintSize(int value) {

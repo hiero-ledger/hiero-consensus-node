@@ -213,7 +213,9 @@ public final class ClprCreateChannelHandler extends AbstractClprHandler {
         final var localConfig = context.storeFactory()
                 .readableStore(ReadableLedgerConfigurationStore.class)
                 .getConfiguration();
-        validateTrue(!localConfig.chainId().isEmpty() && !peerConfig.chainId().isEmpty(), CLPR_VERIFIER_CONFIG_FAILED);
+        validateTrue(!localConfig.chainId().isEmpty(), CLPR_VERIFIER_CONFIG_FAILED);
+        // The peer chain id is verifier-supplied and stored in state, so it must be well formed.
+        validateTrue(ClprPeerManifestPolicy.isValidChainId(peerConfig.chainId()), CLPR_VERIFIER_CONFIG_FAILED);
         final var expectedId = ClprChannelId.derive(
                 localConfig.chainId(),
                 CLPR_EVM_ADDRESS_BYTES,
