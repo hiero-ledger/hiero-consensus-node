@@ -30,6 +30,7 @@ public class SysFileOverrideOp extends UtilOp {
     public enum Target {
         SIMPLE_FEES(113L),
         EXCHANGE_RATES(112L),
+        APP_PROPERTIES(121L),
         THROTTLES(123L),
         PERMISSIONS(122L);
 
