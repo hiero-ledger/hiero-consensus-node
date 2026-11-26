@@ -12,6 +12,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprUpdateLedge
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -31,6 +32,7 @@ import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.node.app.service.clpr.ClprService;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.suites.clpr.ethereum.SyncCommitteeProofs;
@@ -75,6 +77,26 @@ public class ClprEthSyncCommitteeVerifierSuite {
     private static final byte[] SENDER = {60, 70};
     private static final byte[] MESSAGE_DATA = {1, 2, 3};
     private static final byte[] MESSAGE_DATA_2 = {4, 5, 6};
+
+    /**
+     * Members of the 512-member mainnet committee that do not sign: 480/512 participation (~94%). This is the minimum
+     * participant that the 3M max verify gas limit allows to verify the ledger configuration, due to the data size
+     * required by the non-signers proofs.
+     **/
+    private static final int LOWEST_DEFAULT_GAS_NON_SIGNERS = 32;
+
+    private static final int MANIFEST_ENDPOINTS = 2;
+
+    /**
+     * Members of the 512-member mainnet committee that do not sign: 345/512 participation, the lowest at which a
+     * mainnet createChannel fits the node's transaction size limits.
+     */
+    private static final int LOWEST_SIZE_LIMIT_NON_SIGNERS = 167;
+
+    /**
+     * Covers the ~5M gas {@code verifyConfig} needs at 345/512 participation, above the 3M default.
+     */
+    private static final String LOWEST_SIZE_LIMIT_VERIFIER_GAS_LIMIT = "6000000";
 
     @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS)
     @DisplayName("Eth verifier: self-submitted single-message bundle")
@@ -331,6 +353,97 @@ public class ClprEthSyncCommitteeVerifierSuite {
                 }));
             }
             return blockingOrder(ops.toArray(SpecOperation[]::new));
+        }));
+    }
+
+    /**
+     * A mainnet createChannel at the lowest sync-committee participation the shipped {@code clpr.verifierGasLimit} (3M)
+     * supports, with no override. The config payload carries both committees' full key sets, so its size does not
+     * depend on participation; the endpoint-manifest proof carries one non-signer proof (~419 bytes, ~15.8K gas at the
+     * EIP-7623 calldata floor) per member that did not sign its header. The proof has mainnet sizes: its account and
+     * storage proofs pass through full branch nodes and its execution header has every mainnet field.
+     *
+     * <p>At 480/512 signers the {@code verifyConfig} calldata floor is 2,908,330 gas, leaving a 91,670 gas margin
+     * (~3%, ~5 non-signers) for real proofs larger than these. The floor passes 3M at 474/512 (3,003,060 gas). Mainnet
+     * participation normally exceeds 96% (2,719,490 gas at 492/512); below 480/512.
+     */
+    @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS)
+    @DisplayName("Eth verifier: mainnet createChannel at 480/512 participation fits the default verifier gas")
+    final Stream<DynamicTest> createChannelAtLowestParticipationOfDefaultGas() {
+        return hapiTest(sourcingContextual(networkSpec -> {
+            final var localChain = "eip155:" + networkSpec.startupProperties().getLong("contracts.chainId");
+            final var crypto = new ClprChannelCrypto(
+                    localChain,
+                    asSolidityAddress(ETH_VERIFIER),
+                    SyncCommitteeProofs.CHAIN_ID,
+                    SyncCommitteeProofs.serviceAddress());
+            return blockingOrder(
+                    clprUpdateLedgerConfiguration()
+                            .configuration(localLedgerConfig())
+                            .payingWith(GENESIS),
+                    clprCreateChannel()
+                            .channelId(crypto.channelId())
+                            .salt(crypto.salt())
+                            .peerVerifier(crypto.peerVerifier())
+                            .verifierContractId(ETH_VERIFIER)
+                            .configProofBytes(SyncCommitteeProofs.configPayload())
+                            .endpointManifestProofBytes(SyncCommitteeProofs.mainnetConfigManifestProof(
+                                    SyncCommitteeProofs.manifestBytes(1L, MANIFEST_ENDPOINTS),
+                                    LOWEST_DEFAULT_GAS_NON_SIGNERS))
+                            .payingWith(GENESIS),
+                    withOpContext((spec, opLog) -> {
+                        final var conn = readChannelFromState(spec, crypto);
+                        assertEquals(ClprChannelStatus.ACTIVE, conn.status(), "channel should be ACTIVE");
+                        assertEquals(1L, conn.endpointManifestVersion(), "endpoint_manifest_version should be 1");
+                        assertManifestEndpoints(conn, MANIFEST_ENDPOINTS);
+                    }));
+        }));
+    }
+
+    /**
+     * Tests the transaction size limits, not gas: a mainnet createChannel at the lowest participation that fits them
+     * opens its channel under the production size limits. Unlike the rest of this suite, the test runs on a subprocess
+     * network, because an embedded network does not go through the node's gRPC server.
+     *
+     * <p>The endpoint-manifest proof carries one non-signer proof (~419 bytes) per member that did not sign its
+     * header,
+     * so the lower the participation, the larger the transaction. Two size limits apply:
+     * <ul>
+     *   <li>the gRPC server accepts at most {@code NettyGrpcServerManager.MAX_TRANSACTION_SIZE} (133,120) bytes per
+     *       transaction, a constant no configuration raises;</li>
+     *   <li>every EVM call, the verifier's {@code verifyConfig} included, carries at most
+     *       {@code jumboTransactions.ethereumMaxCallDataSize} (131,072) bytes of calldata.</li>
+     * </ul>
+     * The calldata limit binds first. At 345/512 the {@code verifyConfig} calldata is 130,948 bytes, 124 below it; at
+     * 344/512 it exceeds it, although the transaction still passes gRPC. The verifier accepts participation down to the
+     * 2/3 supermajority (342/512), so a mainnet channel can't be opened at 342-344/512.
+     *
+     * <p>{@code verifyConfig} needs ~5M gas here, so the test raises {@code clpr.verifierGasLimit} only to let the
+     * channel open. With the default 3M, gas limits participation to 480/512 long before size does (see
+     * {@link #createChannelAtLowestParticipationOfDefaultGas}). The manifest has no endpoints, so the channel never
+     * dials peers on the shared network.
+     */
+    @LeakyHapiTest(overrides = {"clpr.verifierGasLimit"})
+    @DisplayName("Eth verifier: mainnet createChannel at 345/512 participation fits the transaction size limits")
+    final Stream<DynamicTest> createChannelAtLowestParticipationOfSizeLimits() {
+        return hapiTest(sourcingContextual(networkSpec -> {
+            final var localChain = "eip155:" + networkSpec.startupProperties().getLong("contracts.chainId");
+            final var crypto = new ClprChannelCrypto(
+                    localChain,
+                    asSolidityAddress(ETH_VERIFIER),
+                    SyncCommitteeProofs.CHAIN_ID,
+                    SyncCommitteeProofs.serviceAddress());
+            return blockingOrder(
+                    overriding("clpr.verifierGasLimit", LOWEST_SIZE_LIMIT_VERIFIER_GAS_LIMIT),
+                    clprCreateChannel()
+                            .channelId(crypto.channelId())
+                            .salt(crypto.salt())
+                            .peerVerifier(crypto.peerVerifier())
+                            .verifierContractId(ETH_VERIFIER)
+                            .configProofBytes(SyncCommitteeProofs.configPayload())
+                            .endpointManifestProofBytes(SyncCommitteeProofs.mainnetConfigManifestProof(
+                                    SyncCommitteeProofs.manifestBytes(1L, 0), LOWEST_SIZE_LIMIT_NON_SIGNERS))
+                            .payingWith(GENESIS));
         }));
     }
 
