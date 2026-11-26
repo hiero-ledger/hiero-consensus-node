@@ -44,7 +44,8 @@ jobs:
         with:
           checkout: "true"
           checkout-token: ${{ secrets.GITHUB_TOKEN }}
-          checkout-fetch-depth: "0"
+          # Only the classifier script is read from the checkout; the changed files come from the pulls API
+          checkout-fetch-depth: "1"
 
       - name: Classify Changed Files
         id: classify
@@ -144,7 +145,8 @@ jobs:
           checkout: "true"
           checkout-ref: ${{ github.event.pull_request.head.sha }}
           checkout-token: ${{ secrets.GITHUB_TOKEN }}
-          checkout-fetch-depth: "0"
+          # The summary reads scripts from the checkout, no git history
+          checkout-fetch-depth: "1"
 
       - name: Report Summary
         id: report-summary
