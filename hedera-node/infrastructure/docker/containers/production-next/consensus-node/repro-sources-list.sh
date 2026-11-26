@@ -39,6 +39,14 @@ keep_apt_cache() {
   echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' >/etc/apt/apt.conf.d/keep-cache
 }
 
+configure_apt_retries() {
+  cat >/etc/apt/apt.conf.d/80-retries <<'EOF'
+Acquire::Retries "5";
+Acquire::http::Timeout "30";
+Acquire::https::Timeout "30";
+EOF
+}
+
 case "${ID}" in
 "debian")
   # : "${SNAPSHOT_ARCHIVE_BASE:=http://snapshot.debian.org/archive/}"
@@ -60,6 +68,7 @@ case "${ID}" in
   echo "deb [check-valid-until=no] ${SNAPSHOT_ARCHIVE_BASE}debian/${snapshot} ${VERSION_CODENAME}-updates main" >>/etc/apt/sources.list
   if [ "${BACKPORTS}" = 1 ]; then echo "deb [check-valid-until=no] ${SNAPSHOT_ARCHIVE_BASE}debian/${snapshot} ${VERSION_CODENAME}-backports main" >>/etc/apt/sources.list; fi
   keep_apt_cache
+  configure_apt_retries
   ;;
 "ubuntu")
   : "${SNAPSHOT_ARCHIVE_BASE:=http://snapshot.ubuntu.com/}"
@@ -76,6 +85,7 @@ case "${ID}" in
   echo "deb [check-valid-until=no] ${SNAPSHOT_ARCHIVE_BASE}ubuntu/${snapshot} ${VERSION_CODENAME}-security universe" >>/etc/apt/sources.list
   echo "deb [check-valid-until=no] ${SNAPSHOT_ARCHIVE_BASE}ubuntu/${snapshot} ${VERSION_CODENAME}-security multiverse" >>/etc/apt/sources.list
   keep_apt_cache
+  configure_apt_retries
   # http://snapshot.ubuntu.com is redirected to https, so we have to install ca-certificates
   export DEBIAN_FRONTEND=noninteractive
   apt-get -o Acquire::https::Verify-Peer=false update >&2
