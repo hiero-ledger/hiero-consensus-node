@@ -35,7 +35,7 @@
             },
             {
               "type": "mrkdwn",
-              "text": {{ printf "*Failing Test(s)*: %s" (getenv "FAILED_TESTS" | required "FAILED_TESTS must be set") | data.ToJSON }}
+              "text": {{ printf "*Failing Test(s)*: %s" (getenv "FAILED_TESTS" "None reported") | data.ToJSON }}
             },
             {
               "type": "mrkdwn",

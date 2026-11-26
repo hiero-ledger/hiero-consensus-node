@@ -19,10 +19,6 @@ class LatencyRecorderTest {
     /** Much more than the measured calls allocate, small enough not to trigger a garbage collection. */
     private static final int PAUSED_ALLOCATION = 1 << 20;
 
-    /** Keeps the allocation in the paused work from being optimized away. */
-    @SuppressWarnings("unused")
-    private static byte[] sink;
-
     @Test
     void pausedTimeIsNotRecorded() throws InterruptedException {
         final LatencyRecorder recorder = new LatencyRecorder();
@@ -59,7 +55,7 @@ class LatencyRecorderTest {
         recorder.startMeasurement();
         recorder.lap();
         recorder.pause();
-        sink = new byte[PAUSED_ALLOCATION];
+        SmallArrays.allocate(PAUSED_ALLOCATION);
         recorder.resume();
         recorder.lap();
         recorder.stopMeasurement();
@@ -74,7 +70,7 @@ class LatencyRecorderTest {
         final LatencyRecorder recorder = new LatencyRecorder();
         recorder.startMeasurement();
         recorder.lap();
-        sink = new byte[PAUSED_ALLOCATION];
+        SmallArrays.allocate(PAUSED_ALLOCATION);
         recorder.lap();
         recorder.stopMeasurement();
 

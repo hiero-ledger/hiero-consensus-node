@@ -50,7 +50,7 @@ jobs:
     name: Build & Publish State Validator Uber JAR
     needs:
       - extract-jdk-version
-    runs-on: hl-cn-state-validator-lin
+    runs-on: hl-cn-state-validator-lin-lg
     outputs:
       gcs-uri: ${{ steps.upload.outputs.gcs_uri || '' }}
     steps:
