@@ -76,8 +76,8 @@ public class PlatformStateService implements SlothService {
             @NonNull final SlothTransaction transaction,
             @NonNull final Instant transactionTimestamp,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
-        switch (transaction.getDataCase()) {
-            case EMPTYTRANSACTION, DATA_NOT_SET -> {
+        switch (transaction.data().kind()) {
+            case EMPTY_TRANSACTION, UNSET -> {
                 // No action needed for empty transactions
             }
         }

@@ -1,22 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 import org.gradle.testing.jacoco.plugins.JacocoTaskExtension
-import org.gradlex.javamodule.dependencies.dsl.GradleOnlyDirectives
 
 plugins {
     id("org.hiero.gradle.module.library")
     id("org.hiero.gradle.feature.test-fixtures")
     id("org.hiero.gradle.feature.test-integration")
-    id("org.hiero.gradle.feature.protobuf")
+    id("com.hedera.pbj.pbj-compiler")
 }
 
 description = "Consensus Performance Framework"
 
 testFixturesModuleInfo {
     runtimeOnly("org.hiero.consensus.event.intake.concurrent")
-    runtimeOnly("io.grpc.netty.shaded")
-    runtimeOnly("io.helidon.grpc.core")
     runtimeOnly("io.helidon.webclient")
-    runtimeOnly("io.helidon.webclient.grpc")
     runtimeOnly("io.netty.transport.epoll.linux.aarch_64")
     runtimeOnly("io.netty.transport.epoll.linux.x86_64")
 }
@@ -39,7 +35,7 @@ tasks.testFixturesJar {
                     .filter { it.extension == "jar" }
                     .map { "../lib/" + it.name }
                     .sorted()
-                    .joinToString(separator = " ")
+                    .joinToString(separator = " "),
         )
     }
 }
@@ -70,10 +66,6 @@ testing {
 }
 
 testModuleInfo { requiresStatic("com.github.spotbugs.annotations") }
-
-extensions.getByName<GradleOnlyDirectives>("testPerformanceModuleInfo").apply {
-    runtimeOnly("io.grpc.netty.shaded")
-}
 
 // This is applied to all Test tasks to work across all execution methods (local, CI, etc.)
 tasks.withType<Test>().configureEach { maxHeapSize = "8g" }

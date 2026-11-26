@@ -64,11 +64,11 @@ public class AccountsService implements OtterService {
             @NonNull final OtterTransaction transaction,
             @NonNull final Instant transactionTimestamp,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
-        switch (transaction.getDataCase()) {
-            case CREATEACCOUNTTRANSACTION ->
-                handleCreateAccount(writableStates, transaction.getCreateAccountTransaction());
-            case DELETEACCOUNTTRANSACTION ->
-                handleDeleteAccount(writableStates, transaction.getDeleteAccountTransaction());
+        switch (transaction.data().kind()) {
+            case CREATE_ACCOUNT_TRANSACTION ->
+                handleCreateAccount(writableStates, transaction.createAccountTransactionOrThrow());
+            case DELETE_ACCOUNT_TRANSACTION ->
+                handleDeleteAccount(writableStates, transaction.deleteAccountTransactionOrThrow());
         }
     }
 
@@ -86,7 +86,7 @@ public class AccountsService implements OtterService {
         final WritableKVState<AccountId, Account> accountsState =
                 writableStates.get(OtterStateId.ACCOUNTS_STATE_ID.id());
         final AccountId id = new AccountId(accountId);
-        final String accountName = createAccountTransaction.getName();
+        final String accountName = createAccountTransaction.name();
         final Account account = new Account(id, accountName);
         accountsState.put(id, account);
 
@@ -98,7 +98,7 @@ public class AccountsService implements OtterService {
             @NonNull final DeleteAccountTransaction deleteAccountTransaction) {
         final WritableKVState<AccountId, Account> accountsState =
                 writableStates.get(OtterStateId.ACCOUNTS_STATE_ID.id());
-        final AccountId id = new AccountId(deleteAccountTransaction.getId());
+        final AccountId id = new AccountId(deleteAccountTransaction.id());
         if (!accountsState.contains(id)) {
             log.info(DEMO_INFO.getMarker(), "Account not deleted, doesn't exist: id={}", id.id());
             return;

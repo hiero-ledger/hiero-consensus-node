@@ -76,10 +76,8 @@ public class InstrumentedContainerNode extends ContainerNode implements Instrume
     public void ping(@NonNull final String message) {
         throwIsNotInLifecycle(RUNNING, "Cannot ping a node that is not running");
         log.info("Sending instrumentation ping '{}' to node {}", message, selfId);
-        nodeCommBlockingStub
-                .withDeadlineAfter(PING_TIMEOUT)
-                .instrumentationPing(InstrumentationPingRequest.newBuilder()
-                        .setMessage(message)
-                        .build());
+        final InstrumentationPingRequest request =
+                InstrumentationPingRequest.newBuilder().message(message).build();
+        nodeCommConnection.call(client -> client.instrumentationPing(request), PING_TIMEOUT);
     }
 }

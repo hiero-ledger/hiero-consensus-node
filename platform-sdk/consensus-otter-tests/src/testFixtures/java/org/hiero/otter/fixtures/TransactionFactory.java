@@ -3,10 +3,7 @@ package org.hiero.otter.fixtures;
 
 import static org.hiero.consensus.model.PbjConverters.toPbjTimestamp;
 
-import com.google.protobuf.ByteString;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
-import com.hederahashgraph.api.proto.java.Timestamp;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
@@ -33,8 +30,8 @@ public class TransactionFactory {
     public static OtterTransaction createEmptyTransaction(final long nonce) {
         final EmptyTransaction emptyTransaction = EmptyTransaction.newBuilder().build();
         return OtterTransaction.newBuilder()
-                .setNonce(nonce)
-                .setEmptyTransaction(emptyTransaction)
+                .nonce(nonce)
+                .emptyTransaction(emptyTransaction)
                 .build();
     }
 
@@ -47,12 +44,12 @@ public class TransactionFactory {
      */
     @NonNull
     public static OtterTransaction createFreezeTransaction(final long nonce, @NonNull final Instant freezeTime) {
-        final Timestamp timestamp = CommonPbjConverters.fromPbj(toPbjTimestamp(freezeTime));
-        final OtterFreezeTransaction freezeTransaction =
-                OtterFreezeTransaction.newBuilder().setFreezeTime(timestamp).build();
+        final OtterFreezeTransaction freezeTransaction = OtterFreezeTransaction.newBuilder()
+                .freezeTime(toPbjTimestamp(freezeTime))
+                .build();
         return OtterTransaction.newBuilder()
-                .setNonce(nonce)
-                .setFreezeTransaction(freezeTransaction)
+                .nonce(nonce)
+                .freezeTransaction(freezeTransaction)
                 .build();
     }
 
@@ -66,12 +63,12 @@ public class TransactionFactory {
     @NonNull
     public static OtterTransaction createSelfIssTransaction(final long nonce, @NonNull final NodeId nodeId) {
         final HashPartition hashPartition =
-                HashPartition.newBuilder().addNodeId(nodeId.id()).build();
+                HashPartition.newBuilder().nodeId(nodeId.id()).build();
         final OtterIssTransaction issTransaction =
-                OtterIssTransaction.newBuilder().addPartition(hashPartition).build();
+                OtterIssTransaction.newBuilder().partition(hashPartition).build();
         return OtterTransaction.newBuilder()
-                .setNonce(nonce)
-                .setIssTransaction(issTransaction)
+                .nonce(nonce)
+                .issTransaction(issTransaction)
                 .build();
     }
 
@@ -88,13 +85,13 @@ public class TransactionFactory {
     public static OtterTransaction createIssTransaction(final long nonce, @NonNull final List<Node> nodes) {
         final List<HashPartition> hashPartitions = nodes.stream()
                 .map(node ->
-                        HashPartition.newBuilder().addNodeId(node.selfId().id()).build())
+                        HashPartition.newBuilder().nodeId(node.selfId().id()).build())
                 .toList();
         final OtterIssTransaction issTransaction =
-                OtterIssTransaction.newBuilder().addAllPartition(hashPartitions).build();
+                OtterIssTransaction.newBuilder().partition(hashPartitions).build();
         return OtterTransaction.newBuilder()
-                .setNonce(nonce)
-                .setIssTransaction(issTransaction)
+                .nonce(nonce)
+                .issTransaction(issTransaction)
                 .build();
     }
 
@@ -107,15 +104,9 @@ public class TransactionFactory {
      */
     public static OtterTransaction createStateSignatureTransaction(
             final long nonce, @NonNull final StateSignatureTransaction innerTxn) {
-        final com.hedera.hapi.platform.event.legacy.StateSignatureTransaction legacyInnerTxn =
-                com.hedera.hapi.platform.event.legacy.StateSignatureTransaction.newBuilder()
-                        .setRound(innerTxn.round())
-                        .setSignature(ByteString.copyFrom(innerTxn.signature().toByteArray()))
-                        .setHash(ByteString.copyFrom(innerTxn.hash().toByteArray()))
-                        .build();
         return OtterTransaction.newBuilder()
-                .setNonce(nonce)
-                .setStateSignatureTransaction(legacyInnerTxn)
+                .nonce(nonce)
+                .stateSignatureTransaction(innerTxn)
                 .build();
     }
 }

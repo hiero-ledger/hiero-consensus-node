@@ -2,7 +2,6 @@
 plugins {
     id("org.hiero.gradle.module.library")
     id("org.hiero.gradle.feature.test-fixtures")
-    id("org.hiero.gradle.feature.protobuf")
 }
 
 description = "Otter Docker App"
@@ -22,10 +21,7 @@ testModuleInfo {
 
 testFixturesModuleInfo {
     runtimeOnly("org.hiero.consensus.event.intake.concurrent")
-    runtimeOnly("io.grpc.netty.shaded")
-    runtimeOnly("io.helidon.grpc.core")
     runtimeOnly("io.helidon.webclient")
-    runtimeOnly("io.helidon.webclient.grpc")
     runtimeOnly("io.netty.transport.epoll.linux.aarch_64")
     runtimeOnly("io.netty.transport.epoll.linux.x86_64")
 }
@@ -55,7 +51,7 @@ tasks.testFixturesJar {
                     .filter { it.extension == "jar" }
                     .map { "../lib/" + it.name }
                     .sorted()
-                    .joinToString(separator = " ")
+                    .joinToString(separator = " "),
         )
     }
 }

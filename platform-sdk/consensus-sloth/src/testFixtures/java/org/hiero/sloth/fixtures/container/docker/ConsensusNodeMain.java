@@ -5,8 +5,7 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static org.hiero.sloth.fixtures.container.utils.ContainerConstants.CONTAINER_APP_WORKING_DIR;
 import static org.hiero.sloth.fixtures.container.utils.ContainerConstants.ENV_SLOTH_WORKDIR;
 
-import io.grpc.Server;
-import io.grpc.ServerBuilder;
+import io.helidon.webserver.WebServer;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -18,25 +17,25 @@ import org.hiero.sloth.fixtures.container.docker.platform.NodeCommunicationServi
 
 /**
  * Main entry point for the Consensus Node application. This application provides the
- * {@link org.hiero.sloth.fixtures.container.proto.NodeCommunicationServiceGrpc} which runs the consensus node.
+ * {@link org.hiero.sloth.fixtures.container.proto.NodeCommunicationServiceInterface} which runs the consensus node.
  */
 public class ConsensusNodeMain {
 
     /**
      * The name of the marker file to write when the
-     * {@link org.hiero.sloth.fixtures.container.proto.NodeCommunicationServiceGrpc} is ready to accept requests.
+     * {@link org.hiero.sloth.fixtures.container.proto.NodeCommunicationServiceInterface} is ready to accept requests.
      */
     public static final String STARTED_MARKER_FILE_NAME = "consensus-node-started.marker";
 
     /**
-     * The marker file to write when the {@link org.hiero.sloth.fixtures.container.proto.NodeCommunicationServiceGrpc}
+     * The marker file to write when the {@link org.hiero.sloth.fixtures.container.proto.NodeCommunicationServiceInterface}
      * is ready to accept requests.
      */
     public static final Path STARTED_MARKER_FILE = Path.of(
                     System.getProperty(ENV_SLOTH_WORKDIR, CONTAINER_APP_WORKING_DIR))
             .resolve(STARTED_MARKER_FILE_NAME);
 
-    /** Port on which the {@link org.hiero.sloth.fixtures.container.proto.NodeCommunicationServiceGrpc} listens. */
+    /** Port on which the {@link org.hiero.sloth.fixtures.container.proto.NodeCommunicationServiceInterface} listens. */
     private static final int NODE_COMM_SERVICE_PORT = 8081;
 
     /** Logger */
@@ -60,24 +59,17 @@ public class ConsensusNodeMain {
         final NodeCommunicationService nodeCommunicationService = new NodeCommunicationService(selfId);
 
         log.info(STARTUP.getMarker(), "Starting ConsensusNodeMain");
-        // Start the consensus node manager gRPC server
+        // Start the consensus node manager gRPC server. It runs on its own threads, which keep the process alive
+        // after this method has returned.
         final int commPort = Integer.getInteger("sloth.comm.port", NODE_COMM_SERVICE_PORT);
-        final Server nodeGrpcServer = ServerBuilder.forPort(commPort)
-                .addService(nodeCommunicationService)
-                .build();
+        final WebServer nodeGrpcServer = GrpcServerFactory.create(commPort, nodeCommunicationService);
         try {
             nodeGrpcServer.start();
-            writeStartedMarkerFile();
-            nodeGrpcServer.awaitTermination();
-        } catch (final IOException ie) {
-            log.error(STARTUP.getMarker(), "Failed to start the gRPC server for the consensus node manager", ie);
-            System.exit(-1);
-        } catch (final InterruptedException e) {
-            // Only warn, because we expect this exception when we interrupt the thread on a kill request
-            log.warn(STARTUP.getMarker(), "Interrupted while running the consensus node manager gRPC server", e);
-            Thread.currentThread().interrupt();
+        } catch (final RuntimeException e) {
+            log.error(STARTUP.getMarker(), "Failed to start the gRPC server for the consensus node manager", e);
             System.exit(-1);
         }
+        writeStartedMarkerFile();
     }
 
     /**

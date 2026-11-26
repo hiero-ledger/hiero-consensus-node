@@ -28,11 +28,6 @@ module org.hiero.sloth.fixtures {
     exports org.hiero.sloth.fixtures.remote to
             com.swirlds.config.impl;
 
-    opens org.hiero.sloth.fixtures.container.proto to
-            com.google.protobuf;
-    opens org.hiero.sloth.fixtures.network.transactions to
-            com.google.protobuf;
-
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.base;
@@ -48,15 +43,14 @@ module org.hiero.sloth.fixtures {
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.utility.test.fixtures;
     requires transitive org.hiero.consensus.wiring.framework;
-    requires transitive com.google.common;
-    requires transitive com.google.protobuf;
-    requires transitive io.grpc.stub;
-    requires transitive io.grpc;
     requires transitive org.apache.logging.log4j.core;
     requires transitive org.apache.logging.log4j;
     requires transitive org.assertj.core;
     requires transitive org.junit.jupiter.api;
     requires transitive org.testcontainers;
+    requires com.hedera.pbj.grpc.client.helidon;
+    requires com.hedera.pbj.grpc.helidon.config;
+    requires com.hedera.pbj.grpc.helidon;
     requires com.swirlds.common;
     requires com.swirlds.config.extensions.test.fixtures;
     requires com.swirlds.config.extensions;
@@ -75,8 +69,12 @@ module org.hiero.sloth.fixtures {
     requires com.fasterxml.jackson.databind;
     requires com.fasterxml.jackson.dataformat.yaml;
     requires com.github.dockerjava.api;
-    requires io.grpc.protobuf;
+    requires io.helidon.common.tls;
+    requires io.helidon.common;
+    requires io.helidon.webclient.api;
+    requires io.helidon.webserver;
     requires java.net.http;
+    requires org.antlr.antlr4.runtime;
     requires org.apache.commons.lang3;
     requires org.junit.jupiter.params;
     requires org.junit.platform.commons;

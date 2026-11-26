@@ -17,6 +17,7 @@ import org.hiero.consensus.main.model.TimestampedTransaction;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.sloth.fixtures.SlothTransactionType;
 import org.hiero.sloth.fixtures.TransactionFactory;
+import org.hiero.sloth.fixtures.network.transactions.SlothTransaction;
 
 /**
  * An implementation of the {@link ExecutionLayer} for benchmarks.
@@ -81,9 +82,8 @@ public class SlothExecutionLayer implements ExecutionLayer {
     /** {@inheritDoc} */
     @Override
     public void submitStateSignature(@NonNull final StateSignatureTransaction transaction) {
-        transactionPool.submitPriorityTransaction(
-                Bytes.wrap(TransactionFactory.createStateSignatureTransaction(random.nextLong(), transaction)
-                        .toByteArray()));
+        transactionPool.submitPriorityTransaction(SlothTransaction.PROTOBUF.toBytes(
+                TransactionFactory.createStateSignatureTransaction(random.nextLong(), transaction)));
     }
 
     /**

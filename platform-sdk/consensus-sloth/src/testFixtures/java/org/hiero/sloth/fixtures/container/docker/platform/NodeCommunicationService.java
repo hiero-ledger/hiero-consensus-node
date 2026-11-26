@@ -7,20 +7,22 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.sloth.fixtures.internal.helpers.Utils.createConfiguration;
 
-import com.google.protobuf.ByteString;
-import com.google.protobuf.Empty;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.pbj.runtime.grpc.GrpcException;
+import com.hedera.pbj.runtime.grpc.GrpcStatus;
+import com.hedera.pbj.runtime.grpc.Pipeline;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import io.grpc.Status;
-import io.grpc.StatusRuntimeException;
-import io.grpc.stub.StreamObserver;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
+import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.main.model.KeysAndCerts;
@@ -29,8 +31,10 @@ import org.hiero.consensus.main.model.QuiescenceCommand;
 import org.hiero.sloth.fixtures.SlothTransactionType;
 import org.hiero.sloth.fixtures.container.docker.EventMessageFactory;
 import org.hiero.sloth.fixtures.container.docker.OutboundDispatcher;
+import org.hiero.sloth.fixtures.container.proto.Empty;
 import org.hiero.sloth.fixtures.container.proto.EventMessage;
-import org.hiero.sloth.fixtures.container.proto.NodeCommunicationServiceGrpc.NodeCommunicationServiceImplBase;
+import org.hiero.sloth.fixtures.container.proto.NodeCommunicationServiceInterface;
+import org.hiero.sloth.fixtures.container.proto.ProtoKeysAndCerts;
 import org.hiero.sloth.fixtures.container.proto.QuiescenceRequest;
 import org.hiero.sloth.fixtures.container.proto.StartRequest;
 import org.hiero.sloth.fixtures.container.proto.StartTransactionGenerationRequest;
@@ -40,14 +44,13 @@ import org.hiero.sloth.fixtures.container.proto.TransactionRequest;
 import org.hiero.sloth.fixtures.container.proto.TransactionRequestAnswer;
 import org.hiero.sloth.fixtures.container.proto.TransactionType;
 import org.hiero.sloth.fixtures.internal.KeysAndCertsConverter;
-import org.hiero.sloth.fixtures.internal.ProtobufConverter;
 import org.hiero.sloth.fixtures.logging.internal.InMemorySubscriptionManager;
 import org.hiero.sloth.fixtures.result.SubscriberAction;
 
 /**
  * Responsible for all gRPC communication between the test framework and the consensus node.
  */
-public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
+public class NodeCommunicationService implements NodeCommunicationServiceInterface {
 
     /** Default thread name for the consensus node manager gRPC service */
     private static final String NODE_COMMUNICATION_THREAD_NAME = "grpc-outbound-dispatcher";
@@ -70,7 +73,7 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
     private volatile OutboundDispatcher dispatcher;
 
     /** Manages the consensus node */
-    private ConsensusNodeManager consensusNodeManager;
+    private volatile ConsensusNodeManager consensusNodeManager;
 
     /**
      * Constructs a {@link NodeCommunicationService} with the specified self ID.
@@ -96,19 +99,17 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
      * Starts the communication channel with the platform.
      *
      * @param request The request containing details required to construct the platform.
-     * @param responseObserver The observer used to send messages back to the test framework.
-     * @throws StatusRuntimeException if the platform is already started, or if the request contains invalid arguments.
+     * @param replies The pipeline used to send messages back to the test framework.
+     * @throws GrpcException if the platform is already started, or if the request contains invalid arguments.
      */
     @Override
     public synchronized void start(
-            @NonNull final StartRequest request, @NonNull final StreamObserver<EventMessage> responseObserver) {
+            @NonNull final StartRequest request, @NonNull final Pipeline<? super EventMessage> replies) {
         log.info(STARTUP.getMarker(), "Received start request: {}", request);
 
-        if (isInvalidRequest(request, responseObserver)) {
-            return;
-        }
+        validateStartRequest(request);
 
-        dispatcher = new OutboundDispatcher(dispatchExecutor, responseObserver);
+        dispatcher = new OutboundDispatcher(dispatchExecutor, replies);
 
         InMemorySubscriptionManager.INSTANCE.subscribe(logEntry -> {
             dispatcher.enqueue(EventMessageFactory.fromStructuredLog(logEntry));
@@ -116,26 +117,62 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
         });
 
         if (consensusNodeManager != null) {
-            responseObserver.onError(Status.ALREADY_EXISTS.asRuntimeException());
             log.info(ERROR.getMarker(), "Invalid request, platform already started: {}", request);
-            return;
+            throw new GrpcException(GrpcStatus.ALREADY_EXISTS);
         }
 
-        final Map<String, String> overriddenProperties = request.getOverriddenPropertiesMap();
-        validateOverriddenProperties(overriddenProperties);
-        final Configuration platformConfig = createConfiguration(overriddenProperties);
-        final Roster genesisRoster = ProtobufConverter.toPbj(request.getRoster());
-        final SemanticVersion version = ProtobufConverter.toPbj(request.getVersion());
-        final KeysAndCerts keysAndCerts = KeysAndCertsConverter.fromProto(request.getKeysAndCerts());
+        try {
+            final Map<String, String> overriddenProperties = request.overriddenProperties();
+            validateOverriddenProperties(overriddenProperties);
+            final Configuration platformConfig = createConfiguration(overriddenProperties);
+            final Roster genesisRoster = request.rosterOrThrow();
+            final SemanticVersion version = request.versionOrThrow();
+            final KeysAndCerts keysAndCerts =
+                    KeysAndCertsConverter.fromProto(request.keysAndCertsOrElse(ProtoKeysAndCerts.DEFAULT));
 
-        wrapWithErrorHandling(responseObserver, () -> {
-            consensusNodeManager =
-                    new ConsensusNodeManager(selfId, platformConfig, genesisRoster, version, keysAndCerts);
+            runOnPlatformThread(() -> {
+                consensusNodeManager =
+                        new ConsensusNodeManager(selfId, platformConfig, genesisRoster, version, keysAndCerts);
 
-            setupStreamingEventDispatcher();
+                setupStreamingEventDispatcher();
 
-            consensusNodeManager.start();
-        });
+                consensusNodeManager.start();
+            });
+        } catch (final Exception e) {
+            throw toGrpcException(e);
+        }
+    }
+
+    /**
+     * Runs the given task on a new daemon platform thread and waits until it has finished. The platform creates its
+     * threads while it is constructed and started, and threads inherit their thread group, priority, and daemon flag
+     * from the thread that creates them. A request is handled on a virtual thread, so the platform is constructed and
+     * started on a platform thread instead.
+     *
+     * @param task the task to run
+     */
+    private static void runOnPlatformThread(@NonNull final Runnable task) {
+        final CompletableFuture<Void> result = new CompletableFuture<>();
+        final Thread thread = new Thread(
+                () -> {
+                    try {
+                        task.run();
+                        result.complete(null);
+                    } catch (final Throwable t) {
+                        result.completeExceptionally(t);
+                    }
+                },
+                "platform-startup");
+        thread.setDaemon(true);
+        thread.start();
+        try {
+            result.join();
+        } catch (final CompletionException e) {
+            if (e.getCause() instanceof final RuntimeException runtimeException) {
+                throw runtimeException;
+            }
+            throw e;
+        }
     }
 
     private void setupStreamingEventDispatcher() {
@@ -143,129 +180,96 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
                 notification -> dispatcher.enqueue(EventMessageFactory.fromPlatformStatusChange(notification)));
     }
 
-    private static boolean isInvalidRequest(
-            final StartRequest request, final StreamObserver<EventMessage> responseObserver) {
+    private static void validateStartRequest(@NonNull final StartRequest request) {
         if (!request.hasVersion()) {
             log.info(ERROR.getMarker(), "Invalid request - version must be specified: {}", request);
-            responseObserver.onError(Status.INVALID_ARGUMENT
-                    .withDescription("version has to be specified")
-                    .asRuntimeException());
-            return true;
+            throw new GrpcException(GrpcStatus.INVALID_ARGUMENT, "version has to be specified");
         }
         if (!request.hasRoster()) {
             log.info(ERROR.getMarker(), "Invalid request - roster must be specified: {}", request);
-            responseObserver.onError(Status.INVALID_ARGUMENT
-                    .withDescription("roster has to be specified")
-                    .asRuntimeException());
-            return true;
+            throw new GrpcException(GrpcStatus.INVALID_ARGUMENT, "roster has to be specified");
         }
-        return false;
     }
 
     /** {@inheritDoc} */
     @Override
-    public synchronized void submitTransaction(
-            @NonNull final TransactionRequest request,
-            @NonNull final StreamObserver<TransactionRequestAnswer> responseObserver) {
+    @NonNull
+    public synchronized TransactionRequestAnswer submitTransaction(@NonNull final TransactionRequest request) {
         log.debug(DEMO_INFO.getMarker(), "Received submit transaction request: {}", request);
-        if (consensusNodeManager == null) {
-            setPlatformNotStartedResponse(responseObserver);
-            return;
-        }
+        requirePlatformStarted();
 
-        wrapWithErrorHandling(responseObserver, () -> {
+        return wrapWithErrorHandling(() -> {
             int numFailed = 0;
-            for (final ByteString payload : request.getPayloadList()) {
+            for (final Bytes payload : request.payload()) {
                 if (!consensusNodeManager.submitTransaction(payload.toByteArray())) {
                     numFailed++;
                 }
             }
-            responseObserver.onNext(TransactionRequestAnswer.newBuilder()
-                    .setNumFailed(numFailed)
-                    .build());
-            responseObserver.onCompleted();
+            return TransactionRequestAnswer.newBuilder().numFailed(numFailed).build();
         });
     }
 
     /** {@inheritDoc} */
     @Override
-    public synchronized void syntheticBottleneckUpdate(
-            @NonNull final SyntheticBottleneckRequest request, @NonNull final StreamObserver<Empty> responseObserver) {
-        log.info(
-                DEMO_INFO.getMarker(),
-                "Received synthetic bottleneck request: {} ms",
-                request.getSleepMillisPerRound());
-        if (consensusNodeManager == null) {
-            setPlatformNotStartedResponse(responseObserver);
-            return;
-        }
-        wrapWithErrorHandling(responseObserver, () -> {
-            consensusNodeManager.updateSyntheticBottleneck(request.getSleepMillisPerRound());
-            responseObserver.onNext(Empty.getDefaultInstance());
-            responseObserver.onCompleted();
+    @NonNull
+    public synchronized Empty syntheticBottleneckUpdate(@NonNull final SyntheticBottleneckRequest request) {
+        log.info(DEMO_INFO.getMarker(), "Received synthetic bottleneck request: {} ms", request.sleepMillisPerRound());
+        requirePlatformStarted();
+
+        return wrapWithErrorHandling(() -> {
+            consensusNodeManager.updateSyntheticBottleneck(request.sleepMillisPerRound());
+            return Empty.DEFAULT;
         });
     }
 
     @Override
-    public void quiescenceCommandUpdate(
-            @NonNull final QuiescenceRequest request, @NonNull final StreamObserver<Empty> responseObserver) {
-        log.info(DEMO_INFO.getMarker(), "Received quiescence request: {}", request.getCommand());
-        if (consensusNodeManager == null) {
-            setPlatformNotStartedResponse(responseObserver);
-            return;
-        }
+    @NonNull
+    public Empty quiescenceCommandUpdate(@NonNull final QuiescenceRequest request) {
+        log.info(DEMO_INFO.getMarker(), "Received quiescence request: {}", request.command());
+        requirePlatformStarted();
 
-        wrapWithErrorHandling(responseObserver, () -> {
-            final QuiescenceCommand command = switch (request.getCommand()) {
+        return wrapWithErrorHandling(() -> {
+            final QuiescenceCommand command = switch (request.command()) {
                 case QUIESCE -> QuiescenceCommand.QUIESCE;
                 case BREAK_QUIESCENCE -> QuiescenceCommand.BREAK_QUIESCENCE;
                 default -> QuiescenceCommand.DONT_QUIESCE;
             };
 
             consensusNodeManager.sendQuiescenceCommand(command);
-            responseObserver.onNext(Empty.getDefaultInstance());
-            responseObserver.onCompleted();
+            return Empty.DEFAULT;
         });
     }
 
     @Override
-    public synchronized void startTransactionGeneration(
-            @NonNull final StartTransactionGenerationRequest request,
-            @NonNull final StreamObserver<Empty> responseObserver) {
+    @NonNull
+    public synchronized Empty startTransactionGeneration(@NonNull final StartTransactionGenerationRequest request) {
         log.info(
                 DEMO_INFO.getMarker(),
                 "Received start transaction generation request: {} TPS, type={}",
-                request.getTps(),
-                request.getType());
-        if (consensusNodeManager == null) {
-            setPlatformNotStartedResponse(responseObserver);
-            return;
-        }
-        wrapWithErrorHandling(responseObserver, () -> {
-            final SlothTransactionType type = request.getType() == TransactionType.BENCHMARK_TRANSACTION
+                request.tps(),
+                request.type());
+        requirePlatformStarted();
+
+        return wrapWithErrorHandling(() -> {
+            final SlothTransactionType type = request.type() == TransactionType.BENCHMARK_TRANSACTION
                     ? SlothTransactionType.BENCHMARK
                     : SlothTransactionType.EMPTY;
-            consensusNodeManager.startTransactionGeneration(request.getTps(), type);
-            responseObserver.onNext(Empty.getDefaultInstance());
-            responseObserver.onCompleted();
+            consensusNodeManager.startTransactionGeneration(request.tps(), type);
+            return Empty.DEFAULT;
         });
     }
 
     @Override
-    public synchronized void stopTransactionGeneration(
-            @NonNull final Empty request,
-            @NonNull final StreamObserver<StopTransactionGenerationResponse> responseObserver) {
+    @NonNull
+    public synchronized StopTransactionGenerationResponse stopTransactionGeneration(@NonNull final Empty request) {
         log.info(DEMO_INFO.getMarker(), "Received stop transaction generation request");
-        if (consensusNodeManager == null) {
-            setPlatformNotStartedResponse(responseObserver);
-            return;
-        }
-        wrapWithErrorHandling(responseObserver, () -> {
+        requirePlatformStarted();
+
+        return wrapWithErrorHandling(() -> {
             final long count = consensusNodeManager.stopTransactionGeneration();
-            responseObserver.onNext(StopTransactionGenerationResponse.newBuilder()
-                    .setGeneratedCount(count)
-                    .build());
-            responseObserver.onCompleted();
+            return StopTransactionGenerationResponse.newBuilder()
+                    .generatedCount(count)
+                    .build();
         });
     }
 
@@ -289,25 +293,36 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
         return input.contains("..") || input.contains("\0");
     }
 
-    private void setPlatformNotStartedResponse(@NonNull final StreamObserver<?> responseObserver) {
-        responseObserver.onError(Status.FAILED_PRECONDITION
-                .withDescription("Platform not started yet")
-                .asRuntimeException());
+    private void requirePlatformStarted() {
+        if (consensusNodeManager == null) {
+            throw new GrpcException(GrpcStatus.FAILED_PRECONDITION, "Platform not started yet");
+        }
     }
 
-    private static void wrapWithErrorHandling(
-            @NonNull final StreamObserver<?> responseObserver, @NonNull final Runnable action) {
+    private static <T> T wrapWithErrorHandling(@NonNull final Supplier<T> action) {
         try {
-            action.run();
-        } catch (final IllegalArgumentException e) {
-            log.error(DEMO_INFO.getMarker(), "Error processing gRPC request", e);
-            responseObserver.onError(Status.INVALID_ARGUMENT.withCause(e).asRuntimeException());
-        } catch (final UnsupportedOperationException e) {
-            log.error(DEMO_INFO.getMarker(), "Error processing gRPC request", e);
-            responseObserver.onError(Status.UNIMPLEMENTED.withCause(e).asRuntimeException());
+            return action.get();
         } catch (final Exception e) {
-            log.error(DEMO_INFO.getMarker(), "Error processing gRPC request", e);
-            responseObserver.onError(Status.INTERNAL.withCause(e).asRuntimeException());
+            throw toGrpcException(e);
         }
+    }
+
+    /**
+     * Logs an error that occurred while a request was processed and converts it into the exception that reports it
+     * to the test framework.
+     *
+     * @param error the error that occurred
+     * @return the exception to throw from the request handler
+     */
+    @NonNull
+    private static GrpcException toGrpcException(@NonNull final Exception error) {
+        log.error(DEMO_INFO.getMarker(), "Error processing gRPC request", error);
+        if (error instanceof IllegalArgumentException) {
+            return new GrpcException(GrpcStatus.INVALID_ARGUMENT, error);
+        }
+        if (error instanceof UnsupportedOperationException) {
+            return new GrpcException(GrpcStatus.UNIMPLEMENTED, error);
+        }
+        return new GrpcException(GrpcStatus.INTERNAL, error);
     }
 }
