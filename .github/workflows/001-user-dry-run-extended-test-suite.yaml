@@ -24,6 +24,12 @@ on:
         type: boolean
         description: "Run HAPI Test Suite"
         default: true
+      # The pre-cutover rerun repeats the HAPI panels with the pre-cutover profile (about 4 runner hours per dry run).
+      # The 226 controller runs it on every candidate, so a dry run only needs it when a change targets that profile.
+      enable-hapi-pre-cutover-rerun:
+        type: boolean
+        description: "Also rerun the HAPI panels with the pre-cutover profile"
+        default: false
       enable-otter-test-suite:
         type: boolean
         description: "Run Otter Test Suite"
@@ -238,6 +244,7 @@ jobs:
       enable-timing-sensitive-test-suite: ${{ inputs.enable-timing-sensitive-test-suite }}
       enable-hammer-test-suite: ${{ inputs.enable-hammer-test-suite }}
       enable-hapi-test-suite: ${{ inputs.enable-hapi-test-suite }}
+      enable-hapi-pre-cutover-rerun: ${{ inputs.enable-hapi-pre-cutover-rerun }}
       enable-otter-test-suite: ${{ inputs.enable-otter-test-suite }}
       enable-chaos-otter-test-suite: ${{ inputs.enable-chaos-otter-test-suite }}
       enable-hedera-node-jrs-panel: ${{ inputs.enable-hedera-node-jrs-panel }}
