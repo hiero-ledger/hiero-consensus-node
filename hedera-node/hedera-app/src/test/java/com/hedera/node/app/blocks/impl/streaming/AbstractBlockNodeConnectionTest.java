@@ -3,6 +3,7 @@ package com.hedera.node.app.blocks.impl.streaming;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
@@ -15,6 +16,9 @@ import com.hedera.pbj.runtime.grpc.GrpcException;
 import com.hedera.pbj.runtime.grpc.GrpcStatus;
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -148,6 +152,71 @@ class AbstractBlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         // since the connection transitioned to CLOSED, the on active transition handler should be called
         verify(connection).onTerminalStateTransition();
+    }
+
+    @Test
+    void expectedStateUpdateReturnsFalseWhenAlreadyClosed() {
+        final BlockNodeConfiguration config = newBlockNodeConfig("localhost", 8080, 1);
+        final AbstractBlockNodeConnection connection = newInstance(ConnectionType.SERVER_STATUS, config);
+        connection.updateConnectionState(ConnectionState.ACTIVE);
+        connection.updateConnectionState(ConnectionState.CLOSED);
+
+        assertThat(connection.updateConnectionState(ConnectionState.ACTIVE, ConnectionState.CLOSING))
+                .isFalse();
+
+        assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);
+    }
+
+    @Test
+    void dispatchesHandlerForCommittedState() {
+        final BlockNodeConfiguration config = mock(BlockNodeConfiguration.class);
+        final AtomicReference<AbstractBlockNodeConnection> connectionRef = new AtomicReference<>();
+        final AtomicBoolean armed = new AtomicBoolean(false);
+        // the post-CAS debug log formats the connection, which reads the address; a concurrent close lands there
+        lenient()
+                .doAnswer(_ -> {
+                    if (armed.compareAndSet(true, false)) {
+                        connectionRef.get().updateConnectionState(ConnectionState.CLOSING);
+                    }
+                    return "localhost";
+                })
+                .when(config)
+                .address();
+        final AtomicInteger activeTransitions = new AtomicInteger();
+        final AtomicInteger terminalTransitions = new AtomicInteger();
+        final AbstractBlockNodeConnection connection =
+                new AbstractBlockNodeConnection(ConnectionType.SERVER_STATUS, config, configProvider, 0L) {
+                    @Override
+                    void initialize() {
+                        // do nothing
+                    }
+
+                    @Override
+                    public void close() {
+                        // do nothing
+                    }
+
+                    @Override
+                    void onActiveStateTransition() {
+                        activeTransitions.incrementAndGet();
+                    }
+
+                    @Override
+                    void onTerminalStateTransition() {
+                        terminalTransitions.incrementAndGet();
+                    }
+                };
+        connectionRef.set(connection);
+        armed.set(true);
+
+        assertThat(connection.updateConnectionState(ConnectionState.UNINITIALIZED, ConnectionState.ACTIVE))
+                .isTrue();
+
+        assertThat(armed).isFalse();
+        assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSING);
+        assertThat(activeTransitions).hasValue(1);
+        assertThat(terminalTransitions).hasValue(1);
+        assertThat(connection.activeTimestamp()).isNotNull();
     }
 
     @Test

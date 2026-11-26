@@ -18,10 +18,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -33,6 +33,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -85,6 +86,21 @@ public class BlockNodeConnectionManager extends BlockStreamingBase {
      */
     private final ConcurrentMap<BlockNode, BlockNodeObservingConnection> activeObservingConnections =
             new ConcurrentHashMap<>();
+    /**
+     * Lock held for every write to {@link #activeStreamingConnectionRef}, {@link #activeObservingConnections} and
+     * {@link #activatingStreamers}. Nothing that may call back into this manager is invoked while holding it.
+     */
+    private final Object registrationLock = new Object();
+    /**
+     * Incremented when the manager shuts down, so work begun before the shutdown can tell that it happened.
+     */
+    private final AtomicLong lifecycleGeneration = new AtomicLong();
+    /**
+     * The streaming connections currently being activated; each is removed by its own close notification. Guarded by
+     * {@link #registrationLock}.
+     */
+    private final Set<BlockNodeStreamingConnection> activatingStreamers =
+            Collections.newSetFromMap(new IdentityHashMap<>());
     /**
      * Factory for creating new block node clients.
      */
@@ -212,7 +228,22 @@ public class BlockNodeConnectionManager extends BlockStreamingBase {
      * Gracefully shuts down the connection manager, closing the active connection.
      */
     public void shutdown() {
-        if (!isConnectionManagerActive.compareAndSet(true, false)) {
+        final boolean wasActive;
+        final BlockNodeStreamingConnection streamingConnection;
+        final List<BlockNodeObservingConnection> observingConnections;
+        synchronized (registrationLock) {
+            wasActive = isConnectionManagerActive.compareAndSet(true, false);
+            if (wasActive) {
+                lifecycleGeneration.incrementAndGet();
+                streamingConnection = activeStreamingConnectionRef.getAndSet(null);
+                observingConnections = List.copyOf(activeObservingConnections.values());
+                activeObservingConnections.clear();
+            } else {
+                streamingConnection = null;
+                observingConnections = List.of();
+            }
+        }
+        if (!wasActive) {
             logger.info("Attempted to shutdown block node connection manager, but it is already shutdown");
             return;
         }
@@ -223,18 +254,25 @@ public class BlockNodeConnectionManager extends BlockStreamingBase {
             blockingIoExecutor.shutdownNow();
         }
 
-        blockNodeConfigService.shutdown();
-        blockBufferService.shutdown();
-
         // clear connection monitor thread reference
         connectionMonitorThreadRef.set(null);
+
+        // Close the publishers before the buffer is cleared; the streamer may still finish an in-flight block
+        retireStreamingConnection(streamingConnection, CloseReason.SHUTDOWN);
+        for (final BlockNodeObservingConnection observingConnection : observingConnections) {
+            try {
+                observingConnection.close(CloseReason.SHUTDOWN, true, EndStream.Code.RESET);
+            } catch (final Exception e) {
+                logger.warn("{} Failed to close observer - suppressing", observingConnection, e);
+            }
+        }
 
         for (final BlockNode node : nodes.values()) {
             node.onTerminate(CloseReason.SHUTDOWN);
         }
 
-        activeStreamingConnectionRef.set(null);
-        activeObservingConnections.clear();
+        blockNodeConfigService.shutdown();
+        blockBufferService.shutdown();
 
         logger.info("Block node connection manager shutdown");
     }
@@ -458,25 +496,62 @@ public class BlockNodeConnectionManager extends BlockStreamingBase {
      * @param connection the connection that has been closed
      */
     public void notifyConnectionClosed(@NonNull final BlockNodePublisherConnection connection) {
-        // Remove from active connection if it is the current active
-        if (connection instanceof final BlockNodeStreamingConnection streamingConnection) {
-            activeStreamingConnectionRef.compareAndSet(streamingConnection, null);
-        } else if (connection instanceof final BlockNodeObservingConnection observingConnection) {
-            activeObservingConnections.remove(observingConnection.blockNode(), observingConnection);
+        final BlockNodeEndpoint streamingEndpoint = connection.configuration().streamingEndpoint();
+
+        synchronized (registrationLock) {
+            // Remove from active connection if it is the current active
+            if (connection instanceof final BlockNodeStreamingConnection streamingConnection) {
+                activeStreamingConnectionRef.compareAndSet(streamingConnection, null);
+                activatingStreamers.remove(streamingConnection);
+            } else if (connection instanceof final BlockNodeObservingConnection observingConnection) {
+                activeObservingConnections.remove(observingConnection.blockNode(), observingConnection);
+            }
+
+            // ACKs only start to expire once no registered publisher is left to refresh them
+            if (!hasLivePublisher(streamingEndpoint)) {
+                blockBufferService.notifyBlockNodeDisconnected(streamingEndpoint);
+            }
         }
 
-        final BlockNodeEndpoint streamingEndpoint = connection.configuration().streamingEndpoint();
         final BlockNode node = nodes.get(streamingEndpoint);
-
-        // regardless of whether the node is in the local node map, always notify the block buffer of the disconnect
-        blockBufferService.notifyBlockNodeDisconnected(streamingEndpoint);
-
         if (node == null) {
             logger.warn(
                     "{} Connection is not associated with a known block node; ignoring close notification", connection);
         } else {
             node.onClose(connection);
         }
+    }
+
+    /**
+     * Checks whether an active connection registered with this manager publishes to the specified endpoint. Requires
+     * the registration lock.
+     *
+     * @param streamingEndpoint the endpoint to check
+     * @return true if a registered or activating connection to the endpoint is active, else false
+     */
+    private boolean hasLivePublisher(@NonNull final BlockNodeEndpoint streamingEndpoint) {
+        if (isActiveOn(activeStreamingConnectionRef.get(), streamingEndpoint)) {
+            return true;
+        }
+        for (final BlockNodeStreamingConnection streamingConnection : activatingStreamers) {
+            if (isActiveOn(streamingConnection, streamingEndpoint)) {
+                return true;
+            }
+        }
+        for (final BlockNodeObservingConnection observingConnection : activeObservingConnections.values()) {
+            if (isActiveOn(observingConnection, streamingEndpoint)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isActiveOn(
+            @Nullable final BlockNodePublisherConnection connection,
+            @NonNull final BlockNodeEndpoint streamingEndpoint) {
+        return connection != null
+                && connection.isActive()
+                && streamingEndpoint.equals(connection.configuration().streamingEndpoint());
     }
 
     /**
@@ -502,12 +577,16 @@ public class BlockNodeConnectionManager extends BlockStreamingBase {
      * Task that performs the connectivity checks and any corrective actions for the lifespan of the connection manager.
      */
     class ConnectionMonitorTask implements Runnable {
+        /**
+         * The lifecycle this monitor belongs to; connections it opens after that lifecycle ended are closed.
+         */
+        private final long generation = lifecycleGeneration.get();
 
         @Override
         public void run() {
             while (isConnectionManagerActive.get()) {
                 try {
-                    updateConnectionIfNeeded();
+                    updateConnectionIfNeeded(generation);
                 } catch (final Exception e) {
                     logger.warn("Error caught in connection monitor loop; continuing", e);
                 }
@@ -545,8 +624,11 @@ public class BlockNodeConnectionManager extends BlockStreamingBase {
 
     /**
      * Checks if the current state of connectivity is healthy and if not, it will attempt to take corrective actions.
+     *
+     * @param generation the lifecycle generation of the monitor pass; connections it opens after that lifecycle ended
+     *                   are closed instead of registered
      */
-    private void updateConnectionIfNeeded() {
+    private void updateConnectionIfNeeded(final long generation) {
         // record the latest number of active connections
         blockStreamMetrics.recordActiveStreamingConnectionCount(globalActiveStreamingConnectionCount.get());
         blockStreamMetrics.recordActiveObservingConnectionCount(globalActiveObservingConnectionCount.get());
@@ -604,7 +686,7 @@ public class BlockNodeConnectionManager extends BlockStreamingBase {
 
             if (changes == MASK_OBSERVERS_CHANGED) {
                 // the only trigger is a lack of observers, so just handle that
-                updated |= refreshObservingConnections();
+                updated |= refreshObservingConnections(generation);
             } else {
                 /*
                 There are other triggers aside from too few observers. In this case, refresh everything - streaming and
@@ -619,8 +701,9 @@ public class BlockNodeConnectionManager extends BlockStreamingBase {
                  */
 
                 final boolean forceStreamingUpdate = (changes & MASK_NO_ACTIVE_CONNECTION) != 0;
-                updated |= selectNewStreamingBlockNode(forceStreamingUpdate, criteria, closeReason, activeConnection);
-                updated |= refreshObservingConnections();
+                updated |= selectNewStreamingBlockNode(
+                        forceStreamingUpdate, criteria, closeReason, activeConnection, generation);
+                updated |= refreshObservingConnections(generation);
             }
 
             if (updated) {
@@ -747,6 +830,12 @@ public class BlockNodeConnectionManager extends BlockStreamingBase {
                                     globalActiveStreamingConnectionCount,
                                     globalActiveObservingConnectionCount,
                                     new BlockNodeStats()));
+                    changesDetected = true;
+                } else if (existingNode.isTerminated()) {
+                    // reuse the instance so a connection that is still closing stays accounted to it
+                    final BlockNodeEndpoint endpoint = newNodeConfig.streamingEndpoint();
+                    logger.info("[{}:{}] Block node configuration was re-added", endpoint.host(), endpoint.port());
+                    existingNode.onRevive(newNodeConfig);
                     changesDetected = true;
                 } else if (!existingNode.configuration().equals(newNodeConfig)) {
                     // the node has an updated configuration
@@ -913,9 +1002,10 @@ public class BlockNodeConnectionManager extends BlockStreamingBase {
     /**
      * Refreshes the set of observing connections.
      *
+     * @param generation the lifecycle generation of the monitor pass making this call
      * @return true if the observing connections were updated, else false
      */
-    private boolean refreshObservingConnections() {
+    private boolean refreshObservingConnections(final long generation) {
         final int numAcksRequired = bufferConfig().minAcksRequiredPerBlock();
         final int activeObserverCount = activeObservingConnections.size();
         if (numAcksRequired == 1) {
@@ -997,7 +1087,7 @@ public class BlockNodeConnectionManager extends BlockStreamingBase {
                 .map(BlockNodeResult::node)
                 .toList();
 
-        return maybeUpdateObservingConnections(rankedBlockNodes, numAcksRequired).updated;
+        return maybeUpdateObservingConnections(rankedBlockNodes, numAcksRequired, generation).updated;
     }
 
     /**
@@ -1045,12 +1135,21 @@ public class BlockNodeConnectionManager extends BlockStreamingBase {
             return new ObservingConnectionsUpdateResult(false, Set.of(), activeObservingConnections.keySet(), Set.of());
         }
 
-        final Iterator<Map.Entry<BlockNode, BlockNodeObservingConnection>> it =
-                activeObservingConnections.entrySet().iterator();
-        final Set<BlockNode> prunedObservers = new HashSet<>();
+        final List<Map.Entry<BlockNode, BlockNodeObservingConnection>> entriesToPrune = new ArrayList<>();
+        synchronized (registrationLock) {
+            for (final Map.Entry<BlockNode, BlockNodeObservingConnection> entry :
+                    activeObservingConnections.entrySet()) {
+                if (entriesToPrune.size() == numToPrune) {
+                    break;
+                }
+                if (activeObservingConnections.remove(entry.getKey(), entry.getValue())) {
+                    entriesToPrune.add(Map.entry(entry.getKey(), entry.getValue()));
+                }
+            }
+        }
 
-        while (it.hasNext()) {
-            final Map.Entry<BlockNode, BlockNodeObservingConnection> entry = it.next();
+        final Set<BlockNode> prunedObservers = new HashSet<>();
+        for (final Map.Entry<BlockNode, BlockNodeObservingConnection> entry : entriesToPrune) {
             final BlockNode node = entry.getKey();
             final BlockNodeObservingConnection connection = entry.getValue();
             final BlockNodeEndpoint streamingEndpoint = node.configuration().streamingEndpoint();
@@ -1061,12 +1160,7 @@ public class BlockNodeConnectionManager extends BlockStreamingBase {
                 // suppress any failures on close
                 logger.debug("{} Failed to close observer - suppressing", connection, e);
             } finally {
-                it.remove();
                 prunedObservers.add(node);
-            }
-
-            if (numToPrune == prunedObservers.size()) {
-                break;
             }
         }
 
@@ -1078,10 +1172,11 @@ public class BlockNodeConnectionManager extends BlockStreamingBase {
      *
      * @param rankedNodes the available block nodes to observe, in order of preference
      * @param numObserversWanted the number of observing connection desired
+     * @param generation the lifecycle generation of the monitor pass making this call
      * @return result of the update attempt
      */
     private ObservingConnectionsUpdateResult maybeUpdateObservingConnections(
-            @NonNull final List<BlockNode> rankedNodes, final int numObserversWanted) {
+            @NonNull final List<BlockNode> rankedNodes, final int numObserversWanted, final long generation) {
         if (numObserversWanted < 1) {
             return new ObservingConnectionsUpdateResult(false, Set.of(), activeObservingConnections.keySet(), Set.of());
         }
@@ -1112,7 +1207,8 @@ public class BlockNodeConnectionManager extends BlockStreamingBase {
         }
 
         if (numObserversWanted != observers.size()) {
-            while (nodesIt.hasNext()) {
+            // once the lifecycle ends every further candidate would be opened only to be closed again
+            while (nodesIt.hasNext() && lifecycleGeneration.get() == generation) {
                 final BlockNode node = nodesIt.next();
                 if (activeObservingConnections.containsKey(node)) {
                     // this block node is already acting as an observer so we don't need to do anything else
@@ -1120,7 +1216,7 @@ public class BlockNodeConnectionManager extends BlockStreamingBase {
                     existingObservers.add(node);
                 } else {
                     // found a new observer block node to connect to
-                    if (tryNewObservingConnection(node)) {
+                    if (tryNewObservingConnection(node, generation)) {
                         observers.add(node);
                         newObservers.add(node);
                         updated = true;
@@ -1133,28 +1229,35 @@ public class BlockNodeConnectionManager extends BlockStreamingBase {
             }
         }
 
+        if (lifecycleGeneration.get() != generation) {
+            // shutdown already closed the registered observers, so there is nothing left to prune or count
+            return new ObservingConnectionsUpdateResult(updated, newObservers, existingObservers, Set.of());
+        }
+
         final Set<BlockNode> prunedObservers = new HashSet<>();
 
         // shutdown any observers not known during this iteration
-        final Iterator<Entry<BlockNode, BlockNodeObservingConnection>> obsIt =
-                activeObservingConnections.entrySet().iterator();
-        while (obsIt.hasNext()) {
-            final Map.Entry<BlockNode, BlockNodeObservingConnection> entry = obsIt.next();
-            final BlockNode node = entry.getKey();
-
-            if (!observers.contains(node)) {
-                // found an "old" observer that isn't needed - close it
-                final BlockNodeObservingConnection connection = entry.getValue();
-                try {
-                    connection.close(CloseReason.NEW_CONNECTION, true, EndStream.Code.RESET);
-                } catch (final Exception e) {
-                    // suppress any failures on close
-                    logger.debug("{} Failed to close observer - suppressing", connection, e);
-                } finally {
-                    updated = true;
-                    prunedObservers.add(node);
-                    obsIt.remove();
+        final List<Map.Entry<BlockNode, BlockNodeObservingConnection>> obsoleteEntries = new ArrayList<>();
+        synchronized (registrationLock) {
+            for (final Map.Entry<BlockNode, BlockNodeObservingConnection> entry :
+                    activeObservingConnections.entrySet()) {
+                if (!observers.contains(entry.getKey())
+                        && activeObservingConnections.remove(entry.getKey(), entry.getValue())) {
+                    obsoleteEntries.add(Map.entry(entry.getKey(), entry.getValue()));
                 }
+            }
+        }
+        for (final Map.Entry<BlockNode, BlockNodeObservingConnection> entry : obsoleteEntries) {
+            // found an "old" observer that isn't needed - close it
+            final BlockNodeObservingConnection connection = entry.getValue();
+            try {
+                connection.close(CloseReason.NEW_CONNECTION, true, EndStream.Code.RESET);
+            } catch (final Exception e) {
+                // suppress any failures on close
+                logger.debug("{} Failed to close observer - suppressing", connection, e);
+            } finally {
+                updated = true;
+                prunedObservers.add(entry.getKey());
             }
         }
 
@@ -1188,12 +1291,14 @@ public class BlockNodeConnectionManager extends BlockStreamingBase {
      * @param streamingNode the block node to stream to
      * @param closeReason the close reason to assign to the existing streaming connection - if one exists
      * @param activeConnection the active connection being replaced
+     * @param generation the lifecycle generation of the monitor pass making this call
      * @return true if a new streaming connection was established, else false
      */
     private boolean tryUpdateNewStreamingConnection(
             @NonNull final BlockNode streamingNode,
             @NonNull final CloseReason closeReason,
-            @Nullable final BlockNodeStreamingConnection activeConnection) {
+            @Nullable final BlockNodeStreamingConnection activeConnection,
+            final long generation) {
         final BlockNodeEndpoint endpoint = streamingNode.configuration().streamingEndpoint();
         logger.info(
                 "Selected new block node for streaming: {}:{} (wantedBlock: {})",
@@ -1222,16 +1327,65 @@ public class BlockNodeConnectionManager extends BlockStreamingBase {
             return false; // exit, try again later or with a different node
         }
 
-        newConnection.updateConnectionState(ConnectionState.ACTIVE);
-        activeStreamingConnectionRef.set(newConnection);
+        final boolean lifecycleEndedWhileOpening;
+        synchronized (registrationLock) {
+            lifecycleEndedWhileOpening = lifecycleGeneration.get() != generation;
+            if (!lifecycleEndedWhileOpening) {
+                activatingStreamers.add(newConnection);
+            }
+        }
+        if (lifecycleEndedWhileOpening) {
+            // the lifecycle of this pass has ended, so nothing else would close this connection
+            newConnection.close(CloseReason.SHUTDOWN, true, null);
+            return false;
+        }
 
-        if (activeConnection != null) {
-            activeConnection.closeAtBlockBoundary(closeReason);
+        try {
+            newConnection.updateConnectionState(ConnectionState.ACTIVE);
+        } catch (final Exception e) {
+            synchronized (registrationLock) {
+                activatingStreamers.remove(newConnection);
+            }
+            logger.warn("{} Failed to activate streaming connection", newConnection, e);
+            blockStreamMetrics.recordConnectionCreateFailure(newConnection.connectionType());
+            newConnection.close(CloseReason.INTERNAL_ERROR, true, EndStream.Code.ERROR);
+            return false;
+        }
+
+        // Activation can close the new connection (e.g. from its worker), so it is only published if it is still open
+        final boolean lifecycleEnded;
+        final boolean closedDuringActivation;
+        BlockNodeStreamingConnection displacedConnection = null;
+        BlockNodeObservingConnection observingConnection = null;
+        synchronized (registrationLock) {
+            lifecycleEnded = lifecycleGeneration.get() != generation;
+            final ConnectionState stateAfterActivation = newConnection.currentState();
+            // a close that has started but not yet notified this manager also keeps the current streamer in place
+            closedDuringActivation = !activatingStreamers.remove(newConnection)
+                    || stateAfterActivation == ConnectionState.CLOSING
+                    || stateAfterActivation == ConnectionState.CLOSED;
+            if (!lifecycleEnded && !closedDuringActivation) {
+                displacedConnection = activeStreamingConnectionRef.getAndSet(newConnection);
+                observingConnection = activeObservingConnections.remove(streamingNode);
+            }
+        }
+
+        if (lifecycleEnded) {
+            // shutdown did not see this connection, so it must be closed here
+            newConnection.close(CloseReason.SHUTDOWN, true, EndStream.Code.RESET);
+            return false;
+        } else if (closedDuringActivation) {
+            // the current streaming connection stays in place
+            return false;
+        }
+
+        retireStreamingConnection(displacedConnection, closeReason);
+        if (activeConnection != displacedConnection) {
+            retireStreamingConnection(activeConnection, closeReason);
         }
 
         // if this new node was previously an observer, close the observer
         // do this AFTER successfully establishing the streaming connection
-        final BlockNodeObservingConnection observingConnection = activeObservingConnections.get(streamingNode);
         if (observingConnection != null) {
             try {
                 observingConnection.close(CloseReason.NEW_CONNECTION, true, EndStream.Code.RESET);
@@ -1248,12 +1402,31 @@ public class BlockNodeConnectionManager extends BlockStreamingBase {
     }
 
     /**
+     * Asks the specified streaming connection, if any, to close at the next block boundary.
+     *
+     * @param connection the streaming connection to retire
+     * @param closeReason the reason the connection is retired
+     */
+    private void retireStreamingConnection(
+            @Nullable final BlockNodeStreamingConnection connection, @NonNull final CloseReason closeReason) {
+        if (connection == null) {
+            return;
+        }
+        try {
+            connection.closeAtBlockBoundary(closeReason);
+        } catch (final Exception e) {
+            logger.warn("{} Failed to close streaming connection - suppressing", connection, e);
+        }
+    }
+
+    /**
      * Attempts to create a new observing connection to the specified block node.
      *
      * @param node the block node to create an observing connection to
+     * @param generation the lifecycle generation of the monitor pass making this call
      * @return true if the observing connection was successfully established, else false
      */
-    private boolean tryNewObservingConnection(@NonNull final BlockNode node) {
+    private boolean tryNewObservingConnection(@NonNull final BlockNode node, final long generation) {
         final BlockNodeEndpoint endpoint = node.configuration().streamingEndpoint();
         logger.info("Selected new block node for observing: {}:{}", endpoint.host(), endpoint.port());
 
@@ -1276,8 +1449,21 @@ public class BlockNodeConnectionManager extends BlockStreamingBase {
             return false;
         }
 
+        final boolean lifecycleEnded;
+        BlockNodeObservingConnection oldConnection = null;
+        synchronized (registrationLock) {
+            lifecycleEnded = lifecycleGeneration.get() != generation;
+            if (!lifecycleEnded) {
+                oldConnection = activeObservingConnections.put(node, newConnection);
+            }
+        }
+        if (lifecycleEnded) {
+            // the lifecycle of this pass has ended, so nothing else would close this connection
+            newConnection.close(CloseReason.SHUTDOWN, true, null);
+            return false;
+        }
+
         boolean wasSuccessful = true;
-        final BlockNodeObservingConnection oldConnection = activeObservingConnections.put(node, newConnection);
         // activating the connection should happen AFTER the connection has been inserted into the connection map
         // this is to avoid a scenario where the connection fails upon activation, and we insert a dead-on-arrival
         // connection into the tracking map
@@ -1285,7 +1471,9 @@ public class BlockNodeConnectionManager extends BlockStreamingBase {
             newConnection.updateConnectionState(ConnectionState.ACTIVE);
         } catch (final Exception e) {
             logger.warn("{} Failed to activate observer - suppressing", newConnection, e);
-            activeObservingConnections.remove(node, newConnection);
+            synchronized (registrationLock) {
+                activeObservingConnections.remove(node, newConnection);
+            }
             blockStreamMetrics.recordConnectionCreateFailure(newConnection.connectionType());
             // depending on the failure we may or may not be able to send an EndStream message, so err on the side of
             // caution and pass in an EndStream code so we attempt to send it if possible
@@ -1414,6 +1602,10 @@ public class BlockNodeConnectionManager extends BlockStreamingBase {
         }
 
         final ExecutorService blockingIoExecutor = blockingIoExecutorRef.get();
+        if (blockingIoExecutor == null) {
+            // the manager was shut down
+            return Map.of();
+        }
         // for status checks there are two timeouts: 1) timeout setting up the connection and 2) timeout for calling
         // the status API itself. and since this is a batch, we will add a little padding
         final long batchTimeoutMillis = connectionManagementTimeoutMillis() + statusTimeoutMillis() + 500;
@@ -1522,12 +1714,14 @@ public class BlockNodeConnectionManager extends BlockStreamingBase {
      * @param force if true, a new block node will be selected regardless if a cool down is in place
      * @param closeReason if there is an active connection and a switch is performed, this reason will be applied to
      *                    the active connection for the reason why the switch was required
+     * @param generation the lifecycle generation of the monitor pass making this call
      */
     private boolean selectNewStreamingBlockNode(
             final boolean force,
             @NonNull final BlockNodeConnectionManager.NodeSelectionCriteria criteria,
             @NonNull final CloseReason closeReason,
-            @Nullable final BlockNodeStreamingConnection activeConnection) {
+            @Nullable final BlockNodeStreamingConnection activeConnection,
+            final long generation) {
         requireNonNull(criteria, "Selection criteria is required");
         pruneNodes();
 
@@ -1599,7 +1793,7 @@ public class BlockNodeConnectionManager extends BlockStreamingBase {
             return false;
         }
 
-        return tryUpdateNewStreamingConnection(selectedNode, closeReason, activeConnection);
+        return tryUpdateNewStreamingConnection(selectedNode, closeReason, activeConnection, generation);
     }
 
     /**

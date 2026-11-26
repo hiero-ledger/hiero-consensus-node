@@ -799,6 +799,8 @@ public class BlockBufferService extends BlockStreamingBase {
                 totalBlockSizeLoaded = totalBlockSizeLoaded.add(BigInteger.valueOf(blockItemTotalSize));
                 lastProducedBlockNumber.updateAndGet(old -> Math.max(old, block.blockNumber()));
                 lastBlockClosed.updateAndGet(old -> Math.max(old, block.blockNumber()));
+                earliestBlockNumber.updateAndGet(
+                        current -> current == Long.MIN_VALUE ? blockNumber : Math.min(current, blockNumber));
             }
         }
 

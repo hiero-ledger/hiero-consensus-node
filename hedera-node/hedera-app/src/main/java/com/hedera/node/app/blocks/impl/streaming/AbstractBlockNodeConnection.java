@@ -215,47 +215,51 @@ public abstract class AbstractBlockNodeConnection extends BlockStreamingBase imp
     /**
      * Update this connection's state to the specified new state if the current state matches the expected state.
      *
-     * @param expectedState the expected current state of this connection
+     * @param expectedState the expected current state of this connection, or null to use the current state
      * @param newState the new state to update to
      * @return true if the update was successful, else false (e.g. current state did not match expected state)
+     * @throws IllegalConnectionStateTransition if the expected (else current) state cannot move to the new state
      */
     final boolean updateConnectionState(
             @Nullable final ConnectionState expectedState, @NonNull final ConnectionState newState) {
         requireNonNull(newState, "newState is required");
 
-        final ConnectionState latestState = stateRef.get();
+        final ConnectionState fromState = expectedState != null ? expectedState : stateRef.get();
 
-        if (!latestState.canTransitionTo(newState)) {
+        if (!fromState.canTransitionTo(newState)) {
             logger.warn(
                     "{} Attempted to downgrade state from {} to {}, but this is not allowed",
                     this,
-                    latestState,
+                    fromState,
                     newState);
-            throw new IllegalConnectionStateTransition(connectionId, latestState, newState);
+            throw new IllegalConnectionStateTransition(connectionId, fromState, newState);
         }
 
-        if (expectedState != null && expectedState != latestState) {
-            logger.debug("{} Current state ({}) does not match expected state ({})", this, latestState, expectedState);
+        if (!stateRef.compareAndSet(fromState, newState)) {
+            if (expectedState != null) {
+                logger.debug(
+                        "{} Current state ({}) does not match expected state ({})",
+                        this,
+                        stateRef.get(),
+                        expectedState);
+            } else {
+                logger.debug(
+                        "{} Failed to transition state from {} to {} because current state does not match expected state",
+                        this,
+                        fromState,
+                        newState);
+            }
             return false;
         }
 
-        if (!stateRef.compareAndSet(latestState, newState)) {
-            logger.debug(
-                    "{} Failed to transition state from {} to {} because current state does not match expected state",
-                    this,
-                    latestState,
-                    newState);
-            return false;
-        }
+        logger.debug("{} Connection state transitioned from {} to {}", this, fromState, newState);
 
-        logger.debug("{} Connection state transitioned from {} to {}", this, latestState, newState);
-
-        final ConnectionState state = stateRef.get();
-        if (state == ConnectionState.ACTIVE) {
+        // dispatch on the committed destination; a concurrent update may already have moved the state on
+        if (newState == ConnectionState.ACTIVE) {
             activeTimestampRef.set(Instant.now());
             onActiveStateTransition();
-        } else if (state.isTerminal()) {
-            if (state == ConnectionState.CLOSED) {
+        } else if (newState.isTerminal()) {
+            if (newState == ConnectionState.CLOSED) {
                 closeTimestampRef.set(Instant.now());
             }
 

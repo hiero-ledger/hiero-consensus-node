@@ -2,6 +2,7 @@
 package com.hedera.node.app.blocks.impl.streaming;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
@@ -19,12 +20,14 @@ import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfiguration;
 import com.hedera.node.config.data.BlockNodeConnectionConfig;
+import com.hedera.pbj.runtime.ParseException;
 import java.io.IOException;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.VarHandle;
 import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.ClosedWatchServiceException;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
@@ -32,11 +35,13 @@ import java.nio.file.Path;
 import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
 import java.util.List;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.hiero.base.file.FileUtils;
 import org.junit.jupiter.api.AfterEach;
@@ -44,6 +49,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -55,6 +64,7 @@ class BlockNodeConfigServiceTest extends BlockNodeCommunicationTestBase {
     private static final VarHandle latestConfigRefHandle;
     private static final VarHandle configVersionCounterHandle;
     private static final MethodHandle loadConfigurationHandle;
+    private static final MethodHandle parseStrictlyHandle;
 
     static {
         try {
@@ -71,6 +81,10 @@ class BlockNodeConfigServiceTest extends BlockNodeCommunicationTestBase {
             final Method loadConfiguration = BlockNodeConfigService.class.getDeclaredMethod("loadConfiguration");
             loadConfiguration.setAccessible(true);
             loadConfigurationHandle = lookup.unreflect(loadConfiguration);
+
+            final Method parseStrictly = BlockNodeConfigService.class.getDeclaredMethod("parseStrictly", byte[].class);
+            parseStrictly.setAccessible(true);
+            parseStrictlyHandle = lookup.unreflect(parseStrictly);
         } catch (final Exception e) {
             throw new RuntimeException(e);
         }
@@ -337,6 +351,95 @@ class BlockNodeConfigServiceTest extends BlockNodeCommunicationTestBase {
         assertThat(nodeConfig.address()).isEqualTo("localhost");
         assertThat(nodeConfig.streamingPort()).isEqualTo(9999);
         assertThat(nodeConfig.priority()).isEqualTo(1);
+    }
+
+    private static final String THREE_NODE_CONFIG = """
+            {
+              "nodes": [
+                {
+                  "address": "localhost",
+                  "streamingPort": 9997,
+                  "priority": 1
+                },
+                {
+                  "address": "localhost",
+                  "streamingPort": 9998,
+                  "priority": 2
+                },
+                {
+                  "address": "localhost",
+                  "streamingPort": 9999,
+                  "priority": 3,
+                  "futureFieldFromNewerVersion": "ignored"
+                }
+              ]
+            }
+            """;
+
+    private static Stream<Arguments> truncatedConfigs() {
+        final int secondNodeEnd = THREE_NODE_CONFIG.indexOf('}', THREE_NODE_CONFIG.indexOf("9998")) + 1;
+        return Stream.of(
+                Arguments.of("open brace only", "{"),
+                Arguments.of("open nodes array", "{\n  \"nodes\": ["),
+                Arguments.of("ends after second node", THREE_NODE_CONFIG.substring(0, secondNodeEnd)));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("truncatedConfigs")
+    void testLoadConfiguration_truncatedFileKeepsCurrentConfig(final String label, final String truncated)
+            throws Throwable {
+        // the full file, including a field this version does not know, loads
+        writeConfig(THREE_NODE_CONFIG);
+        invoke_loadConfiguration();
+
+        final VersionedBlockNodeConfigurationSet loaded = configService.latestConfiguration();
+        assertThat(loaded).isNotNull();
+        assertThat(loaded.versionNumber()).isEqualTo(1L);
+        assertThat(loaded.configs())
+                .extracting(BlockNodeConfiguration::streamingPort)
+                .containsExactlyInAnyOrder(9997, 9998, 9999);
+
+        // a reload that sees only part of a file being written must not replace the loaded configuration
+        writeConfig(truncated);
+        invoke_loadConfiguration();
+
+        assertThat(configService.latestConfiguration()).isSameAs(loaded);
+        assertThat(configVersionCounter()).hasValue(1);
+        assertThat(logCaptor.warnLogs())
+                .anyMatch(line -> line.contains("Failed to read block node configuration from"));
+    }
+
+    @Test
+    void testLoadConfiguration_byteOrderMarkIgnored() throws Throwable {
+        writeConfig("\uFEFF" + THREE_NODE_CONFIG);
+        invoke_loadConfiguration();
+
+        final VersionedBlockNodeConfigurationSet loaded = configService.latestConfiguration();
+        assertThat(loaded).isNotNull();
+        assertThat(loaded.configs())
+                .extracting(BlockNodeConfiguration::streamingPort)
+                .containsExactlyInAnyOrder(9997, 9998, 9999);
+    }
+
+    @Test
+    void testParseStrictly_everyTruncationRejected() throws Throwable {
+        final String full = THREE_NODE_CONFIG.strip();
+        assertThat(invoke_parseStrictly(full)).isNotNull();
+
+        for (int length = 0; length < full.length(); length++) {
+            final String truncated = full.substring(0, length);
+            assertThatThrownBy(() -> invoke_parseStrictly(truncated))
+                    .as("file truncated to %d characters", length)
+                    .isInstanceOfAny(ParseException.class, CancellationException.class);
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "{\"nodes\": [],}", "{\"nodes\": [}", "{\"nodes\": []} {}"})
+    void testParseStrictly_syntaxErrorNamesPosition(final String json) {
+        assertThatThrownBy(() -> invoke_parseStrictly(json))
+                .isInstanceOf(CancellationException.class)
+                .hasMessageMatching("line \\d+:\\d+ .+");
     }
 
     @Test
@@ -1095,6 +1198,10 @@ class BlockNodeConfigServiceTest extends BlockNodeCommunicationTestBase {
 
     void invoke_loadConfiguration() throws Throwable {
         loadConfigurationHandle.invoke(configService);
+    }
+
+    static Object invoke_parseStrictly(final String json) throws Throwable {
+        return parseStrictlyHandle.invoke(json.getBytes(StandardCharsets.UTF_8));
     }
 
     void writeConfig(final String config) throws IOException {

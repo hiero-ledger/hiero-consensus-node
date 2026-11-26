@@ -34,6 +34,7 @@ import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeHelidonGrpcConf
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeHelidonHttpConfiguration;
 import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
+import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.types.BlockStreamGrpcCompressionType;
 import com.hedera.pbj.runtime.grpc.GrpcCall;
@@ -63,6 +64,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
+import org.apache.logging.log4j.LogManager;
 import org.hiero.block.api.BlockEnd;
 import org.hiero.block.api.PublishStreamRequest.EndStream;
 import org.hiero.block.api.PublishStreamResponse;
@@ -716,6 +718,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         // Verify getEarliestAvailableBlockNumber() is called during block switching and potentially during shutdown.
         // The worker checks if the connection has fallen too far behind.
         verify(bufferService, atLeastOnce()).getEarliestAvailableBlockNumber();
+        verify(bufferService, atLeastOnce()).getLastBlockNumberProduced();
         verifyNoMoreInteractions(bufferService);
     }
 
@@ -1115,6 +1118,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         verify(requestCall).completeRequests();
         verify(bufferService, atLeastOnce()).getBlockState(blockNumber);
         verify(bufferService, atLeastOnce()).getEarliestAvailableBlockNumber();
+        verify(bufferService, atLeastOnce()).getLastBlockNumberProduced();
         verify(bufferService).getHighestAckedBlockNumber();
         verify(metrics).recordConnectionOpened(ConnectionType.BLOCK_STREAMING);
         verify(metrics).recordRequestLatency(eq(ConnectionType.BLOCK_STREAMING), anyLong());
@@ -1261,6 +1265,230 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestCall);
         verifyNoMoreInteractions(bufferService);
+    }
+
+    @Test
+    void workerClosesAfterDeadlineWhenBlockNeverCloses() throws Exception {
+        configProvider = createConfigProvider(
+                createDefaultConfigProvider().withValue("blockNode.closeAtBlockBoundaryTimeout", "200ms"));
+        final long blockNumber = 10;
+        final BlockState block = new BlockState(blockNumber, 2_000L);
+        block.addItem(newBlockHeaderItem(blockNumber));
+        block.addItem(newBlockTxItem(1_345));
+        lenient().when(bufferService.getBlockState(blockNumber)).thenReturn(block);
+
+        connection = new BlockNodeStreamingConnection(
+                configProvider,
+                new BlockNode(
+                        configProvider,
+                        nodeConfig,
+                        globalActiveStreamingConnectionCount,
+                        globalActiveObservingConnectionCount,
+                        new BlockNodeStats()),
+                connectionManager,
+                bufferService,
+                metrics,
+                pipelineExecutor,
+                blockNumber,
+                clientFactory,
+                NODE_ID,
+                streamingObs);
+        lenient().doReturn(requestCall).when(grpcServiceClient).publishBlockStream(connection);
+
+        connection.initialize();
+        connection.updateConnectionState(ConnectionState.ACTIVE); // starts the worker thread
+        final Thread workerThread = workerThreadRef().get();
+        assertThat(workerThread).isNotNull();
+
+        // the block is never closed, so the boundary is never reached
+        connection.closeAtBlockBoundary(CloseReason.SHUTDOWN);
+
+        assertThat(workerThread.join(Duration.ofSeconds(2))).isTrue();
+        assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);
+        assertThat(connection.closeReason()).isEqualTo(CloseReason.SHUTDOWN);
+        final ArgumentCaptor<PublishStreamRequestBytes> requests =
+                ArgumentCaptor.forClass(PublishStreamRequestBytes.class);
+        verify(requestCall, atLeastOnce()).sendRequest(requests.capture(), anyBoolean());
+        final PublishStreamRequestBytes lastRequest = requests.getAllValues().getLast();
+        assertThat(lastRequest.endStream()).isNotNull();
+        assertThat(lastRequest.endStream().endCode()).isEqualTo(EndStream.Code.RESET);
+        verify(metrics, times(1)).recordConnectionClosed(ConnectionType.BLOCK_STREAMING, CloseReason.SHUTDOWN);
+        verify(connectionManager, times(1)).notifyConnectionClosed(connection);
+        verify(grpcServiceClient, times(1)).close();
+        verify(pipelineExecutor, times(1)).shutdown();
+    }
+
+    @Test
+    void closesAtOnceWhenOpenBlockIsNoLongerBuffered() throws Exception {
+        final long blockNumber = 10;
+        final BlockState block = new BlockState(blockNumber, 2_000L);
+        block.addItem(newBlockHeaderItem(blockNumber));
+        block.addItem(newBlockTxItem(1_345));
+        final AtomicBoolean dropped = new AtomicBoolean(false);
+        final CountDownLatch loaded = new CountDownLatch(1);
+        lenient()
+                .doAnswer(_ -> {
+                    if (dropped.get()) {
+                        return null;
+                    }
+                    loaded.countDown();
+                    return block;
+                })
+                .when(bufferService)
+                .getBlockState(blockNumber);
+        connection = newConnectionStartingAt(blockNumber);
+
+        final LogCaptor logCaptor = new LogCaptor(LogManager.getLogger(BlockNodeStreamingConnection.class));
+        try {
+            connection.initialize();
+            connection.updateConnectionState(ConnectionState.ACTIVE); // starts the worker thread
+            final Thread workerThread = workerThreadRef().get();
+            assertThat(workerThread).isNotNull();
+            assertThat(loaded.await(2, TimeUnit.SECONDS)).isTrue();
+
+            // as on manager shutdown: the close is requested, then the buffer is cleared while the block is open
+            connection.closeAtBlockBoundary(CloseReason.SHUTDOWN);
+            dropped.set(true);
+
+            assertThat(workerThread.join(Duration.ofSeconds(1))).isTrue();
+        } finally {
+            logCaptor.stopCapture();
+        }
+        assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);
+        assertThat(connection.closeReason()).isEqualTo(CloseReason.SHUTDOWN);
+        verify(grpcServiceClient, times(1)).close();
+        verify(metrics, times(1)).recordConnectionClosed(ConnectionType.BLOCK_STREAMING, CloseReason.SHUTDOWN);
+        verify(connectionManager, times(1)).notifyConnectionClosed(connection);
+        assertThat(logCaptor.infoLogs())
+                .anyMatch(log ->
+                        log.contains("Block boundary unreachable (open block no longer buffered); closing connection"));
+        assertThat(logCaptor.warnLogs()).noneMatch(log -> log.contains("before the close deadline"));
+    }
+
+    @Test
+    void finishesSendingClosedBlockThatIsNoLongerBuffered() throws Exception {
+        // nothing is sent before the block closes, so its items are still unsent when it is dropped
+        configProvider =
+                createConfigProvider(createDefaultConfigProvider().withValue("blockNode.maxRequestDelay", "1m"));
+        final long blockNumber = 10;
+        final BlockState block = new BlockState(blockNumber, 2_000L);
+        block.addItem(newBlockHeaderItem(blockNumber));
+        block.addItem(newBlockTxItem(1_345));
+        block.addItem(newBlockProofItem(blockNumber, 3_501));
+        final CountDownLatch loaded = new CountDownLatch(1);
+        // the buffer drops the block as it closes, as when shutdown clears it after the freeze ACK wait timed out
+        lenient()
+                .doAnswer(_ -> {
+                    if (block.isClosed()) {
+                        return null;
+                    }
+                    loaded.countDown();
+                    return block;
+                })
+                .when(bufferService)
+                .getBlockState(blockNumber);
+        connection = newConnectionStartingAt(blockNumber);
+
+        final LogCaptor logCaptor = new LogCaptor(LogManager.getLogger(BlockNodeStreamingConnection.class));
+        try {
+            connection.initialize();
+            connection.updateConnectionState(ConnectionState.ACTIVE); // starts the worker thread
+            final Thread workerThread = workerThreadRef().get();
+            assertThat(workerThread).isNotNull();
+            assertThat(loaded.await(2, TimeUnit.SECONDS)).isTrue();
+
+            connection.closeAtBlockBoundary(CloseReason.SHUTDOWN);
+            block.closeBlock();
+
+            assertThat(workerThread.join(Duration.ofSeconds(2))).isTrue();
+        } finally {
+            logCaptor.stopCapture();
+        }
+        assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);
+        assertThat(connection.closeReason()).isEqualTo(CloseReason.SHUTDOWN);
+        final ArgumentCaptor<PublishStreamRequestBytes> requestCaptor =
+                ArgumentCaptor.forClass(PublishStreamRequestBytes.class);
+        verify(requestCall, atLeast(3)).sendRequest(requestCaptor.capture(), anyBoolean());
+        final List<PublishStreamRequestBytes> requests = requestCaptor.getAllValues();
+        assertThat(requests.getLast().endStream()).isNotNull();
+        assertThat(requests.getLast().endStream().endCode()).isEqualTo(EndStream.Code.RESET);
+        assertThat(requests.get(requests.size() - 2).endOfBlock()).isNotNull();
+        assertThat(requests.get(requests.size() - 2).endOfBlock().blockNumber()).isEqualTo(blockNumber);
+        final List<BlockItem> items = new ArrayList<>();
+        for (final PublishStreamRequestBytes request : requests.subList(0, requests.size() - 2)) {
+            assertThat(request.blockItems()).isNotNull();
+            request.blockItems().blockItems().forEach(b -> items.add(parse(b)));
+        }
+        assertThat(items).hasSize(3);
+        assertThat(items.getFirst().blockHeader()).isNotNull();
+        assertThat(items.getLast().blockProof()).isNotNull();
+        assertThat(logCaptor.infoLogs())
+                .anyMatch(log -> log.contains("Block boundary reached; closing connection (finished sending block)"));
+        assertThat(logCaptor.warnLogs()).noneMatch(log -> log.contains("before the close deadline"));
+    }
+
+    @Test
+    void finishesSendingBlockThatClosesWhileBeingLookedUp() throws Exception {
+        configProvider =
+                createConfigProvider(createDefaultConfigProvider().withValue("blockNode.maxRequestDelay", "1m"));
+        final long blockNumber = 10;
+        final BlockState block = new BlockState(blockNumber, 2_000L);
+        block.addItem(newBlockHeaderItem(blockNumber));
+        block.addItem(newBlockTxItem(1_345));
+        block.addItem(newBlockProofItem(blockNumber, 3_501));
+        final AtomicBoolean closeRequested = new AtomicBoolean(false);
+        final CountDownLatch loaded = new CountDownLatch(1);
+        // the block closes and leaves the buffer during the lookup, after the worker last saw it open
+        lenient()
+                .doAnswer(_ -> {
+                    if (closeRequested.get()) {
+                        block.closeBlock();
+                        return null;
+                    }
+                    loaded.countDown();
+                    return block;
+                })
+                .when(bufferService)
+                .getBlockState(blockNumber);
+        connection = newConnectionStartingAt(blockNumber);
+
+        final LogCaptor logCaptor = new LogCaptor(LogManager.getLogger(BlockNodeStreamingConnection.class));
+        try {
+            connection.initialize();
+            connection.updateConnectionState(ConnectionState.ACTIVE); // starts the worker thread
+            final Thread workerThread = workerThreadRef().get();
+            assertThat(workerThread).isNotNull();
+            assertThat(loaded.await(2, TimeUnit.SECONDS)).isTrue();
+
+            connection.closeAtBlockBoundary(CloseReason.SHUTDOWN);
+            closeRequested.set(true);
+
+            assertThat(workerThread.join(Duration.ofSeconds(2))).isTrue();
+        } finally {
+            logCaptor.stopCapture();
+        }
+        assertThat(block.isClosed()).isTrue();
+        assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);
+        assertThat(connection.closeReason()).isEqualTo(CloseReason.SHUTDOWN);
+        final ArgumentCaptor<PublishStreamRequestBytes> requestCaptor =
+                ArgumentCaptor.forClass(PublishStreamRequestBytes.class);
+        verify(requestCall, atLeast(3)).sendRequest(requestCaptor.capture(), anyBoolean());
+        final List<PublishStreamRequestBytes> requests = requestCaptor.getAllValues();
+        assertThat(requests.getLast().endStream()).isNotNull();
+        assertThat(requests.getLast().endStream().endCode()).isEqualTo(EndStream.Code.RESET);
+        assertThat(requests.get(requests.size() - 2).endOfBlock()).isNotNull();
+        assertThat(requests.get(requests.size() - 2).endOfBlock().blockNumber()).isEqualTo(blockNumber);
+        final List<BlockItem> items = new ArrayList<>();
+        for (final PublishStreamRequestBytes request : requests.subList(0, requests.size() - 2)) {
+            assertThat(request.blockItems()).isNotNull();
+            request.blockItems().blockItems().forEach(b -> items.add(parse(b)));
+        }
+        assertThat(items).hasSize(3);
+        assertThat(items.getFirst().blockHeader()).isNotNull();
+        assertThat(items.getLast().blockProof()).isNotNull();
+        assertThat(logCaptor.infoLogs()).noneMatch(log -> log.contains("Block boundary unreachable"));
+        assertThat(logCaptor.infoLogs())
+                .anyMatch(log -> log.contains("Block boundary reached; closing connection (finished sending block)"));
     }
 
     /**
@@ -1481,6 +1709,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         verify(bufferService, atLeastOnce()).getBlockState(10);
         verify(bufferService, atLeastOnce()).getBlockState(11);
         verify(bufferService, atLeastOnce()).getEarliestAvailableBlockNumber();
+        verify(bufferService, atLeastOnce()).getLastBlockNumberProduced();
         verify(metrics, atLeastOnce()).recordStreamingBlockNumber(anyLong());
         verify(metrics, atLeastOnce()).recordRequestBlockItemCount(anyInt());
         verify(metrics, atLeastOnce()).recordRequestBytes(eq(ConnectionType.BLOCK_STREAMING), anyLong());
@@ -1807,6 +2036,27 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
     }
 
     // Utilities
+
+    private BlockNodeStreamingConnection newConnectionStartingAt(final long blockNumber) {
+        final BlockNodeStreamingConnection newConnection = new BlockNodeStreamingConnection(
+                configProvider,
+                new BlockNode(
+                        configProvider,
+                        nodeConfig,
+                        globalActiveStreamingConnectionCount,
+                        globalActiveObservingConnectionCount,
+                        new BlockNodeStats()),
+                connectionManager,
+                bufferService,
+                metrics,
+                pipelineExecutor,
+                blockNumber,
+                clientFactory,
+                NODE_ID,
+                streamingObs);
+        lenient().doReturn(requestCall).when(grpcServiceClient).publishBlockStream(newConnection);
+        return newConnection;
+    }
 
     private void openConnectionAndResetMocks() {
         connection.initialize();

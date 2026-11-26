@@ -36,87 +36,87 @@ These metrics relate to the block buffer and are identified by the prefix "buffe
 These metrics relate to general connectivity events between the consensus node and the block node. They are prefixed
 with "conn" for identification.
 
-|                           Metric Name                            |      Type       |                                                Description                                                |
-|------------------------------------------------------------------|-----------------|-----------------------------------------------------------------------------------------------------------|
-| `blockStream_conn_activeConnIp`                                  | Gauge (long)    | IP address (in integer format) of the currently active streaming block node connection                    |
-| `blockStream_conn_activeObservingConnectionCount`                | Gauge (long)    | Current number of active acknowledgement observing connections to block nodes                             |
-| `blockStream_conn_activeStreamingConnectionCount`                | Gauge (long)    | Current number of active streaming connections to block nodes                                             |
-| `blockStream_conn_blockClosedToAckLatency`                       | Running average | The average latency (µs) between the block being complete and receiving its BlockAcknowledgement          |
-| `blockStream_conn_blockEndSentToAckLatency`                      | Running average | The average latency (µs) between streaming a BlockEnd and receiving its BlockAcknowledgement              |
-| `blockStream_conn_endOfStreamLimitExceeded`                      | Counter         | Number of times the active block node connection has exceeded the allowed number of EndOfStream responses |
-| `blockStream_conn_headerProducedToAckLatency`                    | Running average | The average latency (µs) between producing a BlockHeader and receiving its BlockAcknowledgement           |
-| `blockStream_conn_headerSentToAckLatency`                        | Running average | The average latency (µs) between streaming a BlockHeader and receiving its BlockAcknowledgement           |
-| `blockStream_conn_headerSentToBlockEndSentLatency`               | Running average | The average latency (µs) between streaming a BlockHeader and streaming the corresponding BlockEnd         |
-| `blockStream_conn_highLatencyEvents`                             | Counter         | Count of high latency events from the active block node connection                                        |
-| `blockStream_observingConn_closed`                               | Counter         | Number of block node observing connections closed                                                         |
-| `blockStream_observingConn_connClose_blockNodeBehind`            | Counter         | Number of observing connections closed with reason BLOCK_NODE_BEHIND                                      |
-| `blockStream_observingConn_connClose_blockNodeHighLatency`       | Counter         | Number of observing connections closed with reason BLOCK_NODE_HIGH_LATENCY                                |
-| `blockStream_observingConn_connClose_bufferSaturation`           | Counter         | Number of observing connections closed with reason BUFFER_SATURATION                                      |
-| `blockStream_observingConn_connClose_configUpdate`               | Counter         | Number of observing connections closed with reason CONFIG_UPDATE                                          |
-| `blockStream_observingConn_connClose_connectionError`            | Counter         | Number of observing connections closed with reason CONNECTION_ERROR                                       |
-| `blockStream_observingConn_connClose_endStreamReceived`          | Counter         | Number of observing connections closed with reason END_STREAM_RECEIVED                                    |
-| `blockStream_observingConn_connClose_higherPriorityFound`        | Counter         | Number of observing connections closed with reason HIGHER_PRIORITY_FOUND                                  |
-| `blockStream_observingConn_connClose_idleReceive`                | Counter         | Number of observing connections closed with reason IDLE_RECEIVE                                           |
-| `blockStream_observingConn_connClose_internalError`              | Counter         | Number of observing connections closed with reason INTERNAL_ERROR                                         |
-| `blockStream_observingConn_connClose_newConnection`              | Counter         | Number of observing connections closed with reason NEW_CONNECTION                                         |
-| `blockStream_observingConn_connClose_obsolete`                   | Counter         | Number of observing connections closed with reason OBSOLETE                                               |
-| `blockStream_observingConn_connClose_periodicReset`              | Counter         | Number of observing connections closed with reason PERIODIC_RESET                                         |
-| `blockStream_observingConn_connClose_shutdown`                   | Counter         | Number of observing connections closed with reason SHUTDOWN                                               |
-| `blockStream_observingConn_connClose_timeout`                    | Counter         | Number of observing connections closed with reason TIMEOUT                                                |
-| `blockStream_observingConn_connClose_tooManyEndStreamResponses`  | Counter         | Number of observing connections closed with reason TOO_MANY_END_STREAM_RESPONSES                          |
-| `blockStream_observingConn_connClose_transientEndStreamReceived` | Counter         | Number of observing connections closed with reason TRANSIENT_END_STREAM_RECEIVED                          |
-| `blockStream_observingConn_connClose_unknown`                    | Counter         | Number of observing connections closed with reason UNKNOWN                                                |
-| `blockStream_observingConn_createFailure`                        | Counter         | Number of times establishing a block node observing connection failed                                     |
-| `blockStream_observingConn_onComplete`                           | Counter         | Number of onComplete handler invocations on block node observing connections                              |
-| `blockStream_observingConn_onError`                              | Counter         | Number of onError handler invocations on block node observing connections                                 |
-| `blockStream_observingConn_opened`                               | Counter         | Number of block node observing connections opened                                                         |
-| `blockStream_observingConn_operationTimeout`                     | Counter         | Number of times an operation timed out on a block node observing connection                               |
-| `blockStream_serviceConn_closed`                                 | Counter         | Number of block node service connections closed                                                           |
-| `blockStream_serviceConn_connClose_blockNodeBehind`              | Counter         | Number of service connections closed with reason BLOCK_NODE_BEHIND                                        |
-| `blockStream_serviceConn_connClose_blockNodeHighLatency`         | Counter         | Number of service connections closed with reason BLOCK_NODE_HIGH_LATENCY                                  |
-| `blockStream_serviceConn_connClose_bufferSaturation`             | Counter         | Number of service connections closed with reason BUFFER_SATURATION                                        |
-| `blockStream_serviceConn_connClose_configUpdate`                 | Counter         | Number of service connections closed with reason CONFIG_UPDATE                                            |
-| `blockStream_serviceConn_connClose_connectionError`              | Counter         | Number of service connections closed with reason CONNECTION_ERROR                                         |
-| `blockStream_serviceConn_connClose_endStreamReceived`            | Counter         | Number of service connections closed with reason END_STREAM_RECEIVED                                      |
-| `blockStream_serviceConn_connClose_higherPriorityFound`          | Counter         | Number of service connections closed with reason HIGHER_PRIORITY_FOUND                                    |
-| `blockStream_serviceConn_connClose_idleReceive`                  | Counter         | Number of service connections closed with reason IDLE_RECEIVE                                             |
-| `blockStream_serviceConn_connClose_internalError`                | Counter         | Number of service connections closed with reason INTERNAL_ERROR                                           |
-| `blockStream_serviceConn_connClose_newConnection`                | Counter         | Number of service connections closed with reason NEW_CONNECTION                                           |
-| `blockStream_serviceConn_connClose_obsolete`                     | Counter         | Number of service connections closed with reason OBSOLETE                                                 |
-| `blockStream_serviceConn_connClose_periodicReset`                | Counter         | Number of service connections closed with reason PERIODIC_RESET                                           |
-| `blockStream_serviceConn_connClose_shutdown`                     | Counter         | Number of service connections closed with reason SHUTDOWN                                                 |
-| `blockStream_serviceConn_connClose_timeout`                      | Counter         | Number of service connections closed with reason TIMEOUT                                                  |
-| `blockStream_serviceConn_connClose_tooManyEndStreamResponses`    | Counter         | Number of service connections closed with reason TOO_MANY_END_STREAM_RESPONSES                            |
-| `blockStream_serviceConn_connClose_transientEndStreamReceived`   | Counter         | Number of service connections closed with reason TRANSIENT_END_STREAM_RECEIVED                            |
-| `blockStream_serviceConn_connClose_unknown`                      | Counter         | Number of service connections closed with reason UNKNOWN                                                  |
-| `blockStream_serviceConn_createFailure`                          | Counter         | Number of times establishing a block node service connection failed                                       |
-| `blockStream_serviceConn_onComplete`                             | Counter         | Number of onComplete handler invocations on block node service connections                                |
-| `blockStream_serviceConn_onError`                                | Counter         | Number of onError handler invocations on block node service connections                                   |
-| `blockStream_serviceConn_opened`                                 | Counter         | Number of block node service connections opened                                                           |
-| `blockStream_serviceConn_operationTimeout`                       | Counter         | Number of times an operation timed out on a block node service connection                                 |
-| `blockStream_streamingConn_closed`                               | Counter         | Number of block node streaming connections closed                                                         |
-| `blockStream_streamingConn_connClose_blockNodeBehind`            | Counter         | Number of streaming connections closed with reason BLOCK_NODE_BEHIND                                      |
-| `blockStream_streamingConn_connClose_blockNodeHighLatency`       | Counter         | Number of streaming connections closed with reason BLOCK_NODE_HIGH_LATENCY                                |
-| `blockStream_streamingConn_connClose_bufferSaturation`           | Counter         | Number of streaming connections closed with reason BUFFER_SATURATION                                      |
-| `blockStream_streamingConn_connClose_configUpdate`               | Counter         | Number of streaming connections closed with reason CONFIG_UPDATE                                          |
-| `blockStream_streamingConn_connClose_connectionError`            | Counter         | Number of streaming connections closed with reason CONNECTION_ERROR                                       |
-| `blockStream_streamingConn_connClose_endStreamReceived`          | Counter         | Number of streaming connections closed with reason END_STREAM_RECEIVED                                    |
-| `blockStream_streamingConn_connClose_higherPriorityFound`        | Counter         | Number of streaming connections closed with reason HIGHER_PRIORITY_FOUND                                  |
-| `blockStream_streamingConn_connClose_idleReceive`                | Counter         | Number of streaming connections closed with reason IDLE_RECEIVE                                           |
-| `blockStream_streamingConn_connClose_internalError`              | Counter         | Number of streaming connections closed with reason INTERNAL_ERROR                                         |
-| `blockStream_streamingConn_connClose_newConnection`              | Counter         | Number of streaming connections closed with reason NEW_CONNECTION                                         |
-| `blockStream_streamingConn_connClose_obsolete`                   | Counter         | Number of streaming connections closed with reason OBSOLETE                                               |
-| `blockStream_streamingConn_connClose_periodicReset`              | Counter         | Number of streaming connections closed with reason PERIODIC_RESET                                         |
-| `blockStream_streamingConn_connClose_shutdown`                   | Counter         | Number of streaming connections closed with reason SHUTDOWN                                               |
-| `blockStream_streamingConn_connClose_timeout`                    | Counter         | Number of streaming connections closed with reason TIMEOUT                                                |
-| `blockStream_streamingConn_connClose_tooManyEndStreamResponses`  | Counter         | Number of streaming connections closed with reason TOO_MANY_END_STREAM_RESPONSES                          |
-| `blockStream_streamingConn_connClose_transientEndStreamReceived` | Counter         | Number of streaming connections closed with reason TRANSIENT_END_STREAM_RECEIVED                          |
-| `blockStream_streamingConn_connClose_unknown`                    | Counter         | Number of streaming connections closed with reason UNKNOWN                                                |
-| `blockStream_streamingConn_createFailure`                        | Counter         | Number of times establishing a block node streaming connection failed                                     |
-| `blockStream_streamingConn_onComplete`                           | Counter         | Number of onComplete handler invocations on block node streaming connections                              |
-| `blockStream_streamingConn_onError`                              | Counter         | Number of onError handler invocations on block node streaming connections                                 |
-| `blockStream_streamingConn_opened`                               | Counter         | Number of block node streaming connections opened                                                         |
-| `blockStream_streamingConn_operationTimeout`                     | Counter         | Number of times an operation timed out on a block node streaming connection                               |
+|                           Metric Name                            |      Type       |                                                        Description                                                        |
+|------------------------------------------------------------------|-----------------|---------------------------------------------------------------------------------------------------------------------------|
+| `blockStream_conn_activeConnIp`                                  | Gauge (long)    | IP address (in integer format) of the currently active streaming block node connection                                    |
+| `blockStream_conn_activeObservingConnectionCount`                | Gauge (long)    | Current number of active acknowledgement observing connections to block nodes                                             |
+| `blockStream_conn_activeStreamingConnectionCount`                | Gauge (long)    | Current number of active streaming connections to block nodes                                                             |
+| `blockStream_conn_blockClosedToAckLatency`                       | Running average | The average latency (µs) between the block being complete and receiving its BlockAcknowledgement                          |
+| `blockStream_conn_blockEndSentToAckLatency`                      | Running average | The average latency (µs) between streaming a BlockEnd and receiving its BlockAcknowledgement                              |
+| `blockStream_conn_endOfStreamLimitExceeded`                      | Counter         | Number of times a block node connection (streaming or observing) has exceeded the allowed number of EndOfStream responses |
+| `blockStream_conn_headerProducedToAckLatency`                    | Running average | The average latency (µs) between producing a BlockHeader and receiving its BlockAcknowledgement                           |
+| `blockStream_conn_headerSentToAckLatency`                        | Running average | The average latency (µs) between streaming a BlockHeader and receiving its BlockAcknowledgement                           |
+| `blockStream_conn_headerSentToBlockEndSentLatency`               | Running average | The average latency (µs) between streaming a BlockHeader and streaming the corresponding BlockEnd                         |
+| `blockStream_conn_highLatencyEvents`                             | Counter         | Count of high latency events from the active block node connection                                                        |
+| `blockStream_observingConn_closed`                               | Counter         | Number of block node observing connections closed                                                                         |
+| `blockStream_observingConn_connClose_blockNodeBehind`            | Counter         | Number of observing connections closed with reason BLOCK_NODE_BEHIND                                                      |
+| `blockStream_observingConn_connClose_blockNodeHighLatency`       | Counter         | Number of observing connections closed with reason BLOCK_NODE_HIGH_LATENCY                                                |
+| `blockStream_observingConn_connClose_bufferSaturation`           | Counter         | Number of observing connections closed with reason BUFFER_SATURATION                                                      |
+| `blockStream_observingConn_connClose_configUpdate`               | Counter         | Number of observing connections closed with reason CONFIG_UPDATE                                                          |
+| `blockStream_observingConn_connClose_connectionError`            | Counter         | Number of observing connections closed with reason CONNECTION_ERROR                                                       |
+| `blockStream_observingConn_connClose_endStreamReceived`          | Counter         | Number of observing connections closed with reason END_STREAM_RECEIVED                                                    |
+| `blockStream_observingConn_connClose_higherPriorityFound`        | Counter         | Number of observing connections closed with reason HIGHER_PRIORITY_FOUND                                                  |
+| `blockStream_observingConn_connClose_idleReceive`                | Counter         | Number of observing connections closed with reason IDLE_RECEIVE                                                           |
+| `blockStream_observingConn_connClose_internalError`              | Counter         | Number of observing connections closed with reason INTERNAL_ERROR                                                         |
+| `blockStream_observingConn_connClose_newConnection`              | Counter         | Number of observing connections closed with reason NEW_CONNECTION                                                         |
+| `blockStream_observingConn_connClose_obsolete`                   | Counter         | Number of observing connections closed with reason OBSOLETE                                                               |
+| `blockStream_observingConn_connClose_periodicReset`              | Counter         | Number of observing connections closed with reason PERIODIC_RESET                                                         |
+| `blockStream_observingConn_connClose_shutdown`                   | Counter         | Number of observing connections closed with reason SHUTDOWN                                                               |
+| `blockStream_observingConn_connClose_timeout`                    | Counter         | Number of observing connections closed with reason TIMEOUT                                                                |
+| `blockStream_observingConn_connClose_tooManyEndStreamResponses`  | Counter         | Number of observing connections closed with reason TOO_MANY_END_STREAM_RESPONSES                                          |
+| `blockStream_observingConn_connClose_transientEndStreamReceived` | Counter         | Number of observing connections closed with reason TRANSIENT_END_STREAM_RECEIVED                                          |
+| `blockStream_observingConn_connClose_unknown`                    | Counter         | Number of observing connections closed with reason UNKNOWN                                                                |
+| `blockStream_observingConn_createFailure`                        | Counter         | Number of times establishing a block node observing connection failed                                                     |
+| `blockStream_observingConn_onComplete`                           | Counter         | Number of onComplete handler invocations on block node observing connections                                              |
+| `blockStream_observingConn_onError`                              | Counter         | Number of onError handler invocations on block node observing connections                                                 |
+| `blockStream_observingConn_opened`                               | Counter         | Number of block node observing connections opened                                                                         |
+| `blockStream_observingConn_operationTimeout`                     | Counter         | Number of times an operation timed out on a block node observing connection                                               |
+| `blockStream_serviceConn_closed`                                 | Counter         | Number of block node service connections closed                                                                           |
+| `blockStream_serviceConn_connClose_blockNodeBehind`              | Counter         | Number of service connections closed with reason BLOCK_NODE_BEHIND                                                        |
+| `blockStream_serviceConn_connClose_blockNodeHighLatency`         | Counter         | Number of service connections closed with reason BLOCK_NODE_HIGH_LATENCY                                                  |
+| `blockStream_serviceConn_connClose_bufferSaturation`             | Counter         | Number of service connections closed with reason BUFFER_SATURATION                                                        |
+| `blockStream_serviceConn_connClose_configUpdate`                 | Counter         | Number of service connections closed with reason CONFIG_UPDATE                                                            |
+| `blockStream_serviceConn_connClose_connectionError`              | Counter         | Number of service connections closed with reason CONNECTION_ERROR                                                         |
+| `blockStream_serviceConn_connClose_endStreamReceived`            | Counter         | Number of service connections closed with reason END_STREAM_RECEIVED                                                      |
+| `blockStream_serviceConn_connClose_higherPriorityFound`          | Counter         | Number of service connections closed with reason HIGHER_PRIORITY_FOUND                                                    |
+| `blockStream_serviceConn_connClose_idleReceive`                  | Counter         | Number of service connections closed with reason IDLE_RECEIVE                                                             |
+| `blockStream_serviceConn_connClose_internalError`                | Counter         | Number of service connections closed with reason INTERNAL_ERROR                                                           |
+| `blockStream_serviceConn_connClose_newConnection`                | Counter         | Number of service connections closed with reason NEW_CONNECTION                                                           |
+| `blockStream_serviceConn_connClose_obsolete`                     | Counter         | Number of service connections closed with reason OBSOLETE                                                                 |
+| `blockStream_serviceConn_connClose_periodicReset`                | Counter         | Number of service connections closed with reason PERIODIC_RESET                                                           |
+| `blockStream_serviceConn_connClose_shutdown`                     | Counter         | Number of service connections closed with reason SHUTDOWN                                                                 |
+| `blockStream_serviceConn_connClose_timeout`                      | Counter         | Number of service connections closed with reason TIMEOUT                                                                  |
+| `blockStream_serviceConn_connClose_tooManyEndStreamResponses`    | Counter         | Number of service connections closed with reason TOO_MANY_END_STREAM_RESPONSES                                            |
+| `blockStream_serviceConn_connClose_transientEndStreamReceived`   | Counter         | Number of service connections closed with reason TRANSIENT_END_STREAM_RECEIVED                                            |
+| `blockStream_serviceConn_connClose_unknown`                      | Counter         | Number of service connections closed with reason UNKNOWN                                                                  |
+| `blockStream_serviceConn_createFailure`                          | Counter         | Number of times establishing a block node service connection failed                                                       |
+| `blockStream_serviceConn_onComplete`                             | Counter         | Number of onComplete handler invocations on block node service connections                                                |
+| `blockStream_serviceConn_onError`                                | Counter         | Number of onError handler invocations on block node service connections                                                   |
+| `blockStream_serviceConn_opened`                                 | Counter         | Number of block node service connections opened                                                                           |
+| `blockStream_serviceConn_operationTimeout`                       | Counter         | Number of times an operation timed out on a block node service connection                                                 |
+| `blockStream_streamingConn_closed`                               | Counter         | Number of block node streaming connections closed                                                                         |
+| `blockStream_streamingConn_connClose_blockNodeBehind`            | Counter         | Number of streaming connections closed with reason BLOCK_NODE_BEHIND                                                      |
+| `blockStream_streamingConn_connClose_blockNodeHighLatency`       | Counter         | Number of streaming connections closed with reason BLOCK_NODE_HIGH_LATENCY                                                |
+| `blockStream_streamingConn_connClose_bufferSaturation`           | Counter         | Number of streaming connections closed with reason BUFFER_SATURATION                                                      |
+| `blockStream_streamingConn_connClose_configUpdate`               | Counter         | Number of streaming connections closed with reason CONFIG_UPDATE                                                          |
+| `blockStream_streamingConn_connClose_connectionError`            | Counter         | Number of streaming connections closed with reason CONNECTION_ERROR                                                       |
+| `blockStream_streamingConn_connClose_endStreamReceived`          | Counter         | Number of streaming connections closed with reason END_STREAM_RECEIVED                                                    |
+| `blockStream_streamingConn_connClose_higherPriorityFound`        | Counter         | Number of streaming connections closed with reason HIGHER_PRIORITY_FOUND                                                  |
+| `blockStream_streamingConn_connClose_idleReceive`                | Counter         | Number of streaming connections closed with reason IDLE_RECEIVE                                                           |
+| `blockStream_streamingConn_connClose_internalError`              | Counter         | Number of streaming connections closed with reason INTERNAL_ERROR                                                         |
+| `blockStream_streamingConn_connClose_newConnection`              | Counter         | Number of streaming connections closed with reason NEW_CONNECTION                                                         |
+| `blockStream_streamingConn_connClose_obsolete`                   | Counter         | Number of streaming connections closed with reason OBSOLETE                                                               |
+| `blockStream_streamingConn_connClose_periodicReset`              | Counter         | Number of streaming connections closed with reason PERIODIC_RESET                                                         |
+| `blockStream_streamingConn_connClose_shutdown`                   | Counter         | Number of streaming connections closed with reason SHUTDOWN                                                               |
+| `blockStream_streamingConn_connClose_timeout`                    | Counter         | Number of streaming connections closed with reason TIMEOUT                                                                |
+| `blockStream_streamingConn_connClose_tooManyEndStreamResponses`  | Counter         | Number of streaming connections closed with reason TOO_MANY_END_STREAM_RESPONSES                                          |
+| `blockStream_streamingConn_connClose_transientEndStreamReceived` | Counter         | Number of streaming connections closed with reason TRANSIENT_END_STREAM_RECEIVED                                          |
+| `blockStream_streamingConn_connClose_unknown`                    | Counter         | Number of streaming connections closed with reason UNKNOWN                                                                |
+| `blockStream_streamingConn_createFailure`                        | Counter         | Number of times establishing a block node streaming connection failed                                                     |
+| `blockStream_streamingConn_onComplete`                           | Counter         | Number of onComplete handler invocations on block node streaming connections                                              |
+| `blockStream_streamingConn_onError`                              | Counter         | Number of onError handler invocations on block node streaming connections                                                 |
+| `blockStream_streamingConn_opened`                               | Counter         | Number of block node streaming connections opened                                                                         |
+| `blockStream_streamingConn_operationTimeout`                     | Counter         | Number of times an operation timed out on a block node streaming connection                                               |
 
 ## Connection Receive Metrics
 

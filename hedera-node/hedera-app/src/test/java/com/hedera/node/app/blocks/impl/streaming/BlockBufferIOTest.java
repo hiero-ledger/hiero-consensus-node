@@ -10,6 +10,7 @@ import static com.hedera.node.app.blocks.impl.streaming.BlockTestUtils.newStateC
 import static com.hedera.node.app.blocks.impl.streaming.BlockTestUtils.toBlockState;
 import static com.hedera.node.app.blocks.impl.streaming.BlockTestUtils.writeBlockToDisk;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.fail;
 
 import com.hedera.hapi.block.internal.BufferedBlock;
@@ -23,11 +24,15 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -69,6 +74,42 @@ class BlockBufferIOTest {
                 return FileVisitResult.CONTINUE;
             }
         });
+    }
+
+    @Test
+    void readWaitsWhileWriteHoldsTheLock() throws Exception {
+        bufferIO.write(List.of(generateRandomBlock(1)), -1L);
+        final CountDownLatch lockHeld = new CountDownLatch(1);
+        final CountDownLatch releaseLock = new CountDownLatch(1);
+        // stands in for a write in progress, which holds the same monitor and may delete the directory being read
+        final Thread writer = Thread.ofPlatform().start(() -> {
+            synchronized (bufferIO) {
+                lockHeld.countDown();
+                try {
+                    releaseLock.await(5, TimeUnit.SECONDS);
+                } catch (final InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        });
+        final CompletableFuture<List<BufferedBlock>> read = new CompletableFuture<>();
+        final Thread reader = Thread.ofPlatform().start(() -> {
+            try {
+                read.complete(bufferIO.read());
+            } catch (final Exception e) {
+                read.completeExceptionally(e);
+            }
+        });
+        try {
+            assertThat(lockHeld.await(5, TimeUnit.SECONDS)).isTrue();
+            assertThat(reader.join(Duration.ofMillis(300))).isFalse();
+            assertThat(read).isNotDone();
+        } finally {
+            releaseLock.countDown();
+            assertThat(writer.join(Duration.ofSeconds(5))).isTrue();
+            assertThat(reader.join(Duration.ofSeconds(5))).isTrue();
+        }
+        assertThat(read.get()).hasSize(1);
     }
 
     @Test
@@ -135,6 +176,55 @@ class BlockBufferIOTest {
                 fail("Post-write directory (" + postWriteSubdirectory.getAbsolutePath()
                         + ") found in pre-write list of directories");
             }
+        }
+    }
+
+    @Test
+    void failedWriteKeepsPreviousSnapshot() throws Exception {
+        bufferIO.write(List.of(generateRandomBlock(1), generateRandomBlock(2), generateRandomBlock(3)), 0L);
+
+        // block 5 is still open, so the next write fails part-way through its batch
+        final BlockState openBlock = new BlockState(5L, 2_000L);
+        openBlock.addItem(newBlockHeader(5L));
+        assertThatThrownBy(() -> bufferIO.write(List.of(generateRandomBlock(6), generateRandomBlock(4), openBlock), 0L))
+                .isInstanceOf(NullPointerException.class);
+
+        assertThat(bufferIO.read()).extracting(BufferedBlock::blockNumber).containsExactlyInAnyOrder(1L, 2L, 3L);
+
+        // the abandoned batch was written in block order, so it holds only the blocks before the failure
+        final File[] abandoned = testDirFile.listFiles(file -> !file.getName().matches("\\d+"));
+        assertThat(abandoned).hasSize(1);
+        assertThat(abandoned[0].list()).containsExactly("block-4.bin");
+    }
+
+    @Test
+    void leftoverTempDirectoryIsIgnoredAndRemovedByNextWrite() throws Exception {
+        bufferIO.write(List.of(generateRandomBlock(1), generateRandomBlock(2)), 0L);
+
+        // a valid block in a crashed write's directory, named newer than the complete snapshot
+        final File leftover = new File(testDirFile, (Instant.now().toEpochMilli() + 60_000) + ".tmp");
+        Files.createDirectories(leftover.toPath());
+        writeBlockToDisk(generateRandomBlock(9), false, new File(leftover, "block-9.bin"));
+
+        assertThat(bufferIO.read()).extracting(BufferedBlock::blockNumber).containsExactlyInAnyOrder(1L, 2L);
+
+        bufferIO.write(List.of(generateRandomBlock(3)), 0L);
+
+        final File[] directories = testDirFile.listFiles();
+        assertThat(directories).hasSize(1);
+        assertThat(directories[0].getName()).matches("\\d+");
+        assertThat(bufferIO.read()).extracting(BufferedBlock::blockNumber).containsExactly(3L);
+    }
+
+    @Test
+    void consecutiveWritesEachReplaceTheSnapshot() throws Exception {
+        // back-to-back writes often land in the same millisecond
+        for (long blockNumber = 1; blockNumber <= 100; ++blockNumber) {
+            bufferIO.write(List.of(generateRandomBlock(blockNumber)), 0L);
+
+            final File[] directories = testDirFile.listFiles();
+            assertThat(directories).hasSize(1);
+            assertThat(directories[0].list()).containsExactly("block-" + blockNumber + ".bin");
         }
     }
 

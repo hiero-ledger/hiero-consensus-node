@@ -17,6 +17,7 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -34,11 +35,13 @@ import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeEndpoint;
 import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
+import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.types.BlockStreamGrpcCompressionType;
 import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.grpc.GrpcCall;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodHandles.Lookup;
@@ -54,9 +57,11 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import org.apache.logging.log4j.LogManager;
 import org.hiero.block.api.BlockEnd;
 import org.hiero.block.api.PublishStreamRequest.EndStream;
 import org.hiero.block.api.PublishStreamResponse;
@@ -78,6 +83,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
     private static final Thread FAKE_WORKER_THREAD = new Thread(() -> {}, "fake-worker");
     private static final VarHandle streamingBlockNumberHandle;
     private static final VarHandle workerThreadRefHandle;
+    private static final VarHandle pendingCloseRefHandle;
     private static final MethodHandle sendRequestHandle;
     private static final MethodHandle updateAcknowledgementMetricsHandle;
 
@@ -91,6 +97,8 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
                     .findVarHandle(streamingCls, "streamingBlockNumber", AtomicLong.class);
             workerThreadRefHandle = MethodHandles.privateLookupIn(streamingCls, lookup)
                     .findVarHandle(streamingCls, "workerThreadRef", AtomicReference.class);
+            pendingCloseRefHandle = MethodHandles.privateLookupIn(streamingCls, lookup)
+                    .findVarHandle(streamingCls, "pendingCloseRef", AtomicReference.class);
 
             final Method sendRequest = publisherCls.getDeclaredMethod("sendRequest", PublisherRequest.class);
             sendRequest.setAccessible(true);
@@ -114,6 +122,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
     private BlockBufferService bufferService;
     private BlockStreamMetrics metrics;
     private GrpcCall<PublishStreamRequestBytes, PublishStreamResponse> requestCall;
+    private BlockStreamPublishBytesClient grpcServiceClient;
     private ExecutorService pipelineExecutor;
     private BlockNodeStats.HighLatencyResult latencyResult;
     private BlockNodeClientFactory clientFactory;
@@ -131,7 +140,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         blockNodeStreamingEndpoint = config.streamingEndpoint();
         connectionManager = mock(BlockNodeConnectionManager.class);
         bufferService = mock(BlockBufferService.class);
-        final BlockStreamPublishBytesClient grpcServiceClient = mock(BlockStreamPublishBytesClient.class);
+        grpcServiceClient = mock(BlockStreamPublishBytesClient.class);
         metrics = mock(BlockStreamMetrics.class);
         requestCall = mock(GrpcCall.class);
         pipelineExecutor = mock(ExecutorService.class);
@@ -844,6 +853,126 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
+    void drainDeadlineClosesStreamerStuckOnOpenBlockOnce() throws Exception {
+        recreateConnection(createDefaultConfigProvider().withValue("blockNode.closeAtBlockBoundaryTimeout", "0s"));
+        activateConnection();
+        streamingBlockNumber().set(10);
+        final BlockState block = new BlockState(10, 2_000L);
+        block.addItem(newBlockHeaderItem(10));
+        lenient().doReturn(block).when(bufferService).getBlockState(10);
+        final Object worker = createWorker();
+
+        connection.closeAtBlockBoundary(CloseReason.SHUTDOWN);
+        invokeDoWork(worker);
+        // the expired deadline must not close the connection a second time
+        invokeDoWork(worker);
+
+        assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);
+        assertThat(connection.closeReason()).isEqualTo(CloseReason.SHUTDOWN);
+        verify(metrics).recordConnectionClosed(ConnectionType.BLOCK_STREAMING, CloseReason.SHUTDOWN);
+        verify(metrics, times(1)).recordConnectionClosed(any(ConnectionType.class), any(CloseReason.class));
+        verify(connectionManager, times(1)).notifyConnectionClosed(connection);
+        verify(grpcServiceClient, times(1)).close();
+        verify(pipelineExecutor, times(1)).shutdown();
+        final ArgumentCaptor<PublishStreamRequestBytes> requests =
+                ArgumentCaptor.forClass(PublishStreamRequestBytes.class);
+        verify(requestCall).sendRequest(requests.capture(), anyBoolean());
+        assertThat(requests.getValue().endStream()).isNotNull();
+        assertThat(requests.getValue().endStream().endCode()).isEqualTo(EndStream.Code.RESET);
+    }
+
+    @Test
+    void boundaryCloseBeforeDeadlineIsUnaffected() throws Exception {
+        activateConnection();
+        streamingBlockNumber().set(10);
+        final BlockState block = new BlockState(10, 2_000L);
+        block.addItem(newBlockHeaderItem(10));
+        block.addItem(newBlockProofItem(10, 1_000));
+        block.closeBlock();
+        doReturn(block).when(bufferService).getBlockState(10);
+        final Object worker = createWorker();
+
+        connection.closeAtBlockBoundary(CloseReason.HIGHER_PRIORITY_FOUND);
+        invokeDoWork(worker);
+        assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);
+        // a deadline that expires after the boundary close must not close the connection again
+        expirePendingClose();
+        invokeDoWork(worker);
+
+        assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);
+        assertThat(connection.closeReason()).isEqualTo(CloseReason.HIGHER_PRIORITY_FOUND);
+        verify(metrics, times(1)).recordConnectionClosed(any(ConnectionType.class), any(CloseReason.class));
+        verify(metrics).recordConnectionClosed(ConnectionType.BLOCK_STREAMING, CloseReason.HIGHER_PRIORITY_FOUND);
+        verify(connectionManager, times(1)).notifyConnectionClosed(connection);
+        verify(grpcServiceClient, times(1)).close();
+        verify(pipelineExecutor, times(1)).shutdown();
+        final ArgumentCaptor<PublishStreamRequestBytes> requests =
+                ArgumentCaptor.forClass(PublishStreamRequestBytes.class);
+        verify(requestCall, atLeast(3)).sendRequest(requests.capture(), anyBoolean());
+        final List<PublishStreamRequestBytes> sent = requests.getAllValues();
+        assertThat(sent.getLast().endStream()).isNotNull();
+        assertThat(sent.getLast().endStream().endCode()).isEqualTo(EndStream.Code.RESET);
+        assertThat(sent.get(sent.size() - 2).endOfBlock()).isNotNull();
+        assertThat(sent.get(sent.size() - 2).endOfBlock().blockNumber()).isEqualTo(10L);
+    }
+
+    @Test
+    void firstCloseAtBlockBoundaryReasonWins() throws Exception {
+        activateConnection();
+        streamingBlockNumber().set(10);
+        final Object worker = createWorker();
+
+        connection.closeAtBlockBoundary(CloseReason.BUFFER_SATURATION);
+        connection.closeAtBlockBoundary(CloseReason.SHUTDOWN);
+        invokeDoWork(worker);
+
+        assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);
+        assertThat(connection.closeReason()).isEqualTo(CloseReason.BUFFER_SATURATION);
+        verify(metrics, times(1)).recordConnectionClosed(any(ConnectionType.class), any(CloseReason.class));
+        verify(metrics).recordConnectionClosed(ConnectionType.BLOCK_STREAMING, CloseReason.BUFFER_SATURATION);
+    }
+
+    @Test
+    void boundaryCloseRequestLogsActiveContextWhenWorkerClosesRightAway() throws Exception {
+        final BlockNodeConfiguration config = spy(newBlockNodeConfig(8080, 1));
+        final AtomicReference<Object> workerRef = new AtomicReference<>();
+        final AtomicBoolean armed = new AtomicBoolean(false);
+        // formatting the connection reads the address; the worker reaches a block boundary at that moment
+        lenient()
+                .doAnswer(invocation -> {
+                    if (armed.compareAndSet(true, false)) {
+                        invokeDoWork(workerRef.get());
+                    }
+                    return invocation.callRealMethod();
+                })
+                .when(config)
+                .address();
+        blockNode = new BlockNode(configProvider, config, new AtomicInteger(), new AtomicInteger(), stats);
+        recreateConnection(createDefaultConfigProvider());
+        activateConnection();
+        streamingBlockNumber().set(10);
+        workerRef.set(createWorker());
+
+        final LogCaptor logCaptor = new LogCaptor(LogManager.getLogger(BlockNodeStreamingConnection.class));
+        try {
+            armed.set(true);
+            connection.closeAtBlockBoundary(CloseReason.HIGHER_PRIORITY_FOUND);
+            assertThat(armed).isFalse();
+            invokeDoWork(workerRef.get());
+        } finally {
+            logCaptor.stopCapture();
+        }
+
+        assertThat(logCaptor.infoLogs())
+                .anyMatch(log -> log.contains("/localhost:8080/ACTIVE] Connection will be closed at the next block "
+                        + "boundary (reason: HIGHER_PRIORITY_FOUND)"));
+        assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);
+        assertThat(connection.closeReason()).isEqualTo(CloseReason.HIGHER_PRIORITY_FOUND);
+        verify(metrics, times(1)).recordConnectionClosed(any(ConnectionType.class), any(CloseReason.class));
+        verify(connectionManager, times(1)).notifyConnectionClosed(connection);
+    }
+
+    @Test
     void testConnectionWorker_switchBlock_initialValue() throws Exception {
         activateConnection();
         final AtomicLong streamingBlockNumber = streamingBlockNumber();
@@ -947,6 +1076,47 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
+    void testConnectionWorker_producedBlockMissingFromBufferIsTooFarBehind() throws Exception {
+        activateConnection();
+        final AtomicLong streamingBlockNumber = streamingBlockNumber();
+
+        // block 10 was produced (latest is 12) but is not buffered, e.g. a gap left by a restored buffer
+        streamingBlockNumber.set(10);
+        when(bufferService.getEarliestAvailableBlockNumber()).thenReturn(5L);
+        when(bufferService.getLastBlockNumberProduced()).thenReturn(12L);
+        when(bufferService.getBlockState(anyLong())).thenReturn(null);
+        when(bufferService.getHighestAckedBlockNumber()).thenReturn(-1L);
+
+        final Object worker = createWorker();
+        invokeDoWork(worker);
+
+        assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);
+        assertThat(connection.closeReason()).isEqualTo(CloseReason.BLOCK_NODE_BEHIND);
+        verify(metrics)
+                .recordPublisherRequestEndStreamSent(ConnectionType.BLOCK_STREAMING, EndStream.Code.TOO_FAR_BEHIND);
+        verify(connectionManager).notifyConnectionClosed(connection);
+    }
+
+    @Test
+    void testConnectionWorker_blockNotYetProducedIsAwaited() throws Exception {
+        activateConnection();
+        final AtomicLong streamingBlockNumber = streamingBlockNumber();
+
+        streamingBlockNumber.set(10);
+        when(bufferService.getEarliestAvailableBlockNumber()).thenReturn(5L);
+        when(bufferService.getLastBlockNumberProduced()).thenReturn(9L);
+        when(bufferService.getBlockState(anyLong())).thenReturn(null);
+
+        final Object worker = createWorker();
+        invokeDoWork(worker);
+
+        assertThat(connection.currentState()).isEqualTo(ConnectionState.ACTIVE);
+        assertThat(connection.closeReason()).isNull();
+        verifyNoInteractions(connectionManager);
+        verifyNoInteractions(requestCall);
+    }
+
+    @Test
     void testConnectionWorker_blockJump() throws Exception {
         activateConnection();
         final AtomicLong streamingBlockNumber = streamingBlockNumber();
@@ -1004,6 +1174,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verify(bufferService, atLeastOnce()).getBlockState(11);
         verify(bufferService, atLeastOnce()).getBlockState(12);
         verify(bufferService, atLeastOnce()).getEarliestAvailableBlockNumber();
+        verify(bufferService, atLeastOnce()).getLastBlockNumberProduced();
         verify(metrics, times(1)).recordRequestBlockItemCount(1);
         verify(metrics, atLeastOnce()).recordStreamingBlockNumber(anyLong());
         verify(metrics, atLeastOnce()).recordLatestBlockEndOfBlockSent(anyLong());
@@ -1543,6 +1714,31 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         reset(connectionManager, requestCall, bufferService, metrics);
     }
 
+    private void recreateConnection(final TestConfigBuilder configBuilder) {
+        final BlockStreamPublishBytesClient client = mock(BlockStreamPublishBytesClient.class);
+        grpcServiceClient = client;
+        doReturn(client)
+                .when(clientFactory)
+                .createStreamingClient(
+                        any(BlockNodeConfiguration.class),
+                        any(Duration.class),
+                        anyString(),
+                        any(BlockStreamGrpcCompressionType.class));
+        connection = new BlockNodeStreamingConnection(
+                createConfigProvider(configBuilder),
+                blockNode,
+                connectionManager,
+                bufferService,
+                metrics,
+                pipelineExecutor,
+                null,
+                clientFactory,
+                NODE_ID,
+                streamingObs);
+        workerThreadRef().set(FAKE_WORKER_THREAD);
+        doReturn(requestCall).when(client).publishBlockStream(connection);
+    }
+
     private AtomicLong streamingBlockNumber() {
         return (AtomicLong) streamingBlockNumberHandle.get(connection);
     }
@@ -1550,6 +1746,22 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
     @SuppressWarnings("unchecked")
     private AtomicReference<Thread> workerThreadRef() {
         return (AtomicReference<Thread>) workerThreadRefHandle.get(connection);
+    }
+
+    /**
+     * Replaces the pending close request with one for the same reason whose deadline has already passed.
+     */
+    @SuppressWarnings("unchecked")
+    private void expirePendingClose() throws Exception {
+        final AtomicReference<Object> pendingCloseRef = (AtomicReference<Object>) pendingCloseRefHandle.get(connection);
+        final Object pendingClose = pendingCloseRef.get();
+        assertThat(pendingClose).isNotNull();
+        final Method reason = pendingClose.getClass().getDeclaredMethod("reason");
+        reason.setAccessible(true);
+        final Constructor<?> constructor =
+                pendingClose.getClass().getDeclaredConstructor(CloseReason.class, long.class);
+        constructor.setAccessible(true);
+        pendingCloseRef.set(constructor.newInstance(reason.invoke(pendingClose), System.nanoTime() - 1));
     }
 
     private void assertRequestContainsItems(final PublishStreamRequestBytes request, final BlockItem... expectedItems) {

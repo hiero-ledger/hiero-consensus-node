@@ -12,12 +12,12 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.util.concurrent.Callable;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
@@ -180,8 +180,8 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
         private void closeSilently(@NonNull final ServiceClientHolder holder) {
             logger.debug("{} Silently closing client (clientId: {})", BlockNodeServiceConnection.this, holder.clientId);
             try {
-                final Future<?> future = blockingIoExecutor.submit(new CloseClientTask(holder));
-                future.get(bncConfig().connectionManagementTimeout().toMillis(), TimeUnit.MILLISECONDS);
+                // this task already runs on the executor, which may be shutting down, so close directly
+                holder.client.close();
             } catch (final Exception e) {
                 logger.debug(
                         "{} Attempted to close a client (clientId: {}), but it failed; ignoring failure",
@@ -200,6 +200,10 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
          * The client to close
          */
         private final ServiceClientHolder clientHolder;
+        /**
+         * Claimed by the first thread to run this task, so the client is closed at most once.
+         */
+        private final AtomicBoolean started = new AtomicBoolean(false);
 
         CloseClientTask(@NonNull final ServiceClientHolder clientHolder) {
             this.clientHolder = requireNonNull(clientHolder, "client is required");
@@ -207,6 +211,9 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
 
         @Override
         public void run() {
+            if (!started.compareAndSet(false, true)) {
+                return;
+            }
             logger.debug("{} Closing client (clientId: {})", BlockNodeServiceConnection.this, clientHolder.clientId);
             clientHolder.client.close();
         }
@@ -235,24 +242,27 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
 
         logger.info("{} Closing connection", this);
 
-        Future<?> future = null;
         boolean wasInterrupted = Thread.interrupted(); // drain pre-existing interrupt flag
 
         try {
-            future = clientHolder == null
-                    ? CompletableFuture.completedFuture(null)
-                    : blockingIoExecutor.submit(new CloseClientTask(clientHolder));
-            future.get(connectionManagementTimeoutMillis(), TimeUnit.MILLISECONDS);
-        } catch (final Exception e) {
-            // the connection is being closed... don't propagate the exception
-            logger.warn("{} Error occurred while closing connection; it will be suppressed", this, e);
-
-            if (e instanceof InterruptedException) {
-                wasInterrupted = true;
-            }
-
-            if (future != null) {
-                future.cancel(true);
+            if (clientHolder != null) {
+                final CloseClientTask closeTask = new CloseClientTask(clientHolder);
+                try {
+                    blockingIoExecutor
+                            .submit(closeTask)
+                            .get(connectionManagementTimeoutMillis(), TimeUnit.MILLISECONDS);
+                } catch (final Exception e) {
+                    // the connection is being closed... don't propagate the exception
+                    logger.warn("{} Error occurred while closing connection; it will be suppressed", this, e);
+                    wasInterrupted |= e instanceof InterruptedException;
+                    // rejected or not started yet: close here; a no-op if the executor already started it, which is
+                    // left to finish
+                    try {
+                        closeTask.run();
+                    } catch (final RuntimeException ce) {
+                        logger.warn("{} Error occurred while closing client; it will be suppressed", this, ce);
+                    }
+                }
             }
         } finally {
             // regardless of outcome, mark this connection as closed

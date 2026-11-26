@@ -154,7 +154,9 @@ openssl x509 -in blocknode.crt -noout -fingerprint -sha384
 - The `block-nodes.json` file is watched for create/modify/delete events.
 - On change, the manager reloads the file, shuts down any existing connections, and restarts with the new nodes.
 - If the contents are unchanged, no restart is performed.
-- If the file is missing or the contents fail to parse, the manager logs the issue and will not establish block node connections until a valid file is present again.
+- If the file is missing at startup, or its contents fail to parse at startup, the manager logs the issue and will not establish block node connections until a valid file is present.
+- If the file fails to parse later (including a file read while it is still being written), the change is ignored with a warning and the previous configuration stays in effect. Deleting the file removes all block nodes.
+- Replace the file with an atomic rename (write a temporary file, then move it over `block-nodes.json`) rather than rewriting it in place.
 
 ### Validation notes
 

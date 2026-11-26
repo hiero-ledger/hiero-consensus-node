@@ -103,6 +103,11 @@ public class BlockNode extends BlockStreamingBase {
      * Reference that holds the most recent wanted block based on block node server status API calls.
      */
     private final AtomicReference<WantedBlock> wantedBlockRef = new AtomicReference<>();
+    /**
+     * Guards the active connection references, the connection histories and the active connection counters, so a
+     * connection's registration and its close are accounted for atomically.
+     */
+    private final Object connectionLock = new Object();
 
     /**
      * Simple data holder for a wanted block.
@@ -279,6 +284,25 @@ public class BlockNode extends BlockStreamingBase {
                 && activeObservingConnectionRef.get() == null;
     }
 
+    /**
+     * @return true if this block node was terminated and not revived since
+     */
+    boolean isTerminated() {
+        return isTerminated.get();
+    }
+
+    /**
+     * Makes this terminated block node eligible again with the specified configuration. Connections that are still
+     * closing are left alone.
+     *
+     * @param configuration the configuration to apply for this block node
+     */
+    void onRevive(@NonNull final BlockNodeConfiguration configuration) {
+        configurationRef.set(requireNonNull(configuration, "Configuration is required"));
+        nodeCoolDownTimestampRef.set(null);
+        isTerminated.set(false);
+    }
+
     private void closeStreamingConnection(final CloseReason closeReason) {
         final BlockNodeStreamingConnection streamingConnection = activeStreamingConnectionRef.get();
         if (streamingConnection != null) {
@@ -356,12 +380,22 @@ public class BlockNode extends BlockStreamingBase {
             onActiveObserving(observingConnection);
         }
 
-        pruneOldHistory();
+        synchronized (connectionLock) {
+            pruneOldHistory();
+        }
     }
 
     private void onActiveStreaming(final BlockNodeStreamingConnection connection) {
         final BlockNodeEndpoint endpoint = connection.configuration().streamingEndpoint();
-        final BlockNodeStreamingConnection oldConnection = activeStreamingConnectionRef.getAndSet(connection);
+        final BlockNodeStreamingConnection oldConnection;
+        synchronized (connectionLock) {
+            if (!registerActive(
+                    connection, globalActiveStreamingConnectionCount, localActiveStreamingConnectionCount)) {
+                logNotRegistered(endpoint, connection);
+                return;
+            }
+            oldConnection = activeStreamingConnectionRef.getAndSet(connection);
+        }
 
         if (oldConnection != null) {
             logger.info(
@@ -370,34 +404,25 @@ public class BlockNode extends BlockStreamingBase {
                     endpoint.port(),
                     connection.connectionId(),
                     oldConnection.connectionId());
-            oldConnection.closeAtBlockBoundary(CloseReason.NEW_CONNECTION);
-        }
-
-        final ConnectionHistory connectionHistory = new ConnectionHistory(connection);
-        connectionHistories.put(connection.connectionId(), connectionHistory);
-
-        connectionHistory.onActive(connection);
-        globalActiveStreamingConnectionCount.incrementAndGet();
-        localActiveStreamingConnectionCount.incrementAndGet();
-
-        // The connection can close before registration completes, in which case onClose() already ran as a
-        // no-op; without this undo the node holds a dead connection forever and is never selected again.
-        if (connection.currentState() == ConnectionState.CLOSED
-                && activeStreamingConnectionRef.compareAndSet(connection, null)) {
-            logger.warn(
-                    "[{}:{}] Connection ({}) closed before registration completed; unregistering so this block node remains selectable",
-                    endpoint.host(),
-                    endpoint.port(),
-                    connection.connectionId());
-            connectionHistories.remove(connection.connectionId(), connectionHistory);
-            globalActiveStreamingConnectionCount.decrementAndGet();
-            localActiveStreamingConnectionCount.decrementAndGet();
+            try {
+                oldConnection.closeAtBlockBoundary(CloseReason.NEW_CONNECTION);
+            } catch (final Exception e) {
+                logger.warn("{} Failed to close old streaming connection - suppressing", oldConnection, e);
+            }
         }
     }
 
     private void onActiveObserving(final BlockNodeObservingConnection connection) {
         final BlockNodeEndpoint endpoint = connection.configuration().streamingEndpoint();
-        final BlockNodeObservingConnection oldConnection = activeObservingConnectionRef.getAndSet(connection);
+        final BlockNodeObservingConnection oldConnection;
+        synchronized (connectionLock) {
+            if (!registerActive(
+                    connection, globalActiveObservingConnectionCount, localActiveObservingConnectionCount)) {
+                logNotRegistered(endpoint, connection);
+                return;
+            }
+            oldConnection = activeObservingConnectionRef.getAndSet(connection);
+        }
 
         if (oldConnection != null) {
             logger.info(
@@ -406,29 +431,43 @@ public class BlockNode extends BlockStreamingBase {
                     endpoint.port(),
                     connection.connectionId(),
                     oldConnection.connectionId());
-            oldConnection.close(CloseReason.NEW_CONNECTION, true, EndStream.Code.RESET);
+            try {
+                oldConnection.close(CloseReason.NEW_CONNECTION, true, EndStream.Code.RESET);
+            } catch (final Exception e) {
+                logger.warn("{} Failed to close old observing connection - suppressing", oldConnection, e);
+            }
+        }
+    }
+
+    /**
+     * Records the specified connection as active. Requires the connection lock.
+     *
+     * @return true if the connection was registered, false if it already closed or is already registered
+     */
+    private boolean registerActive(
+            @NonNull final BlockNodePublisherConnection connection,
+            @NonNull final AtomicInteger globalCounter,
+            @NonNull final AtomicInteger localCounter) {
+        if (connection.currentState() == ConnectionState.CLOSED
+                || connectionHistories.containsKey(connection.connectionId())) {
+            return false;
         }
 
         final ConnectionHistory connectionHistory = new ConnectionHistory(connection);
-        connectionHistories.put(connection.connectionId(), connectionHistory);
         connectionHistory.onActive(connection);
+        connectionHistories.put(connectionHistory.connectionId, connectionHistory);
+        globalCounter.incrementAndGet();
+        localCounter.incrementAndGet();
+        return true;
+    }
 
-        globalActiveObservingConnectionCount.incrementAndGet();
-        localActiveObservingConnectionCount.incrementAndGet();
-
-        // The connection can close before registration completes, in which case onClose() already ran as a
-        // no-op; without this undo the node holds a dead connection forever and is never selected again.
-        if (connection.currentState() == ConnectionState.CLOSED
-                && activeObservingConnectionRef.compareAndSet(connection, null)) {
-            logger.warn(
-                    "[{}:{}] Connection ({}) closed before registration completed; unregistering so this block node remains selectable",
-                    endpoint.host(),
-                    endpoint.port(),
-                    connection.connectionId());
-            connectionHistories.remove(connection.connectionId(), connectionHistory);
-            globalActiveObservingConnectionCount.decrementAndGet();
-            localActiveObservingConnectionCount.decrementAndGet();
-        }
+    private void logNotRegistered(
+            @NonNull final BlockNodeEndpoint endpoint, @NonNull final BlockNodePublisherConnection connection) {
+        logger.warn(
+                "[{}:{}] Connection ({}) is already closed or registered; not registering",
+                endpoint.host(),
+                endpoint.port(),
+                connection.connectionId());
     }
 
     /**
@@ -475,33 +514,33 @@ public class BlockNode extends BlockStreamingBase {
     void onClose(@NonNull final BlockNodePublisherConnection connection) {
         requireNonNull(connection, "Connection is required");
 
-        if (connection instanceof final BlockNodeStreamingConnection streamingConnection) {
-            onCloseSteaming(streamingConnection);
-        } else if (connection instanceof final BlockNodeObservingConnection observingConnection) {
-            onCloseObserving(observingConnection);
-        }
-    }
-
-    private void onCloseSteaming(final BlockNodeStreamingConnection connection) {
-        activeStreamingConnectionRef.compareAndSet(connection, null);
-
         final BlockNodeEndpoint endpoint = connection.configuration().streamingEndpoint();
-        final ConnectionHistory connHistory = connectionHistories.get(connection.connectionId());
-        final CloseReason closeReason;
+        final ConnectionHistory connHistory;
+        synchronized (connectionLock) {
+            if (connection instanceof final BlockNodeStreamingConnection streamingConnection) {
+                activeStreamingConnectionRef.compareAndSet(streamingConnection, null);
+                connHistory = recordClose(
+                        connection, globalActiveStreamingConnectionCount, localActiveStreamingConnectionCount);
+            } else if (connection instanceof final BlockNodeObservingConnection observingConnection) {
+                activeObservingConnectionRef.compareAndSet(observingConnection, null);
+                connHistory = recordClose(
+                        connection, globalActiveObservingConnectionCount, localActiveObservingConnectionCount);
+            } else {
+                return;
+            }
+        }
 
+        final CloseReason closeReason;
         if (connHistory == null) {
-            // no history entry means the connection never became active (e.g. it failed to initialize)
+            // no history entry means the connection was never registered (e.g. it failed to initialize)
             closeReason = connection.closeReason();
             logger.warn(
-                    "[{}:{}] Connection ({}) was closed before it became active (reason: {})",
+                    "[{}:{}] Connection ({}) was closed before it was registered (reason: {})",
                     endpoint.host(),
                     endpoint.port(),
                     connection.connectionId(),
                     closeReason);
         } else {
-            globalActiveStreamingConnectionCount.decrementAndGet();
-            localActiveStreamingConnectionCount.decrementAndGet();
-            connHistory.onClose(connection);
             closeReason = connHistory.closeReason;
         }
 
@@ -510,29 +549,24 @@ public class BlockNode extends BlockStreamingBase {
         }
     }
 
-    private void onCloseObserving(final BlockNodeObservingConnection connection) {
-        activeObservingConnectionRef.compareAndSet(connection, null);
-
-        final BlockNodeEndpoint endpoint = connection.configuration().streamingEndpoint();
+    /**
+     * Records the close of the specified connection, decrementing the counters only for the close that ends its
+     * registration. Requires the connection lock.
+     *
+     * @return the history entry of the connection, or null if it never became active
+     */
+    private @Nullable ConnectionHistory recordClose(
+            @NonNull final BlockNodePublisherConnection connection,
+            @NonNull final AtomicInteger globalCounter,
+            @NonNull final AtomicInteger localCounter) {
         final ConnectionHistory connHistory = connectionHistories.get(connection.connectionId());
-
-        if (connHistory == null) {
-            logger.warn(
-                    "[{}:{}] Block node does not have a history entry for connection ({})",
-                    endpoint.host(),
-                    endpoint.port(),
-                    connection.connectionId());
-            return;
+        // ConnectionHistory.onClose always records a reason, so a null reason means the entry is still counted
+        if (connHistory != null && connHistory.closeReason == null) {
+            globalCounter.decrementAndGet();
+            localCounter.decrementAndGet();
+            connHistory.onClose(connection);
         }
-
-        globalActiveObservingConnectionCount.decrementAndGet();
-        localActiveObservingConnectionCount.decrementAndGet();
-        connHistory.onClose(connection);
-
-        final CloseReason closeReason = connHistory.closeReason;
-        if (closeReason.isDeviantCloseReason()) {
-            applyCoolDown(new DeviantConnectionClose(closeReason));
-        }
+        return connHistory;
     }
 
     /**
@@ -661,7 +695,6 @@ public class BlockNode extends BlockStreamingBase {
                 endpoint.port(),
                 newCoolDownTimestamp,
                 reason);
-        nodeCoolDownTimestampRef.set(newCoolDownTimestamp);
     }
 
     /**

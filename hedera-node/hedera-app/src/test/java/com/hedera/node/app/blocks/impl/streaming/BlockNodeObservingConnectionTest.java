@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -30,6 +31,7 @@ import com.hedera.node.app.blocks.impl.streaming.ConnectionId.ConnectionType;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.node.config.types.BlockStreamGrpcCompressionType;
 import com.hedera.pbj.runtime.grpc.GrpcCall;
 import java.lang.invoke.MethodHandle;
@@ -39,6 +41,7 @@ import java.lang.invoke.VarHandle;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -62,6 +65,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -316,6 +320,66 @@ public class BlockNodeObservingConnectionTest extends BlockNodeCommunicationTest
         }
 
         return args.stream();
+    }
+
+    @ParameterizedTest
+    @EnumSource(EndOfStream.Code.class)
+    void testOnNext_handleEndStream_limitExceeded(final EndOfStream.Code eosCode) {
+        final long blockNumber = 10L;
+        final BlockNodeConnectionConfig bncConfig =
+                configProvider.getConfiguration().getConfigData(BlockNodeConnectionConfig.class);
+
+        activateConnection();
+        when(blockNodeStats.addEndOfStreamAndCheckLimit(any(Instant.class), anyInt(), any(Duration.class)))
+                .thenReturn(true);
+
+        connection.onNext(createEndOfStreamResponse(eosCode, blockNumber));
+
+        assertThat(connectionState()).hasValue(ConnectionState.CLOSED);
+        assertThat(connection.closeReason()).isEqualTo(CloseReason.TOO_MANY_END_STREAM_RESPONSES);
+
+        verify(blockNodeStats)
+                .addEndOfStreamAndCheckLimit(
+                        any(Instant.class),
+                        eq(bncConfig.maxEndOfStreamsAllowed()),
+                        eq(bncConfig.endOfStreamTimeFrame()));
+        verify(metrics).recordResponseEndOfStreamReceived(ConnectionType.ACK_OBSERVING, eosCode);
+        verify(metrics).recordLatestBlockEndOfStream(blockNumber);
+        verify(metrics).recordEndOfStreamLimitExceeded();
+        verify(metrics).recordConnectionClosed(ConnectionType.ACK_OBSERVING, CloseReason.TOO_MANY_END_STREAM_RESPONSES);
+        verify(bufferService)
+                .acknowledgeBlock(blockNumber, connection.configuration().streamingEndpoint());
+        verify(requestCall).completeRequests();
+        verify(connectionManager).notifyConnectionClosed(connection);
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(bufferService);
+        verifyNoMoreInteractions(connectionManager);
+        verifyNoMoreInteractions(requestCall);
+    }
+
+    @Test
+    void testOnNext_handleEndStream_countsTowardsNodeLimit() {
+        final BlockNodeConnectionConfig bncConfig =
+                configProvider.getConfiguration().getConfigData(BlockNodeConnectionConfig.class);
+        final int maxAllowed = bncConfig.maxEndOfStreamsAllowed();
+        final Duration timeFrame = bncConfig.endOfStreamTimeFrame();
+
+        // earlier connections to this block node have already used every EndOfStream allowed in the time frame
+        final BlockNodeStats nodeStats = new BlockNodeStats();
+        for (int i = 0; i < maxAllowed; i++) {
+            assertThat(nodeStats.addEndOfStreamAndCheckLimit(Instant.now(), maxAllowed, timeFrame))
+                    .isFalse();
+        }
+        when(blockNodeStats.addEndOfStreamAndCheckLimit(any(Instant.class), anyInt(), any(Duration.class)))
+                .thenAnswer(inv -> nodeStats.addEndOfStreamAndCheckLimit(
+                        inv.getArgument(0), inv.getArgument(1), inv.getArgument(2)));
+
+        activateConnection();
+        // a transient EndOfStream on its own would not cool the block node down
+        connection.onNext(createEndOfStreamResponse(Code.TIMEOUT, 10L));
+
+        assertThat(connection.closeReason()).isEqualTo(CloseReason.TOO_MANY_END_STREAM_RESPONSES);
+        assertThat(nodeStats.getEndOfStreamCount()).isEqualTo(maxAllowed + 1);
     }
 
     @ParameterizedTest

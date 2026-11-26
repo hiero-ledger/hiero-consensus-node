@@ -2,6 +2,7 @@
 package com.hedera.node.app.blocks.impl.streaming;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchRuntimeException;
 import static org.mockito.ArgumentMatchers.any;
@@ -16,6 +17,7 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -24,9 +26,11 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+import com.hedera.hapi.block.internal.EndStreamBytes;
 import com.hedera.hapi.block.internal.PublishStreamRequestBytes;
 import com.hedera.hapi.block.internal.PublishStreamRequestBytes.RequestOneOfType;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodePublisherConnection.PublisherBlockItemsRequest;
+import com.hedera.node.app.blocks.impl.streaming.BlockNodePublisherConnection.PublisherEndStreamRequest;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodePublisherConnection.PublisherRequest;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodePublisherConnection.SendRequestResult;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodePublisherConnection.SendRequestStatus;
@@ -34,6 +38,7 @@ import com.hedera.node.app.blocks.impl.streaming.BlockNodePublisherConnectionTes
 import com.hedera.node.app.blocks.impl.streaming.ConnectionId.ConnectionType;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
+import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.types.BlockStreamGrpcCompressionType;
 import com.hedera.pbj.runtime.grpc.GrpcCall;
@@ -46,6 +51,10 @@ import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.VarHandle;
 import java.lang.reflect.Method;
 import java.time.Duration;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Flow;
@@ -55,12 +64,16 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import org.apache.logging.log4j.LogManager;
 import org.hiero.block.api.PublishStreamRequest.EndStream;
 import org.hiero.block.api.PublishStreamResponse;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
@@ -377,8 +390,7 @@ public class BlockNodePublisherConnectionTest extends BlockNodeCommunicationTest
         // Should call onComplete when callOnComplete=true and state transitions to CLOSING
         verify(requestCall).completeRequests();
         verify(metrics).recordConnectionClosed(connection.connectionType(), CloseReason.UNKNOWN);
-        verify(bufferService).getEarliestAvailableBlockNumber();
-        verify(bufferService).getHighestAckedBlockNumber();
+        // no EndStream is sent because the connection was never active
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestCall);
         verifyNoMoreInteractions(bufferService);
@@ -440,8 +452,7 @@ public class BlockNodePublisherConnectionTest extends BlockNodeCommunicationTest
         // Should not interact with pipeline since it's null
         verifyNoInteractions(requestCall);
         verify(metrics).recordConnectionClosed(connection.connectionType(), CloseReason.UNKNOWN);
-        verify(bufferService).getEarliestAvailableBlockNumber();
-        verify(bufferService).getHighestAckedBlockNumber();
+        // no EndStream is sent because the connection was never active
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(bufferService);
     }
@@ -475,38 +486,390 @@ public class BlockNodePublisherConnectionTest extends BlockNodeCommunicationTest
     }
 
     @Test
-    void testClose_stateChangedDuringClose() {
-        activateConnection();
+    void closesConnectionThatBecomesActiveWhileCloseIsStarting() {
+        openConnectionAndResetMocks();
 
-        // Create a spy to intercept the close method and change state during execution
         final DummyPublisherConnection spyConnection = spy(connection);
         final AtomicBoolean stateChanged = new AtomicBoolean(false);
-
-        // Override status to trigger state change on first call
         doAnswer(invocation -> {
-                    final ConnectionState result = (ConnectionState) invocation.callRealMethod();
-                    if (!stateChanged.get()) {
-                        stateChanged.set(true);
-                        // Change the actual internal state to cause fail
-                        final AtomicReference<ConnectionState> state = connectionState();
-                        state.set(ConnectionState.READY);
+                    final ConnectionState state = (ConnectionState) invocation.callRealMethod();
+                    if (stateChanged.compareAndSet(false, true)) {
+                        connectionState().set(ConnectionState.ACTIVE);
                     }
-                    return result;
+                    return state;
                 })
                 .when(spyConnection)
                 .currentState();
 
-        // Now call close - it will get ACTIVE from state,
-        // but then the state will be READY when it tries to CAS
-        spyConnection.close(CloseReason.UNKNOWN, true, EndStream.Code.RESET);
+        spyConnection.close(CloseReason.UNKNOWN, true, null);
 
-        // The close should have aborted due to state mismatch
-        // State should still be READY (not changed to CLOSING or CLOSED)
-        assertThat(connection.currentState()).isEqualTo(ConnectionState.READY);
-        assertThat(connection.closeReason()).isNull();
+        assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);
+        verify(requestCall).completeRequests();
+        verify(publishBytesClient).close();
+    }
 
-        // No interactions should have occurred since close aborted early
-        verifyNoInteractions(requestCall);
+    @ParameterizedTest
+    @EnumSource(
+            value = ConnectionType.class,
+            names = {"BLOCK_STREAMING", "ACK_OBSERVING"})
+    void closesClientCreatedAfterConnectionCloses(final ConnectionType type) throws InterruptedException {
+        connection = newConnection(type);
+        // The close finishes while the factory is still holding the only reference to the new client.
+        when(blockingIoExecutor.awaitTermination(anyLong(), any(TimeUnit.class)))
+                .thenReturn(true);
+        doAnswer(_ -> {
+                    connection.close(CloseReason.SHUTDOWN, false, null);
+                    return publishBytesClient;
+                })
+                .when(clientFactory)
+                .createStreamingClient(any(), any(), anyString(), any());
+
+        assertThatThrownBy(connection::initialize).isInstanceOf(RuntimeException.class);
+
+        assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);
+        verify(publishBytesClient).close();
+        verify(publishBytesClient, times(0)).publishBlockStream(connection);
+        assertThat(connection.isRequestClientActive()).isFalse();
+    }
+
+    @Test
+    void closesClientCreatedAfterInitializationTimesOut() throws Exception {
+        final CountDownLatch factoryEntered = new CountDownLatch(1);
+        final CountDownLatch releaseFactory = new CountDownLatch(1);
+        final AtomicReference<Thread> openingThread = new AtomicReference<>();
+        final Future<?> future = mock(Future.class);
+        doAnswer(invocation -> {
+                    openingThread.set(Thread.startVirtualThread(invocation.getArgument(0, Runnable.class)));
+                    return future;
+                })
+                .when(blockingIoExecutor)
+                .submit(any(Runnable.class));
+        doAnswer(_ -> {
+                    assertThat(factoryEntered.await(5, TimeUnit.SECONDS)).isTrue();
+                    throw new TimeoutException();
+                })
+                .when(future)
+                .get(anyLong(), any(TimeUnit.class));
+        doAnswer(_ -> {
+                    factoryEntered.countDown();
+                    assertThat(releaseFactory.await(5, TimeUnit.SECONDS)).isTrue();
+                    return publishBytesClient;
+                })
+                .when(clientFactory)
+                .createStreamingClient(any(), any(), anyString(), any());
+
+        try {
+            assertThatThrownBy(connection::initialize).hasCauseInstanceOf(TimeoutException.class);
+        } finally {
+            releaseFactory.countDown();
+            assertThat(openingThread.get().join(Duration.ofSeconds(5))).isTrue();
+        }
+
+        verify(future).cancel(true);
+        verify(publishBytesClient).close();
+        verify(publishBytesClient, times(0)).publishBlockStream(connection);
+        assertThat(connection.isRequestClientActive()).isFalse();
+    }
+
+    @Test
+    void interruptedInitializeAbandonsAttemptAndClosesLateClient() throws Exception {
+        final CountDownLatch factoryEntered = new CountDownLatch(1);
+        final CountDownLatch releaseFactory = new CountDownLatch(1);
+        final AtomicReference<Thread> openingThread = new AtomicReference<>();
+        final Future<?> future = mock(Future.class);
+        doAnswer(invocation -> {
+                    openingThread.set(Thread.startVirtualThread(invocation.getArgument(0, Runnable.class)));
+                    return future;
+                })
+                .when(blockingIoExecutor)
+                .submit(any(Runnable.class));
+        doAnswer(_ -> {
+                    assertThat(factoryEntered.await(5, TimeUnit.SECONDS)).isTrue();
+                    throw new InterruptedException();
+                })
+                .when(future)
+                .get(anyLong(), any(TimeUnit.class));
+        doAnswer(_ -> {
+                    factoryEntered.countDown();
+                    assertThat(releaseFactory.await(5, TimeUnit.SECONDS)).isTrue();
+                    return publishBytesClient;
+                })
+                .when(clientFactory)
+                .createStreamingClient(any(), any(), anyString(), any());
+
+        boolean interruptRestored = false;
+        try {
+            assertThatThrownBy(connection::initialize).hasCauseInstanceOf(InterruptedException.class);
+        } finally {
+            // clear the restored flag so the joins below do not fail
+            interruptRestored = Thread.interrupted();
+            releaseFactory.countDown();
+            assertThat(openingThread.get().join(Duration.ofSeconds(5))).isTrue();
+        }
+
+        assertThat(interruptRestored).isTrue();
+        assertThat(connection.currentState()).isEqualTo(ConnectionState.UNINITIALIZED);
+        verify(future).cancel(true);
+        verify(publishBytesClient).close();
+        verify(publishBytesClient, times(0)).publishBlockStream(connection);
+        assertThat(connection.isRequestClientActive()).isFalse();
+    }
+
+    @Test
+    void closeBetweenFactoryReturnAndStreamOpenReleasesClient() throws Exception {
+        when(blockingIoExecutor.awaitTermination(anyLong(), any(TimeUnit.class)))
+                .thenReturn(true);
+        doAnswer(_ -> {
+                    connection.close(CloseReason.SHUTDOWN, false, null);
+                    return requestCall;
+                })
+                .when(publishBytesClient)
+                .publishBlockStream(connection);
+
+        assertThatThrownBy(connection::initialize)
+                .isInstanceOf(RuntimeException.class)
+                .hasMessage("Connection closed while creating pipeline");
+
+        assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);
+        verify(publishBytesClient).close();
+        verify(requestCall, never()).completeRequests();
+        verify(metrics, never()).recordConnectionOpened(any());
+        assertThat(connection.isRequestClientActive()).isFalse();
+    }
+
+    @Test
+    void openerClosesClientWhenStreamOpenFails() {
+        doThrow(new RuntimeException("stream refused")).when(publishBytesClient).publishBlockStream(connection);
+
+        assertThatThrownBy(connection::initialize)
+                .isInstanceOf(RuntimeException.class)
+                .hasMessage("Error creating pipeline");
+
+        assertThat(connection.currentState()).isEqualTo(ConnectionState.UNINITIALIZED);
+        verify(publishBytesClient).close();
+        assertThat(connection.isRequestClientActive()).isFalse();
+    }
+
+    @Test
+    void handedOffTransportBeforeTimeoutIsReleasedByClose() throws Exception {
+        final Future<?> timedOut = mock(Future.class);
+        doThrow(new TimeoutException()).when(timedOut).get(anyLong(), any(TimeUnit.class));
+        final AtomicBoolean firstSubmit = new AtomicBoolean(true);
+        doAnswer(invocation -> {
+                    final Runnable task = invocation.getArgument(0, Runnable.class);
+                    if (firstSubmit.compareAndSet(true, false)) {
+                        // the opener finishes its hand-off, but initialize() still sees a timeout
+                        task.run();
+                        return timedOut;
+                    }
+                    return realExecSvc.submit(task);
+                })
+                .when(blockingIoExecutor)
+                .submit(any(Runnable.class));
+
+        assertThatThrownBy(connection::initialize).hasCauseInstanceOf(TimeoutException.class);
+        assertThat(connection.isRequestClientActive()).isTrue();
+
+        // this is how the connection manager releases a connection that failed to initialize
+        connection.close(CloseReason.INTERNAL_ERROR, true, null);
+
+        assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);
+        verify(requestCall).completeRequests();
+        verify(publishBytesClient).close();
+        assertThat(connection.isRequestClientActive()).isFalse();
+    }
+
+    @Test
+    void concurrentCloseCallsReleaseClientOnlyOnce() throws Exception {
+        activateConnection();
+        doAnswer(_ -> {
+                    // Let the second closer finish while the first is preparing its EndStream.
+                    connection.close(CloseReason.CONNECTION_ERROR, false, null);
+                    return 0L;
+                })
+                .when(bufferService)
+                .getEarliestAvailableBlockNumber();
+
+        connection.close(CloseReason.CONFIG_UPDATE, true, EndStream.Code.RESET);
+
+        assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);
+        verify(publishBytesClient).close();
+        verify(connectionManager).notifyConnectionClosed(connection);
+        verify(metrics).recordConnectionClosed(eq(connection.connectionType()), any(CloseReason.class));
+    }
+
+    @Test
+    void closerThatLosesRaceReturnsWithoutThrowing() {
+        activateConnection();
+
+        final DummyPublisherConnection spyConnection = spy(connection);
+        final AtomicBoolean otherCloserRan = new AtomicBoolean(false);
+        doAnswer(invocation -> {
+                    final ConnectionState state = (ConnectionState) invocation.callRealMethod();
+                    if (otherCloserRan.compareAndSet(false, true)) {
+                        // another closer completes after this one observed ACTIVE
+                        connection.close(CloseReason.CONNECTION_ERROR, true, null);
+                    }
+                    return state;
+                })
+                .when(spyConnection)
+                .currentState();
+
+        assertThatCode(() -> spyConnection.close(CloseReason.CONFIG_UPDATE, true, EndStream.Code.RESET))
+                .doesNotThrowAnyException();
+
+        assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);
+        assertThat(connection.closeReason()).isEqualTo(CloseReason.CONNECTION_ERROR);
+        verify(requestCall, never()).sendRequest(any(), anyBoolean());
+        verify(publishBytesClient).close();
+        verify(metrics).recordConnectionClosed(any(ConnectionType.class), any(CloseReason.class));
+        verify(connectionManager).notifyConnectionClosed(any(BlockNodePublisherConnection.class));
+    }
+
+    @Test
+    void readyCloseThatObservesActivationSendsEndStreamOnce() {
+        openConnectionAndResetMocks();
+
+        final DummyPublisherConnection spyConnection = spy(connection);
+        final AtomicBoolean stateChanged = new AtomicBoolean(false);
+        doAnswer(invocation -> {
+                    final ConnectionState state = (ConnectionState) invocation.callRealMethod();
+                    if (stateChanged.compareAndSet(false, true)) {
+                        connectionState().set(ConnectionState.ACTIVE);
+                    }
+                    return state;
+                })
+                .when(spyConnection)
+                .currentState();
+
+        spyConnection.close(CloseReason.CONFIG_UPDATE, true, EndStream.Code.RESET);
+
+        assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);
+        assertThat(connection.closeReason()).isEqualTo(CloseReason.CONFIG_UPDATE);
+        final ArgumentCaptor<PublishStreamRequestBytes> requests =
+                ArgumentCaptor.forClass(PublishStreamRequestBytes.class);
+        verify(requestCall).sendRequest(requests.capture(), anyBoolean());
+        assertThat(requests.getValue().endStream()).isNotNull();
+        assertThat(requests.getValue().endStream().endCode()).isEqualTo(EndStream.Code.RESET);
+        verify(metrics).recordPublisherRequestEndStreamSent(connection.connectionType(), EndStream.Code.RESET);
+        verify(requestCall).completeRequests();
+        verify(publishBytesClient).close();
+    }
+
+    @Test
+    void endStreamSentOnceWhenTwoClosersRace() throws Exception {
+        activateConnection();
+        final CountDownLatch bothPreparingEndStream = new CountDownLatch(2);
+        doAnswer(_ -> {
+                    bothPreparingEndStream.countDown();
+                    // only reached by both closers when two EndStreams are being prepared
+                    bothPreparingEndStream.await(500, TimeUnit.MILLISECONDS);
+                    return 0L;
+                })
+                .when(bufferService)
+                .getEarliestAvailableBlockNumber();
+
+        final CyclicBarrier start = new CyclicBarrier(2);
+        final List<Throwable> errors = new CopyOnWriteArrayList<>();
+        final Runnable closer = () -> {
+            try {
+                start.await(5, TimeUnit.SECONDS);
+                connection.close(CloseReason.CONFIG_UPDATE, true, EndStream.Code.RESET);
+            } catch (final Throwable t) {
+                errors.add(t);
+            }
+        };
+        final Thread first = Thread.ofPlatform().start(closer);
+        final Thread second = Thread.ofPlatform().start(closer);
+        assertThat(first.join(Duration.ofSeconds(10))).isTrue();
+        assertThat(second.join(Duration.ofSeconds(10))).isTrue();
+
+        assertThat(errors).isEmpty();
+        assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);
+        verify(requestCall, times(1)).sendRequest(any(), anyBoolean());
+        verify(metrics, times(1)).recordConnectionClosed(any(ConnectionType.class), any(CloseReason.class));
+        verify(connectionManager, times(1)).notifyConnectionClosed(connection);
+        verify(publishBytesClient, times(1)).close();
+    }
+
+    @Test
+    void gracefulCloseKeepsReasonWhenStreamCompletesDuringEndStream() throws Exception {
+        activateConnection();
+        when(blockingIoExecutor.awaitTermination(anyLong(), any(TimeUnit.class)))
+                .thenReturn(true);
+        doAnswer(invocation -> {
+                    final PublishStreamRequestBytes request = invocation.getArgument(0);
+                    if (request.hasEndStream()) {
+                        // the block node completes the stream as soon as it receives our EndStream
+                        connection.onComplete();
+                    }
+                    return null;
+                })
+                .when(requestCall)
+                .sendRequest(any(), anyBoolean());
+
+        final LogCaptor logCaptor = new LogCaptor(LogManager.getLogger(BlockNodePublisherConnection.class));
+        try {
+            connection.close(CloseReason.PERIODIC_RESET, true, EndStream.Code.RESET);
+        } finally {
+            logCaptor.stopCapture();
+        }
+
+        // the completion answers our EndStream, so it must not be reported as unexpected
+        assertThat(logCaptor.warnLogs()).noneMatch(log -> log.contains("Stream completed unexpectedly"));
+        assertThat(logCaptor.debugLogs())
+                .anyMatch(log -> log.contains("Stream completed (stream close was already in progress)"));
+        assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);
+        assertThat(connection.closeReason()).isEqualTo(CloseReason.PERIODIC_RESET);
+        verify(metrics).recordConnectionOnComplete(connection.connectionType());
+        verify(metrics).recordConnectionClosed(connection.connectionType(), CloseReason.PERIODIC_RESET);
+        verify(metrics, never()).recordConnectionClosed(connection.connectionType(), CloseReason.CONNECTION_ERROR);
+        verify(connectionManager, times(1)).notifyConnectionClosed(connection);
+    }
+
+    @Test
+    void endStreamTimeoutWhileClosingDoesNotTriggerTimeoutClose() throws Exception {
+        configProvider = createConfigProvider(
+                createDefaultConfigProvider().withValue("blockNode.operationTimeout.maxTimeoutsPerWindow", 1));
+        connection = newConnection(ConnectionType.BLOCK_STREAMING);
+        activateConnection();
+
+        final Future<?> timedOut = mock(Future.class);
+        doThrow(new TimeoutException()).when(timedOut).get(anyLong(), any(TimeUnit.class));
+        final AtomicBoolean firstSubmit = new AtomicBoolean(true);
+        doAnswer(invocation -> firstSubmit.compareAndSet(true, false)
+                        ? timedOut
+                        : realExecSvc.submit(invocation.getArgument(0, Runnable.class)))
+                .when(blockingIoExecutor)
+                .submit(any(Runnable.class));
+
+        connection.close(CloseReason.CONFIG_UPDATE, true, EndStream.Code.RESET);
+
+        assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);
+        assertThat(connection.closeReason()).isEqualTo(CloseReason.CONFIG_UPDATE);
+        verify(timedOut).cancel(true);
+        verify(metrics, never()).recordOperationTimeout(any(ConnectionType.class));
+        verify(metrics, times(1)).recordConnectionClosed(any(ConnectionType.class), any(CloseReason.class));
+        verify(connectionManager, times(1)).notifyConnectionClosed(connection);
+    }
+
+    @Test
+    void onlyEndStreamMaySendWhileClosing() {
+        activateConnection();
+        connection.updateConnectionState(ConnectionState.CLOSING);
+
+        final PublishStreamRequestBytes items = createRequest(newBlockHeaderItem());
+        final SendRequestResult itemsResult =
+                sendRequest(new PublisherBlockItemsRequest(items, 1L, 1, 1, false, false, 3_000, 1));
+        final PublishStreamRequestBytes endStream = PublishStreamRequestBytes.newBuilder()
+                .endStream(EndStreamBytes.newBuilder().endCode(EndStream.Code.RESET))
+                .build();
+        final SendRequestResult endStreamResult = sendRequest(new PublisherEndStreamRequest(endStream, 3_000));
+
+        assertThat(itemsResult.status()).isEqualTo(SendRequestStatus.CONNECTION_CLOSED);
+        assertThat(endStreamResult.status()).isEqualTo(SendRequestStatus.SUCCESS);
+        verify(requestCall).sendRequest(endStream, false);
+        verifyNoMoreInteractions(requestCall);
     }
 
     /**

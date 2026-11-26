@@ -19,10 +19,12 @@ import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
@@ -33,10 +35,13 @@ import org.apache.logging.log4j.Logger;
  * <p>
  * Block files are written into a directory whose name is the current (at the time of writing) timestamp in milliseconds.
  * This naming structure allows for an easy way to find the most recently written batch of blocks. Each block file is
- * named: {@code block-$BlockNumber.bin}
+ * named: {@code block-$BlockNumber.bin}. A batch is first written to a {@code $Millis.tmp} directory, which the reader
+ * ignores, and then renamed, so a batch whose write fails or is cut short by a process crash is never read back. The
+ * files are not forced to disk, so this does not hold after a power loss or an operating system crash.
  */
 public class BlockBufferIO {
     private static final Logger logger = LogManager.getLogger(BlockBufferIO.class);
+    private static final String TMP_DIRECTORY_SUFFIX = ".tmp";
 
     /**
      * The root directory where blocks are stored.
@@ -71,12 +76,13 @@ public class BlockBufferIO {
     }
 
     /**
-     * Read the latest set of blocks persisted to disk.
+     * Read the latest set of blocks persisted to disk. Synchronized with {@link #write(List, long)}, so a write cannot
+     * delete the directory while it is being read.
      *
      * @return a list of blocks from disk
      * @throws IOException if there is an error reading the block data from disk
      */
-    public List<BufferedBlock> read() throws IOException {
+    public synchronized List<BufferedBlock> read() throws IOException {
         return new Reader().read();
     }
 
@@ -195,6 +201,7 @@ public class BlockBufferIO {
 
         Writer(final List<BlockState> blocks, final long latestAcknowledgedBlockNumber) {
             this.blocks = new ArrayList<>(requireNonNull(blocks));
+            this.blocks.sort(Comparator.comparingLong(BlockState::blockNumber));
             this.latestAcknowledgedBlockNumber = latestAcknowledgedBlockNumber;
         }
 
@@ -204,22 +211,28 @@ public class BlockBufferIO {
          * @throws IOException if there was an error writing the blocks to disk
          */
         private void write() throws IOException {
-            final Instant now = Instant.now();
-            final File directory = new File(rootDirectory, Long.toString(now.toEpochMilli()));
-            final Path directoryPath = directory.toPath();
-            Files.createDirectories(directoryPath);
+            final Path rootPath = rootDirectory.toPath();
+            long millis = Instant.now().toEpochMilli();
+            // a rename cannot replace a non-empty directory, so never reuse a name (e.g. two writes in one millisecond)
+            while (Files.exists(rootPath.resolve(Long.toString(millis)))
+                    || Files.exists(rootPath.resolve(millis + TMP_DIRECTORY_SUFFIX))) {
+                ++millis;
+            }
+            final Path directoryPath = rootPath.resolve(Long.toString(millis));
+            final Path tmpDirectoryPath = rootPath.resolve(millis + TMP_DIRECTORY_SUFFIX);
+            Files.createDirectories(tmpDirectoryPath);
 
             logger.debug(
                     "Created new block buffer directory: {}",
-                    directoryPath.toFile().getAbsolutePath());
+                    tmpDirectoryPath.toFile().getAbsolutePath());
 
             for (final BlockState block : blocks) {
                 final String fileName = "block-" + block.blockNumber() + ".bin";
-                final Path path = new File(directory, fileName).toPath();
-
-                writeBlock(path, block);
+                writeBlock(tmpDirectoryPath.resolve(fileName), block);
             }
 
+            Files.move(tmpDirectoryPath, directoryPath, StandardCopyOption.ATOMIC_MOVE);
+            // also removes the temporary directories of earlier writes that failed or were cut short
             cleanupOldFiles(directoryPath);
         }
 

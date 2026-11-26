@@ -48,10 +48,28 @@ public abstract class BlockNodePublisherConnection extends AbstractBlockNodeConn
      */
     private final BlockStreamMetrics metrics;
     /**
-     * The bidirectional gRPC call interface used to send messages to the block node.
+     * A publish client together with the bidirectional call opened on it.
+     *
+     * @param client the client
+     * @param call the call used to send messages to the block node
      */
-    private final AtomicReference<GrpcCall<PublishStreamRequestBytes, PublishStreamResponse>> requestCallRef =
-            new AtomicReference<>();
+    private record Transport(
+            @NonNull BlockStreamPublishBytesClient client,
+            @NonNull GrpcCall<PublishStreamRequestBytes, PublishStreamResponse> call) {}
+    /**
+     * Guards the transport hand-off and detach. Not {@code this}: initialize() holds that monitor while close() may run
+     * on the opener thread.
+     */
+    private final Object transportLock = new Object();
+    /**
+     * The open transport, or null if none is open. Written only under {@link #transportLock}.
+     */
+    private final AtomicReference<Transport> transportRef = new AtomicReference<>();
+    /**
+     * Number of the current open attempt; an opener may hand off its transport only while its attempt is current.
+     * Guarded by {@link #transportLock}.
+     */
+    private long currentOpenAttempt;
     /**
      * Executor service used to perform asynchronous, blocking I/O operations.
      */
@@ -64,10 +82,6 @@ public abstract class BlockNodePublisherConnection extends AbstractBlockNodeConn
      * The block node associated with this connection.
      */
     private final BlockNode blockNode;
-    /**
-     * Publish gRPC client used to send messages to the block node.
-     */
-    private BlockStreamPublishBytesClient client;
     /**
      * Counter used to generate unique request attempt IDs for the lifetime of this connection.
      */
@@ -89,10 +103,6 @@ public abstract class BlockNodePublisherConnection extends AbstractBlockNodeConn
      * blocks for streaming and indicating which blocks have been acknowledged by the block node.
      */
     private final BlockBufferService bufferService;
-    /**
-     * Flag indicating whether an end stream has been sent for this connection.
-     */
-    private final AtomicBoolean isEndStreamSent = new AtomicBoolean(false);
     /**
      * The "parent" connection manager that manages the lifecycle of this connection.
      */
@@ -155,7 +165,7 @@ public abstract class BlockNodePublisherConnection extends AbstractBlockNodeConn
      * @return true if the request client is initialized, else false
      */
     final boolean isRequestClientActive() {
-        return requestCallRef.get() != null;
+        return transportRef.get() != null;
     }
 
     @Override
@@ -166,40 +176,113 @@ public abstract class BlockNodePublisherConnection extends AbstractBlockNodeConn
         }
 
         final Duration timeoutDuration = bncConfig().grpcOverallTimeout();
+        final long attempt;
+        synchronized (transportLock) {
+            attempt = ++currentOpenAttempt;
+        }
 
         // Execute entire pipeline creation (including gRPC client creation) with timeout
         // to prevent blocking on network operations
-        final Future<?> future = blockingIoExecutor.submit(() -> {
-            client = clientFactory.createStreamingClient(
-                    configuration(),
-                    timeoutDuration,
-                    connectionId().toString(),
-                    bncConfig().grpcCompressionType());
-            final GrpcCall<PublishStreamRequestBytes, PublishStreamResponse> call = client.publishBlockStream(this);
-            requestCallRef.set(call);
-        });
+        final Runnable openTask = () -> openTransport(attempt, timeoutDuration);
+        final Future<?> future = blockingIoExecutor.submit(openTask);
 
         final long timeoutMillis = connectionManagementTimeoutMillis();
 
         try {
             future.get(timeoutMillis, TimeUnit.MILLISECONDS);
-            if (logger.isDebugEnabled()) {
-                logger.debug("{} Request pipeline initialized (success: {})", this, isRequestClientActive());
-            }
-            updateConnectionState(ConnectionState.READY);
-            metrics.recordConnectionOpened(connectionType());
         } catch (final TimeoutException e) {
+            abandonOpenAttempt();
             future.cancel(true);
             logger.warn("{} Pipeline creation timed out after {}ms", this, timeoutMillis);
             metrics.recordOperationTimeout(connectionType());
             throw new RuntimeException("Pipeline creation timed out", e);
         } catch (final InterruptedException e) {
+            abandonOpenAttempt();
+            future.cancel(true);
             Thread.currentThread().interrupt();
             logger.warn("{} Interrupted while creating pipeline", this, e);
             throw new RuntimeException("Interrupted while creating pipeline", e);
         } catch (final ExecutionException e) {
             logger.warn("{} Error creating pipeline", this, e.getCause());
             throw new RuntimeException("Error creating pipeline", e.getCause());
+        }
+
+        if (!updateConnectionState(ConnectionState.UNINITIALIZED, ConnectionState.READY)) {
+            throw new RuntimeException("Connection closed while creating pipeline");
+        }
+        if (logger.isDebugEnabled()) {
+            logger.debug("{} Request pipeline initialized (success: {})", this, isRequestClientActive());
+        }
+        metrics.recordConnectionOpened(connectionType());
+    }
+
+    /**
+     * Creates a client and opens the stream for the specified open attempt. The new transport is handed off to this
+     * connection only if the attempt is still current and the connection is not closing; otherwise the client is closed
+     * here, since nothing else references it.
+     *
+     * @param attempt the open attempt this task belongs to
+     * @param timeout the gRPC timeout to use for the client
+     */
+    private void openTransport(final long attempt, @NonNull final Duration timeout) {
+        final BlockStreamPublishBytesClient newClient = clientFactory.createStreamingClient(
+                configuration(), timeout, connectionId().toString(), bncConfig().grpcCompressionType());
+        boolean handedOff = false;
+        try {
+            if (canHandOff(attempt)) {
+                handedOff = handOff(attempt, new Transport(newClient, newClient.publishBlockStream(this)));
+            }
+        } finally {
+            if (!handedOff) {
+                shutdownClient(newClient);
+            }
+        }
+    }
+
+    /**
+     * @param attempt the open attempt to check
+     * @return true if the attempt is current and the connection is not closing, else false
+     */
+    private boolean canHandOff(final long attempt) {
+        synchronized (transportLock) {
+            return currentOpenAttempt == attempt && !currentState().isTerminal();
+        }
+    }
+
+    /**
+     * Publishes the transport if the attempt may still hand off.
+     *
+     * @param attempt the open attempt the transport belongs to
+     * @param transport the transport to publish
+     * @return true if the transport was published, else false (the caller still owns it)
+     */
+    private boolean handOff(final long attempt, @NonNull final Transport transport) {
+        synchronized (transportLock) {
+            if (!canHandOff(attempt)) {
+                return false;
+            }
+            transportRef.set(transport);
+            return true;
+        }
+    }
+
+    /**
+     * Marks the current open attempt as abandoned so that its opener closes whatever it creates.
+     */
+    private void abandonOpenAttempt() {
+        synchronized (transportLock) {
+            ++currentOpenAttempt;
+        }
+    }
+
+    /**
+     * Detaches the transport; called only by the closer that won the transition to CLOSING.
+     *
+     * @return the detached transport, or null if none was open
+     */
+    private @Nullable Transport detachTransport() {
+        synchronized (transportLock) {
+            return transportRef.getAndSet(null);
         }
     }
 
@@ -285,12 +368,14 @@ public abstract class BlockNodePublisherConnection extends AbstractBlockNodeConn
     public final void onComplete() {
         metrics.recordConnectionOnComplete(connectionType());
 
-        if (currentState() == ConnectionState.CLOSED) {
+        final ConnectionState state = currentState();
+        if (state == ConnectionState.CLOSED) {
             logger.debug("{} onComplete invoked but connection is already closed", this);
             return;
         }
 
-        if (streamShutdownInProgress.getAndSet(false)) {
+        // a completion while CLOSING answers the closer's EndStream or completeRequests, so it is expected
+        if (streamShutdownInProgress.getAndSet(false) || state == ConnectionState.CLOSING) {
             logger.debug("{} Stream completed (stream close was already in progress)", this);
         } else {
             logger.warn("{} Stream completed unexpectedly", this);
@@ -299,8 +384,9 @@ public abstract class BlockNodePublisherConnection extends AbstractBlockNodeConn
     }
 
     /**
-     * Closes this connection. If an end stream code is specified, then before the connection is closed an attempt will
-     * be made to send the aforementioned end stream message to the block node.
+     * Closes this connection. If an end stream code is specified and the connection was active, then before the
+     * connection is closed an attempt will be made to send the aforementioned end stream message to the block node.
+     * Only the caller that moves the connection to CLOSING performs the close; concurrent callers return immediately.
      *
      * @param closeReason the reason for closing this connection
      * @param callOnComplete true if a signal should be sent to the request client that no more requests are expected
@@ -312,13 +398,20 @@ public abstract class BlockNodePublisherConnection extends AbstractBlockNodeConn
             @Nullable final EndStream.Code endStreamCode) {
         requireNonNull(closeReason);
 
-        final ConnectionState connectionState = currentState();
-        if (connectionState.isTerminal()) {
-            logger.debug("{} Connection already in terminal state ({})", this, connectionState);
-            return;
-        }
+        ConnectionState priorState;
+        do {
+            priorState = currentState();
+            if (priorState.isTerminal()) {
+                logger.debug("{} Connection already in terminal state ({})", this, priorState);
+                return;
+            }
+        } while (!updateConnectionState(priorState, ConnectionState.CLOSING));
 
-        if (endStreamCode != null) {
+        logger.info("{} Closing connection (reason: {})", this, closeReason);
+        setCloseReason(closeReason);
+
+        // only a stream that was carrying blocks gets an EndStream
+        if (endStreamCode != null && priorState == ConnectionState.ACTIVE) {
             try {
                 sendEndStream(endStreamCode);
             } catch (final Exception _) {
@@ -326,26 +419,22 @@ public abstract class BlockNodePublisherConnection extends AbstractBlockNodeConn
             }
         }
 
-        if (!updateConnectionState(connectionState, ConnectionState.CLOSING)) {
-            logger.debug("{} State changed while trying to close connection. Aborting close attempt.", this);
-            return;
-        }
-
-        logger.info("{} Closing connection (reason: {})", this, closeReason);
-        setCloseReason(closeReason);
-
-        try {
-            closeRequestClient(callOnComplete);
-        } catch (final Exception e) {
-            final FailureType failureType = FailureType.findFailureType(e);
-            if (failureType.isCommonFailure()) {
-                logger.warn("{} Error occurred while attempting to close connection (error: {})", this, failureType);
-            } else {
-                logger.warn("{} Error occurred while attempting to close connection", this, e);
+        final Transport transport = detachTransport();
+        if (transport != null) {
+            try {
+                closeRequestClient(transport.call(), callOnComplete);
+            } catch (final Exception e) {
+                final FailureType failureType = FailureType.findFailureType(e);
+                if (failureType.isCommonFailure()) {
+                    logger.warn(
+                            "{} Error occurred while attempting to close connection (error: {})", this, failureType);
+                } else {
+                    logger.warn("{} Error occurred while attempting to close connection", this, e);
+                }
             }
-        }
 
-        shutdownClient();
+            shutdownClient(transport.client());
+        }
         shutdownExecutor();
 
         metrics.recordConnectionClosed(connectionType(), closeReason);
@@ -360,13 +449,14 @@ public abstract class BlockNodePublisherConnection extends AbstractBlockNodeConn
     }
 
     /**
-     * Closes the block node client. If there are any failures, they are logged and not propagated back to the caller.
+     * Closes the specified block node client. If there are any failures, they are logged and not propagated back to the
+     * caller.
+     *
+     * @param client the client to close
      */
-    private void shutdownClient() {
+    private void shutdownClient(@NonNull final BlockStreamPublishBytesClient client) {
         try {
-            if (client != null) {
-                client.close();
-            }
+            client.close();
         } catch (final Exception e) {
             final FailureType failureType = FailureType.findFailureType(e);
             if (failureType.isCommonFailure()) {
@@ -404,15 +494,12 @@ public abstract class BlockNodePublisherConnection extends AbstractBlockNodeConn
     /**
      * Closes the request client to the block node.
      *
+     * @param call the call to close
      * @param callOnComplete true if the client should be notified that no more requests are expected, else false
      */
-    private void closeRequestClient(final boolean callOnComplete) {
-        final GrpcCall<PublishStreamRequestBytes, PublishStreamResponse> call = requestCallRef.get();
-
-        if (call == null) {
-            return; // there is nothing to close
-        }
-
+    private void closeRequestClient(
+            @NonNull final GrpcCall<PublishStreamRequestBytes, PublishStreamResponse> call,
+            final boolean callOnComplete) {
         logger.debug("{} Closing request client", this);
         streamShutdownInProgress.set(true);
 
@@ -452,9 +539,7 @@ public abstract class BlockNodePublisherConnection extends AbstractBlockNodeConn
                 logger.warn("{} Error while completing request client", this, e);
             }
         }
-        // Clear the call reference to prevent further use
         logger.debug("{} Request client closed and cleared", this);
-        requestCallRef.compareAndSet(call, null);
     }
 
     /**
@@ -467,10 +552,6 @@ public abstract class BlockNodePublisherConnection extends AbstractBlockNodeConn
 
     private void sendEndStream(@NonNull final EndStream.Code endStreamCode) {
         requireNonNull(endStreamCode);
-
-        if (isEndStreamSent.get()) {
-            return; // we've already sent an EndStream request OR we are avoiding sending one
-        }
 
         final long earliestBlockNumber = bufferService.getEarliestAvailableBlockNumber();
         final long highestAckedBlockNumber = bufferService.getHighestAckedBlockNumber();
@@ -492,7 +573,6 @@ public abstract class BlockNodePublisherConnection extends AbstractBlockNodeConn
         final long timeoutMillis = calculateRequestTimeout(endStream.protobufSize());
 
         try {
-            isEndStreamSent.set(true); // regardless of outcome, mark it as sent
             final SendRequestResult result = sendRequest(new PublisherEndStreamRequest(endStream, timeoutMillis));
             if (SendRequestStatus.SUCCESS != result.status) {
                 logger.warn("{} Sending of end stream request failed (reason: {})", this, result.status);
@@ -526,9 +606,13 @@ public abstract class BlockNodePublisherConnection extends AbstractBlockNodeConn
                     request.streamRequestType());
         }
 
-        final GrpcCall<PublishStreamRequestBytes, PublishStreamResponse> call = requestCallRef.get();
+        final Transport transport = transportRef.get();
+        final ConnectionState state = currentState();
+        // the close winner's final EndStream is the only request permitted once the connection is CLOSING
+        final boolean canSend = state == ConnectionState.ACTIVE
+                || (state == ConnectionState.CLOSING && request instanceof PublisherEndStreamRequest);
 
-        if (!isActive() || call == null) {
+        if (!canSend || transport == null) {
             if (logger.isDebugEnabled()) {
                 logger.debug(
                         "{} Tried to send a request but the connection is not active or initialized; ignoring request",
@@ -554,6 +638,7 @@ public abstract class BlockNodePublisherConnection extends AbstractBlockNodeConn
         this method.
          */
 
+        final GrpcCall<PublishStreamRequestBytes, PublishStreamResponse> call = transport.call();
         final SendRequestContext ctx;
 
         try {

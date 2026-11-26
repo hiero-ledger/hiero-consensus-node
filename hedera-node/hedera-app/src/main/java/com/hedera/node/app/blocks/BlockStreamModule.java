@@ -116,8 +116,9 @@ public interface BlockStreamModule {
     /**
      * Provides a dedicated supplier of {@link GrpcBlockItemWriter} instances for the wrapped record block
      * (WRB) path used by {@code BlockRecordManagerImpl}. Unlike {@link #bindBlockItemWriterSupplier}, this
-     * supplier always returns a gRPC-capable writer regardless of {@code blockStream.writerMode}, since the
-     * WRB path must reach {@link BlockBufferService} even when the writer mode is {@code FILE}.
+     * supplier always returns a gRPC writer regardless of {@code blockStream.writerMode}. Its blocks reach block
+     * nodes only when {@code writerMode} is not {@code FILE}; in {@code FILE} mode {@link BlockBufferService}
+     * ignores them.
      */
     @Provides
     @Singleton

@@ -9,11 +9,14 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.node.internal.network.BlockNodeConfig;
 import com.hedera.node.internal.network.BlockNodeConnectionInfo;
+import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.jsonparser.JSONLexer;
+import com.hedera.pbj.runtime.jsonparser.JSONParser;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.ClosedWatchServiceException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -32,6 +35,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.antlr.v4.runtime.BaseErrorListener;
+import org.antlr.v4.runtime.CharStreams;
+import org.antlr.v4.runtime.CommonTokenStream;
+import org.antlr.v4.runtime.RecognitionException;
+import org.antlr.v4.runtime.Recognizer;
+import org.antlr.v4.runtime.misc.ParseCancellationException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.file.FileUtils;
@@ -49,6 +58,21 @@ public class BlockNodeConfigService {
      * The name of the block node configuration file.
      */
     private static final String BLOCK_NODES_FILE_NAME = "block-nodes.json";
+    /**
+     * Turns the first lexer or parser error into an exception naming its position, instead of recovering from it.
+     */
+    private static final BaseErrorListener FAIL_ON_SYNTAX_ERROR = new BaseErrorListener() {
+        @Override
+        public void syntaxError(
+                final Recognizer<?, ?> recognizer,
+                final Object offendingSymbol,
+                final int line,
+                final int charPositionInLine,
+                final String msg,
+                final RecognitionException e) {
+            throw new ParseCancellationException("line " + line + ":" + charPositionInLine + " " + msg, e);
+        }
+    };
     /**
      * The directory where the block node configuration file will be, if it exists.
      */
@@ -184,9 +208,8 @@ public class BlockNodeConfigService {
             }
 
             final byte[] bytes = Files.readAllBytes(path);
-            // Allow unknown/removed fields so block-node configuration remains compatible across versions.
-            connectionInfo = BlockNodeConnectionInfo.JSON.parse(Bytes.wrap(bytes));
-        } catch (final IOException | ParseException e) {
+            connectionInfo = parseStrictly(bytes);
+        } catch (final IOException | ParseException | ParseCancellationException e) {
             logger.warn("Failed to read block node configuration from {}", path, e);
             return;
         }
@@ -266,6 +289,31 @@ public class BlockNodeConfigService {
     }
 
     /**
+     * Parses the configuration file, rejecting any syntax error. PBJ's JSON codec recovers from syntax errors, so a
+     * file read while it is still being written would otherwise parse into a partial configuration.
+     *
+     * @param bytes the contents of the configuration file
+     * @return the parsed configuration
+     * @throws ParseException if the parsed JSON is not a valid block node configuration
+     * @throws ParseCancellationException if the contents are not complete, valid JSON
+     */
+    private static BlockNodeConnectionInfo parseStrictly(@NonNull final byte[] bytes) throws ParseException {
+        final String text = new String(bytes, StandardCharsets.UTF_8);
+        // Some editors start the file with a byte order mark, which JSON readers may ignore
+        final String json = text.startsWith("\uFEFF") ? text.substring(1) : text;
+        final JSONLexer lexer = new JSONLexer(CharStreams.fromString(json));
+        lexer.removeErrorListeners();
+        lexer.addErrorListener(FAIL_ON_SYNTAX_ERROR);
+        final JSONParser parser = new JSONParser(new CommonTokenStream(lexer));
+        parser.removeErrorListeners();
+        // Every parser error is reported before any recovery, so the listener stops the parse at the first one
+        parser.addErrorListener(FAIL_ON_SYNTAX_ERROR);
+        final JSONParser.ObjContext root = parser.json().value().obj();
+        // Allow unknown/removed fields so block-node configuration remains compatible across versions.
+        return BlockNodeConnectionInfo.JSON.parse(root, false, Codec.DEFAULT_MAX_DEPTH, Codec.DEFAULT_MAX_SIZE);
+    }
+
+    /**
      * Makes it visible when two APIs sharing one endpoint had their TLS settings reconciled to the more secure one.
      * Filling in a block the operator left out is logged at INFO; overriding a block the operator explicitly set to
      * {@code enabled: false} is logged at WARN, because the file then says one thing and the node does another.
@@ -273,12 +321,11 @@ public class BlockNodeConfigService {
      * @param config the parsed configuration for one block node
      */
     private void logSharedEndpointTls(@NonNull final BlockNodeConfiguration config) {
-        final String upgraded =
-                switch (config.tlsInheritance()) {
-                    case NONE -> null;
-                    case SERVICE_FROM_STREAMING -> "service";
-                    case STREAMING_FROM_SERVICE -> "streaming";
-                };
+        final String upgraded = switch (config.tlsInheritance()) {
+            case NONE -> null;
+            case SERVICE_FROM_STREAMING -> "service";
+            case STREAMING_FROM_SERVICE -> "streaming";
+        };
         if (upgraded == null) {
             return;
         }
