@@ -5,22 +5,20 @@
 ########################################################################################################################
 ARG UBUNTU_SHA="sha256:80dd3c3b9c6cecb9f1667e9290b3bc61b78c2678c02cbdae5f0fea92cc6734ab"
 
-# Temurin is the default. Setting OPENJDK_DL_KEY selects the legacy download.java.net OpenJDK build instead.
-ARG OPENJDK_VERSION=25.0.5.1
-ARG OPENJDK_BUILD=2
-ARG OPENJDK_DL_KEY=""
+# Eclipse Temurin build to install, e.g. 25.0.5.1 + 2 => jdk-25.0.5.1+2. Needs matching files in checksums/.
+ARG JDK_VERSION=25.0.5.1
+ARG JDK_BUILD=2
 
 ########################################################################################################################
 #
 # Setup Builder Image
 #
 ########################################################################################################################
-FROM ubuntu@${UBUNTU_SHA} AS openjdk-builder
+FROM ubuntu@${UBUNTU_SHA} AS jdk-builder
 
 # Define Global Argument Refs
-ARG OPENJDK_BUILD
-ARG OPENJDK_DL_KEY
-ARG OPENJDK_VERSION
+ARG JDK_BUILD
+ARG JDK_VERSION
 
 # Define Standard Environment Variables
 ENV LC_ALL=C.UTF-8
@@ -40,27 +38,18 @@ RUN apt-get update && \
 ####    Java Setup    ####
 ##########################
 
-# Download, validate and unpack the Java archive. Both flavors end up in /usr/local/java/jdk-${OPENJDK_VERSION}.
+# Download, validate and unpack the Temurin archive into /usr/local/java/jdk-${JDK_VERSION}.
 WORKDIR "/tmp/java"
 RUN set -eux; \
-    mkdir -p /usr/local/java; \
-    if [ -n "${OPENJDK_DL_KEY}" ]; then \
-        JDK_TAR="openjdk-${OPENJDK_VERSION}_linux-x64_bin.tar.gz"; \
-        JDK_CHECKSUMS="/tmp/checksums/openjdk-${OPENJDK_VERSION}_linux-x64_bin"; \
-        JDK_URL="https://download.java.net/java/GA/jdk${OPENJDK_VERSION}/${OPENJDK_DL_KEY}/GPL/${JDK_TAR}"; \
-        JDK_DIR="jdk-${OPENJDK_VERSION}"; \
-    else \
-        JDK_MAJOR="${OPENJDK_VERSION%%.*}"; \
-        JDK_TAR="OpenJDK${JDK_MAJOR}U-jdk_x64_linux_hotspot_${OPENJDK_VERSION}_${OPENJDK_BUILD}.tar.gz"; \
-        JDK_CHECKSUMS="/tmp/checksums/temurin-${OPENJDK_VERSION}_${OPENJDK_BUILD}_linux-x64"; \
-        JDK_URL="https://github.com/adoptium/temurin${JDK_MAJOR}-binaries/releases/download/jdk-${OPENJDK_VERSION}%2B${OPENJDK_BUILD}/${JDK_TAR}"; \
-        JDK_DIR="jdk-${OPENJDK_VERSION}+${OPENJDK_BUILD}"; \
-    fi; \
-    wget --quiet "${JDK_URL}"; \
+    JDK_MAJOR="${JDK_VERSION%%.*}"; \
+    JDK_TAR="OpenJDK${JDK_MAJOR}U-jdk_x64_linux_hotspot_${JDK_VERSION}_${JDK_BUILD}.tar.gz"; \
+    JDK_CHECKSUMS="/tmp/checksums/temurin-${JDK_VERSION}_${JDK_BUILD}_linux-x64"; \
+    wget --quiet "https://github.com/adoptium/temurin${JDK_MAJOR}-binaries/releases/download/jdk-${JDK_VERSION}%2B${JDK_BUILD}/${JDK_TAR}"; \
     sha256sum -c "${JDK_CHECKSUMS}.tar.gz.sha256"; \
+    mkdir -p /usr/local/java; \
     tar -zxf "${JDK_TAR}" -C /usr/local/java; \
-    if [ "${JDK_DIR}" != "jdk-${OPENJDK_VERSION}" ]; then mv "/usr/local/java/${JDK_DIR}" "/usr/local/java/jdk-${OPENJDK_VERSION}"; fi; \
-    cd "/usr/local/java/jdk-${OPENJDK_VERSION}"; \
+    mv "/usr/local/java/jdk-${JDK_VERSION}+${JDK_BUILD}" "/usr/local/java/jdk-${JDK_VERSION}"; \
+    cd "/usr/local/java/jdk-${JDK_VERSION}"; \
     hashdeep -rlx -k "${JDK_CHECKSUMS}.chkd" *
 
 
@@ -69,10 +58,10 @@ RUN set -eux; \
 # Build Final Image
 #
 ########################################################################################################################
-FROM ubuntu@${UBUNTU_SHA} AS openjdk-base
+FROM ubuntu@${UBUNTU_SHA} AS jdk-base
 
 # Define Global Argument Refs
-ARG OPENJDK_VERSION
+ARG JDK_VERSION
 
 # Define Standard Environment Variables
 ENV LC_ALL=C.UTF-8
@@ -82,7 +71,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 ADD wait-for /usr/local/bin/
 
 # Fetch Validated Java Binaries
-COPY --from=openjdk-builder /usr/local/java/ /usr/local/java/
+COPY --from=jdk-builder /usr/local/java/ /usr/local/java/
 
 # Install Basic OS Requirements
 RUN apt-get update && \
@@ -93,9 +82,9 @@ RUN apt-get update && \
 	rm -rf /var/cache/apt
 
 # Install Java Alternatives
-RUN update-alternatives --install "/usr/bin/java" "java" "/usr/local/java/jdk-${OPENJDK_VERSION}/bin/java" 1500 && \
-    update-alternatives --install "/usr/bin/javac" "javac" "/usr/local/java/jdk-${OPENJDK_VERSION}/bin/javac" 1500 && \
-    update-alternatives --install "/usr/bin/javadoc" "javadoc" "/usr/local/java/jdk-${OPENJDK_VERSION}/bin/javadoc" 1500
+RUN update-alternatives --install "/usr/bin/java" "java" "/usr/local/java/jdk-${JDK_VERSION}/bin/java" 1500 && \
+    update-alternatives --install "/usr/bin/javac" "javac" "/usr/local/java/jdk-${JDK_VERSION}/bin/javac" 1500 && \
+    update-alternatives --install "/usr/bin/javadoc" "javadoc" "/usr/local/java/jdk-${JDK_VERSION}/bin/javadoc" 1500
 
 # Create Application Folders
 RUN mkdir -p "/opt/hgcapp" && \
