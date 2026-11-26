@@ -48,6 +48,7 @@ import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.AtomicBatchConfig;
+import com.swirlds.config.api.Configuration;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -70,6 +71,7 @@ import javax.inject.Singleton;
 @Singleton
 public class AtomicBatchHandler implements TransactionHandler {
     private final Supplier<FeeCharging> appFeeCharging;
+    private final Supplier<Configuration> configSupplier;
     private final InnerTxnCache innerTxnCache;
 
     private static final Set<TransactionBody.DataOneOfType> CONTRACT_OP_BODIES =
@@ -86,8 +88,8 @@ public class AtomicBatchHandler implements TransactionHandler {
         requireNonNull(appContext);
         requireNonNull(transactionParser);
         this.appFeeCharging = appContext.feeChargingSupplier();
-        this.innerTxnCache =
-                new InnerTxnCache(transactionParser, appContext.configSupplier().get());
+        this.configSupplier = appContext.configSupplier();
+        this.innerTxnCache = new InnerTxnCache(transactionParser, configSupplier.get());
     }
 
     /**
@@ -102,6 +104,12 @@ public class AtomicBatchHandler implements TransactionHandler {
         if (innerTxs.isEmpty()) {
             throw new PreCheckException(BATCH_LIST_EMPTY);
         }
+        // Fail closed at ingest/pre-consensus before parsing inners: a batch that already
+        // exceeds atomicBatch.maxNumberOfTransactions must not burn CPU on the receiving node.
+        // handle() retains the same check for defense in depth.
+        final long maxInner =
+                configSupplier.get().getConfigData(AtomicBatchConfig.class).maxNumberOfTransactions();
+        validateTruePreCheck(innerTxs.size() <= maxInner, BATCH_SIZE_LIMIT_EXCEEDED);
 
         Set<TransactionID> txIds = new HashSet<>();
         int evmTransactionIndex = -1;
