@@ -2857,6 +2857,86 @@ public class ThrottleAccumulatorTest {
         assertEquals(100, admittedPlainTransfers());
     }
 
+    @ParameterizedTest
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
+    void highVolumeCryptoTransferIsThrottledWithoutNormalTransferBucket(ThrottleAccumulator.ThrottleType throttleType)
+            throws IOException, ParseException {
+        // given - only the high-volume bucket lists CryptoTransfer
+        givenHighVolumeTransferThrottles(throttleType);
+        final var defs = getThrottleDefs("bootstrap/high-volume-throttles.json");
+        subject.rebuildFor(ThrottleDefinitions.newBuilder()
+                .throttleBuckets(defs.throttleBuckets().stream()
+                        .filter(bucket -> bucket.highVolume()
+                                || bucket.throttleGroups().stream()
+                                        .noneMatch(group -> group.operations().contains(CRYPTO_TRANSFER)))
+                        .toList())
+                .build());
+        givenTransferWithImplicitCreations(1, true);
+
+        // when
+        final var throttled = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null, false);
+
+        // then - with no normal CryptoTransfer capacity to take, it is throttled like a plain transfer
+        assertTrue(throttled, "A high-volume transfer must also take normal CryptoTransfer capacity");
+        assertEquals(0, subject.getHighVolumeThrottleInstantaneousUtilizationBps(CRYPTO_CREATE, TIME_INSTANT));
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
+    void legacyScheduledTransferImplicitCreationsUseNormalCryptoCreateCapacity(
+            ThrottleAccumulator.ThrottleType throttleType) throws IOException, ParseException {
+        // given - long-term scheduling off, and a high-volume CryptoCreate bucket with capacity to spare
+        subject = new ThrottleAccumulator(
+                () -> CAPACITY_SPLIT,
+                configProvider::getConfiguration,
+                throttleType,
+                throttleMetrics,
+                gasThrottle,
+                bytesThrottle,
+                opsDurationThrottle);
+        given(configProvider.getConfiguration()).willReturn(configuration);
+        given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
+        given(accountsConfig.lastThrottleExempt()).willReturn(100L);
+        given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
+        given(contractsConfig.throttleThrottleByGas()).willReturn(false);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(false);
+        given(configuration.getConfigData(SchedulingConfig.class)).willReturn(schedulingConfig);
+        given(schedulingConfig.longTermEnabled()).willReturn(false);
+        given(state.getReadableStates(any())).willReturn(readableStates);
+        given(readableStates.get(anyInt())).willReturn(aliases);
+        final var buckets = new ArrayList<>(
+                getThrottleDefs("bootstrap/schedule-create-throttles.json").throttleBuckets());
+        getThrottleDefs("bootstrap/high-volume-throttles.json").throttleBuckets().stream()
+                .filter(ThrottleBucket::highVolume)
+                .forEach(buckets::add);
+        subject.rebuildFor(
+                ThrottleDefinitions.newBuilder().throttleBuckets(buckets).build());
+        // a high-volume ScheduleCreate of a transfer to an alias that would be auto-created
+        final var scheduledTransfer = SchedulableTransactionBody.newBuilder()
+                .cryptoTransfer(CryptoTransferTransactionBody.newBuilder()
+                        .transfers(TransferList.newBuilder()
+                                .accountAmounts(AccountAmount.newBuilder()
+                                        .accountID(AccountID.newBuilder()
+                                                .alias(Bytes.wrap("abcdeabcdeabcdeabcde"))
+                                                .build())
+                                        .amount(1)
+                                        .build())
+                                .build()))
+                .build();
+        final var txnInfo = scheduleCreate(scheduledTransfer, false, null, true);
+
+        // when - submit until throttled
+        int admitted = 0;
+        while (admitted < 10 && !subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT, state, null, false)) {
+            admitted++;
+        }
+
+        // then - the creations took the normal CryptoCreate capacity (1 op/s per node, 3 s burst)
+        assertEquals(3, admitted);
+        assertEquals(0, subject.getHighVolumeThrottleInstantaneousUtilizationBps(CRYPTO_CREATE, TIME_INSTANT));
+    }
+
     private void givenHighVolumeTransferThrottles(@NonNull final ThrottleAccumulator.ThrottleType throttleType)
             throws IOException, ParseException {
         subject = new ThrottleAccumulator(
@@ -2994,6 +3074,11 @@ public class ThrottleAccumulatorTest {
 
     private TransactionInfo scheduleCreate(
             final SchedulableTransactionBody inner, boolean waitForExpiry, AccountID customPayer) {
+        return scheduleCreate(inner, waitForExpiry, customPayer, false);
+    }
+
+    private TransactionInfo scheduleCreate(
+            final SchedulableTransactionBody inner, boolean waitForExpiry, AccountID customPayer, boolean highVolume) {
         final var schedule = ScheduleCreateTransactionBody.newBuilder()
                 .waitForExpiry(waitForExpiry)
                 .scheduledTransactionBody(inner);
@@ -3003,6 +3088,7 @@ public class ThrottleAccumulatorTest {
         final var body = TransactionBody.newBuilder()
                 .transactionID(TransactionID.newBuilder().accountID(PAYER_ID).build())
                 .scheduleCreate(schedule)
+                .highVolume(highVolume)
                 .build();
         final var signedTx = SignedTransaction.newBuilder()
                 .bodyBytes(TransactionBody.PROTOBUF.toBytes(body))
