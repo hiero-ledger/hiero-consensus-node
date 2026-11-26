@@ -6,7 +6,10 @@ import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.IN
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertSameResult;
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.INSUFFICIENT_GAS;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -29,6 +32,7 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.hyperledger.besu.evm.internal.UnderflowException;
 import org.hyperledger.besu.evm.operation.Operation;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
@@ -250,6 +254,141 @@ class CustomSelfDestructOperationTest {
         verify(frame).addSelfDestruct(TBD);
         verify(frame).addRefund(BENEFICIARY, INHERITANCE);
         verify(frame).setState(MessageFrame.State.CODE_SUCCESS);
+    }
+
+    @Test
+    void selfBeneficiaryIsNoOpWhenContractIsNotDeleted() {
+        createSubject(UseEIP6780Semantics.YES);
+        givenRunnableSelfDestructToSelf(account);
+        final var expected = new Operation.OperationResult(321L, null);
+
+        assertSameResult(expected, subject.execute(frame, evm));
+
+        verify(frame).setState(MessageFrame.State.CODE_SUCCESS);
+        verify(frame, never()).addSelfDestruct(any());
+        verify(frame, never()).addRefund(any(), any());
+        verify(proxyWorldUpdater, never()).tryTrackingSelfDestructBeneficiary(any(), any(), any());
+        verify(proxyWorldUpdater, never()).tryTransfer(any(), any(), anyLong(), anyBoolean());
+        verify(proxyWorldUpdater, never()).trackSelfDestructBeneficiary(any(), any(), any());
+    }
+
+    @Test
+    void selfBeneficiaryNoOpIsNotSubjectToDeletionRestrictions() {
+        createSubject(UseEIP6780Semantics.YES);
+        givenRunnableSelfDestructToSelf(proxyEvmAccount);
+        // Nothing is deleted or swept, so neither treasury titles nor token balances matter
+        lenient().when(proxyEvmAccount.numTreasuryTitles()).thenReturn(1);
+        lenient().when(proxyEvmAccount.numPositiveTokenBalances()).thenReturn(1);
+        final var expected = new Operation.OperationResult(321L, null);
+
+        assertSameResult(expected, subject.execute(frame, evm));
+
+        verify(frame).setState(MessageFrame.State.CODE_SUCCESS);
+        verify(frame, never()).addSelfDestruct(any());
+    }
+
+    @ParameterizedTest
+    @EnumSource(CustomSelfDestructOperation.UseEIP6780Semantics.class)
+    void selfBeneficiaryStillHaltsWhenContractIsToBeDeleted(
+            @NonNull final CustomSelfDestructOperation.UseEIP6780Semantics useEIP6780Semantics) {
+        createSubject(useEIP6780Semantics);
+        givenRunnableSelfDestructToSelf(proxyEvmAccount);
+        if (useEIP6780Semantics == UseEIP6780Semantics.YES) {
+            given(frame.wasCreatedInTransaction(TBD)).willReturn(true);
+        }
+        given(proxyWorldUpdater.getAccount(TBD)).willReturn(mutableAccount);
+        given(addressChecks.isPresent(TBD, frame)).willReturn(true);
+        given(proxyWorldUpdater.tryTrackingSelfDestructBeneficiary(TBD, TBD, frame))
+                .willReturn(Optional.of(CustomExceptionalHaltReason.SELF_DESTRUCT_TO_SELF));
+        final var expected = new Operation.OperationResult(123L, CustomExceptionalHaltReason.SELF_DESTRUCT_TO_SELF);
+
+        assertSameResult(expected, subject.execute(frame, evm));
+
+        verify(proxyWorldUpdater, never()).tryTransfer(any(), any(), anyLong(), anyBoolean());
+        verify(frame, never()).addSelfDestruct(any());
+        verify(frame, never()).setState(any());
+    }
+
+    @Test
+    void selfBeneficiaryWithNoHbarIsDeletedWhenCreatedInSameTransaction() {
+        createSubject(UseEIP6780Semantics.YES);
+        givenRunnableSelfDestructToSelf(proxyEvmAccount, Wei.ZERO);
+        given(frame.wasCreatedInTransaction(TBD)).willReturn(true);
+        final var expected = new Operation.OperationResult(321L, null);
+
+        assertSameResult(expected, subject.execute(frame, evm));
+
+        // There is nothing to burn, so the contract is deleted with itself recorded as beneficiary
+        verify(frame).addSelfDestruct(TBD);
+        verify(proxyWorldUpdater).trackSelfDestructBeneficiary(TBD, TBD, frame);
+        verify(frame).addRefund(TBD, Wei.ZERO);
+        verify(frame).setState(MessageFrame.State.CODE_SUCCESS);
+        verify(proxyWorldUpdater, never()).tryTrackingSelfDestructBeneficiary(any(), any(), any());
+        verify(proxyWorldUpdater, never()).tryTransfer(any(), any(), anyLong(), anyBoolean());
+    }
+
+    @Test
+    void selfBeneficiaryWithNoHbarCannotBeDeletedIfTreasury() {
+        createSubject(UseEIP6780Semantics.YES);
+        givenRunnableSelfDestructToSelf(proxyEvmAccount, Wei.ZERO);
+        given(frame.wasCreatedInTransaction(TBD)).willReturn(true);
+        given(proxyEvmAccount.numTreasuryTitles()).willReturn(1);
+        final var expected = new Operation.OperationResult(123L, CustomExceptionalHaltReason.CONTRACT_IS_TREASURY);
+
+        assertSameResult(expected, subject.execute(frame, evm));
+
+        verify(frame, never()).addSelfDestruct(any());
+        verify(frame, never()).setState(any());
+    }
+
+    @Test
+    void selfBeneficiaryWithNoHbarCannotBeDeletedIfItOwnsTokens() {
+        createSubject(UseEIP6780Semantics.YES);
+        givenRunnableSelfDestructToSelf(proxyEvmAccount, Wei.ZERO);
+        given(frame.wasCreatedInTransaction(TBD)).willReturn(true);
+        given(proxyEvmAccount.numPositiveTokenBalances()).willReturn(1);
+        final var expected = new Operation.OperationResult(123L, CustomExceptionalHaltReason.CONTRACT_STILL_OWNS_NFTS);
+
+        assertSameResult(expected, subject.execute(frame, evm));
+
+        verify(frame, never()).addSelfDestruct(any());
+        verify(frame, never()).setState(any());
+    }
+
+    @Test
+    void selfBeneficiaryWithNoHbarStillHaltsBeforeEip6780() {
+        createSubject(UseEIP6780Semantics.NO);
+        givenRunnableSelfDestructToSelf(proxyEvmAccount, Wei.ZERO);
+        given(proxyWorldUpdater.getAccount(TBD)).willReturn(mutableAccount);
+        given(addressChecks.isPresent(TBD, frame)).willReturn(true);
+        given(proxyWorldUpdater.tryTrackingSelfDestructBeneficiary(TBD, TBD, frame))
+                .willReturn(Optional.of(CustomExceptionalHaltReason.SELF_DESTRUCT_TO_SELF));
+        final var expected = new Operation.OperationResult(123L, CustomExceptionalHaltReason.SELF_DESTRUCT_TO_SELF);
+
+        assertSameResult(expected, subject.execute(frame, evm));
+
+        verify(frame, never()).addSelfDestruct(any());
+        verify(frame, never()).setState(any());
+    }
+
+    private void givenRunnableSelfDestructToSelf(@NonNull final AbstractMutableEvmAccount tbdAccount) {
+        givenRunnableSelfDestructToSelf(tbdAccount, INHERITANCE);
+    }
+
+    private void givenRunnableSelfDestructToSelf(
+            @NonNull final AbstractMutableEvmAccount tbdAccount, @NonNull final Wei balance) {
+        given(frame.popStackItem()).willReturn(TBD.getBytes());
+        given(frame.getRecipientAddress()).willReturn(TBD);
+        given(frame.getWorldUpdater()).willReturn(proxyWorldUpdater);
+        given(proxyWorldUpdater.get(TBD)).willReturn(tbdAccount);
+        given(tbdAccount.getBalance()).willReturn(balance);
+        given(frame.warmUpAddress(TBD)).willReturn(true);
+        given(frame.getRemainingGas()).willReturn(666L);
+        given(gasCalculator.selfDestructOperationGasCost(any(), any(Wei.class)))
+                // null, Wei.ZERO
+                .willReturn(123L)
+                // beneficiary, inheritance
+                .willReturn(321L);
     }
 
     private void givenWarmBeneficiaryWithSufficientGas() {

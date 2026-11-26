@@ -12,6 +12,10 @@ Each contract actually deleted at the end of an EVM transaction produces one suc
 `transferAccountID`; its receipt contains the same contract ID. `permanentRemoval` remains false
 because the account is marked deleted, not removed from state.
 
+A deleted contract can be its own beneficiary. HBAR cannot be burned, so this is allowed only under
+EIP-6780 semantics, for a contract that was created in the same transaction and holds no HBAR. Its
+child then carries the contract's own numeric account ID as `transferAccountID`.
+
 This is an externalization-only child. It does not dispatch the HAPI deletion handler, require an
 admin signature, charge a deletion fee, or perform another transfer. HBAR transfers and staking
 rewards remain accounted for by their existing records. Creation records precede deletion records.

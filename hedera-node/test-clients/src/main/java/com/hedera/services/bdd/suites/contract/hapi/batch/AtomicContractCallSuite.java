@@ -83,7 +83,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_PAYER_
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SOLIDITY_ADDRESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OBTAINER_SAME_CONTRACT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
@@ -1332,13 +1331,13 @@ class AtomicContractCallSuite {
                                     .batchKey(BATCH_OPERATOR))
                             .payingWith(BATCH_OPERATOR);
 
+                    // (EIP-6780) The contract was not created in this transaction, so naming itself changes nothing
                     final var subop3 = atomicBatch(contractCall(contract, KILL_ME, tokenCreateContractAddress.get())
                                     .payingWith(PAYER)
                                     .gas(300_000L)
-                                    .hasKnownStatus(OBTAINER_SAME_CONTRACT_ID)
+                                    .hasKnownStatus(SUCCESS)
                                     .batchKey(BATCH_OPERATOR))
-                            .payingWith(BATCH_OPERATOR)
-                            .hasKnownStatus(INNER_TRANSACTION_FAILED);
+                            .payingWith(BATCH_OPERATOR);
 
                     final var subop4 = atomicBatch(contractCall(contract, KILL_ME, asHeadlongAddress(new byte[20]))
                                     .payingWith(PAYER)

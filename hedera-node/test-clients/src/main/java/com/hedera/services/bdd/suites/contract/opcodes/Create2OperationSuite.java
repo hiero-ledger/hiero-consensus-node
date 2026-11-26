@@ -206,15 +206,15 @@ public class Create2OperationSuite {
                         .payingWith(GENESIS)
                         .via(CREATION)
                         .exposingContractIdTo(id -> factoryEvmAddress.set(asHexedSolidityAddress(id))),
-                sourcing(
-                        () -> contractCallLocal(contract, GET_BYTECODE, asHeadlongAddress(factoryEvmAddress.get()), foo)
-                                .exposingTypedResultsTo(results -> {
-                                    final var tcInitcode = (byte[]) results[0];
-                                    testContractInitcode.set(tcInitcode);
-                                    LOG.info(CONTRACT_REPORTED_LOG_MESSAGE, tcInitcode.length);
-                                })
-                                .payingWith(GENESIS)
-                                .nodePayment(ONE_HBAR)),
+                sourcing(() -> contractCallLocal(
+                                contract, GET_BYTECODE, asHeadlongAddress(factoryEvmAddress.get()), foo)
+                        .exposingTypedResultsTo(results -> {
+                            final var tcInitcode = (byte[]) results[0];
+                            testContractInitcode.set(tcInitcode);
+                            LOG.info(CONTRACT_REPORTED_LOG_MESSAGE, tcInitcode.length);
+                        })
+                        .payingWith(GENESIS)
+                        .nodePayment(ONE_HBAR)),
                 inParallel(IntStream.range(0, timesToFail)
                         .mapToObj(i -> sourcing(() -> contractCall(contract, DEPLOY, testContractInitcode.get(), salt)
                                 .payingWith(GENESIS)
@@ -248,15 +248,15 @@ public class Create2OperationSuite {
                     factoryEntityNum.set(id.getContractNum());
                     factoryEvmAddress.set(asHexedSolidityAddress(id));
                 }),
-                sourcing(
-                        () -> contractCallLocal(contract, GET_BYTECODE, asHeadlongAddress(factoryEvmAddress.get()), foo)
-                                .exposingTypedResultsTo(results -> {
-                                    final var tcInitcode = (byte[]) results[0];
-                                    testContractInitcode.set(tcInitcode);
-                                    LOG.info(CONTRACT_REPORTED_LOG_MESSAGE, tcInitcode.length);
-                                })
-                                .payingWith(GENESIS)
-                                .nodePayment(ONE_HBAR)),
+                sourcing(() -> contractCallLocal(
+                                contract, GET_BYTECODE, asHeadlongAddress(factoryEvmAddress.get()), foo)
+                        .exposingTypedResultsTo(results -> {
+                            final var tcInitcode = (byte[]) results[0];
+                            testContractInitcode.set(tcInitcode);
+                            LOG.info(CONTRACT_REPORTED_LOG_MESSAGE, tcInitcode.length);
+                        })
+                        .payingWith(GENESIS)
+                        .nodePayment(ONE_HBAR)),
                 inParallel(IntStream.range(0, timesToFail)
                         .mapToObj(i -> sourcing(
                                 () -> contractCall(contract, DEPLOY, testContractInitcode.get(), BigInteger.ONE)
@@ -734,11 +734,13 @@ public class Create2OperationSuite {
                         .gas(4_000_000L)
                         .via(creation2),
                 captureOneChildCreate2MetaFor("donor", creation2, donorMirrorAddr, donorAliasAddr),
+                // (EIP-6780) The donor was not created in this transaction, so naming itself changes nothing
                 sourcing(() -> contractCallWithFunctionAbi(
-                                donorAliasAddr.get(),
-                                getABIFor(FUNCTION, "relinquishFundsTo", donorContract),
-                                asHeadlongAddress(donorAliasAddr.get()))
-                        .hasKnownStatus(OBTAINER_SAME_CONTRACT_ID)),
+                        donorAliasAddr.get(),
+                        getABIFor(FUNCTION, "relinquishFundsTo", donorContract),
+                        asHeadlongAddress(donorAliasAddr.get()))),
+                sourcing(() -> getContractInfo(donorAliasAddr.get())
+                        .has(contractWith().isNotDeleted().balance(100))),
                 sourcing(() -> contractCallWithFunctionAbi(
                                 donorAliasAddr.get(),
                                 getABIFor(FUNCTION, "relinquishFundsTo", donorContract),
