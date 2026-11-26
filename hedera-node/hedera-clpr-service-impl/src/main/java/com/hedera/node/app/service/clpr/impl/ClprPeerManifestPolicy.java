@@ -18,7 +18,8 @@ public final class ClprPeerManifestPolicy {
     /** Maximum characters in a peer chain id. */
     public static final int MAX_CHAIN_ID_LENGTH = 128;
 
-    private static final CharMatcher PRINTABLE_ASCII = CharMatcher.inRange('!', '~');
+    /** Visible characters: basic Latin letters, digits and punctuation, without spaces or control characters. */
+    private static final CharMatcher VISIBLE_CHARACTERS = CharMatcher.inRange('!', '~');
 
     private ClprPeerManifestPolicy() {}
 
@@ -77,7 +78,7 @@ public final class ClprPeerManifestPolicy {
      */
     public static boolean isValidHost(@NonNull final String host) {
         requireNonNull(host);
-        if (host.isEmpty() || !PRINTABLE_ASCII.matchesAllOf(host) || host.indexOf('%') >= 0) {
+        if (host.isEmpty() || !VISIBLE_CHARACTERS.matchesAllOf(host) || host.indexOf('%') >= 0) {
             return false;
         }
         return InetAddresses.isInetAddress(host) || ClprEndpointBuilder.isDnsHostname(host);
@@ -85,14 +86,16 @@ public final class ClprPeerManifestPolicy {
 
     /**
      * Whether a peer chain id may be stored: non-empty, at most {@value #MAX_CHAIN_ID_LENGTH} characters, and
-     * printable ASCII only.
+     * visible characters only.
      *
      * @param chainId the peer-supplied chain id
      * @return whether the chain id is well formed
      */
     public static boolean isValidChainId(@NonNull final String chainId) {
         requireNonNull(chainId);
-        return !chainId.isEmpty() && chainId.length() <= MAX_CHAIN_ID_LENGTH && PRINTABLE_ASCII.matchesAllOf(chainId);
+        return !chainId.isEmpty()
+                && chainId.length() <= MAX_CHAIN_ID_LENGTH
+                && VISIBLE_CHARACTERS.matchesAllOf(chainId);
     }
 
     private static int varintSize(int value) {
