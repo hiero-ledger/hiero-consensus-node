@@ -136,6 +136,11 @@ defaults:
         value: "118g"
       - name: MALLOC_ARENA_MAX
         value: "4"
+    image:
+      registry: ""
+      repository: "mylocal"
+      tag: "kernel7"
+      pullPolicy: "IfNotPresent"
 
 deployment:
   podAnnotations: {}
