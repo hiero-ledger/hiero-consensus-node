@@ -1,0 +1,1111 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "109: [USER] Publish Tag Artifacts"
+# Publishes the release components of an existing release tag of the repository it runs in, one
+# selection per component. It exists for tags whose release build (301/850) could not publish
+# them: a private mirror only uploads the build to the DevOps bucket, because every public
+# destination in 850 and 852 is guarded by repository visibility. This workflow has no such
+# guard, so it is the one way to publish a private mirror's release. It also re-publishes a
+# component a public release failed to publish.
+#
+# The node build (build-vX.Y.Z.zip) is never rebuilt: it is read from the DevOps bucket the
+# release build uploaded it to, checked against its SHA-384, and the CDN copy and every image
+# are made from it. Maven Central, the SDK archives and yahcli are built from the tag's commit.
+#
+# Run it with the dry run first: it reads every source and checks every credential and
+# destination, but writes nothing. Maven Central releases are immutable.
+run-name: "109: [USER] Publish Tag Artifacts (${{ inputs.tag }}${{ inputs.dry-run-enabled && ', dry run' || '' }})"
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to publish (vX.Y.Z, optionally with a suffix)"
+        type: string
+        required: true
+      publish-cdn:
+        description: "CDN bucket: copy build-vX.Y.Z.zip and its .sha384 from the DevOps bucket"
+        type: boolean
+        default: false
+      publish-maven-central:
+        description: "Maven Central: build, sign and upload the full aggregation"
+        type: boolean
+        default: false
+      maven-central-mode:
+        description: "Maven Central mode. validate: upload and validate without releasing | publish: upload and release"
+        type: choice
+        options:
+          - validate
+          - publish
+        default: validate
+      publish-sdk-archives:
+        description: "SDK archives: build and sign the platform SDK archives for the SDK release bucket"
+        type: boolean
+        default: false
+      publish-production-image-gcp:
+        description: "Production image (GCP): gcr.io/hedera-registry/consensus-node"
+        type: boolean
+        default: false
+      publish-production-image-jfrog:
+        description: "Production image (JFrog): artifacts.hashgraph.io consensus-node-docker-release"
+        type: boolean
+        default: false
+      publish-local-node-images:
+        description: "Local node images: network-node-base, network-node-haveged and main-network-node"
+        type: boolean
+        default: false
+      publish-yahcli-image:
+        description: "Yahcli image: gcr.io/hedera-registry/yahcli"
+        type: boolean
+        default: false
+      dry-run-enabled:
+        description: "Perform Dry Run (read the sources and check the credentials and destinations, but publish nothing)"
+        type: boolean
+        default: true
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+
+# One run per tag at a time: two runs for the same tag would race on the same destinations.
+concurrency:
+  group: 109-${{ inputs.tag }}
+  cancel-in-progress: false
+
+env:
+  LC_ALL: C.UTF-8
+  # The POM derives its GitHub URLs from the root project name (the checkout directory) and
+  # GITHUB_REPOSITORY_OWNER. Pin both, so a run in a private mirror still publishes POMs that
+  # point to hiero-ledger/hiero-consensus-node.
+  CHECKOUT_DIR: hiero-consensus-node
+  POM_REPOSITORY_OWNER: hiero-ledger
+  CENTRAL_API: https://central.sonatype.com/api/v1/publisher
+  DOCKER_MANIFEST_GENERATOR: .github/workflows/support/scripts/generate-docker-artifact-baseline.sh
+  DOCKER_MANIFEST_PATH: ${{ github.workspace }}/.manifests/docker
+  SKOPEO_VERSION: v1.14.0
+  GCP_IMAGE_BASE: gcr.io/hedera-registry
+  JFROG_IMAGE_BASE: artifacts.hashgraph.io/consensus-node-docker-release
+  SDK_RELEASE_BUCKET: platform-sdk-ci-release-artifacts
+
+# Runner labels differ by organization: hiero-ledger runners are hl-cn-*, the hashgraph private
+# mirror's are hg-cn-*. Every job picks its label with the repository owner.
+jobs:
+  resolve:
+    name: Resolve Tag
+    # Never runs in a fork; every other job needs this one, so in a fork nothing starts.
+    if: ${{ !github.event.repository.fork }}
+    runs-on: ${{ github.repository_owner == 'hiero-ledger' && 'hl-cn-default-lin-sm' || 'hg-cn-default-lin-sm' }}
+    outputs:
+      tag: ${{ steps.resolve.outputs.tag }}
+      commit: ${{ steps.resolve.outputs.commit }}
+      commit-short: ${{ steps.resolve.outputs.commit-short }}
+      version: ${{ steps.resolve.outputs.version }}
+      version-prefix: ${{ steps.resolve.outputs.version-prefix }}
+      prerelease: ${{ steps.resolve.outputs.prerelease }}
+      jdk-version: ${{ steps.resolve.outputs.jdk-version }}
+      image-registries: ${{ steps.resolve.outputs.image-registries }}
+    steps:
+      - name: Prepare Runner
+        uses: pandaswhocode/initialize-github-job@c96d9edf7816b4f333b558f2e07fe81ebf1e822d # v1.3.0
+        with:
+          setup-jq: "true"
+
+      # Builds a commit, never the tag ref, and peels an annotated tag to its commit, as 301 does.
+      - name: Resolve Tag, Version and JDK
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+          DRY_RUN: ${{ inputs.dry-run-enabled }}
+          MAVEN_CENTRAL: ${{ inputs.publish-maven-central }}
+          MAVEN_CENTRAL_MODE: ${{ inputs.maven-central-mode }}
+          SELECTED: >-
+            ${{ inputs.publish-cdn }} ${{ inputs.publish-maven-central }} ${{ inputs.publish-sdk-archives }}
+            ${{ inputs.publish-production-image-gcp }} ${{ inputs.publish-production-image-jfrog }}
+            ${{ inputs.publish-local-node-images }} ${{ inputs.publish-yahcli-image }}
+          IMAGE_GCP: ${{ inputs.publish-production-image-gcp }}
+          IMAGE_JFROG: ${{ inputs.publish-production-image-jfrog }}
+        run: |
+          if [[ ! "${TAG}" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error title=Invalid Release Tag::'${TAG}' is not a release tag (vX.Y.Z, optionally with a suffix)."
+            exit 1
+          fi
+          VERSION_PREFIX="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}"
+          PRERELEASE="false"
+          [[ -n "${BASH_REMATCH[4]}" ]] && PRERELEASE="true"
+          VERSION="${TAG#v}"
+
+          if [[ " ${SELECTED} " != *" true "* ]]; then
+            echo "::error title=Nothing Selected::Select at least one component to publish."
+            exit 1
+          fi
+
+          if ! REF_JSON="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${TAG}" 2>/dev/null)"; then
+            echo "::error title=Release Tag Not Found::Tag '${TAG}' does not exist in ${GITHUB_REPOSITORY}."
+            exit 1
+          fi
+          OBJECT_TYPE="$(jq -r '.object.type' <<<"${REF_JSON}")"
+          OBJECT_SHA="$(jq -r '.object.sha' <<<"${REF_JSON}")"
+          while [[ "${OBJECT_TYPE}" == "tag" ]]; do
+            TAG_JSON="$(gh api "repos/${GITHUB_REPOSITORY}/git/tags/${OBJECT_SHA}")"
+            OBJECT_TYPE="$(jq -r '.object.type' <<<"${TAG_JSON}")"
+            OBJECT_SHA="$(jq -r '.object.sha' <<<"${TAG_JSON}")"
+          done
+          if [[ "${OBJECT_TYPE}" != "commit" ]]; then
+            echo "::error title=Release Tag Not a Commit::Tag '${TAG}' points to a ${OBJECT_TYPE}, not a commit."
+            exit 1
+          fi
+          COMMIT="${OBJECT_SHA}"
+
+          JDK_VERSION="$(gh api -H 'Accept: application/vnd.github.raw' \
+            "repos/${GITHUB_REPOSITORY}/contents/gradle/toolchain-versions.properties?ref=${COMMIT}" |
+            sed -n 's/^jdk=//p' | tr -d '[:space:]')"
+          if [[ -z "${JDK_VERSION}" ]]; then
+            echo "::error title=JDK Version Not Found::No 'jdk=' entry in gradle/toolchain-versions.properties at ${COMMIT}."
+            exit 1
+          fi
+
+          REGISTRIES="[]"
+          [[ "${IMAGE_GCP}" == "true" ]] && REGISTRIES="$(jq -c '. + ["gcp"]' <<<"${REGISTRIES}")"
+          [[ "${IMAGE_JFROG}" == "true" ]] && REGISTRIES="$(jq -c '. + ["jfrog"]' <<<"${REGISTRIES}")"
+
+          {
+            echo "tag=${TAG}"
+            echo "commit=${COMMIT}"
+            echo "commit-short=${COMMIT:0:8}"
+            echo "version=${VERSION}"
+            echo "version-prefix=${VERSION_PREFIX}"
+            echo "prerelease=${PRERELEASE}"
+            echo "jdk-version=${JDK_VERSION}"
+            echo "image-registries=${REGISTRIES}"
+          } >>"${GITHUB_OUTPUT}"
+
+          {
+            echo "### Publish ${TAG}"
+            echo "| Setting | Value |"
+            echo "| ------- | ----- |"
+            echo "| Repository | \`${GITHUB_REPOSITORY}\` |"
+            echo "| Commit | \`${COMMIT}\` |"
+            echo "| Version | \`${VERSION}\` (pre-release: ${PRERELEASE}) |"
+            echo "| JDK | \`${JDK_VERSION}\` |"
+            echo "| Dry run | \`${DRY_RUN}\` |"
+            [[ "${MAVEN_CENTRAL}" == "true" ]] && echo "| Maven Central mode | \`${MAVEN_CENTRAL_MODE}\` |"
+          } >>"${GITHUB_STEP_SUMMARY}"
+
+          if [[ "${PRERELEASE}" == "true" && "${MAVEN_CENTRAL}" == "true" ]]; then
+            echo "::notice title=Pre-release to Maven Central::${VERSION} is a pre-release. 301 does not publish pre-releases to Maven Central; this run will, as selected."
+          fi
+
+  # Reads the node build the release build uploaded to the DevOps bucket, so the CDN copy and the
+  # images are made from the exact zip that was built and tested, not from a rebuild.
+  stage-build:
+    name: Stage Node Build
+    needs:
+      - resolve
+    if: ${{ inputs.publish-cdn || inputs.publish-production-image-gcp || inputs.publish-production-image-jfrog || inputs.publish-local-node-images }}
+    runs-on: ${{ github.repository_owner == 'hiero-ledger' && 'hl-cn-default-lin-md' || 'hg-cn-default-lin-md' }}
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      VERSION: ${{ needs.resolve.outputs.version }}
+      COMMIT_SHORT: ${{ needs.resolve.outputs.commit-short }}
+    steps:
+      - name: Prepare Runner
+        uses: pandaswhocode/initialize-github-job@c96d9edf7816b4f333b558f2e07fe81ebf1e822d # v1.3.0
+
+      - name: Authenticate to Google Cloud
+        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
+        with:
+          workload_identity_provider: "projects/235822363393/locations/global/workloadIdentityPools/hedera-builds-pool/providers/hedera-builds-gh-actions"
+          service_account: "hedera-artifact-builds@devops-1-254919.iam.gserviceaccount.com"
+
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+
+      - name: Download and Verify the Node Build
+        env:
+          BUCKET: ${{ secrets.RELEASE_ARTIFACT_BUCKET_NAME }}
+        run: |
+          ARTIFACT_NAME="build-v${VERSION}"
+          RELEASE_DIR="${RUNNER_TEMP}/artifact-release"
+          BUILD_DIR="${RUNNER_TEMP}/artifact-build"
+          mkdir -p "${RELEASE_DIR}" "${BUILD_DIR}"
+
+          for FILE in "${ARTIFACT_NAME}.zip" "${ARTIFACT_NAME}.sha384"; do
+            if ! gsutil cp "gs://${BUCKET}/${FILE}" "${RELEASE_DIR}/${FILE}"; then
+              echo "::error title=Node Build Not Found::${FILE} is not in the DevOps bucket. Did the release build (301) for this tag upload it?"
+              exit 1
+            fi
+          done
+
+          (cd "${RELEASE_DIR}" && sha384sum -c "${ARTIFACT_NAME}.sha384")
+
+          unzip -q "${RELEASE_DIR}/${ARTIFACT_NAME}.zip" -d "${BUILD_DIR}"
+          cat "${BUILD_DIR}/VERSION"
+          if ! grep -qx "VERSION=${VERSION}" "${BUILD_DIR}/VERSION" || ! grep -qx "COMMIT=${COMMIT_SHORT}" "${BUILD_DIR}/VERSION"; then
+            echo "::error title=Node Build Mismatch::${ARTIFACT_NAME}.zip was not built from version ${VERSION} at commit ${COMMIT_SHORT}."
+            exit 1
+          fi
+
+          {
+            echo "### Node Build"
+            echo "- \`${ARTIFACT_NAME}.zip\` from the DevOps bucket, SHA-384 verified"
+            echo "- SHA-384: \`$(cut -d' ' -f1 "${RELEASE_DIR}/${ARTIFACT_NAME}.sha384")\`"
+          } >>"${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload Node Build Archive
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: node-build-release-${{ needs.resolve.outputs.version }}
+          path: ${{ runner.temp }}/artifact-release
+          if-no-files-found: error
+
+      - name: Upload Node Build Contents
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: node-build-artifacts-${{ needs.resolve.outputs.version }}
+          path: ${{ runner.temp }}/artifact-build
+          if-no-files-found: error
+
+  cdn:
+    name: Publish to CDN Bucket
+    needs:
+      - resolve
+      - stage-build
+    if: ${{ inputs.publish-cdn }}
+    runs-on: ${{ github.repository_owner == 'hiero-ledger' && 'hl-cn-default-lin-sm' || 'hg-cn-default-lin-sm' }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Prepare Runner
+        uses: pandaswhocode/initialize-github-job@c96d9edf7816b4f333b558f2e07fe81ebf1e822d # v1.3.0
+
+      - name: Restore Node Build Archive
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: node-build-release-${{ needs.resolve.outputs.version }}
+          path: ${{ runner.temp }}/artifact-release
+
+      - name: Authenticate to Google Cloud
+        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
+        with:
+          workload_identity_provider: "projects/235822363393/locations/global/workloadIdentityPools/hedera-builds-pool/providers/hedera-builds-gh-actions"
+          service_account: "hedera-artifact-builds@devops-1-254919.iam.gserviceaccount.com"
+
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+
+      # An object already on the CDN with the same content is left alone, so a re-run succeeds;
+      # one with different content is never overwritten.
+      - name: Upload to CDN Bucket
+        env:
+          CDN_BUCKET: ${{ secrets.CDN_ARTIFACT_BUCKET_NAME }}
+          VERSION: ${{ needs.resolve.outputs.version }}
+          VERSION_PREFIX: ${{ needs.resolve.outputs.version-prefix }}
+          DRY_RUN: ${{ inputs.dry-run-enabled }}
+        run: |
+          DESTINATION="gs://${CDN_BUCKET}/node/software/v${VERSION_PREFIX}"
+          echo "### CDN Bucket" >>"${GITHUB_STEP_SUMMARY}"
+
+          for FILE in "build-v${VERSION}.zip" "build-v${VERSION}.sha384"; do
+            LOCAL="${RUNNER_TEMP}/artifact-release/${FILE}"
+            if gsutil -q stat "${DESTINATION}/${FILE}"; then
+              if [[ "$(gsutil cat "${DESTINATION}/${FILE}" | sha384sum | cut -d' ' -f1)" == "$(sha384sum "${LOCAL}" | cut -d' ' -f1)" ]]; then
+                echo "- \`${FILE}\`: already on the CDN with the same content" >>"${GITHUB_STEP_SUMMARY}"
+                continue
+              fi
+              echo "::error title=CDN Object Differs::${FILE} is already on the CDN with different content. It is not overwritten."
+              exit 1
+            fi
+
+            if [[ "${DRY_RUN}" == "true" ]]; then
+              echo "- \`${FILE}\`: dry run, not uploaded" >>"${GITHUB_STEP_SUMMARY}"
+            else
+              gsutil cp -n "${LOCAL}" "${DESTINATION}/${FILE}"
+              echo "- \`${FILE}\`: uploaded" >>"${GITHUB_STEP_SUMMARY}"
+            fi
+          done
+
+  maven-central:
+    name: Publish to Maven Central (${{ inputs.maven-central-mode }})
+    needs:
+      - resolve
+    if: ${{ inputs.publish-maven-central }}
+    runs-on: ${{ github.repository_owner == 'hiero-ledger' && 'hl-cn-default-lin-lg' || 'hg-cn-default-lin-lg' }}
+    timeout-minutes: 180
+    defaults:
+      run:
+        # must match env.CHECKOUT_DIR
+        working-directory: hiero-consensus-node
+    env:
+      VERSION: ${{ needs.resolve.outputs.version }}
+    steps:
+      - name: Prepare Runner
+        uses: pandaswhocode/initialize-github-job@c96d9edf7816b4f333b558f2e07fe81ebf1e822d # v1.3.0
+        with:
+          checkout: "true"
+          checkout-ref: ${{ needs.resolve.outputs.commit }}
+          checkout-token: ${{ secrets.GITHUB_TOKEN }}
+          checkout-path: ${{ env.CHECKOUT_DIR }}
+          checkout-fetch-depth: "0"
+          checkout-persist: "false"
+          setup-java: "true"
+          java-distribution: temurin
+          java-version: ${{ needs.resolve.outputs.jdk-version }}
+          setup-gradle: "true"
+          gradle-version: wrapper
+          setup-jq: "true"
+
+      - name: Check Maven Central
+        env:
+          DRY_RUN: ${{ inputs.dry-run-enabled }}
+        run: |
+          POM_URL="https://repo1.maven.org/maven2/com/hedera/hashgraph/app/${VERSION}/app-${VERSION}.pom"
+          HTTP_CODE="$(curl -sS -o /dev/null -w '%{http_code}' "${POM_URL}")"
+          if [[ "${HTTP_CODE}" == "200" ]]; then
+            if [[ "${DRY_RUN}" != "true" ]]; then
+              echo "::error title=Already Published::${VERSION} is already on Maven Central (${POM_URL})."
+              exit 1
+            fi
+            echo "::warning title=Already Published::${VERSION} is already on Maven Central (${POM_URL})."
+          fi
+
+      - name: Install GnuPG Tools
+        run: |
+          if ! command -v gpg2 >/dev/null 2>&1; then
+            sudo apt update
+            sudo apt install -y gnupg2
+          fi
+
+      - name: Import GPG Key
+        uses: step-security/ghaction-import-gpg@c0b4a334b9b72bfaaebec86ef022a78a5b17f828 # v7.0.0
+        with:
+          gpg_private_key: ${{ secrets.PLATFORM_GPG_KEY_CONTENTS }}
+          passphrase: ${{ secrets.PLATFORM_GPG_KEY_PASSPHRASE }}
+
+      - name: Gradle Update Version (As Specified)
+        run: ./gradlew versionAsSpecified -PnewVersion="${VERSION}"
+
+      # Javadoc is only enabled when the generated protobuf sources exist at configuration time,
+      # so assemble in a separate Gradle invocation first, as 850 does.
+      - name: Gradle Assemble
+        run: ./gradlew assemble
+
+      - name: Build and Sign the Bundle
+        # The flags that disable parallelism are used on purpose to avoid parallel signing which may cause 'gpg: signing failed: Inappropriate ioctl for device'
+        run: |
+          GITHUB_REPOSITORY_OWNER="${POM_REPOSITORY_OWNER}" ./gradlew :aggregation:nmcpZipAggregation \
+            -PpublishSigningEnabled=true --no-configuration-cache -Dorg.gradle.isolated-projects=false --no-parallel
+
+      - name: Verify the Bundle
+        id: bundle
+        run: |
+          mapfile -t ZIPS < <(find gradle/aggregation/build/nmcp -name '*.zip' -type f)
+          if [[ "${#ZIPS[@]}" -ne 1 ]]; then
+            echo "::error title=Bundle Not Found::Expected exactly one bundle under gradle/aggregation/build/nmcp, found ${#ZIPS[@]}: ${ZIPS[*]}"
+            exit 1
+          fi
+          BUNDLE="${RUNNER_TEMP}/hiero-consensus-node-${VERSION}-bundle.zip"
+          cp "${ZIPS[0]}" "${BUNDLE}"
+
+          CONTENTS="${RUNNER_TEMP}/bundle"
+          rm -rf "${CONTENTS}"
+          unzip -q "${BUNDLE}" -d "${CONTENTS}"
+
+          mapfile -t POMS < <(find "${CONTENTS}" -name "*-${VERSION}.pom" -type f | sort)
+          if [[ "${#POMS[@]}" -eq 0 ]]; then
+            echo "::error title=Empty Bundle::The bundle holds no POM for version ${VERSION}."
+            exit 1
+          fi
+          if [[ -z "$(find "${CONTENTS}" -path "*/com/hedera/hashgraph/app/${VERSION}/app-${VERSION}.pom")" ]]; then
+            echo "::error title=Incomplete Bundle::The bundle holds no com.hedera.hashgraph:app ${VERSION}."
+            exit 1
+          fi
+
+          FAILED=0
+          for POM in "${POMS[@]}"; do
+            if ! grep -q "<version>${VERSION}</version>" "${POM}"; then
+              echo "::error title=Version Mismatch::$(basename "${POM}") does not declare version ${VERSION}."
+              FAILED=1
+            fi
+            if ! grep -q "<url>https://github.com/${POM_REPOSITORY_OWNER}/${CHECKOUT_DIR}</url>" "${POM}"; then
+              echo "::error title=Unexpected POM URL::$(basename "${POM}") does not point to github.com/${POM_REPOSITORY_OWNER}/${CHECKOUT_DIR}."
+              FAILED=1
+            fi
+          done
+
+          # In a private mirror, no published metadata may name the mirror.
+          if [[ "${GITHUB_REPOSITORY}" != "${POM_REPOSITORY_OWNER}/${CHECKOUT_DIR}" ]]; then
+            if NAMED="$(grep -rl --include='*.pom' --include='*.module' -e "${GITHUB_REPOSITORY#*/}" "${CONTENTS}")"; then
+              echo "::error title=Mirror Named in Metadata::These files name ${GITHUB_REPOSITORY#*/}: ${NAMED//$'\n'/, }"
+              FAILED=1
+            fi
+          fi
+
+          # Every published file except checksums and signatures is signed, and every signature verifies.
+          SIGNED=0
+          while IFS= read -r FILE; do
+            if [[ ! -s "${FILE}.asc" ]]; then
+              echo "::error title=Missing Signature::${FILE#"${CONTENTS}/"} has no signature."
+              FAILED=1
+            elif ! gpg --verify "${FILE}.asc" "${FILE}" 2>/dev/null; then
+              echo "::error title=Bad Signature::${FILE#"${CONTENTS}/"}.asc does not verify."
+              FAILED=1
+            else
+              SIGNED=$((SIGNED + 1))
+            fi
+          done < <(find "${CONTENTS}" -type f ! -name '*.asc' ! -name '*.md5' ! -name '*.sha1' ! -name '*.sha256' ! -name '*.sha512')
+          [[ "${FAILED}" -eq 0 ]] || exit 1
+
+          BUNDLE_SHA256="$(sha256sum "${BUNDLE}" | cut -d' ' -f1)"
+          echo "file=${BUNDLE}" >>"${GITHUB_OUTPUT}"
+          {
+            echo "### Maven Central"
+            echo "- Version: \`${VERSION}\`"
+            echo "- Modules: ${#POMS[@]}, signed files verified: ${SIGNED}"
+            echo "- Bundle SHA-256: \`${BUNDLE_SHA256}\`"
+          } >>"${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload Bundle (Workflow Artifact)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: maven-central-bundle-${{ env.VERSION }}
+          path: ${{ steps.bundle.outputs.file }}
+          if-no-files-found: error
+
+      - name: Dry Run Summary
+        if: ${{ inputs.dry-run-enabled }}
+        env:
+          PUBLISHING_TYPE: ${{ inputs.maven-central-mode == 'publish' && 'AUTOMATIC' || 'USER_MANAGED' }}
+        run: |
+          echo "- Dry run: bundle built, signed and verified, not uploaded (a real run uploads it as \`${PUBLISHING_TYPE}\`)" >>"${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload to Central Portal
+        id: upload
+        if: ${{ !inputs.dry-run-enabled }}
+        env:
+          NEXUS_USERNAME: ${{ secrets.CENTRAL_PUBLISHING_USERNAME }}
+          NEXUS_PASSWORD: ${{ secrets.CENTRAL_PUBLISHING_PASSWORD }}
+          BUNDLE: ${{ steps.bundle.outputs.file }}
+          PUBLISHING_TYPE: ${{ inputs.maven-central-mode == 'publish' && 'AUTOMATIC' || 'USER_MANAGED' }}
+        run: |
+          TOKEN="$(printf '%s:%s' "${NEXUS_USERNAME}" "${NEXUS_PASSWORD}" | base64 -w0)"
+          echo "::add-mask::${TOKEN}"
+
+          DEPLOYMENT_ID="$(curl --fail-with-body -sS -X POST \
+            -H "Authorization: Bearer ${TOKEN}" \
+            -F "bundle=@${BUNDLE}" \
+            "${CENTRAL_API}/upload?name=hiero-consensus-node-${VERSION}&publishingType=${PUBLISHING_TYPE}")"
+
+          echo "Central Portal deployment: ${DEPLOYMENT_ID} (${PUBLISHING_TYPE})"
+          echo "deployment-id=${DEPLOYMENT_ID}" >>"${GITHUB_OUTPUT}"
+          echo "- Central Portal deployment: \`${DEPLOYMENT_ID}\` (\`${PUBLISHING_TYPE}\`)" >>"${GITHUB_STEP_SUMMARY}"
+
+      - name: Wait for Central Portal
+        if: ${{ !inputs.dry-run-enabled }}
+        env:
+          NEXUS_USERNAME: ${{ secrets.CENTRAL_PUBLISHING_USERNAME }}
+          NEXUS_PASSWORD: ${{ secrets.CENTRAL_PUBLISHING_PASSWORD }}
+          DEPLOYMENT_ID: ${{ steps.upload.outputs.deployment-id }}
+          MODE: ${{ inputs.maven-central-mode }}
+        run: |
+          TOKEN="$(printf '%s:%s' "${NEXUS_USERNAME}" "${NEXUS_PASSWORD}" | base64 -w0)"
+          echo "::add-mask::${TOKEN}"
+
+          # 'validate' stops once the deployment is validated; 'publish' waits until it is released
+          TARGET_STATE="PUBLISHED"
+          [[ "${MODE}" == "validate" ]] && TARGET_STATE="VALIDATED"
+
+          STATE="UNKNOWN"
+          DEADLINE=$(( $(date +%s) + 120 * 60 ))
+          while (( $(date +%s) < DEADLINE )); do
+            STATUS="$(curl --fail-with-body -sS -X POST -H "Authorization: Bearer ${TOKEN}" "${CENTRAL_API}/status?id=${DEPLOYMENT_ID}")"
+            STATE="$(jq -r '.deploymentState' <<<"${STATUS}")"
+            echo "$(date -u +%H:%M:%S) deployment ${DEPLOYMENT_ID}: ${STATE}"
+
+            if [[ "${STATE}" == "FAILED" ]]; then
+              echo "::error title=Central Portal Validation Failed::$(jq -c '.errors' <<<"${STATUS}")"
+              exit 1
+            fi
+            if [[ "${STATE}" == "${TARGET_STATE}" ]]; then
+              echo "- Final state: \`${STATE}\`" >>"${GITHUB_STEP_SUMMARY}"
+              [[ "${STATE}" == "VALIDATED" ]] && \
+                echo "- Not released: publish or drop deployment \`${DEPLOYMENT_ID}\` at https://central.sonatype.com/publishing/deployments" >>"${GITHUB_STEP_SUMMARY}"
+              exit 0
+            fi
+            sleep 30
+          done
+
+          echo "::error title=Central Portal Timeout::Deployment ${DEPLOYMENT_ID} did not reach ${TARGET_STATE} within 120 minutes (last state: ${STATE})."
+          exit 1
+
+  sdk-archives:
+    name: Publish SDK Archives
+    needs:
+      - resolve
+    if: ${{ inputs.publish-sdk-archives }}
+    runs-on: ${{ github.repository_owner == 'hiero-ledger' && 'hl-cn-default-lin-lg' || 'hg-cn-default-lin-lg' }}
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      TAG: ${{ needs.resolve.outputs.tag }}
+      VERSION: ${{ needs.resolve.outputs.version }}
+      COMMIT_SHORT: ${{ needs.resolve.outputs.commit-short }}
+    steps:
+      - name: Prepare Runner
+        uses: pandaswhocode/initialize-github-job@c96d9edf7816b4f333b558f2e07fe81ebf1e822d # v1.3.0
+        with:
+          checkout: "true"
+          checkout-ref: ${{ needs.resolve.outputs.commit }}
+          checkout-token: ${{ secrets.GITHUB_TOKEN }}
+          checkout-fetch-depth: "0"
+          checkout-persist: "false"
+          setup-java: "true"
+          java-distribution: temurin
+          java-version: ${{ needs.resolve.outputs.jdk-version }}
+          setup-gradle: "true"
+          gradle-version: wrapper
+
+      - name: Authenticate to Google Cloud
+        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
+        with:
+          workload_identity_provider: "projects/229164983194/locations/global/workloadIdentityPools/registry-identity-pool/providers/gh-provider"
+          service_account: "artifact-deployer@swirlds-registry.iam.gserviceaccount.com"
+
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+
+      - name: Check the SDK Release Bucket
+        env:
+          DRY_RUN: ${{ inputs.dry-run-enabled }}
+        run: |
+          if [[ -n "$(gsutil ls "gs://${SDK_RELEASE_BUCKET}/${TAG}/" 2>/dev/null)" ]]; then
+            if [[ "${DRY_RUN}" != "true" ]]; then
+              echo "::error title=Already Published::gs://${SDK_RELEASE_BUCKET}/${TAG}/ already holds SDK archives. They are not overwritten."
+              exit 1
+            fi
+            echo "::warning title=Already Published::gs://${SDK_RELEASE_BUCKET}/${TAG}/ already holds SDK archives."
+          fi
+
+      - name: Install GnuPG Tools
+        run: |
+          if ! command -v gpg2 >/dev/null 2>&1; then
+            sudo apt update
+            sudo apt install -y gnupg2
+          fi
+
+      - name: Import GPG Key
+        uses: step-security/ghaction-import-gpg@c0b4a334b9b72bfaaebec86ef022a78a5b17f828 # v7.0.0
+        with:
+          gpg_private_key: ${{ secrets.PLATFORM_GPG_KEY_CONTENTS }}
+          passphrase: ${{ secrets.PLATFORM_GPG_KEY_PASSPHRASE }}
+
+      - name: Gradle Update Version (As Specified)
+        run: ./gradlew versionAsSpecified -PnewVersion="${VERSION}"
+
+      - name: Gradle Assemble
+        run: ./gradlew assemble
+
+      # Stages, archives and signs the SDK exactly as 850 does.
+      - name: Stage and Sign SDK Release Archives
+        working-directory: platform-sdk
+        run: |
+          SDK_RELEASE_DIR="${HOME}/sdk-release"
+          SDK_ARCHIVE_DIR="${HOME}/sdk-archives"
+          mkdir -p "${SDK_RELEASE_DIR}" "${SDK_ARCHIVE_DIR}"
+
+          cp -Rvf sdk/* "${SDK_RELEASE_DIR}"
+          rm -vf "${SDK_RELEASE_DIR}/log4j2.xml" "${SDK_RELEASE_DIR}/settings.txt" "${SDK_RELEASE_DIR}/test_cases.sh"
+          rm -rvf "${SDK_RELEASE_DIR}/target" "${SDK_RELEASE_DIR}/testing" "${SDK_RELEASE_DIR}/kernels" "${SDK_RELEASE_DIR}/data/configs"
+
+          perl -0777 -pe 's/# \*\* BEGIN REMOVE FROM SDK RELEASES \*\*.*# \*\* END REMOVE FROM SDK RELEASES \*\*//igs' \
+            "sdk/config.txt" >"${SDK_RELEASE_DIR}/config.txt"
+          printf 'loadKeysFromPfxFiles, false\nrequireStateLoad, false\ncsvOutputFolder, data/stats\ncsvFileName, DemoStats\n\n' \
+            >"${SDK_RELEASE_DIR}/settings.txt"
+
+          LIB_ARCHIVE_FILE="${SDK_ARCHIVE_DIR}/platform-sdk-libs-v${VERSION}-${COMMIT_SHORT}.zip"
+          APPS_ARCHIVE_FILE="${SDK_ARCHIVE_DIR}/platform-sdk-apps-v${VERSION}-${COMMIT_SHORT}.zip"
+          PUBLIC_ARCHIVE_FILE="${SDK_ARCHIVE_DIR}/platform-sdk-public-v${VERSION}-${COMMIT_SHORT}.zip"
+
+          cd "${SDK_RELEASE_DIR}"
+          for DIR in data/lib data/apps; do
+            if [[ ! -d "${DIR}" || -z "$(ls -A "${DIR}")" ]]; then
+              echo "::error title=SDK Directory Empty::${DIR} is missing or empty after assemble."
+              exit 1
+            fi
+          done
+          zip -r "${LIB_ARCHIVE_FILE}" data/lib
+          zip -r "${APPS_ARCHIVE_FILE}" data/apps
+          # remove testing tools (if present) before building the public release artifact
+          rm -vf data/apps/*TestingTool.jar || true
+          zip -r "${PUBLIC_ARCHIVE_FILE}" *
+
+          cd "${SDK_ARCHIVE_DIR}"
+          for ARCHIVE in "${LIB_ARCHIVE_FILE}" "${APPS_ARCHIVE_FILE}" "${PUBLIC_ARCHIVE_FILE}"; do
+            sha256sum "${ARCHIVE}" >"${ARCHIVE}.sha256"
+            gpg --output "${ARCHIVE}.asc" --detach-sig "${ARCHIVE}"
+            gpg --output "${ARCHIVE}.sha256.asc" --detach-sig "${ARCHIVE}.sha256"
+          done
+          ls -l "${SDK_ARCHIVE_DIR}"
+
+      - name: Upload SDK Release Archives
+        env:
+          DRY_RUN: ${{ inputs.dry-run-enabled }}
+        run: |
+          DESTINATION="gs://${SDK_RELEASE_BUCKET}/${TAG}/"
+          echo "### SDK Archives" >>"${GITHUB_STEP_SUMMARY}"
+          if [[ "${DRY_RUN}" == "true" ]]; then
+            echo "- Dry run: built and signed, not uploaded to \`${DESTINATION}\`" >>"${GITHUB_STEP_SUMMARY}"
+          else
+            gsutil -m cp -n -r "${HOME}/sdk-archives"/* "${DESTINATION}"
+            echo "- Uploaded to \`${DESTINATION}\`" >>"${GITHUB_STEP_SUMMARY}"
+          fi
+          (cd "${HOME}/sdk-archives" && ls -1) | sed 's/^/  - /' >>"${GITHUB_STEP_SUMMARY}"
+
+  production-image:
+    name: Publish Production Image (${{ matrix.registry }})
+    needs:
+      - resolve
+      - stage-build
+    if: ${{ inputs.publish-production-image-gcp || inputs.publish-production-image-jfrog }}
+    runs-on: ${{ github.repository_owner == 'hiero-ledger' && 'hl-cn-default-lin-lg' || 'hg-cn-default-lin-lg' }}
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        registry: ${{ fromJSON(needs.resolve.outputs.image-registries) }}
+    env:
+      VERSION: ${{ needs.resolve.outputs.version }}
+      DRY_RUN: ${{ inputs.dry-run-enabled }}
+      CONTEXT: hedera-node/infrastructure/docker/containers/production-next/consensus-node
+    steps:
+      - name: Prepare Runner
+        uses: pandaswhocode/initialize-github-job@c96d9edf7816b4f333b558f2e07fe81ebf1e822d # v1.3.0
+        with:
+          checkout: "true"
+          checkout-ref: ${{ needs.resolve.outputs.commit }}
+          checkout-token: ${{ secrets.GITHUB_TOKEN }}
+          checkout-persist: "false"
+
+      - name: Restore Node Build Contents
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: node-build-artifacts-${{ needs.resolve.outputs.version }}
+          path: ${{ env.CONTEXT }}/sdk
+
+      # The credentials are checked in a dry run too; only the push goes to a local registry.
+      - name: Authenticate to Google Cloud
+        id: google-auth
+        if: ${{ matrix.registry == 'gcp' }}
+        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
+        with:
+          token_format: "access_token"
+          workload_identity_provider: "projects/235822363393/locations/global/workloadIdentityPools/hedera-builds-pool/providers/hedera-builds-gh-actions"
+          service_account: "swirlds-automation@hedera-registry.iam.gserviceaccount.com"
+
+      - name: Docker Login (GCP)
+        if: ${{ matrix.registry == 'gcp' }}
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          registry: gcr.io
+          username: oauth2accesstoken
+          password: ${{ steps.google-auth.outputs.access_token }}
+
+      - name: Setup JFrog CLI
+        if: ${{ matrix.registry == 'jfrog' }}
+        uses: jfrog/setup-jfrog-cli@ff5cb544114ffc152db9cea1cd3d5978d5074946 # v4.5.11
+        env:
+          JF_URL: ${{ vars.JF_URL }}
+          JF_ACCESS_TOKEN: ${{ secrets.JF_ACCESS_TOKEN }}
+
+      - name: Verify JFrog Connectivity
+        if: ${{ matrix.registry == 'jfrog' }}
+        run: jfrog rt ping
+
+      - name: Docker Login (JFrog)
+        if: ${{ matrix.registry == 'jfrog' }}
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          registry: artifacts.hashgraph.io
+          username: ${{ vars.JF_USER_NAME }}
+          password: ${{ secrets.JF_ACCESS_TOKEN }}
+
+      - name: Setup QEmu Support
+        uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4.1.0
+
+      - name: Setup Docker Buildx Support
+        uses: step-security/setup-buildx-action@f931205d68723ad9589fd2a7e2ece238bf9de341 # v4.0.0
+        with:
+          version: v0.32.1
+          driver-opts: network=host,image=ghcr.io/hashgraph/runner-images/buildkit:buildx-stable-1
+          buildkitd-config-inline: |
+            [registry."docker.io"]
+              mirrors = ["https://hub.mirror.docker.lat.ope.eng.hashgraph.io"]
+
+      - name: Resolve Image
+        id: image
+        env:
+          REGISTRY: ${{ matrix.registry }}
+        run: |
+          RELEASE_BASE="${GCP_IMAGE_BASE}"
+          [[ "${REGISTRY}" == "jfrog" ]] && RELEASE_BASE="${JFROG_IMAGE_BASE}"
+          RELEASE_IMAGE="${RELEASE_BASE}/consensus-node:${VERSION}"
+
+          if docker buildx imagetools inspect "${RELEASE_IMAGE}" >/dev/null 2>&1; then
+            if [[ "${DRY_RUN}" != "true" ]]; then
+              echo "::error title=Image Exists::${RELEASE_IMAGE} already exists. It is not overwritten."
+              exit 1
+            fi
+            echo "::warning title=Image Exists::${RELEASE_IMAGE} already exists."
+          fi
+
+          PUSH_IMAGE="${RELEASE_IMAGE}"
+          if [[ "${DRY_RUN}" == "true" ]]; then
+            PUSH_IMAGE="localhost:5000/consensus-node:${VERSION}"
+            docker run -d -p 5000:5000 --restart=always --name registry registry:latest
+          fi
+
+          echo "release-image=${RELEASE_IMAGE}" >>"${GITHUB_OUTPUT}"
+          echo "push-image=${PUSH_IMAGE}" >>"${GITHUB_OUTPUT}"
+          echo "source-date=$(git log -1 --pretty=%ct)" >>"${GITHUB_OUTPUT}"
+
+      - name: Build Consensus Node Image
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        env:
+          SOURCE_DATE_EPOCH: ${{ steps.image.outputs.source-date }}
+        with:
+          push: true
+          no-cache: true
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            SOURCE_DATE_EPOCH=${{ steps.image.outputs.source-date }}
+          context: ${{ env.CONTEXT }}
+          tags: ${{ steps.image.outputs.push-image }}
+
+      - name: Render Job Summary
+        env:
+          RELEASE_IMAGE: ${{ steps.image.outputs.release-image }}
+          PUSH_IMAGE: ${{ steps.image.outputs.push-image }}
+        run: |
+          echo "### Production Image (${{ matrix.registry }})" >>"${GITHUB_STEP_SUMMARY}"
+          if [[ "${DRY_RUN}" == "true" ]]; then
+            echo "- Dry run: built and pushed to \`${PUSH_IMAGE}\`, not to \`${RELEASE_IMAGE}\`" >>"${GITHUB_STEP_SUMMARY}"
+          else
+            echo "- Published \`${RELEASE_IMAGE}\` (linux/amd64, linux/arm64)" >>"${GITHUB_STEP_SUMMARY}"
+          fi
+
+  # The GCP and JFrog images are built separately; their layers must be identical.
+  validate-production-image:
+    name: Validate Production Image
+    needs:
+      - resolve
+      - production-image
+    if: ${{ inputs.publish-production-image-gcp && inputs.publish-production-image-jfrog && !inputs.dry-run-enabled }}
+    runs-on: ${{ github.repository_owner == 'hiero-ledger' && 'hl-cn-default-lin-md' || 'hg-cn-default-lin-md' }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Prepare Runner
+        uses: pandaswhocode/initialize-github-job@c96d9edf7816b4f333b558f2e07fe81ebf1e822d # v1.3.0
+        with:
+          checkout: "true"
+          checkout-ref: ${{ needs.resolve.outputs.commit }}
+          checkout-token: ${{ secrets.GITHUB_TOKEN }}
+          checkout-persist: "false"
+
+      - name: Authenticate to Google Cloud
+        id: google-auth
+        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
+        with:
+          token_format: "access_token"
+          workload_identity_provider: "projects/235822363393/locations/global/workloadIdentityPools/hedera-builds-pool/providers/hedera-builds-gh-actions"
+          service_account: "swirlds-automation@hedera-registry.iam.gserviceaccount.com"
+
+      - name: Docker Login (GCP)
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          registry: gcr.io
+          username: oauth2accesstoken
+          password: ${{ steps.google-auth.outputs.access_token }}
+
+      - name: Docker Login (JFrog)
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          registry: artifacts.hashgraph.io
+          username: ${{ vars.JF_USER_NAME }}
+          password: ${{ secrets.JF_ACCESS_TOKEN }}
+
+      - name: Generate GCP Manifest
+        id: gcp
+        env:
+          MANIFEST_PATH: ${{ env.DOCKER_MANIFEST_PATH }}/gcp
+          DOCKER_REGISTRY: ${{ env.GCP_IMAGE_BASE }}
+          DOCKER_TAG: ${{ needs.resolve.outputs.version }}
+        run: |
+          mkdir -p "${MANIFEST_PATH}"
+          "${DOCKER_MANIFEST_GENERATOR}"
+
+      - name: Generate JFrog Manifest
+        id: jfrog
+        env:
+          MANIFEST_PATH: ${{ env.DOCKER_MANIFEST_PATH }}/jfrog
+          DOCKER_REGISTRY: ${{ env.JFROG_IMAGE_BASE }}
+          DOCKER_TAG: ${{ needs.resolve.outputs.version }}
+        run: |
+          mkdir -p "${MANIFEST_PATH}"
+          "${DOCKER_MANIFEST_GENERATOR}"
+
+      - name: Compare Manifests
+        env:
+          GCP_PATH: ${{ steps.gcp.outputs.path }}
+          JFROG_PATH: ${{ steps.jfrog.outputs.path }}
+        run: |
+          FAILED=0
+          for FILE in linux-amd64.layers.json linux-arm64.layers.json linux-amd64.comparable.json linux-arm64.comparable.json; do
+            if ! diff -u "${GCP_PATH}/${FILE}" "${JFROG_PATH}/${FILE}"; then
+              echo "::error title=Image Mismatch::${FILE} differs between the GCP and JFrog images."
+              FAILED=1
+            fi
+          done
+          exit "${FAILED}"
+
+      - name: Upload Manifests
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: production-image-manifests
+          path: ${{ env.DOCKER_MANIFEST_PATH }}
+          if-no-files-found: ignore
+
+  local-node-images:
+    name: Publish Local Node Images
+    needs:
+      - resolve
+      - stage-build
+    if: ${{ inputs.publish-local-node-images }}
+    runs-on: ${{ github.repository_owner == 'hiero-ledger' && 'hl-cn-default-lin-lg' || 'hg-cn-default-lin-lg' }}
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      VERSION: ${{ needs.resolve.outputs.version }}
+      DRY_RUN: ${{ inputs.dry-run-enabled }}
+      CONTAINERS: hedera-node/infrastructure/docker/containers/local-node
+    steps:
+      - name: Prepare Runner
+        uses: pandaswhocode/initialize-github-job@c96d9edf7816b4f333b558f2e07fe81ebf1e822d # v1.3.0
+        with:
+          checkout: "true"
+          checkout-ref: ${{ needs.resolve.outputs.commit }}
+          checkout-token: ${{ secrets.GITHUB_TOKEN }}
+          checkout-persist: "false"
+
+      - name: Restore Node Build Contents
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: node-build-artifacts-${{ needs.resolve.outputs.version }}
+          path: ${{ env.CONTAINERS }}/main-network-node/sdk
+
+      - name: Authenticate to Google Cloud
+        id: google-auth
+        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
+        with:
+          token_format: "access_token"
+          workload_identity_provider: "projects/235822363393/locations/global/workloadIdentityPools/hedera-builds-pool/providers/hedera-builds-gh-actions"
+          service_account: "swirlds-automation@hedera-registry.iam.gserviceaccount.com"
+
+      - name: Docker Login (GCP)
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          registry: gcr.io
+          username: oauth2accesstoken
+          password: ${{ steps.google-auth.outputs.access_token }}
+
+      - name: Setup QEmu Support
+        uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4.1.0
+
+      - name: Setup Docker Buildx Support
+        uses: step-security/setup-buildx-action@f931205d68723ad9589fd2a7e2ece238bf9de341 # v4.0.0
+        with:
+          version: v0.32.1
+          driver-opts: network=host,image=ghcr.io/hashgraph/runner-images/buildkit:buildx-stable-1
+          buildkitd-config-inline: |
+            [registry."docker.io"]
+              mirrors = ["https://hub.mirror.docker.lat.ope.eng.hashgraph.io"]
+
+      - name: Resolve Images
+        id: image
+        run: |
+          FAILED=0
+          for IMAGE in network-node-haveged network-node-base main-network-node; do
+            if docker buildx imagetools inspect "${GCP_IMAGE_BASE}/${IMAGE}:${VERSION}" >/dev/null 2>&1; then
+              if [[ "${DRY_RUN}" != "true" ]]; then
+                echo "::error title=Image Exists::${GCP_IMAGE_BASE}/${IMAGE}:${VERSION} already exists. It is not overwritten."
+                FAILED=1
+              else
+                echo "::warning title=Image Exists::${GCP_IMAGE_BASE}/${IMAGE}:${VERSION} already exists."
+              fi
+            fi
+          done
+          [[ "${FAILED}" -eq 0 ]] || exit 1
+
+          PUSH_BASE="${GCP_IMAGE_BASE}"
+          if [[ "${DRY_RUN}" == "true" ]]; then
+            PUSH_BASE="localhost:5000"
+            docker run -d -p 5000:5000 --restart=always --name registry registry:latest
+          fi
+          echo "push-base=${PUSH_BASE}" >>"${GITHUB_OUTPUT}"
+
+      - name: Build Haveged Image
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          push: true
+          platforms: linux/amd64,linux/arm64
+          context: ${{ env.CONTAINERS }}/network-node-haveged
+          tags: ${{ steps.image.outputs.push-base }}/network-node-haveged:${{ env.VERSION }}
+
+      - name: Build Base Image
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          push: true
+          platforms: linux/amd64,linux/arm64
+          context: ${{ env.CONTAINERS }}/network-node-base
+          tags: ${{ steps.image.outputs.push-base }}/network-node-base:${{ env.VERSION }}
+
+      - name: Build Network Node Image
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          push: true
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            IMAGE_TAG=${{ env.VERSION }}
+            IMAGE_PREFIX=${{ steps.image.outputs.push-base }}/
+          context: ${{ env.CONTAINERS }}/main-network-node
+          tags: ${{ steps.image.outputs.push-base }}/main-network-node:${{ env.VERSION }}
+
+      - name: Render Job Summary
+        env:
+          PUSH_BASE: ${{ steps.image.outputs.push-base }}
+        run: |
+          echo "### Local Node Images" >>"${GITHUB_STEP_SUMMARY}"
+          for IMAGE in network-node-haveged network-node-base main-network-node; do
+            if [[ "${DRY_RUN}" == "true" ]]; then
+              echo "- Dry run: \`${PUSH_BASE}/${IMAGE}:${VERSION}\` (not \`${GCP_IMAGE_BASE}\`)" >>"${GITHUB_STEP_SUMMARY}"
+            else
+              echo "- Published \`${PUSH_BASE}/${IMAGE}:${VERSION}\` (linux/amd64, linux/arm64)" >>"${GITHUB_STEP_SUMMARY}"
+            fi
+          done
+
+  yahcli-image:
+    name: Publish Yahcli Image
+    needs:
+      - resolve
+    if: ${{ inputs.publish-yahcli-image }}
+    runs-on: ${{ github.repository_owner == 'hiero-ledger' && 'hl-cn-default-lin-lg' || 'hg-cn-default-lin-lg' }}
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      # Yahcli images are tagged with the release tag (v-prefixed), as 304 tags them on a tag push.
+      IMAGE_TAG: ${{ needs.resolve.outputs.tag }}
+      DRY_RUN: ${{ inputs.dry-run-enabled }}
+    steps:
+      - name: Prepare Runner
+        uses: pandaswhocode/initialize-github-job@c96d9edf7816b4f333b558f2e07fe81ebf1e822d # v1.3.0
+        with:
+          checkout: "true"
+          checkout-ref: ${{ needs.resolve.outputs.commit }}
+          checkout-token: ${{ secrets.GITHUB_TOKEN }}
+          checkout-persist: "false"
+          setup-java: "true"
+          java-distribution: temurin
+          java-version: ${{ needs.resolve.outputs.jdk-version }}
+          setup-gradle: "true"
+          gradle-version: wrapper
+
+      - name: Build Yahcli Shadow JAR
+        run: ./gradlew :yahcli:fatModuleJar
+
+      - name: Stage Yahcli Assets
+        run: |
+          FAT_JAR="$(ls -1 hedera-node/yahcli/build/libs/*-all.jar 2>/dev/null | head -n1)"
+          if [[ -z "${FAT_JAR}" ]]; then
+            echo "::error title=Yahcli JAR Not Found::No shadow JAR in hedera-node/yahcli/build/libs/."
+            exit 1
+          fi
+          cp -f "${FAT_JAR}" hedera-node/yahcli/assets/yahcli.jar
+
+      - name: Authenticate to Google Cloud
+        id: google-auth
+        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
+        with:
+          token_format: "access_token"
+          workload_identity_provider: "projects/235822363393/locations/global/workloadIdentityPools/hedera-builds-pool/providers/hedera-builds-gh-actions"
+          service_account: "swirlds-automation@hedera-registry.iam.gserviceaccount.com"
+
+      - name: Docker Login (GCP)
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          registry: gcr.io
+          username: oauth2accesstoken
+          password: ${{ steps.google-auth.outputs.access_token }}
+
+      - name: Setup QEmu Support
+        uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4.1.0
+
+      - name: Setup Docker Buildx Support
+        uses: step-security/setup-buildx-action@f931205d68723ad9589fd2a7e2ece238bf9de341 # v4.0.0
+        with:
+          version: v0.32.1
+          driver-opts: network=host,image=ghcr.io/hashgraph/runner-images/buildkit:buildx-stable-1
+          buildkitd-config-inline: |
+            [registry."docker.io"]
+              mirrors = ["https://hub.mirror.docker.lat.ope.eng.hashgraph.io"]
+
+      - name: Resolve Image
+        id: image
+        run: |
+          RELEASE_IMAGE="${GCP_IMAGE_BASE}/yahcli:${IMAGE_TAG}"
+          if docker buildx imagetools inspect "${RELEASE_IMAGE}" >/dev/null 2>&1; then
+            if [[ "${DRY_RUN}" != "true" ]]; then
+              echo "::error title=Image Exists::${RELEASE_IMAGE} already exists. It is not overwritten."
+              exit 1
+            fi
+            echo "::warning title=Image Exists::${RELEASE_IMAGE} already exists."
+          fi
+
+          PUSH_IMAGE="${RELEASE_IMAGE}"
+          if [[ "${DRY_RUN}" == "true" ]]; then
+            PUSH_IMAGE="localhost:5000/yahcli:${IMAGE_TAG}"
+            docker run -d -p 5000:5000 --restart=always --name registry registry:latest
+          fi
+          echo "release-image=${RELEASE_IMAGE}" >>"${GITHUB_OUTPUT}"
+          echo "push-image=${PUSH_IMAGE}" >>"${GITHUB_OUTPUT}"
+
+      - name: Build Yahcli Image
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          push: true
+          no-cache: true
+          platforms: linux/amd64,linux/arm64
+          context: hedera-node/yahcli
+          tags: ${{ steps.image.outputs.push-image }}
+
+      - name: Render Job Summary
+        env:
+          RELEASE_IMAGE: ${{ steps.image.outputs.release-image }}
+          PUSH_IMAGE: ${{ steps.image.outputs.push-image }}
+        run: |
+          echo "### Yahcli Image" >>"${GITHUB_STEP_SUMMARY}"
+          if [[ "${DRY_RUN}" == "true" ]]; then
+            echo "- Dry run: built and pushed to \`${PUSH_IMAGE}\`, not to \`${RELEASE_IMAGE}\`" >>"${GITHUB_STEP_SUMMARY}"
+          else
+            echo "- Published \`${RELEASE_IMAGE}\` (linux/amd64, linux/arm64)" >>"${GITHUB_STEP_SUMMARY}"
+          fi
