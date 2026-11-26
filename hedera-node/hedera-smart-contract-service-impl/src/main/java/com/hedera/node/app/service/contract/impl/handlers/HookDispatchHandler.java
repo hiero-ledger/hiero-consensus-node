@@ -6,16 +6,21 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOKS_NOT_ENABLED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_ID_IN_USE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_NOT_FOUND;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_CALL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_CREATION_SPEC;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.node.app.hapi.utils.contracts.HookUtils.asAccountId;
 import static com.hedera.node.app.service.contract.impl.utils.HookValidationUtils.validateHook;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.HookEntityId;
 import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
@@ -26,6 +31,7 @@ import com.hedera.node.app.service.contract.impl.state.EvmFrameStates;
 import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
 import com.hedera.node.app.service.contract.impl.state.hooks.HookEvmFrameStateFactory;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeContext;
@@ -53,9 +59,23 @@ public class HookDispatchHandler extends AbstractContractTransactionHandler impl
         super(provider, gasCalculator, entityIdFactory, component);
     }
 
+    /**
+     * Gathers the target entity's key for CREATION and DELETION so an attacker cannot attach or
+     * remove hooks on another account/contract merely by being permitted to submit {@code HOOK_DISPATCH}.
+     * EXECUTION intentionally gathers no keys — {@code TransferExecutor} waives the debit key via
+     * {@code usesHook} (HIP-1195), and a missing hook fails closed with {@code HOOK_NOT_FOUND}.
+     */
     @Override
     public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
-        // no-op
+        requireNonNull(context);
+        final var op = context.body().hookDispatchOrThrow();
+        if (op.hasCreation()) {
+            context.requireKeyOrThrow(
+                    ownerAccountIdForPreHandle(op.creationOrThrow().entityIdOrThrow()), INVALID_ACCOUNT_ID);
+        } else if (op.hasHookIdToDelete()) {
+            context.requireKeyOrThrow(
+                    ownerAccountIdForPreHandle(op.hookIdToDeleteOrThrow().entityIdOrThrow()), INVALID_ACCOUNT_ID);
+        }
     }
 
     @Override
@@ -65,12 +85,15 @@ public class HookDispatchHandler extends AbstractContractTransactionHandler impl
         validateTruePreCheck(op.hasCreation() || op.hasExecution() || op.hasHookIdToDelete(), INVALID_TRANSACTION_BODY);
         if (op.hasCreation()) {
             validateTruePreCheck(op.creationOrThrow().hasDetails(), INVALID_HOOK_CREATION_SPEC);
+            validateTruePreCheck(op.creationOrThrow().hasEntityId(), INVALID_HOOK_CREATION_SPEC);
             validateHook(op.creationOrThrow().detailsOrThrow());
         } else if (op.hasExecution()) {
             validateTrue(op.executionOrThrow().hasCall(), INVALID_HOOK_CALL);
             validateTrue(op.executionOrThrow().callOrThrow().hasHookId(), INVALID_HOOK_CALL);
             validateTrue(
                     op.executionOrThrow().callOrThrow().evmHookCallOrThrow().gasLimit() > 0, INSUFFICIENT_GAS);
+        } else if (op.hasHookIdToDelete()) {
+            validateTruePreCheck(op.hookIdToDeleteOrThrow().hasEntityId(), INVALID_ACCOUNT_ID);
         }
     }
 
@@ -86,6 +109,7 @@ public class HookDispatchHandler extends AbstractContractTransactionHandler impl
         switch (op.action().kind()) {
             case CREATION -> {
                 final var creation = op.creationOrThrow();
+                assertOwnerAuthorized(context, creation.entityIdOrThrow());
                 final var details = creation.detailsOrThrow();
                 final var hook = evmHookStore.getEvmHook(new HookId(creation.entityId(), details.hookId()));
                 validateTrue(hook == null, HOOK_ID_IN_USE);
@@ -98,6 +122,7 @@ public class HookDispatchHandler extends AbstractContractTransactionHandler impl
             }
             case HOOK_ID_TO_DELETE -> {
                 final var deletion = op.hookIdToDeleteOrThrow();
+                assertOwnerAuthorized(context, deletion.entityIdOrThrow());
                 final var hook = evmHookStore.getEvmHook(new HookId(deletion.entityId(), deletion.hookId()));
                 validateTrue(hook != null, HOOK_NOT_FOUND);
                 evmHookStore.remove(op.hookIdToDeleteOrThrow());
@@ -128,6 +153,45 @@ public class HookDispatchHandler extends AbstractContractTransactionHandler impl
                 validateTrue(outcome.status() == SUCCESS, outcome.status());
             }
         }
+    }
+
+    /**
+     * Defense-in-depth ownership check for CREATION/DELETION: the target entity must exist and its
+     * key must have authorized this dispatch. Child step dispatches from CryptoCreate/Update (and
+     * ContractCreate/Update) use a preauthorized key verifier, so the parent's already-verified
+     * owner signature continues to satisfy this check. A top-level attacker without the victim's
+     * signature fails with {@link com.hedera.hapi.node.base.ResponseCodeEnum#INVALID_SIGNATURE}.
+     */
+    private static void assertOwnerAuthorized(
+            @NonNull final HandleContext context, @NonNull final HookEntityId entityId) {
+        final var ownerId = ownerAccountIdOf(entityId);
+        final var account = context.storeFactory()
+                .readableStore(ReadableAccountStore.class)
+                .getAccountById(ownerId);
+        validateTrue(account != null && account.hasKey(), INVALID_ACCOUNT_ID);
+        final var verification = context.keyVerifier().verificationFor(account.keyOrThrow());
+        validateTrue(verification.passed(), INVALID_SIGNATURE);
+    }
+
+    private static AccountID ownerAccountIdForPreHandle(@NonNull final HookEntityId entityId)
+            throws PreCheckException {
+        if (entityId.hasAccountId()) {
+            return entityId.accountIdOrThrow();
+        }
+        if (entityId.hasContractId()) {
+            return asAccountId(entityId.contractIdOrThrow());
+        }
+        throw new PreCheckException(INVALID_ACCOUNT_ID);
+    }
+
+    private static AccountID ownerAccountIdOf(@NonNull final HookEntityId entityId) {
+        if (entityId.hasAccountId()) {
+            return entityId.accountIdOrThrow();
+        }
+        if (entityId.hasContractId()) {
+            return asAccountId(entityId.contractIdOrThrow());
+        }
+        throw new HandleException(INVALID_ACCOUNT_ID);
     }
 
     public static class FeeCalculator implements ServiceFeeCalculator {
