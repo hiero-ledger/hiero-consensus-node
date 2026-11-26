@@ -16,7 +16,8 @@
 #     kind cluster + solo {init, cluster-ref, deployment, cluster-ref-setup,
 #     keys, consensus network deploy, consensus node setup, consensus node
 #     start, mirror node add --pinger} — all against the released CN image at
-#     the tag computed in step 1.
+#     the tag computed in step 1. A blocks-only baseline (0.80+) also gets
+#     `block node add`, and its mirror node reads blocks from that block node.
 #
 #   Step 3 — Upgrade to the local build (current branch)
 #     `solo consensus network upgrade --local-build-path` (intentionally no
@@ -55,9 +56,12 @@ KEEP_NETWORK="${KEEP_NETWORK:-true}"
 
 LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH:-${REPO_ROOT}/hedera-node/data}"
 SOLO_UPGRADE_TIMEOUT_SECS="${SOLO_UPGRADE_TIMEOUT_SECS:-1800}"
-# Solo's default mirror node can be too old for the baseline, so use the CITR pin.
+# Solo's default mirror node can be too old for the baseline, so use the CITR pins. A
+# blocks-only baseline uses the block node pin and the mirror node pin that reads blocks.
 CITR_ENV_FILE="${REPO_ROOT}/.github/workflows/support/citr/.citr-env"
 MIRROR_NODE_VERSION="${MIRROR_NODE_VERSION:-$({ sed -n 's/^citr-mirror-node-version=//p' "${CITR_ENV_FILE}" 2>/dev/null | head -n 1; } || true)}"
+BLOCKS_MIRROR_NODE_VERSION="${BLOCKS_MIRROR_NODE_VERSION:-$({ sed -n 's/^bn-mirror-node-version=//p' "${CITR_ENV_FILE}" 2>/dev/null | head -n 1; } || true)}"
+BLOCK_NODE_VERSION="${BLOCK_NODE_VERSION:-$({ sed -n 's/^block-node-version=//p' "${CITR_ENV_FILE}" 2>/dev/null | head -n 1; } || true)}"
 
 # Step 4 (CryptoCreate smoke) port-forwards + operator credentials.
 # Account 0.0.2 + the well-known genesis Ed25519 dev key is what Solo's local
@@ -94,6 +98,8 @@ BASELINE_DESC=""
 MIN_MIGRATABLE_TSS_LIBRARY_VERSION="3.23.0"
 # Set by step 1 when the baseline needs node property overrides.
 BASELINE_APP_PROPS=""
+# Set by step 1 when the baseline streams blocks only, so it needs a block node.
+BASELINE_STREAMS_BLOCKS="false"
 
 log() {
   printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"
@@ -297,13 +303,26 @@ compute_versions() {
 # Solo's default application.properties sets blockStream.streamMode=RECORDS next to
 # tss.hintsEnabled=true. In RECORDS mode the node skips all TSS work, so a TSS-enabled
 # baseline never advances its genesis hinTS state, which the upgrade target then
-# rejects as "legacy" state (V079HintsSchema). BOTH runs TSS and keeps writing the
-# record files the mirror node reads; BLOCKS would leave step 4 nothing to find.
-# Only called for baselines that keep TSS on; sets BASELINE_APP_PROPS.
+# rejects as "legacy" state (V079HintsSchema). Use the baseline's production default instead:
+#   baseline < 0.80  : BOTH   (block stream alongside the record stream)
+#   baseline >= 0.80 : BLOCKS (block stream only) with real, not mock, signatures
+# Only called for baselines that keep TSS on; sets BASELINE_APP_PROPS and BASELINE_STREAMS_BLOCKS.
 configure_baseline_stream_mode() {
+  local label="${DEPLOY_VERSION_LABEL#v}"
+  local series
+  series="$(cut -d. -f1,2 <<<"${label}")"
+
   BASELINE_APP_PROPS="${WORK_DIR}/baseline-application.properties"
-  printf '%s\n' "blockStream.streamMode=BOTH" > "${BASELINE_APP_PROPS}"
-  log "Baseline ${DEPLOY_VERSION_LABEL}: deploying with blockStream.streamMode=BOTH"
+  if [[ "$(printf '%s\n' "0.80" "${series}" | sort -V | head -n 1)" == "0.80" ]]; then
+    printf '%s\n' \
+      "blockStream.streamMode=BLOCKS" \
+      "tss.forceMockSignatures=false" > "${BASELINE_APP_PROPS}"
+    BASELINE_STREAMS_BLOCKS="true"
+    log "Baseline ${series} >= 0.80: deploying with blockStream.streamMode=BLOCKS, tss.forceMockSignatures=false"
+  else
+    printf '%s\n' "blockStream.streamMode=BOTH" > "${BASELINE_APP_PROPS}"
+    log "Baseline ${series} < 0.80: deploying with blockStream.streamMode=BOTH"
+  fi
 }
 
 # Reads the baseline's TSS library (hedera-cryptography) version and, when it is
@@ -424,10 +443,59 @@ setup_cluster_prereqs() {
     --cluster-setup-namespace "${SOLO_CLUSTER_SETUP_NAMESPACE}"
 }
 
+# A blocks-only baseline writes no record files, so, as in production, the mirror
+# node reads blocks from a block node. Added before the CNs so Solo points them at it.
+add_block_node() {
+  : "${BLOCK_NODE_VERSION:?block-node-version is missing from ${CITR_ENV_FILE}}"
+  log "Adding Block Node ${BLOCK_NODE_VERSION}"
+  # Solo can't see that TSS is on before the CNs exist; without the overlay the block
+  # node's heap runs out on the genesis WRAPS proof.
+  solo block node add \
+    --deployment "${SOLO_DEPLOYMENT}" \
+    --cluster-ref "kind-${SOLO_CLUSTER_NAME}" \
+    --chart-version "${BLOCK_NODE_VERSION}" \
+    --consensus-node-version "${DEPLOY_VERSION_LABEL}" \
+    --block-node-tss-overlay
+}
+
+# Mirror node values for a blocks-only baseline: the importer reads blocks from the
+# block node instead of record and balance files, and gets enough memory for block 0,
+# which carries the genesis WRAPS proof (Solo's 220Mi default is OOM-killed on it).
+write_blocks_mirror_values() {
+  local values_file="$1"
+  cat > "${values_file}" <<EOF
+importer:
+  config:
+    hiero:
+      mirror:
+        importer:
+          block:
+            enabled: true
+            sourceType: BLOCK_NODE
+            nodes:
+              - endpoints:
+                  - host: block-node-1.${SOLO_NAMESPACE}.svc.cluster.local
+          downloader:
+            balance:
+              enabled: false
+            record:
+              enabled: false
+  resources:
+    requests:
+      memory: 512Mi
+    limits:
+      memory: 1Gi
+EOF
+}
+
 # Deploy the baseline 3-node consensus network at the previous-minor tag and
 # attach a Mirror Node with the pinger enabled.
 deploy_baseline() {
   log "Deploying baseline consensus network: ${BASELINE_DESC}"
+
+  if [[ "${BASELINE_STREAMS_BLOCKS}" == "true" ]]; then
+    add_block_node
+  fi
 
   solo keys consensus generate \
     --gossip-keys \
@@ -479,7 +547,11 @@ deploy_baseline() {
   wait_for_consensus_pods_ready 600
   wait_for_haproxy_ready 600
 
-  log "Adding Mirror Node ${MIRROR_NODE_VERSION:-(solo default)} (with Pinger enabled)"
+  local mirror_version="${MIRROR_NODE_VERSION}"
+  if [[ "${BASELINE_STREAMS_BLOCKS}" == "true" ]]; then
+    mirror_version="${BLOCKS_MIRROR_NODE_VERSION:?bn-mirror-node-version is missing from ${CITR_ENV_FILE}}"
+  fi
+  log "Adding Mirror Node ${mirror_version:-(solo default)} (with Pinger enabled)"
   # Race-fix for Apple Silicon: the mirror-1-web3 Spring Boot JVM cold-starts
   # in ~3-5 min under Rosetta translation, but the chart's default web3 probes
   # are way too tight for that:
@@ -513,8 +585,12 @@ deploy_baseline() {
     --cluster-ref "kind-${SOLO_CLUSTER_NAME}"
     --pinger
   )
-  if [[ -n "${MIRROR_NODE_VERSION}" ]]; then
-    mirror_cmd+=(--mirror-node-version "${MIRROR_NODE_VERSION}")
+  if [[ -n "${mirror_version}" ]]; then
+    mirror_cmd+=(--mirror-node-version "${mirror_version}")
+  fi
+  if [[ "${BASELINE_STREAMS_BLOCKS}" == "true" ]]; then
+    write_blocks_mirror_values "${WORK_DIR}/mirror-blocks-values.yaml"
+    mirror_cmd+=(--values-file "${WORK_DIR}/mirror-blocks-values.yaml")
   fi
   "${mirror_cmd[@]}"
 
