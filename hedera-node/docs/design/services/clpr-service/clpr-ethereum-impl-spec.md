@@ -1310,7 +1310,7 @@ permanent ban. Slash proceeds go to the submitting endpoint that was harmed.
 
 ## 12.3 Channel identity
 
-During channel opening the service checks the caller’s expected channel ID against the ID derived from both ledgers’ chain IDs, services, verifiers, and shared salt.
+During channel opening the service checks the caller’s expected channel ID against the ID derived from two sorted legs and the shared salt. Each leg commits to the source ledger’s chain ID, service, configuration timestamp and initial trust anchor, and to the destination’s verifier (see [Opening a channel](README.md#opening-a-channel)).
 
 ## 12.4 Application Callback Interface
 

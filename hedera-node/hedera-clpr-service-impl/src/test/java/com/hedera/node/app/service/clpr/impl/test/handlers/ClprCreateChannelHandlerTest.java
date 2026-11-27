@@ -9,6 +9,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_VERIFIER_CONFIG_FA
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.SubType.DEFAULT;
 import static com.hedera.node.app.hapi.utils.CommonUtils.asEvmAddress;
+import static com.hedera.node.app.hapi.utils.MiscCryptoUtils.keccak256DigestOf;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
@@ -74,6 +75,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -106,59 +108,36 @@ class ClprCreateChannelHandlerTest {
             .build();
 
     private static final String LOCAL_CHAIN_ID = "hedera:testnet";
+    private static final Bytes LOCAL_TRUST_ANCHOR = Bytes.fromHex("0102030405060708");
+    private static final Timestamp LOCAL_CONFIG_TIMESTAMP =
+            Timestamp.newBuilder().seconds(2000).nanos(7).build();
+    private static final Timestamp OLDER_LOCAL_CONFIG_TIMESTAMP =
+            Timestamp.newBuilder().seconds(1500).build();
     private static final Bytes SALT = Bytes.wrap(new byte[32]);
     private static final Bytes PEER_VERIFIER = Bytes.fromHex("00112233445566778899aabbccddeeff00112233");
-    // Produced by ChannelLogic._deriveChannelId in clpr-smart-contracts #622.
-    private static final Bytes CHANNEL_ID =
-            Bytes.fromHex("bb082a20892923291a09d2402beeedc74d1077bf44ba67d4b33cede9495688a2");
+    private static final Bytes CHANNEL_ID = channelIdFor(Bytes.wrap(asEvmAddress(5001)), LOCAL_CONFIG_TIMESTAMP);
 
-    @Test
-    void derivesTheSameIdFromEitherLedgerIncludingWhenChainAndServiceMatch() {
-        final var verifier = Bytes.wrap(asEvmAddress(5001));
-        assertThat(ClprChannelId.derive(
-                        PEER_CONFIG.chainId(),
-                        PEER_CONFIG.serviceAddress(),
-                        PEER_VERIFIER,
-                        LOCAL_CHAIN_ID,
-                        CLPR_EVM_ADDRESS_BYTES,
-                        verifier,
-                        SALT))
-                .isEqualTo(CHANNEL_ID);
-        final var otherVerifier = Bytes.fromHex("ff");
-        // Solidity vector with equal chain and service: the verifier hashes break the tie.
-        final var expected = Bytes.fromHex("63c19f9211fb8e9c2d094a1bde7992e39fa80892666b644451fab75be8077710");
-        assertThat(ClprChannelId.derive(
-                        LOCAL_CHAIN_ID,
-                        CLPR_EVM_ADDRESS_BYTES,
-                        verifier,
-                        LOCAL_CHAIN_ID,
-                        CLPR_EVM_ADDRESS_BYTES,
-                        otherVerifier,
-                        SALT))
-                .isEqualTo(expected);
-        assertThat(ClprChannelId.derive(
-                        LOCAL_CHAIN_ID,
-                        CLPR_EVM_ADDRESS_BYTES,
-                        otherVerifier,
-                        LOCAL_CHAIN_ID,
-                        CLPR_EVM_ADDRESS_BYTES,
-                        verifier,
-                        SALT))
-                .isEqualTo(expected);
+    private static Bytes channelIdFor(final Bytes verifierAddress, final Timestamp localConfigTimestamp) {
+        final var peerToLocal = ClprChannelId.leg(
+                PEER_CONFIG.chainId(),
+                PEER_CONFIG.serviceAddress(),
+                PEER_CONFIG.timestamp(),
+                keccak256DigestOf(PEER_TRUST_ANCHOR),
+                verifierAddress);
+        final var localToPeer = ClprChannelId.leg(
+                LOCAL_CHAIN_ID,
+                CLPR_EVM_ADDRESS_BYTES,
+                localConfigTimestamp,
+                keccak256DigestOf(LOCAL_TRUST_ANCHOR),
+                PEER_VERIFIER);
+        return ClprChannelId.derive(peerToLocal, localToPeer, SALT);
     }
 
     private static Bytes channelIdForVerifier(final ContractID verifierId) {
         final var address = verifierId.hasEvmAddress()
                 ? verifierId.evmAddressOrThrow()
                 : Bytes.wrap(asEvmAddress(verifierId.contractNumOrThrow()));
-        return ClprChannelId.derive(
-                LOCAL_CHAIN_ID,
-                CLPR_EVM_ADDRESS_BYTES,
-                address,
-                PEER_CONFIG.chainId(),
-                PEER_CONFIG.serviceAddress(),
-                PEER_VERIFIER,
-                SALT);
+        return channelIdFor(address, LOCAL_CONFIG_TIMESTAMP);
     }
 
     @Mock
@@ -221,6 +200,9 @@ class ClprCreateChannelHandlerTest {
                 .channelId(Bytes.wrap(new byte[16]))
                 .salt(SALT)
                 .peerVerifier(PEER_VERIFIER)
+                .trustAnchor(PEER_TRUST_ANCHOR)
+                .localConfigTimestamp(LOCAL_CONFIG_TIMESTAMP)
+                .localTrustAnchorHash(keccak256DigestOf(LOCAL_TRUST_ANCHOR))
                 .verifierContract(VERIFIER_CONTRACT_ID)
                 .configProofBytes(Bytes.wrap(new byte[] {1}))
                 .build();
@@ -252,6 +234,9 @@ class ClprCreateChannelHandlerTest {
                 .channelId(Bytes.wrap(new byte[32]))
                 .salt(SALT)
                 .peerVerifier(PEER_VERIFIER)
+                .trustAnchor(PEER_TRUST_ANCHOR)
+                .localConfigTimestamp(LOCAL_CONFIG_TIMESTAMP)
+                .localTrustAnchorHash(keccak256DigestOf(LOCAL_TRUST_ANCHOR))
                 .configProofBytes(Bytes.wrap(new byte[] {1}))
                 .build();
         given(pureChecksContext.body()).willReturn(txnWith(op));
@@ -267,6 +252,9 @@ class ClprCreateChannelHandlerTest {
                 .channelId(Bytes.wrap(new byte[32]))
                 .salt(SALT)
                 .peerVerifier(PEER_VERIFIER)
+                .trustAnchor(PEER_TRUST_ANCHOR)
+                .localConfigTimestamp(LOCAL_CONFIG_TIMESTAMP)
+                .localTrustAnchorHash(keccak256DigestOf(LOCAL_TRUST_ANCHOR))
                 .verifierContract(VERIFIER_CONTRACT_ID)
                 .configProofBytes(Bytes.EMPTY)
                 .build();
@@ -334,6 +322,9 @@ class ClprCreateChannelHandlerTest {
                 .channelId(CHANNEL_ID)
                 .salt(SALT)
                 .peerVerifier(PEER_VERIFIER)
+                .trustAnchor(PEER_TRUST_ANCHOR)
+                .localConfigTimestamp(LOCAL_CONFIG_TIMESTAMP)
+                .localTrustAnchorHash(keccak256DigestOf(LOCAL_TRUST_ANCHOR))
                 .verifierContract(VERIFIER_CONTRACT_ID)
                 .configProofBytes(Bytes.wrap(new byte[] {(byte) 0xFF, (byte) 0xFF}))
                 .build();
@@ -499,6 +490,9 @@ class ClprCreateChannelHandlerTest {
                 .channelId(CHANNEL_ID)
                 .salt(SALT)
                 .peerVerifier(PEER_VERIFIER)
+                .trustAnchor(PEER_TRUST_ANCHOR)
+                .localConfigTimestamp(LOCAL_CONFIG_TIMESTAMP)
+                .localTrustAnchorHash(keccak256DigestOf(LOCAL_TRUST_ANCHOR))
                 .verifierContract(VERIFIER_CONTRACT_ID)
                 .configProofBytes(ClprLedgerConfiguration.PROTOBUF.toBytes(PEER_CONFIG))
                 .endpointManifestProofBytes(ClprEndpointManifest.PROTOBUF.toBytes(peerManifest))
@@ -631,6 +625,9 @@ class ClprCreateChannelHandlerTest {
                 .channelId(CHANNEL_ID)
                 .salt(SALT)
                 .peerVerifier(PEER_VERIFIER)
+                .trustAnchor(PEER_TRUST_ANCHOR)
+                .localConfigTimestamp(LOCAL_CONFIG_TIMESTAMP)
+                .localTrustAnchorHash(keccak256DigestOf(LOCAL_TRUST_ANCHOR))
                 .verifierContract(VERIFIER_CONTRACT_ID)
                 .configProofBytes(ClprLedgerConfiguration.PROTOBUF.toBytes(PEER_CONFIG))
                 .endpointManifestProofBytes(Bytes.EMPTY)
@@ -655,6 +652,9 @@ class ClprCreateChannelHandlerTest {
                 .channelId(CHANNEL_ID)
                 .salt(SALT)
                 .peerVerifier(PEER_VERIFIER)
+                .trustAnchor(PEER_TRUST_ANCHOR)
+                .localConfigTimestamp(LOCAL_CONFIG_TIMESTAMP)
+                .localTrustAnchorHash(keccak256DigestOf(LOCAL_TRUST_ANCHOR))
                 .verifierContract(VERIFIER_CONTRACT_ID)
                 .configProofBytes(ClprLedgerConfiguration.PROTOBUF.toBytes(PEER_CONFIG))
                 // Garbage bytes — PassThroughClprVerifier fails to parse as ClprEndpointManifest.
@@ -794,6 +794,168 @@ class ClprCreateChannelHandlerTest {
         then(smartContractServiceApi).shouldHaveNoInteractions();
     }
 
+    @Test
+    void rejectsEmptyTrustAnchor() {
+        given(pureChecksContext.body()).willReturn(validOpenTxnWith(op -> op.trustAnchor(Bytes.EMPTY)));
+
+        assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
+                .isInstanceOf(PreCheckException.class)
+                .has(responseCode(INVALID_TRANSACTION_BODY));
+    }
+
+    @Test
+    void rejectsInvalidLocalConfigTimestamp() {
+        given(pureChecksContext.body())
+                .willReturn(validOpenTxnWith(op -> op.localConfigTimestamp(
+                        Timestamp.newBuilder().seconds(1).nanos(1_000_000_000).build())));
+
+        assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
+                .isInstanceOf(PreCheckException.class)
+                .has(responseCode(INVALID_TRANSACTION_BODY));
+    }
+
+    @Test
+    void rejectsLocalTrustAnchorHashOfWrongLength() {
+        given(pureChecksContext.body())
+                .willReturn(validOpenTxnWith(op -> op.localTrustAnchorHash(Bytes.wrap(new byte[31]))));
+
+        assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
+                .isInstanceOf(PreCheckException.class)
+                .has(responseCode(INVALID_TRANSACTION_BODY));
+    }
+
+    @Test
+    void rejectsAMissingLocalConfigTimestamp() {
+        given(pureChecksContext.body())
+                .willReturn(txnWith(validOpenTxn()
+                        .clprCreateChannelOrThrow()
+                        .copyBuilder()
+                        .localConfigTimestamp((Timestamp) null)
+                        .build()));
+
+        assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
+                .isInstanceOf(PreCheckException.class)
+                .has(responseCode(INVALID_TRANSACTION_BODY));
+    }
+
+    @Test
+    void rejectsAMissingLocalTrustAnchorHash() {
+        given(pureChecksContext.body()).willReturn(validOpenTxnWith(op -> op.localTrustAnchorHash(Bytes.EMPTY)));
+
+        assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
+                .isInstanceOf(PreCheckException.class)
+                .has(responseCode(INVALID_TRANSACTION_BODY));
+    }
+
+    @Test
+    void storesTheLocalConfigTimestampAsLastConfigTimestamp() {
+        setupHandleContext(validOpenTxn());
+        setupVerifierAccount(true);
+
+        subject.handle(handleContext);
+
+        assertThat(channelStore.getChannel(CHANNEL_ID).lastConfigTimestamp()).isEqualTo(LOCAL_CONFIG_TIMESTAMP);
+    }
+
+    @Test
+    void acceptsAnOlderLocalConfigTimestampAndStoresIt() {
+        final var channelId = channelIdFor(Bytes.wrap(asEvmAddress(5001)), OLDER_LOCAL_CONFIG_TIMESTAMP);
+        setupHandleContext(
+                validOpenTxnWith(op -> op.channelId(channelId).localConfigTimestamp(OLDER_LOCAL_CONFIG_TIMESTAMP)));
+        setupVerifierAccount(true);
+
+        subject.handle(handleContext);
+
+        // The newer local configuration then reaches the peer as a ConfigUpdate
+        assertThat(channelStore.getChannel(channelId).lastConfigTimestamp()).isEqualTo(OLDER_LOCAL_CONFIG_TIMESTAMP);
+    }
+
+    @Test
+    void rejectsAnIdDerivedFromADifferentLocalConfigTimestamp() {
+        setupHandleContext(validOpenTxnWith(op -> op.localConfigTimestamp(OLDER_LOCAL_CONFIG_TIMESTAMP)));
+        setupVerifierAccount(true);
+
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(INVALID_TRANSACTION_BODY));
+        assertThat(channelStore.getChannel(CHANNEL_ID)).isNull();
+    }
+
+    @Test
+    void rejectsATrustAnchorThatDiffersFromTheProvenConfiguration() {
+        setupHandleContext(validOpenTxnWith(op -> op.trustAnchor(LOCAL_TRUST_ANCHOR)));
+        setupVerifierAccount(true);
+
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(CLPR_VERIFIER_CONFIG_FAILED));
+        assertThat(channelStore.getChannel(CHANNEL_ID)).isNull();
+    }
+
+    @Test
+    void rejectsALocalTrustAnchorHashThatDiffersFromLocalState() {
+        setupHandleContext(validOpenTxnWith(op -> op.localTrustAnchorHash(keccak256DigestOf(PEER_TRUST_ANCHOR))));
+        setupVerifierAccount(true);
+
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(CLPR_VERIFIER_CONFIG_FAILED));
+        assertThat(channelStore.getChannel(CHANNEL_ID)).isNull();
+    }
+
+    @Test
+    void hashesAnEmptyLocalTrustAnchorBeforeTheLedgerIdExists() {
+        final var localConfig = localConfigWithMaxPeerEndpoints(0)
+                .copyBuilder()
+                .initialTrustAnchor(Bytes.EMPTY)
+                .build();
+        final var verifier = Bytes.wrap(asEvmAddress(5001));
+        final var channelId = ClprChannelId.derive(
+                ClprChannelId.leg(
+                        PEER_CONFIG.chainId(),
+                        PEER_CONFIG.serviceAddress(),
+                        PEER_CONFIG.timestamp(),
+                        keccak256DigestOf(PEER_TRUST_ANCHOR),
+                        verifier),
+                ClprChannelId.leg(
+                        LOCAL_CHAIN_ID,
+                        CLPR_EVM_ADDRESS_BYTES,
+                        LOCAL_CONFIG_TIMESTAMP,
+                        keccak256DigestOf(Bytes.EMPTY),
+                        PEER_VERIFIER),
+                SALT);
+        setupHandleContext(
+                validOpenTxnWith(op -> op.channelId(channelId).localTrustAnchorHash(keccak256DigestOf(Bytes.EMPTY))),
+                enabledConfig(),
+                localConfig);
+        setupVerifierAccount(true);
+
+        subject.handle(handleContext);
+
+        assertThat(channelStore.getChannel(channelId)).isNotNull();
+    }
+
+    @Test
+    void rejectsEqualLegs() {
+        // A peer configuration identical to the local one, verified in both directions by the same address
+        final var mirrorConfig = PEER_CONFIG
+                .copyBuilder()
+                .chainId(LOCAL_CHAIN_ID)
+                .serviceAddress(CLPR_EVM_ADDRESS_BYTES)
+                .timestamp(LOCAL_CONFIG_TIMESTAMP)
+                .initialTrustAnchor(LOCAL_TRUST_ANCHOR)
+                .build();
+        setupHandleContext(
+                validOpenTxnWith(op -> op.configProofBytes(ClprLedgerConfiguration.PROTOBUF.toBytes(mirrorConfig))
+                        .trustAnchor(LOCAL_TRUST_ANCHOR)
+                        .peerVerifier(Bytes.wrap(asEvmAddress(5001)))));
+        setupVerifierAccount(true);
+
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(INVALID_TRANSACTION_BODY));
+    }
+
     private void setupHandleContext(final TransactionBody txn) {
         setupHandleContext(txn, enabledConfig());
     }
@@ -837,10 +999,18 @@ class ClprCreateChannelHandlerTest {
                 .channelId(CHANNEL_ID)
                 .salt(SALT)
                 .peerVerifier(PEER_VERIFIER)
+                .trustAnchor(PEER_TRUST_ANCHOR)
+                .localConfigTimestamp(LOCAL_CONFIG_TIMESTAMP)
+                .localTrustAnchorHash(keccak256DigestOf(LOCAL_TRUST_ANCHOR))
                 .verifierContract(VERIFIER_CONTRACT_ID)
                 .configProofBytes(ClprLedgerConfiguration.PROTOBUF.toBytes(peerConfig))
                 .build();
         return txnWith(op);
+    }
+
+    private TransactionBody validOpenTxnWith(final UnaryOperator<ClprCreateChannelTransactionBody.Builder> change) {
+        return txnWith(change.apply(validOpenTxn().clprCreateChannelOrThrow().copyBuilder())
+                .build());
     }
 
     private TransactionBody validOpenTxnWithManifest(final ClprEndpointManifest peerManifest) {
@@ -848,6 +1018,9 @@ class ClprCreateChannelHandlerTest {
                 .channelId(CHANNEL_ID)
                 .salt(SALT)
                 .peerVerifier(PEER_VERIFIER)
+                .trustAnchor(PEER_TRUST_ANCHOR)
+                .localConfigTimestamp(LOCAL_CONFIG_TIMESTAMP)
+                .localTrustAnchorHash(keccak256DigestOf(LOCAL_TRUST_ANCHOR))
                 .verifierContract(VERIFIER_CONTRACT_ID)
                 .configProofBytes(ClprLedgerConfiguration.PROTOBUF.toBytes(PEER_CONFIG))
                 .endpointManifestProofBytes(ClprEndpointManifest.PROTOBUF.toBytes(peerManifest))
@@ -862,6 +1035,8 @@ class ClprCreateChannelHandlerTest {
     private static ClprLedgerConfiguration localConfigWithMaxPeerEndpoints(final int maxPeerEndpoints) {
         return ClprLedgerConfiguration.newBuilder()
                 .chainId(LOCAL_CHAIN_ID)
+                .timestamp(LOCAL_CONFIG_TIMESTAMP)
+                .initialTrustAnchor(LOCAL_TRUST_ANCHOR)
                 .throttles(ClprThrottles.newBuilder()
                         .maxPeerEndpoints(maxPeerEndpoints)
                         .build())

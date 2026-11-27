@@ -208,7 +208,7 @@ public class ClprEnabledSuite {
     @DisplayName("A deployed contract sends a message and reads a real CLPR channel successfully")
     final Stream<DynamicTest> clprRouterCallsSucceedFromContract() {
         return hapiTest(ClprChannelCrypto.withVerifier(
-                VERIFIER_CONTRACT, "hiero:testing", CLPR_SERVICE_ADDRESS_20, crypto -> {
+                VERIFIER_CONTRACT, "hiero:testing", CLPR_SERVICE_ADDRESS_20, ledgerConfig(), crypto -> {
                     final var operations = contractSetup();
                     final var txns = clprTxns(crypto);
                     for (final var name : List.of("updateLedgerConfiguration", "createChannel", "createConnector")) {
@@ -244,7 +244,7 @@ public class ClprEnabledSuite {
         final var application = "SelfDestructClpr";
         final var submittedBundle = "selfDestructBundle";
         return hapiTest(ClprChannelCrypto.withVerifier(
-                VERIFIER_CONTRACT, "hiero:testing", CLPR_SERVICE_ADDRESS_20, crypto -> {
+                VERIFIER_CONTRACT, "hiero:testing", CLPR_SERVICE_ADDRESS_20, ledgerConfig(), crypto -> {
                     final long executionCost = 1_000_000L;
                     final long endpointMargin = executionCost / 10;
                     final var callbackGasFee = new AtomicLong();
@@ -478,7 +478,7 @@ public class ClprEnabledSuite {
 
     private static Stream<DynamicTest> exerciseTransactions(final boolean inBatch, final boolean bypassIngest) {
         return hapiTest(ClprChannelCrypto.withVerifier(
-                VERIFIER_CONTRACT, "hiero:testing", CLPR_SERVICE_ADDRESS_20, crypto -> {
+                VERIFIER_CONTRACT, "hiero:testing", CLPR_SERVICE_ADDRESS_20, ledgerConfig(), crypto -> {
                     final var txns = clprTxns(crypto);
                     final var operations = contractSetup();
                     operations.add(withOpContext((spec, opLog) -> assertCoversEveryClprEntryPoint(txns)));
@@ -537,6 +537,10 @@ public class ClprEnabledSuite {
                         .channelId(crypto.channelId())
                         .salt(crypto.salt())
                         .peerVerifier(crypto.peerVerifier())
+                        .trustAnchor(crypto.peerTrustAnchor())
+                        // The update above only moves the local configuration past the version the ID commits to
+                        .localConfigTimestamp(crypto.localConfigTimestamp())
+                        .localTrustAnchorHash(crypto.localTrustAnchorHash())
                         .verifierContract(VERIFIER_CONTRACT)
                         .configProofBytes(toConfigProofBytes(ledgerConfig())));
         txns.put(

@@ -188,15 +188,12 @@ VERIFIER_B=$(capture_contract_id "${LOG_DIR}/04b-verifier.log")
 [[ -n "${VERIFIER_B}" ]] || die "could not capture verifier contract id on ${NET_B}"
 echo "  VERIFIER_A=${VERIFIER_A}  VERIFIER_B=${VERIFIER_B}"
 
-SERVICE_ADDRESS=000000000000000000000000000000000000016e
 VERIFIER_ADDRESS_A=$(long_zero_addr "${VERIFIER_A}")
 VERIFIER_ADDRESS_B=$(long_zero_addr "${VERIFIER_B}")
-CHAIN_A=$(sed -nE 's/.*"chain_id"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' "${PEER_CONFIG_A}")
-CHAIN_B=$(sed -nE 's/.*"chain_id"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' "${PEER_CONFIG_B}")
 yh "derive shared channel ID" "${LOG_DIR}/derive-channel.log" \
     -n "${NET_A}" -p "${PAYER}" clpr generate-channel-identity \
-    --local-chain-id "${CHAIN_A}" --local-service "${SERVICE_ADDRESS}" --local-verifier "${VERIFIER_ADDRESS_A}" \
-    --peer-chain-id "${CHAIN_B}" --peer-service "${SERVICE_ADDRESS}" --peer-verifier "${VERIFIER_ADDRESS_B}" \
+    --local-config "${PEER_CONFIG_A}" --local-verifier "${VERIFIER_ADDRESS_A}" \
+    --peer-config "${PEER_CONFIG_B}" --peer-verifier "${VERIFIER_ADDRESS_B}" \
     --out "${CHANNEL_FILE}"
 CHANNEL_ID=$(read_json_field "${CHANNEL_FILE}" channelId)
 CHANNEL_SALT=$(read_json_field "${CHANNEL_FILE}" salt)
@@ -206,13 +203,13 @@ yh "create-channel on ${NET_A} via verifier ${VERIFIER_A}" \
     "${LOG_DIR}/06a-complete-conn.log" \
     -n "${NET_A}" -p "${PAYER}" \
     clpr create-channel --channel-id "${CHANNEL_ID}" --salt "${CHANNEL_SALT}" --peer-verifier "${VERIFIER_ADDRESS_B}" \
-        --verifier-contract "${VERIFIER_A}" --config-proof "${PROOF_B}"
+        --verifier-contract "${VERIFIER_A}" --config-proof "${PROOF_B}" --peer-config "${PEER_CONFIG_B}" --local-config "${PEER_CONFIG_A}"
 
 yh "create-channel on ${NET_B} via verifier ${VERIFIER_B}" \
     "${LOG_DIR}/06b-complete-conn.log" \
     -n "${NET_B}" -p "${PAYER}" \
     clpr create-channel --channel-id "${CHANNEL_ID}" --salt "${CHANNEL_SALT}" --peer-verifier "${VERIFIER_ADDRESS_A}" \
-        --verifier-contract "${VERIFIER_B}" --config-proof "${PROOF_A}"
+        --verifier-contract "${VERIFIER_B}" --config-proof "${PROOF_A}" --peer-config "${PEER_CONFIG_A}" --local-config "${PEER_CONFIG_B}"
 
 CHANNEL_ID=$(read_json_field "${CHANNEL_FILE}" "channelId")
 [[ -n "${CHANNEL_ID}" && "${CHANNEL_ID}" != "null" ]] || die "no channelId in ${CHANNEL_FILE}"

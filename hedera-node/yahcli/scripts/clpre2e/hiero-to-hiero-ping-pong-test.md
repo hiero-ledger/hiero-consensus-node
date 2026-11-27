@@ -321,25 +321,28 @@ jq '.finalized' bob-observed-manifest.json                           # must be t
 
 ### Step 10 — Derive a shared channel ID
 
-Both ledgers in this example use the native CLPR service and Hiero verifier at `0.0.366`. Read each chain ID from its queried configuration and generate the salt once.
+Both ledgers in this example use the native CLPR service and Hiero verifier at `0.0.366`. The channel ID commits to each ledger's chain ID, service address, configuration timestamp and initial trust anchor, which the command reads from the observed configurations. Generate the salt once.
 
 ```bash
 SERVICE=000000000000000000000000000000000000016e
 ./yahcli -n alice -p 2 clpr generate-channel-identity \
-  --local-chain-id "$(jq -r .configuration.chain_id alice-observed-config.json)" \
-  --local-service "$SERVICE" --local-verifier "$SERVICE" \
-  --peer-chain-id "$(jq -r .configuration.chain_id bob-observed-config.json)" \
-  --peer-service "$SERVICE" --peer-verifier "$SERVICE" --out channel.json
+  --local-config alice-observed-config.json --local-verifier "$SERVICE" \
+  --peer-config bob-observed-config.json --peer-verifier "$SERVICE" --out channel.json
 CHANNEL_ID=$(jq -r .channelId channel.json)
 CHANNEL_SALT=$(jq -r .salt channel.json)
 ```
 
+Pass the same observed configurations to `create-channel` below. They pin the configuration versions the channel ID commits to, so a later configuration update reaches the peer as a ConfigUpdate.
+
 ### Step 11 — Open the channel on Alice
+
+`--peer-config` supplies Bob's initial trust anchor; `--local-config` supplies Alice's configuration timestamp and trust anchor hash.
 
 ```bash
 ./yahcli -n alice -p 2 clpr create-channel \
   --channel-id "$CHANNEL_ID" --salt "$CHANNEL_SALT" --peer-verifier "$SERVICE" \
-  --verifier-contract 0.0.366 --config-proof bob-proof.bin \
+  --verifier-contract 0.0.366 --config-proof bob-proof.bin --peer-config bob-observed-config.json \
+  --local-config alice-observed-config.json \
   --endpoint-manifest-proof bob-manifest-proof.bin
 ```
 
@@ -350,7 +353,8 @@ Use the same ID and salt with Alice's proofs.
 ```bash
 ./yahcli -n bob -p 2 clpr create-channel \
   --channel-id "$CHANNEL_ID" --salt "$CHANNEL_SALT" --peer-verifier "$SERVICE" \
-  --verifier-contract 0.0.366 --config-proof alice-proof.bin \
+  --verifier-contract 0.0.366 --config-proof alice-proof.bin --peer-config alice-observed-config.json \
+  --local-config bob-observed-config.json \
   --endpoint-manifest-proof alice-manifest-proof.bin
 ```
 

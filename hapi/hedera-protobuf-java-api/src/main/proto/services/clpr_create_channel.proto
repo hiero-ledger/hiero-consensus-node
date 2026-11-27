@@ -8,10 +8,13 @@ option java_package = "com.hederahashgraph.api.proto.java";
 option java_multiple_files = true;
 
 import "services/basic_types.proto";
+import "services/timestamp.proto";
 
 /**
- * Create a CLPR channel in one transaction. The channel ID commits to both
- * ledgers, both service addresses, both verifier addresses, and a salt.
+ * Create a CLPR channel in one transaction. The channel ID commits to one leg
+ * per direction and a salt. Each leg commits to the source ledger's chain ID,
+ * service address, configuration timestamp and initial trust anchor, and to
+ * the verifier on the destination ledger for that source.
  */
 message ClprCreateChannelTransactionBody {
     /** Expected 32-byte channel ID, also supplied to the verifier. */
@@ -26,4 +29,18 @@ message ClprCreateChannelTransactionBody {
     bytes config_proof_bytes = 5;
     /** Peer endpoint manifest proof, passed to the same verifier. */
     bytes endpoint_manifest_proof_bytes = 6;
+    /** Peer initial trust anchor. Must equal the anchor in the proven peer configuration. */
+    bytes trust_anchor = 7;
+    /**
+     * Timestamp of this ledger's configuration that the peer holds. It may be
+     * older than the current local configuration when that changed after the
+     * peer captured it; the newer configuration then reaches the peer as a
+     * ConfigUpdate.
+     */
+    proto.Timestamp local_config_timestamp = 8;
+    /**
+     * keccak256 of the trust anchor the peer holds for this ledger. Must equal
+     * the hash of the local initial trust anchor.
+     */
+    bytes local_trust_anchor_hash = 9;
 }

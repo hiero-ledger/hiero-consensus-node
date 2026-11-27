@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.interledger;
 
 import static com.hedera.services.bdd.spec.HapiSpec.networkHapiTest;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.clprGetLedgerConfiguration;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCreateChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCreateConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprUpdateLedgerConfiguration;
@@ -30,6 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.ClprChannelId;
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.MultiNetworkHapiTest;
 import com.hedera.services.bdd.junit.MultiNetworkHapiTest.Network;
@@ -134,14 +136,11 @@ public class ClprMessagesSuite {
         new java.security.SecureRandom().nextBytes(channelSalt);
         final var service =
                 Bytes.wrap(com.hedera.node.app.hapi.utils.CommonUtils.asEvmAddress(CLPR_SYSTEM_CONTRACT_NUM));
-        final var channelId = ClprChannelId.derive(
-                "eip155:" + netA.startupProperties().getLong("contracts.chainId"),
-                service,
-                service,
-                "eip155:" + netB.startupProperties().getLong("contracts.chainId"),
-                service,
-                service,
-                Bytes.wrap(channelSalt));
+        // The channel ID commits to both ledgers' configuration timestamps and trust anchors, so it is derived once
+        // both configurations are installed. Operations built earlier hold this array and read it when they run.
+        final byte[] channelId = new byte[32];
+        final AtomicReference<ClprLedgerConfiguration> netAConfig = new AtomicReference<>();
+        final AtomicReference<ClprLedgerConfiguration> netBConfig = new AtomicReference<>();
 
         // ── Connector keypair ─────────────────────────────────────────────────────────────────────
         final var connectorPubKey64 = ECDSASecp256k1.derivePublicKey(CONNECTOR_SECRET_KEY);
@@ -182,7 +181,8 @@ public class ClprMessagesSuite {
                         // Peers reach A via its endpoint manifest, not via the config's endpoints.
                         clprUpdateLedgerConfiguration()
                                 .configuration(buildLedgerConfig(NET_A_CHAIN_ID, portA))
-                                .payingWith(GENESIS))
+                                .payingWith(GENESIS),
+                        clprGetLedgerConfiguration().payingWith(GENESIS).exposingConfigTo(netAConfig::set))
                 .findFirst()
                 .orElseThrow();
         // NET_A's config and finalized endpoint-manifest StateProofs, threaded into NET_B's createChannel.
@@ -203,6 +203,13 @@ public class ClprMessagesSuite {
                         clprUpdateLedgerConfiguration()
                                 .configuration(buildLedgerConfig(NET_B_CHAIN_ID, portB))
                                 .payingWith(GENESIS),
+                        clprGetLedgerConfiguration().payingWith(GENESIS).exposingConfigTo(netBConfig::set),
+                        withOpContext((spec, opLog) -> System.arraycopy(
+                                deriveChannelId(netAConfig.get(), netBConfig.get(), channelSalt, service),
+                                0,
+                                channelId,
+                                0,
+                                channelId.length)),
                         uploadInitCode(ECHO_APP),
                         contractCreate(ECHO_APP),
                         // Fund EchoApplication as the connector contract: must cover
@@ -213,9 +220,14 @@ public class ClprMessagesSuite {
                         // sourcing(...) defers both .get() calls until runtime so the captured values are
                         // visible.
                         sourcing(() -> clprCreateChannel()
-                                .channelId(channelId.toByteArray())
+                                .channelId(channelId)
                                 .salt(channelSalt)
                                 .peerVerifier(service.toByteArray())
+                                .trustAnchor(
+                                        netAConfig.get().getInitialTrustAnchor().toByteArray())
+                                .localConfigTimestamp(netBConfig.get().getTimestamp())
+                                .localTrustAnchorHash(MiscCryptoUtils.keccak256DigestOf(
+                                        netBConfig.get().getInitialTrustAnchor().toByteArray()))
                                 .verifierContractId(clprSystemContract)
                                 .configProofBytes(configProofForNetB.get().toByteArray())
                                 .endpointManifestProofBytes(
@@ -226,7 +238,7 @@ public class ClprMessagesSuite {
                                 .connectorId(connectorId.toByteArray())
                                 .secp256k1Identity(CONNECTOR_SECRET_KEY)
                                 .salt(CONNECTOR_SALT.toByteArray())
-                                .channelId(channelId.toByteArray())
+                                .channelId(channelId)
                                 .connectorContract(ECHO_APP)
                                 .adminKeyName(GENESIS)
                                 .lockedStake(MIN_STAKE)
@@ -257,10 +269,7 @@ public class ClprMessagesSuite {
                         // Deploy SourceApplication now that we have EchoApplication's address.
                         withOpContext((spec, opLog) -> {
                             final byte[] echoAddr = asAddress(echoContractIdRef.get());
-                            allRunFor(
-                                    spec,
-                                    contractCreate(
-                                            SOURCE_APP, channelId.toByteArray(), connectorId.toByteArray(), echoAddr));
+                            allRunFor(spec, contractCreate(SOURCE_APP, channelId, connectorId.toByteArray(), echoAddr));
                         }),
                         // Fund SourceApplication.
                         cryptoTransfer(tinyBarsFromTo(GENESIS, SOURCE_APP, ONE_HUNDRED_HBARS)),
@@ -271,9 +280,14 @@ public class ClprMessagesSuite {
                         // sourcing(...) defers both .get() calls until runtime so the captured values are
                         // visible.
                         sourcing(() -> clprCreateChannel()
-                                .channelId(channelId.toByteArray())
+                                .channelId(channelId)
                                 .salt(channelSalt)
                                 .peerVerifier(service.toByteArray())
+                                .trustAnchor(
+                                        netBConfig.get().getInitialTrustAnchor().toByteArray())
+                                .localConfigTimestamp(netAConfig.get().getTimestamp())
+                                .localTrustAnchorHash(MiscCryptoUtils.keccak256DigestOf(
+                                        netAConfig.get().getInitialTrustAnchor().toByteArray()))
                                 .verifierContractId(clprSystemContract)
                                 .configProofBytes(configProofForNetA.get().toByteArray())
                                 .endpointManifestProofBytes(
@@ -284,7 +298,7 @@ public class ClprMessagesSuite {
                                 .connectorId(connectorId.toByteArray())
                                 .secp256k1Identity(CONNECTOR_SECRET_KEY)
                                 .salt(CONNECTOR_SALT.toByteArray())
-                                .channelId(channelId.toByteArray())
+                                .channelId(channelId)
                                 .connectorContract(CONNECTOR_AUTH)
                                 .adminKeyName(GENESIS)
                                 .lockedStake(MIN_STAKE)
@@ -356,6 +370,29 @@ public class ClprMessagesSuite {
                                 netBManifestCapture,
                                 netASetup),
                         Stream.of(invocationTests)));
+    }
+
+    /** Derives the channel ID from both installed configurations; each ledger verifies the other with CLPR. */
+    private static byte[] deriveChannelId(
+            final ClprLedgerConfiguration netA,
+            final ClprLedgerConfiguration netB,
+            final byte[] salt,
+            final Bytes verifier) {
+        return ClprChannelId.derive(leg(netA, verifier), leg(netB, verifier), Bytes.wrap(salt))
+                .toByteArray();
+    }
+
+    private static Bytes leg(final ClprLedgerConfiguration config, final Bytes verifier) {
+        return ClprChannelId.leg(
+                config.getChainId(),
+                Bytes.wrap(config.getServiceAddress().toByteArray()),
+                com.hedera.hapi.node.base.Timestamp.newBuilder()
+                        .seconds(config.getTimestamp().getSeconds())
+                        .nanos(config.getTimestamp().getNanos())
+                        .build(),
+                MiscCryptoUtils.keccak256DigestOf(
+                        Bytes.wrap(config.getInitialTrustAnchor().toByteArray())),
+                verifier);
     }
 
     /**

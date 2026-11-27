@@ -10,7 +10,6 @@ import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCreateChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCreateConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprSubmitBundle;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprUpdateLedgerConfiguration;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -64,6 +63,8 @@ import org.junit.jupiter.api.Tag;
  */
 @Tag(CLPR)
 public class ClprNegativePeerSuite {
+    /** 2 sends fit under this cap; the bundle's 2 reply enqueues push next_message_id to 5. */
+    private static final int TIGHT_QUEUE_DEPTH = 4;
 
     private static final String VERIFIER_CONTRACT = "ClprPassThroughVerifier";
     private static final String CONNECTOR_CONTRACT = "PassThroughAuth";
@@ -76,15 +77,15 @@ public class ClprNegativePeerSuite {
     @DisplayName("Malformed (raw) bundle → CLPR_BUNDLE_VERIFICATION_FAILED")
     final Stream<DynamicTest> malformedBundleRejected() {
         return hapiTest(ClprChannelCrypto.withVerifier(
-                VERIFIER_CONTRACT, "hiero:testing", CLPR_SERVICE_ADDRESS_20, crypto -> {
+                VERIFIER_CONTRACT, "hiero:testing", CLPR_SERVICE_ADDRESS_20, defaultLedgerConfig(), crypto -> {
                     return blockingOrder(
-                            clprUpdateLedgerConfiguration()
-                                    .configuration(defaultLedgerConfig())
-                                    .payingWith(GENESIS),
                             clprCreateChannel()
                                     .channelId(crypto.channelId())
                                     .salt(crypto.salt())
                                     .peerVerifier(crypto.peerVerifier())
+                                    .trustAnchor(crypto.peerTrustAnchor())
+                                    .localConfigTimestamp(crypto.localConfigTimestamp())
+                                    .localTrustAnchorHash(crypto.localTrustAnchorHash())
                                     .verifierContract(VERIFIER_CONTRACT)
                                     .configProofBytes(toConfigProofBytes(defaultLedgerConfig()))
                                     .payingWith(GENESIS),
@@ -104,7 +105,7 @@ public class ClprNegativePeerSuite {
     @DisplayName("Out-of-order replies → channel PAUSED (spec §4.5)")
     final Stream<DynamicTest> outOfOrderReplies() {
         return hapiTest(ClprChannelCrypto.withVerifier(
-                VERIFIER_CONTRACT, "hiero:testing", CLPR_SERVICE_ADDRESS_20, crypto -> {
+                VERIFIER_CONTRACT, "hiero:testing", CLPR_SERVICE_ADDRESS_20, defaultLedgerConfig(), crypto -> {
                     final var aSentRunningHash = new AtomicReference<byte[]>();
                     return blockingOrder(concat(
                             setupChannelWithTwoSends(crypto, defaultLedgerConfig(), aSentRunningHash),
@@ -124,7 +125,7 @@ public class ClprNegativePeerSuite {
     @DisplayName("PAUSED → ACTIVE recovery after a multi-message bundle (spec §4.5)")
     final Stream<DynamicTest> pausedToActiveRecoveryAfterMultiMessageBundle() {
         return hapiTest(ClprChannelCrypto.withVerifier(
-                VERIFIER_CONTRACT, "hiero:testing", CLPR_SERVICE_ADDRESS_20, crypto -> {
+                VERIFIER_CONTRACT, "hiero:testing", CLPR_SERVICE_ADDRESS_20, defaultLedgerConfig(), crypto -> {
                     final var aSentRunningHash = new AtomicReference<byte[]>();
                     return blockingOrder(concat(
                             setupChannelWithTwoSends(crypto, defaultLedgerConfig(), aSentRunningHash),
@@ -153,16 +154,18 @@ public class ClprNegativePeerSuite {
     @DisplayName("Queue-full during multi-message inbound: reply enqueues bypass cap, app sends blocked")
     final Stream<DynamicTest> queueFullDuringMultiMessageInbound() {
         return hapiTest(ClprChannelCrypto.withVerifier(
-                VERIFIER_CONTRACT, "hiero:testing", CLPR_SERVICE_ADDRESS_20, crypto -> {
+                VERIFIER_CONTRACT,
+                "hiero:testing",
+                CLPR_SERVICE_ADDRESS_20,
+                defaultLedgerConfig(TIGHT_QUEUE_DEPTH),
+                crypto -> {
                     final var aSentRunningHash = new AtomicReference<byte[]>();
-                    // 2 sends fit under cap=4; the bundle's 2 reply enqueues push next_message_id to 5.
-                    final int tightQueueDepth = 4;
                     return blockingOrder(concat(
                             new SpecOperation[] {
                                 // 100% disables the per-connector quota so the depth cap isn't masked by §8.11.
                                 overriding("clpr.connectorQueueQuotaPct", "100"),
                             },
-                            setupChannelWithTwoSends(crypto, defaultLedgerConfig(tightQueueDepth), aSentRunningHash),
+                            setupChannelWithTwoSends(crypto, defaultLedgerConfig(TIGHT_QUEUE_DEPTH), aSentRunningHash),
                             sourcing(() -> clprSubmitBundle()
                                     .channelId(crypto.channelId())
                                     .bundlePayload(bundleWithTwoDataMessagesUnknownConnector(aSentRunningHash.get()))
@@ -170,8 +173,8 @@ public class ClprNegativePeerSuite {
                                     .payingWith(GENESIS)),
                             withOpContext((spec, opLog) -> {
                                 final var conn = readChannel(spec, crypto);
-                                if (conn.nextMessageId() <= tightQueueDepth) {
-                                    throw new AssertionError("Expected next_message_id > " + tightQueueDepth
+                                if (conn.nextMessageId() <= TIGHT_QUEUE_DEPTH) {
+                                    throw new AssertionError("Expected next_message_id > " + TIGHT_QUEUE_DEPTH
                                             + " after reply enqueues; was " + conn.nextMessageId());
                                 }
                             }),
@@ -186,7 +189,7 @@ public class ClprNegativePeerSuite {
     @DisplayName("Interleaved Data+Reply in same bundle → channel stays ACTIVE")
     final Stream<DynamicTest> interleavedDataAndReplyInSameBundle() {
         return hapiTest(ClprChannelCrypto.withVerifier(
-                VERIFIER_CONTRACT, "hiero:testing", CLPR_SERVICE_ADDRESS_20, crypto -> {
+                VERIFIER_CONTRACT, "hiero:testing", CLPR_SERVICE_ADDRESS_20, defaultLedgerConfig(), crypto -> {
                     final var aSentRunningHash = new AtomicReference<byte[]>();
                     return blockingOrder(concat(
                             setupChannelWithTwoSends(crypto, defaultLedgerConfig(), aSentRunningHash),
@@ -202,7 +205,7 @@ public class ClprNegativePeerSuite {
     // ── Setup helpers ────────────────────────────────────────────────────────
 
     /**
-     * Builds the common setup: ledger config + verifier/connector/system contracts + channel
+     * Builds the common setup: connector/system contracts + channel
      * creation + connector registration + 2 app-originated sends. Captures A's
      * {@code sentRunningHash} into {@code aSentRunningHash} so forged bundles can pass Step 4.
      */
@@ -212,7 +215,6 @@ public class ClprNegativePeerSuite {
             final AtomicReference<byte[]> aSentRunningHash) {
         return new SpecOperation[] {
             overriding("clpr.minLockedStake", "100"),
-            clprUpdateLedgerConfiguration().configuration(config).payingWith(GENESIS),
             uploadInitCode(CONNECTOR_CONTRACT),
             contractCreate(CONNECTOR_CONTRACT),
             uploadInitCode(CLPR_CONTRACT),
@@ -222,6 +224,9 @@ public class ClprNegativePeerSuite {
                     .channelId(crypto.channelId())
                     .salt(crypto.salt())
                     .peerVerifier(crypto.peerVerifier())
+                    .trustAnchor(crypto.peerTrustAnchor())
+                    .localConfigTimestamp(crypto.localConfigTimestamp())
+                    .localTrustAnchorHash(crypto.localTrustAnchorHash())
                     .verifierContract(VERIFIER_CONTRACT)
                     .configProofBytes(toConfigProofBytes(config))
                     .payingWith(GENESIS),

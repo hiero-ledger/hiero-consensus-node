@@ -7,7 +7,6 @@ import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCreateChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCreateConnector;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprUpdateLedgerConfiguration;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -48,12 +47,9 @@ public class ClprSendMessageSuite {
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
     final Stream<DynamicTest> sendMessageOnActiveChannelSucceeds() {
         return hapiTest(ClprChannelCrypto.withVerifier(
-                VERIFIER_CONTRACT, "hiero:testing", CLPR_SERVICE_ADDRESS_20, crypto -> {
+                VERIFIER_CONTRACT, "hiero:testing", CLPR_SERVICE_ADDRESS_20, defaultLedgerConfig(), crypto -> {
                     return blockingOrder(
                             overriding("clpr.minLockedStake", String.valueOf(MIN_LOCKED_STAKE)),
-                            clprUpdateLedgerConfiguration()
-                                    .configuration(defaultLedgerConfig())
-                                    .payingWith(GENESIS),
                             uploadInitCode(CONNECTOR_CONTRACT),
                             contractCreate(CONNECTOR_CONTRACT),
                             uploadInitCode(CLPR_CONTRACT),
@@ -64,6 +60,9 @@ public class ClprSendMessageSuite {
                                     .channelId(crypto.channelId())
                                     .salt(crypto.salt())
                                     .peerVerifier(crypto.peerVerifier())
+                                    .trustAnchor(crypto.peerTrustAnchor())
+                                    .localConfigTimestamp(crypto.localConfigTimestamp())
+                                    .localTrustAnchorHash(crypto.localTrustAnchorHash())
                                     .verifierContract(VERIFIER_CONTRACT)
                                     .configProofBytes(toConfigProofBytes(defaultLedgerConfig()))
                                     .payingWith(GENESIS),
@@ -130,11 +129,8 @@ public class ClprSendMessageSuite {
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
     final Stream<DynamicTest> sendMessageWithMissingConnectorReverts() {
         return hapiTest(ClprChannelCrypto.withVerifier(
-                VERIFIER_CONTRACT, "hiero:testing", CLPR_SERVICE_ADDRESS_20, crypto -> {
+                VERIFIER_CONTRACT, "hiero:testing", CLPR_SERVICE_ADDRESS_20, defaultLedgerConfig(), crypto -> {
                     return blockingOrder(
-                            clprUpdateLedgerConfiguration()
-                                    .configuration(defaultLedgerConfig())
-                                    .payingWith(GENESIS),
                             uploadInitCode(CONNECTOR_CONTRACT),
                             contractCreate(CONNECTOR_CONTRACT),
                             uploadInitCode(CLPR_CONTRACT),
@@ -145,6 +141,9 @@ public class ClprSendMessageSuite {
                                     .channelId(crypto.channelId())
                                     .salt(crypto.salt())
                                     .peerVerifier(crypto.peerVerifier())
+                                    .trustAnchor(crypto.peerTrustAnchor())
+                                    .localConfigTimestamp(crypto.localConfigTimestamp())
+                                    .localTrustAnchorHash(crypto.localTrustAnchorHash())
                                     .verifierContract(VERIFIER_CONTRACT)
                                     .configProofBytes(toConfigProofBytes(defaultLedgerConfig()))
                                     .payingWith(GENESIS),

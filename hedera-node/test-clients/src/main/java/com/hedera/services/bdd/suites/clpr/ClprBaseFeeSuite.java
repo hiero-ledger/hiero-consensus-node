@@ -20,6 +20,7 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_CHANNEL_NOT_FOUND;
 
 import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hederahashgraph.api.proto.java.Timestamp;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -108,6 +109,9 @@ public class ClprBaseFeeSuite {
                         .channelId(new byte[32])
                         .salt(new byte[32])
                         .peerVerifier(new byte[20])
+                        .trustAnchor(new byte[] {1})
+                        .localConfigTimestamp(Timestamp.getDefaultInstance())
+                        .localTrustAnchorHash(new byte[32])
                         .configProofBytes(new byte[] {1})
                         .verifierContractId(com.hederahashgraph.api.proto.java.ContractID.newBuilder()
                                 .setContractNum(99999999)

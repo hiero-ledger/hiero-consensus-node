@@ -71,6 +71,7 @@ import com.hederahashgraph.api.proto.java.ClprLedgerConfiguration;
 import com.hederahashgraph.api.proto.java.ClprThrottles;
 import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
+import com.hederahashgraph.api.proto.java.Timestamp;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.math.BigInteger;
@@ -84,6 +85,7 @@ import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -1354,7 +1356,8 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                 throw new IllegalStateException(
                         "Peer '" + peer.name() + "' failed to capture its config or endpoint-manifest proof");
             }
-            deployAndConnect(self, peer, crypto, peerProof, peerManifestProof)
+            crypto.bindConfigs(selfProof.get(), peerProof.get());
+            deployAndConnect(self, peer, crypto, selfProof, peerProof, peerManifestProof)
                     .getExecutable()
                     .execute();
         });
@@ -1579,6 +1582,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
             final SubProcessNetwork network,
             final SubProcessNetwork peerNetwork,
             final ClprCrypto crypto,
+            final AtomicReference<ByteString> selfConfigProof,
             final AtomicReference<ByteString> peerConfigProof,
             final AtomicReference<ByteString> peerManifestProof) {
         return networkHapiTest(
@@ -1607,6 +1611,10 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                                     .channelId(crypto.channelId)
                                     .salt(crypto.channelSalt)
                                     .peerVerifier(CLPR_SERVICE_ADDRESS)
+                                    .trustAnchor(ClprCrypto.trustAnchorOf(peerConfigProof.get()))
+                                    .localConfigTimestamp(ClprCrypto.timestampOf(selfConfigProof.get()))
+                                    .localTrustAnchorHash(MiscCryptoUtils.keccak256DigestOf(
+                                            ClprCrypto.trustAnchorOf(selfConfigProof.get())))
                                     .verifierContract(VERIFIER)
                                     .configProofBytes(peerConfigProof.get().toByteArray())
                                     .payingWith(GENESIS)
@@ -1904,29 +1912,76 @@ public abstract class HieroToHieroBase implements LifecycleTest {
 
         final byte[] publicKey = new byte[Ed25519.PUBLIC_KEY_BYTES];
         final byte[] secretKey = new byte[Ed25519.SECRET_KEY_BYTES];
-        final byte[] channelId;
+        /**
+         * The channel ID commits to both ledgers' configuration timestamps and trust anchors, so it is filled in by
+         * {@link #bindConfigs} once both configuration proofs are captured. Operations built earlier hold this array
+         * and read it when they run.
+         */
+        final byte[] channelId = new byte[32];
+
         final byte[] channelSalt;
         final byte[] connectorSalt = new byte[32]; // all zeros
         final byte[] connectorId;
+        private boolean bound;
 
-        ClprCrypto(final SubProcessNetwork ledgerA, final SubProcessNetwork ledgerB) {
+        ClprCrypto() {
             Ed25519.newKeypair(publicKey, secretKey, TEST_PRIVATE_KEY_SEED);
 
             final var seed = "hiero-e2e-test-conn-v1-" + INSTANCE_COUNTER.incrementAndGet();
             channelSalt = MiscCryptoUtils.keccak256DigestOf(seed.getBytes(StandardCharsets.UTF_8));
-            final var service = Bytes.wrap(CLPR_SERVICE_ADDRESS);
-            channelId = ClprChannelId.derive(
-                            "eip155:" + ledgerA.startupProperties().getLong("contracts.chainId"),
-                            service,
-                            service,
-                            "eip155:" + ledgerB.startupProperties().getLong("contracts.chainId"),
-                            service,
-                            service,
-                            Bytes.wrap(channelSalt))
-                    .toByteArray();
 
             // connectorId = keccak256(pubKey || connectorSalt)
             connectorId = MiscCryptoUtils.keccak256DigestOf(concat(publicKey, connectorSalt));
+        }
+
+        /**
+         * Derives the channel ID from the two ledgers' configuration proofs, in either order. Both ledgers verify
+         * the other with the CLPR system contract.
+         */
+        synchronized void bindConfigs(final ByteString configProofA, final ByteString configProofB) {
+            final var legA = leg(configProofA);
+            final var legB = leg(configProofB);
+            final var derived =
+                    ClprChannelId.derive(legA, legB, Bytes.wrap(channelSalt)).toByteArray();
+            if (bound && !Arrays.equals(channelId, derived)) {
+                throw new IllegalStateException("Channel ID already bound to other configurations");
+            }
+            System.arraycopy(derived, 0, channelId, 0, channelId.length);
+            bound = true;
+        }
+
+        /** The initial trust anchor in a captured configuration proof. */
+        static byte[] trustAnchorOf(final ByteString configProof) {
+            return provenConfig(configProof).initialTrustAnchor().toByteArray();
+        }
+
+        /** The configuration timestamp in a captured configuration proof. */
+        static Timestamp timestampOf(final ByteString configProof) {
+            final var timestamp = provenConfig(configProof).timestampOrThrow();
+            return Timestamp.newBuilder()
+                    .setSeconds(timestamp.seconds())
+                    .setNanos(timestamp.nanos())
+                    .build();
+        }
+
+        private static Bytes leg(final ByteString configProof) {
+            final var config = provenConfig(configProof);
+            final var service = Bytes.wrap(CLPR_SERVICE_ADDRESS);
+            return ClprChannelId.leg(
+                    config.chainId(),
+                    service,
+                    config.timestampOrThrow(),
+                    MiscCryptoUtils.keccak256DigestOf(config.initialTrustAnchor()),
+                    service);
+        }
+
+        private static com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration provenConfig(
+                final ByteString configProof) {
+            final var config = ClprTestProofs.decodeLedgerConfig(configProof.toByteArray());
+            if (config == null) {
+                throw new IllegalStateException("Configuration proof carries no ledger configuration");
+            }
+            return config;
         }
 
         private static byte[] concat(final byte[] a, final byte[] b) {

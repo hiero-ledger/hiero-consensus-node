@@ -176,7 +176,9 @@ run_on_network() {
     run_yahcli "create-channel on ${net}" \
         -n "${net}" clpr create-channel --channel-id "${CHANNEL_ID_HEX}" \
             --salt "${CHANNEL_SALT_HEX}" --peer-verifier "${PEER_VERIFIER_HEX}" \
-            --verifier-contract "${VERIFIER_CONTRACT}" --config-proof-hex "${CONFIG_PROOF_HEX}"
+            --verifier-contract "${VERIFIER_CONTRACT}" --config-proof-hex "${CONFIG_PROOF_HEX}" \
+            --trust-anchor "${peer_ledger_id}" --local-config-timestamp 0 \
+            --local-trust-anchor-hash "0x$(printf '0%.0s' {1..64})"
 
     print_step "[5/10] generate connector identity"
     run_yahcli "generate connector identity on ${net}" \
