@@ -256,29 +256,7 @@
           "baseFee": 499000000,
           "extras": [
             { "name": "STATE_BYTES", "includedCount": 1000}
-          ],
-          "highVolumeRates": {
-            "maxMultiplier": 200000,
-            "pricingCurve": {
-              "piecewiseLinear": {
-                "points": [
-                  { "utilizationBasisPoints": 2, "multiplier": 4000 },
-                  { "utilizationBasisPoints": 3, "multiplier": 8000 },
-                  { "utilizationBasisPoints": 5, "multiplier": 10000 },
-                  { "utilizationBasisPoints": 7, "multiplier": 15000 },
-                  { "utilizationBasisPoints": 10, "multiplier": 20000 },
-                  { "utilizationBasisPoints": 15, "multiplier": 30000 },
-                  { "utilizationBasisPoints": 20, "multiplier": 40000 },
-                  { "utilizationBasisPoints": 50, "multiplier": 60000 },
-                  { "utilizationBasisPoints": 100, "multiplier": 80000 },
-                  { "utilizationBasisPoints": 200, "multiplier": 100000 },
-                  { "utilizationBasisPoints": 500, "multiplier": 150000 },
-                  { "utilizationBasisPoints": 1000, "multiplier": 200000 },
-                  { "utilizationBasisPoints": 10000, "multiplier": 200000 }
-                ]
-              }
-            }
-          }
+          ]
         },
         {
           "name": "FileDelete",
@@ -538,26 +516,7 @@
           "extras": [
             { "name": "KEYS", "includedCount": 1},
             { "name": "SCHEDULE_CREATE_CONTRACT_CALL_BASE", "includedCount": 0}
-          ],
-          "highVolumeRates": {
-            "maxMultiplier": 100000,
-            "pricingCurve": {
-              "piecewiseLinear": {
-                "points": [
-                  { "utilizationBasisPoints": 100, "multiplier": 4000 },
-                  { "utilizationBasisPoints": 150, "multiplier": 8000 },
-                  { "utilizationBasisPoints": 250, "multiplier": 10000 },
-                  { "utilizationBasisPoints": 350, "multiplier": 15000 },
-                  { "utilizationBasisPoints": 500, "multiplier": 20000 },
-                  { "utilizationBasisPoints": 750, "multiplier": 30000 },
-                  { "utilizationBasisPoints": 1000, "multiplier": 40000 },
-                  { "utilizationBasisPoints": 2500, "multiplier": 60000 },
-                  { "utilizationBasisPoints": 5000, "multiplier": 80000 },
-                  { "utilizationBasisPoints": 10000, "multiplier": 100000 }
-                ]
-              }
-            }
-          }
+          ]
         },
         {
           "name": "ScheduleSign",
@@ -705,29 +664,7 @@
               "name": "HOOK_SLOT_UPDATE",
               "includedCount": 1
             }
-          ],
-          "highVolumeRates": {
-            "maxMultiplier": 200000,
-            "pricingCurve": {
-              "piecewiseLinear": {
-                "points": [
-                  { "utilizationBasisPoints": 2, "multiplier": 4000 },
-                  { "utilizationBasisPoints": 3, "multiplier": 8000 },
-                  { "utilizationBasisPoints": 5, "multiplier": 10000 },
-                  { "utilizationBasisPoints": 7, "multiplier": 15000 },
-                  { "utilizationBasisPoints": 10, "multiplier": 20000 },
-                  { "utilizationBasisPoints": 15, "multiplier": 30000 },
-                  { "utilizationBasisPoints": 20, "multiplier": 40000 },
-                  { "utilizationBasisPoints": 50, "multiplier": 60000 },
-                  { "utilizationBasisPoints": 100, "multiplier": 80000 },
-                  { "utilizationBasisPoints": 200, "multiplier": 100000 },
-                  { "utilizationBasisPoints": 500, "multiplier": 150000 },
-                  { "utilizationBasisPoints": 1000, "multiplier": 200000 },
-                  { "utilizationBasisPoints": 10000, "multiplier": 200000 }
-                ]
-              }
-            }
-          }
+          ]
         },
         {
           "name": "ContractCallLocal",

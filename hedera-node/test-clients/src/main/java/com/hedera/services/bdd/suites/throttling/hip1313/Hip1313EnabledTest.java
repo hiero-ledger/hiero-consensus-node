@@ -7,16 +7,22 @@ import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAutoCreatedAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.accountEvmHookStore;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileAppend;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAirdrop;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenClaimAirdrop;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.token.HapiTokenClaimAirdrop.pendingAirdrop;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
@@ -27,6 +33,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdW
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsAssertion.ALL_TX_IDS;
 import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
+import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
@@ -54,6 +61,7 @@ import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.HapiSpec;
+import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsValidator;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
@@ -98,30 +106,25 @@ public class Hip1313EnabledTest {
             Map.entry(500, 150000L),
             Map.entry(1000, 200000L),
             Map.entry(10000, 200000L)));
-    public static final NavigableMap<Integer, Long> SCHEDULE_CREATE_MULTIPLIER_MAP = new TreeMap<>(Map.ofEntries(
-            Map.entry(100, 4000L),
-            Map.entry(150, 8000L),
-            Map.entry(250, 10000L),
-            Map.entry(350, 15000L),
-            Map.entry(500, 20000L),
-            Map.entry(750, 30000L),
-            Map.entry(1000, 40000L),
-            Map.entry(2500, 60000L),
-            Map.entry(5000, 80000L),
-            Map.entry(10000, 100000L)));
 
-    private static final double SCHEDULE_CREATE_BASE_FEE = 0.01;
-    static final int SCHEDULE_CREATE_HV_TPS = 1300;
-    static final int TOPIC_CREATE_HV_TPS = 800;
-    static final double TOPIC_CREATE_BASE_FEE = 0.01;
     private static final double MULTIPLIER_TOLERANCE = 0.05;
     static final long ONE_X_MULTIPLIER = 1000L;
     private static final long FOUR_X_MULTIPLIER = 4000L;
+    private static final String HOOK_CONTRACT = "StorageAccessHook";
+    private static final String HOOK_OWNER = "hip1313HookOwner";
+    private static final long HOOK_ID = 1313L;
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(Map.of("networkAdmin.highVolumeThrottlesEnabled", "true"));
-        testLifecycle.doAdhoc(cryptoCreate(CIVILIAN_PAYER).balance(ONE_MILLION_HBARS));
+        testLifecycle.overrideInClass(
+                Map.of("networkAdmin.highVolumeThrottlesEnabled", "true", "hooks.hooksEnabled", "true"));
+        testLifecycle.doAdhoc(
+                cryptoCreate(CIVILIAN_PAYER).balance(ONE_MILLION_HBARS),
+                uploadInitCode(HOOK_CONTRACT),
+                contractCreate(HOOK_CONTRACT).gas(5_000_000),
+                cryptoCreate(HOOK_OWNER)
+                        .balance(ONE_HUNDRED_HBARS)
+                        .withHooks(accountAllowanceHook(HOOK_ID, HOOK_CONTRACT)));
     }
 
     @LeakyHapiTest(
@@ -301,6 +304,117 @@ public class Hip1313EnabledTest {
     }
 
     @HapiTest
+    final Stream<DynamicTest> highVolumeFlagIsIgnoredForFileAppendScheduleCreateAndHookStore() {
+        final var plainAppendFee = new AtomicLong();
+        final var flaggedAppendFee = new AtomicLong();
+        final var plainScheduleFee = new AtomicLong();
+        final var flaggedScheduleFee = new AtomicLong();
+        final var plainHookStoreFee = new AtomicLong();
+        final var flaggedHookStoreFee = new AtomicLong();
+        return hapiTest(
+                cryptoCreate("unsignedSender").balance(ONE_HBAR),
+                fileCreate("appendTarget").contents("0").payingWith(CIVILIAN_PAYER),
+                fileAppend("appendTarget")
+                        .content("1")
+                        .payingWith(CIVILIAN_PAYER)
+                        .via("plainAppend"),
+                fileAppend("appendTarget")
+                        .content("2")
+                        .payingWith(CIVILIAN_PAYER)
+                        .withHighVolume()
+                        .via("flaggedAppend"),
+                // The sender never signs, so neither schedule executes; the two creates differ only in their memo
+                scheduleCreate("plainSchedule", cryptoTransfer(movingHbar(1).between("unsignedSender", CIVILIAN_PAYER)))
+                        .withEntityMemo("hv-ignored-1")
+                        .payingWith(CIVILIAN_PAYER)
+                        .via("plainSchedule"),
+                scheduleCreate(
+                                "flaggedSchedule",
+                                cryptoTransfer(movingHbar(1).between("unsignedSender", CIVILIAN_PAYER)))
+                        .withEntityMemo("hv-ignored-2")
+                        .payingWith(CIVILIAN_PAYER)
+                        .withHighVolume()
+                        .via("flaggedSchedule"),
+                // Both store one new slot under a key of the same length
+                accountEvmHookStore(HOOK_OWNER, HOOK_ID)
+                        .putSlot(Bytes.wrap("plain"), Bytes.wrap("value"))
+                        .payingWith(HOOK_OWNER)
+                        .signedBy(HOOK_OWNER)
+                        .via("plainHookStore"),
+                accountEvmHookStore(HOOK_OWNER, HOOK_ID)
+                        .putSlot(Bytes.wrap("flags"), Bytes.wrap("value"))
+                        .payingWith(HOOK_OWNER)
+                        .signedBy(HOOK_OWNER)
+                        .withHighVolume()
+                        .via("flaggedHookStore"),
+                feeWithoutHighVolumePricing("plainAppend", plainAppendFee),
+                feeWithoutHighVolumePricing("flaggedAppend", flaggedAppendFee),
+                feeWithoutHighVolumePricing("plainSchedule", plainScheduleFee),
+                feeWithoutHighVolumePricing("flaggedSchedule", flaggedScheduleFee),
+                feeWithoutHighVolumePricing("plainHookStore", plainHookStoreFee),
+                feeWithoutHighVolumePricing("flaggedHookStore", flaggedHookStoreFee),
+                withOpContext((spec, opLog) -> {
+                    assertEquals(plainAppendFee.get(), flaggedAppendFee.get(), "flagged FileAppend fee");
+                    assertEquals(plainScheduleFee.get(), flaggedScheduleFee.get(), "flagged ScheduleCreate fee");
+                    assertEquals(plainHookStoreFee.get(), flaggedHookStoreFee.get(), "flagged HookStore fee");
+                }));
+    }
+
+    private static HapiGetTxnRecord feeWithoutHighVolumePricing(
+            @NonNull final String txnName, @NonNull final AtomicLong fee) {
+        return getTxnRecord(txnName).exposingTo(txnRecord -> {
+            assertEquals(0L, txnRecord.getHighVolumePricingMultiplier(), txnName + " high-volume multiplier");
+            fee.set(txnRecord.getTransactionFee());
+        });
+    }
+
+    @LeakyHapiTest(
+            requirement = {THROTTLE_OVERRIDES},
+            throttles = "testSystemFiles/hip1313-one-tps-append-schedule-and-hook-store-with-hv-buckets.json")
+    final Stream<DynamicTest> highVolumeFlagIsIgnoredForFileAppendScheduleCreateAndHookStoreWithHighVolumeBuckets() {
+        return hapiTest(
+                fileCreate("hvBucketsTarget").contents("0").payingWith(CIVILIAN_PAYER),
+                fileAppend("hvBucketsTarget")
+                        .content("1")
+                        .payingWith(CIVILIAN_PAYER)
+                        .withHighVolume()
+                        .deferStatusResolution()
+                        .hasPrecheck(OK),
+                // Both have high-volume buckets with room, but their one-per-second normal capacity is used up
+                fileAppend("hvBucketsTarget")
+                        .content("2")
+                        .payingWith(CIVILIAN_PAYER)
+                        .withHighVolume()
+                        .hasPrecheck(BUSY),
+                scheduleCreate(
+                                "hvBucketsSchedule1",
+                                cryptoTransfer(movingHbar(1).between(CIVILIAN_PAYER, GENESIS)))
+                        .payingWith(CIVILIAN_PAYER)
+                        .withHighVolume()
+                        .deferStatusResolution()
+                        .hasPrecheck(OK),
+                scheduleCreate(
+                                "hvBucketsSchedule2",
+                                cryptoTransfer(movingHbar(2).between(CIVILIAN_PAYER, GENESIS)))
+                        .payingWith(CIVILIAN_PAYER)
+                        .withHighVolume()
+                        .hasPrecheck(BUSY),
+                accountEvmHookStore(HOOK_OWNER, HOOK_ID)
+                        .putSlot(Bytes.wrap("hvBuckets1"), Bytes.wrap("value"))
+                        .payingWith(HOOK_OWNER)
+                        .signedBy(HOOK_OWNER)
+                        .withHighVolume()
+                        .deferStatusResolution()
+                        .hasPrecheck(OK),
+                accountEvmHookStore(HOOK_OWNER, HOOK_ID)
+                        .putSlot(Bytes.wrap("hvBuckets2"), Bytes.wrap("value"))
+                        .payingWith(HOOK_OWNER)
+                        .signedBy(HOOK_OWNER)
+                        .withHighVolume()
+                        .hasPrecheck(BUSY));
+    }
+
+    @HapiTest
     final Stream<DynamicTest> cryptoTransferWithoutAutoCreationDoesNotApplyHighVolumePricing() {
         return hapiTest(
                 cryptoCreate("existingReceiver").balance(ONE_HBAR),
@@ -331,6 +445,25 @@ public class Hip1313EnabledTest {
                         .deferStatusResolution()
                         .hasPrecheck(OK),
                 cryptoCreate("fallbackThrottleB")
+                        .payingWith(CIVILIAN_PAYER)
+                        .withHighVolume()
+                        .hasPrecheck(BUSY));
+    }
+
+    @LeakyHapiTest(
+            requirement = {THROTTLE_OVERRIDES},
+            throttles = "testSystemFiles/hip1313-one-tps-transfer-hv-create.json")
+    final Stream<DynamicTest> highVolumeAutoCreatingTransferStillUsesNormalTransferCapacity() {
+        return hapiTest(
+                newKeyNamed("firstHvAlias"),
+                newKeyNamed("secondHvAlias"),
+                cryptoTransfer(movingHbar(ONE_HBAR).between(CIVILIAN_PAYER, "firstHvAlias"))
+                        .payingWith(CIVILIAN_PAYER)
+                        .withHighVolume()
+                        .deferStatusResolution()
+                        .hasPrecheck(OK),
+                // The high-volume CryptoCreate bucket has room, but the one-per-second transfer capacity is used up
+                cryptoTransfer(movingHbar(ONE_HBAR).between(CIVILIAN_PAYER, "secondHvAlias"))
                         .payingWith(CIVILIAN_PAYER)
                         .withHighVolume()
                         .hasPrecheck(BUSY));
@@ -532,22 +665,6 @@ public class Hip1313EnabledTest {
                     spec,
                     cryptoCreate("hvTotalCreate" + i)
                             .payingWith(CIVILIAN_PAYER)
-                            .deferStatusResolution()
-                            .withHighVolume());
-        }
-    }
-
-    static void submitMixedHighVolumeTopicAndScheduleCreates(@NonNull final HapiSpec spec, final int numBursts) {
-        for (int i = 0; i < numBursts; i++) {
-            allRunFor(
-                    spec,
-                    createTopic("mixedHvTopic" + i)
-                            .payingWith(CIVILIAN_PAYER)
-                            .deferStatusResolution()
-                            .withHighVolume(),
-                    scheduleCreate("mixedHvSchedule" + i, cryptoCreate("mixedHvScheduledAccount" + i))
-                            .payingWith(CIVILIAN_PAYER)
-                            .expiringIn(7_200L + (i * 1_000L))
                             .deferStatusResolution()
                             .withHighVolume());
         }

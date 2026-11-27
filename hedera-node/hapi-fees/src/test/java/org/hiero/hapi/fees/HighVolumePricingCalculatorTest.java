@@ -6,10 +6,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_APPROVE_ALLOWANCE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
-import static com.hedera.hapi.node.base.HederaFunctionality.FILE_APPEND;
 import static com.hedera.hapi.node.base.HederaFunctionality.FILE_CREATE;
-import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_STORE;
-import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_AIRDROP;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_ASSOCIATE_TO_ACCOUNT;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_CLAIM_AIRDROP;
@@ -39,12 +36,9 @@ class HighVolumePricingCalculatorTest {
                 Set.of(
                         CRYPTO_CREATE,
                         CONSENSUS_CREATE_TOPIC,
-                        SCHEDULE_CREATE,
                         CRYPTO_APPROVE_ALLOWANCE,
                         FILE_CREATE,
-                        FILE_APPEND,
                         CONTRACT_CREATE,
-                        HOOK_STORE,
                         TOKEN_ASSOCIATE_TO_ACCOUNT,
                         TOKEN_AIRDROP,
                         TOKEN_CLAIM_AIRDROP,
@@ -55,12 +49,9 @@ class HighVolumePricingCalculatorTest {
                 Set.of(
                         CRYPTO_CREATE,
                         CONSENSUS_CREATE_TOPIC,
-                        SCHEDULE_CREATE,
                         CRYPTO_APPROVE_ALLOWANCE,
                         FILE_CREATE,
-                        FILE_APPEND,
                         CONTRACT_CREATE,
-                        HOOK_STORE,
                         TOKEN_ASSOCIATE_TO_ACCOUNT,
                         TOKEN_AIRDROP,
                         TOKEN_CLAIM_AIRDROP,

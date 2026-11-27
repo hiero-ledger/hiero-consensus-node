@@ -660,9 +660,7 @@ public class ThrottleAccumulator {
         }
 
         return switch (function) {
-            case SCHEDULE_CREATE ->
-                shouldThrottleScheduleCreate(
-                        effectiveManager, txnInfo, now, state, throttleUsages, useHighVolumeBucket);
+            case SCHEDULE_CREATE -> shouldThrottleScheduleCreate(effectiveManager, txnInfo, now, state, throttleUsages);
             case TOKEN_MINT ->
                 shouldThrottleMint(effectiveManager, txBody.tokenMintOrThrow(), now, configuration, throttleUsages);
             case CRYPTO_TRANSFER -> {
@@ -725,8 +723,7 @@ public class ThrottleAccumulator {
             final TransactionInfo txnInfo,
             final Instant now,
             final State state,
-            List<ThrottleUsage> throttleUsages,
-            final boolean useHighVolumeBucket) {
+            List<ThrottleUsage> throttleUsages) {
         final var txnBody = txnInfo.txBody();
         final var op = txnBody.scheduleCreateOrThrow();
         if (!op.hasScheduledTransactionBody()) {
@@ -761,8 +758,7 @@ public class ThrottleAccumulator {
                             .build();
                     final int implicitCreationsCount = getImplicitCreationsCount(transferTxnBody, accountStore);
                     if (implicitCreationsCount > 0) {
-                        return shouldThrottleImplicitCreations(
-                                implicitCreationsCount, now, throttleUsages, useHighVolumeBucket);
+                        return shouldThrottleImplicitCreations(implicitCreationsCount, now, throttleUsages, false);
                     }
                 }
             }
@@ -922,6 +918,14 @@ public class ThrottleAccumulator {
         final boolean hasAutoAssociations = unlimitedAutoAssociations && autoAssociationsCount > 0;
         if (!hasImplicitCreations && !hasAutoAssociations) {
             return !manager.allReqsMetAt(now, throttleUsages);
+        }
+        // As HIP-1313 specifies, a high-volume transfer takes its implicit creations from the high-volume buckets
+        // and the transfer itself from the normal CryptoTransfer buckets
+        if (useHighVolumeBucket) {
+            final var transferManager = functionReqs.get(CRYPTO_TRANSFER);
+            if (transferManager == null || !transferManager.allReqsMetAt(now, throttleUsages)) {
+                return true;
+            }
         }
         // The two dimensions are additive, so a transfer doing both must lease from both buckets
         if (hasImplicitCreations

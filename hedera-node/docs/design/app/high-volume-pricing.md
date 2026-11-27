@@ -18,6 +18,16 @@ This covers:
 
 This does not cover legacy congestion multipliers unrelated to HIP-1313 high-volume pricing.
 
+For operations outside the high-volume set, the `high_volume` flag is ignored: they use their normal throttles and
+prices, and need no `HV*` bucket, `HVTotalThrottles` entry or `highVolumeRates`.
+
+`CryptoTransfer` is high-volume only for the accounts it creates, so it has no `HV*` bucket or `HVTotalThrottles` entry
+of its own. With the `high_volume` flag, a transfer that creates N accounts takes one unit of the normal
+`CryptoTransfer` throttles for the transfer, and N units of the `CryptoCreate` high-volume throttles (its dedicated
+`HV*` bucket and `HVTotalThrottles`) for the creations. Without the flag, the same transfer takes N units of the normal
+`CryptoCreate` throttles and no `CryptoTransfer` unit. A flagged transfer that creates no accounts is throttled as an
+ordinary transfer.
+
 ## Runtime Model
 
 For each high-volume operation, runtime computes:
@@ -173,24 +183,15 @@ The entries below are the spreadsheet-derived values used to populate `highVolum
 - `ConsensusCreateTopic`
   - Base rate: `5 TPS`, base price: `$0.01`, dedicated HV rate: `25000 TPS`
   - Curve (`bps -> multiplier`): `2->4000, 3->8000, 5->10000, 7->15000, 10->20000, 15->30000, 20->40000, 50->60000, 100->80000, 200->100000, 500->150000, 1000->200000, 10000->200000`
-- `ScheduleCreate`
-  - Base rate: `100 TPS`, base price: `$0.02`, dedicated HV rate: `10000 TPS`
-  - Curve (`bps -> multiplier`): `100->4000, 150->8000, 250->10000, 350->15000, 500->20000, 750->30000, 1000->40000, 2500->60000, 5000->80000, 10000->100000`
 - `CryptoApproveAllowance`
   - Base rate: `10000 TPS`, base price: `$0.03`, dedicated HV rate: `10000 TPS`
   - Curve (`bps -> multiplier`): `10000->4000`
 - `FileCreate`
   - Base rate: `2 TPS`, base price: `$0.05`, dedicated HV rate: `10000 TPS`
   - Curve (`bps -> multiplier`): `2->4000, 3->8000, 5->10000, 7->15000, 10->20000, 15->30000, 20->40000, 50->60000, 100->80000, 200->100000, 500->150000, 1000->200000, 10000->200000`
-- `FileAppend`
-  - Base rate: `10 TPS`, base price: `$0.05`, dedicated HV rate: `50000 TPS`
-  - Curve (`bps -> multiplier`): `2->4000, 3->8000, 5->10000, 7->15000, 10->20000, 15->30000, 20->40000, 50->60000, 100->80000, 200->100000, 500->150000, 1000->200000, 10000->200000`
 - `ContractCreate`
   - Base rate: `350 TPS`, base price: `$1.0`, dedicated HV rate: `17500 TPS`
   - Curve (`bps -> multiplier`): `200->4000, 300->8000, 500->10000, 700->15000, 1000->20000, 1500->30000, 2000->40000, 5000->60000, 10000->80000`
-- `HookStore`
-  - Base rate: `10 TPS`, base price: `$0.005`, dedicated HV rate: `50000 TPS`
-  - Curve (`bps -> multiplier`): `2->4000, 3->8000, 5->10000, 7->15000, 10->20000, 15->30000, 20->40000, 50->60000, 100->80000, 200->100000, 500->150000, 1000->200000, 10000->200000`
 - `TokenAssociateToAccount`
   - Base rate: `100 TPS`, base price: `$0.05`, dedicated HV rate: `10000 TPS`
   - Curve (`bps -> multiplier`): `100->4000, 150->8000, 250->10000, 350->15000, 500->20000, 750->30000, 1000->40000, 2500->60000, 5000->80000, 10000->100000`
@@ -220,10 +221,14 @@ When updating high-volume data, verify all of the following:
 3. Final point reaches `10000` basis points unless intentionally capped earlier.
 4. Multipliers are in scaled units (`1000 = 1x`).
 5. `maxMultiplier` is >= highest curve multiplier.
-6. Every high-volume operation exists in both:
-   - a dedicated `HV*` bucket
+6. Every high-volume operation except `CryptoTransfer`, whose creations count against the `CryptoCreate` buckets,
+   exists in both:
+   - a dedicated `HV*` bucket, for that operation only
    - `HVTotalThrottles`
-7. `HVTotalThrottles` contains exactly the high-volume operation set intended by product.
+7. `HVTotalThrottles` contains exactly the high-volume operation set intended by product, except `CryptoTransfer`.
+   `HighVolumeConfigTest` checks rules 6 and 7 for the shipped throttle files against
+   `HighVolumePricingCalculator`'s high-volume sets, and that the shipped `highVolumeRates` cover exactly its pricing
+   set.
 8. End-to-end tests validate observed fees vs expected multipliers for representative operations.
 
 ## Common Mistakes
