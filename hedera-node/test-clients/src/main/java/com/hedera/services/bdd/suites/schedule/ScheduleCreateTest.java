@@ -15,6 +15,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.explicit;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreateFunctionless;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleSign;
@@ -63,6 +64,7 @@ import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.SECOND_PAYER
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.SENDER;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.SUPPLY_KEY;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.VALID_SCHEDULE;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.ScheduleCreate;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_ID_DOES_NOT_EXIST;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.IDENTICAL_SCHEDULE_ALREADY_CREATED;
@@ -77,13 +79,19 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SOME_SIGNATURE
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.UNRESOLVABLE_REQUIRED_SIGNERS;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.HapiSpecSetup;
 import com.hedera.services.bdd.spec.keys.OverlappingKeyGenerator;
 import com.hedera.services.bdd.spec.transactions.token.HapiTokenCancelAirdrop;
 import com.hedera.services.bdd.spec.transactions.token.HapiTokenClaimAirdrop;
+import com.hederahashgraph.api.proto.java.AccountID;
+import com.hederahashgraph.api.proto.java.CryptoUpdateTransactionBody;
+import com.hederahashgraph.api.proto.java.SchedulableTransactionBody;
+import com.hederahashgraph.api.proto.java.ScheduleCreateTransactionBody;
 import java.security.SecureRandom;
 import java.util.List;
 import java.util.Map;
@@ -192,10 +200,13 @@ public class ScheduleCreateTest {
 
     @HapiTest
     final Stream<DynamicTest> idVariantsTreatedAsExpected() {
-        return hapiTest(cryptoCreate(PAYER), submitModified(withSuccessivelyVariedBodyIds(), () -> scheduleCreate(
-                        ONLY_BODY_AND_PAYER, cryptoTransfer(tinyBarsFromTo(PAYER, GENESIS, 1)))
-                .withEntityMemo("" + new SecureRandom().nextLong())
-                .designatingPayer(PAYER)));
+        return hapiTest(
+                cryptoCreate(PAYER),
+                submitModified(
+                        withSuccessivelyVariedBodyIds(),
+                        () -> scheduleCreate(ONLY_BODY_AND_PAYER, cryptoTransfer(tinyBarsFromTo(PAYER, GENESIS, 1)))
+                                .withEntityMemo("" + new SecureRandom().nextLong())
+                                .designatingPayer(PAYER)));
     }
 
     @HapiTest
@@ -473,6 +484,29 @@ public class ScheduleCreateTest {
                                 tinyBarsFromTo(DEFAULT_PAYER, FUNDING, 1),
                                 tinyBarsFromTo(DESIGNATING_PAYER, FUNDING, 1)))
                 .hasKnownStatus(UNRESOLVABLE_REQUIRED_SIGNERS));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> scheduledCryptoUpdateOfOneByteAliasFailsWithReceiptAndFee() {
+        final var payer = "oneByteAliasPayer";
+        final var txn = "oneByteAliasSchedule";
+        return hapiTest(
+                cryptoCreate(payer).balance(ONE_HUNDRED_HBARS),
+                explicit(
+                                ScheduleCreate,
+                                (spec, b) -> b.setScheduleCreate(ScheduleCreateTransactionBody.newBuilder()
+                                        .setScheduledTransactionBody(SchedulableTransactionBody.newBuilder()
+                                                .setTransactionFee(ONE_HBAR)
+                                                .setCryptoUpdateAccount(CryptoUpdateTransactionBody.newBuilder()
+                                                        .setAccountIDToUpdate(AccountID.newBuilder()
+                                                                .setAlias(ByteString.copyFrom(new byte[1])))))))
+                        .payingWith(payer)
+                        .via(txn)
+                        .hasKnownStatus(UNRESOLVABLE_REQUIRED_SIGNERS),
+                getTxnRecord(txn)
+                        .exposingTo(txnRecord -> assertTrue(
+                                txnRecord.getTransactionFee() > 0,
+                                "the payer was not charged for the ScheduleCreate")));
     }
 
     @HapiTest

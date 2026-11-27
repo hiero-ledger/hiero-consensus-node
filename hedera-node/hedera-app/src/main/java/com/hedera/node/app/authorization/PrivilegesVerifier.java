@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.authorization;
 
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.EVM_ADDRESS_LENGTH_AS_INT;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isLongZeroAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static com.hedera.node.app.spi.authorization.SystemPrivilege.AUTHORIZED;
@@ -258,7 +259,8 @@ public class PrivilegesVerifier {
     private long effectiveNumber(@NonNull final AccountID accountID) {
         if (accountID.hasAlias()) {
             final var rawAlias = accountID.aliasOrThrow().toByteArray();
-            if (isLongZeroAddress(rawAlias)) {
+            // Only a 20-byte EVM address can be a long-zero address; the helpers below read bytes 0-19
+            if (rawAlias.length == EVM_ADDRESS_LENGTH_AS_INT && isLongZeroAddress(rawAlias)) {
                 return numberOfLongZero(rawAlias);
             } else {
                 // Not a system entity, so number is irrelevant for privileges checks
@@ -272,7 +274,8 @@ public class PrivilegesVerifier {
     private long effectiveNumber(@NonNull final ContractID contractID) {
         if (contractID.hasEvmAddress()) {
             final var rawAlias = contractID.evmAddressOrThrow().toByteArray();
-            if (isLongZeroAddress(rawAlias)) {
+            // Only a 20-byte EVM address can be a long-zero address; the helpers below read bytes 0-19
+            if (rawAlias.length == EVM_ADDRESS_LENGTH_AS_INT && isLongZeroAddress(rawAlias)) {
                 return numberOfLongZero(rawAlias);
             } else {
                 // Not a system entity, so number is irrelevant for privileges checks

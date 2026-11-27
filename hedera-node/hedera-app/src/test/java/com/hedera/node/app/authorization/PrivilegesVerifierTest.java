@@ -52,6 +52,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 // This test may look a little weird without context. The original test in mono is very extensive. To ensure that
 // we don't break anything, I copied the test from mono and hacked it a little to run it with the new code.
@@ -840,6 +841,87 @@ class PrivilegesVerifierTest {
         return txnWithPayer(123);
     }
 
+    @ParameterizedTest
+    @ValueSource(ints = {0, 1, 12, 19})
+    void cryptoUpdateOfShortAliasIsUnnecessary(final int aliasLength) throws InvalidProtocolBufferException {
+        // given:
+        var txn = civilianTxn()
+                .setCryptoUpdateAccount(
+                        CryptoUpdateTransactionBody.newBuilder().setAccountIDToUpdate(zeroAliasAccountId(aliasLength)));
+        // expect:
+        assertEquals(SystemOpAuthorization.UNNECESSARY, subject.authForTestCase(accessor(txn)));
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {0, 1, 12, 19})
+    void cryptoDeleteOfShortAliasIsUnnecessary(final int aliasLength) throws InvalidProtocolBufferException {
+        // given:
+        var txn = civilianTxn()
+                .setCryptoDelete(
+                        CryptoDeleteTransactionBody.newBuilder().setDeleteAccountID(zeroAliasAccountId(aliasLength)));
+        // expect:
+        assertEquals(SystemOpAuthorization.UNNECESSARY, subject.authForTestCase(accessor(txn)));
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {1, 12, 19})
+    void systemDeleteAndUndeleteOfShortEvmAddressAreNotSystemEntities(final int addressLength)
+            throws InvalidProtocolBufferException {
+        // given:
+        final var contractId = ContractID.newBuilder()
+                .setEvmAddress(ByteString.copyFrom(new byte[addressLength]))
+                .build();
+        var deleteTxn = sysDeleteTxn()
+                .setSystemDelete(SystemDeleteTransactionBody.newBuilder().setContractID(contractId));
+        var undeleteTxn = sysUndeleteTxn()
+                .setSystemUndelete(SystemUndeleteTransactionBody.newBuilder().setContractID(contractId));
+        // expect:
+        assertEquals(SystemOpAuthorization.AUTHORIZED, subject.authForTestCase(accessor(deleteTxn)));
+        assertEquals(SystemOpAuthorization.AUTHORIZED, subject.authForTestCase(accessor(undeleteTxn)));
+    }
+
+    @Test
+    void systemDeleteAndUndeleteOfTwentyByteLongZeroEvmAddressAreStillSystemEntities()
+            throws InvalidProtocolBufferException {
+        // given:
+        final var contractId = ContractID.newBuilder()
+                .setEvmAddress(ByteString.copyFrom(asEvmAddress(123)))
+                .build();
+        var deleteTxn = treasuryTxn()
+                .setSystemDelete(SystemDeleteTransactionBody.newBuilder().setContractID(contractId));
+        var undeleteTxn = treasuryTxn()
+                .setSystemUndelete(SystemUndeleteTransactionBody.newBuilder().setContractID(contractId));
+        // expect:
+        assertEquals(SystemOpAuthorization.IMPERMISSIBLE, subject.authForTestCase(accessor(deleteTxn)));
+        assertEquals(SystemOpAuthorization.IMPERMISSIBLE, subject.authForTestCase(accessor(undeleteTxn)));
+    }
+
+    @Test
+    void systemDeleteAndUndeleteOfTwentyByteNonLongZeroEvmAddressAreNotSystemEntities()
+            throws InvalidProtocolBufferException {
+        // given:
+        final var contractId = ContractID.newBuilder()
+                .setEvmAddress(ByteString.fromHex("abcd1234abcd1234abcd1234abcd1234abcd1234"))
+                .build();
+        var deleteTxn = sysDeleteTxn()
+                .setSystemDelete(SystemDeleteTransactionBody.newBuilder().setContractID(contractId));
+        var undeleteTxn = sysUndeleteTxn()
+                .setSystemUndelete(SystemUndeleteTransactionBody.newBuilder().setContractID(contractId));
+        // expect:
+        assertEquals(SystemOpAuthorization.AUTHORIZED, subject.authForTestCase(accessor(deleteTxn)));
+        assertEquals(SystemOpAuthorization.AUTHORIZED, subject.authForTestCase(accessor(undeleteTxn)));
+    }
+
+    @Test
+    void twentyByteLongZeroAliasIsStillRecognizedAsSystemEntity() throws InvalidProtocolBufferException {
+        // given:
+        var txn = civilianTxn()
+                .setCryptoUpdateAccount(
+                        CryptoUpdateTransactionBody.newBuilder().setAccountIDToUpdate(longZeroAccountId(2)));
+        // expect:
+        assertEquals(SystemOpAuthorization.UNAUTHORIZED, subject.authForTestCase(accessor(txn)));
+    }
+
     private TransactionBody.Builder civilianTxn() {
         return txnWithPayer(75231);
     }
@@ -891,6 +973,12 @@ class PrivilegesVerifierTest {
 
     private AccountID account(long num) {
         return AccountID.newBuilder().setAccountNum(num).build();
+    }
+
+    private AccountID zeroAliasAccountId(final int aliasLength) {
+        return AccountID.newBuilder()
+                .setAlias(ByteString.copyFrom(new byte[aliasLength]))
+                .build();
     }
 
     private AccountID longZeroAccountId(long num) {
