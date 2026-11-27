@@ -77,6 +77,18 @@ class ClprLedgerConfigurationFileTest {
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"\"maxPeerEndpoint\": 5", "\"unknownField\": 1"})
+    void rejectsUnknownFieldInOtherwiseValidThrottles(final String unknownField) {
+        final var json = "{\"throttles\": {\"maxMessagesPerBundle\": 500, \"maxMessagePayloadBytes\": 65536,"
+                + " \"maxGasPerMessage\": 15000000, \"maxQueueDepth\": 20000, \"maxSyncBytes\": 4194304, "
+                + unknownField + "}}";
+
+        assertThatThrownBy(() -> ClprLedgerConfigurationFile.parse(streamOf(json)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Malformed CLPR ledger configuration");
+    }
+
     @Test
     void rejectsNonThrottleFields() {
         final var withChainId = ClprLedgerConfiguration.newBuilder()
@@ -141,8 +153,10 @@ class ClprLedgerConfigurationFileTest {
             strings = {
                 // Malformed JSON
                 "not json",
-                // Unknown field
-                "{\"throttles\": {\"maxMessagesPerBundle\": 500, \"unknownField\": 1}}",
+                // Unknown field in otherwise valid throttles
+                "{\"throttles\": {\"maxMessagesPerBundle\": 500, \"maxMessagePayloadBytes\": 65536,"
+                        + " \"maxGasPerMessage\": 15000000, \"maxQueueDepth\": 20000, \"maxSyncBytes\": 4194304,"
+                        + " \"maxPeerEndpoint\": 5}}",
                 // Non-throttle field
                 "{\"chainId\": \"eip155:1\", \"throttles\": {\"maxMessagesPerBundle\": 500,"
                         + " \"maxMessagePayloadBytes\": 65536, \"maxGasPerMessage\": 15000000,"
