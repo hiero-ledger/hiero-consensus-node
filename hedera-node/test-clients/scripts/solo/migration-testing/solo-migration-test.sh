@@ -721,15 +721,24 @@ PKG
     return 1
   fi
   # Spring-Boot log format: `<timestamp> ERROR <pid> --- ...` or `... ERROR <module> ...`.
-  errors="$(kubectl -n "${SOLO_NAMESPACE}" logs "${importer_pod}" --tail=-1 2>&1 \
-    | grep -cE '(^|[^A-Z])ERROR ([0-9]+ --- |[a-z])' || true)"
+  local importer_errors="${WORK_DIR}/importer-errors.log" skipped=0
+  kubectl -n "${SOLO_NAMESPACE}" logs "${importer_pod}" --tail=-1 2>&1 \
+    | grep -E '(^|[^A-Z])ERROR ([0-9]+ --- |[a-z])' > "${importer_errors}" || true
+  if [[ "${BASELINE_STREAMS_BLOCKS}" == "true" ]]; then
+    # With a block node Solo deploys no MinIO, yet the importer polls for balance files even when they're
+    # disabled, and logs each block poll while the upgrade freezes the network; step 4 saw it resume.
+    local expected='\.AccountBalancesDownloader |\.CompositeBlockSource Failed to get block from BLOCK_NODE source(: No block node can provide block [0-9]+| org\.hiero\.mirror\.importer\.exception\.BlockStreamException: java\.util\.concurrent\.TimeoutException) *$'
+    skipped="$(grep -cE "${expected}" "${importer_errors}" || true)"
+    grep -vE "${expected}" "${importer_errors}" > "${importer_errors}.unexpected" || true
+    mv "${importer_errors}.unexpected" "${importer_errors}"
+  fi
+  errors="$(wc -l < "${importer_errors}" | tr -d ' ')"
   if (( errors > 0 )); then
     echo "Step 4a FAIL: ${errors} ERROR line(s) in ${importer_pod} log:" >&2
-    kubectl -n "${SOLO_NAMESPACE}" logs "${importer_pod}" --tail=-1 2>&1 \
-      | grep -E '(^|[^A-Z])ERROR ([0-9]+ --- |[a-z])' | head -10 >&2
+    head -10 "${importer_errors}" >&2
     return 1
   fi
-  log "  ${importer_pod}: 0 ERROR lines in log"
+  log "  ${importer_pod}: 0 ERROR lines in log (${skipped} expected blocks-only lines skipped)"
 }
 
 # === Driver ====================================================================
