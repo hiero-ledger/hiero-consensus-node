@@ -5,39 +5,16 @@ import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST
 import static org.hiero.consensus.model.test.fixtures.roster.RosterWrapperHistoryFactory.createRosterWrapperHistory;
 import static org.hiero.consensus.wiring.framework.wires.SolderType.INJECT;
 
-import com.swirlds.base.time.Time;
-import com.swirlds.config.api.Configuration;
-import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import org.hiero.base.concurrent.ExecutorFactory;
-import org.hiero.base.crypto.SigningSchema;
 import org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler;
 import org.hiero.consensus.benchmark.tools.pipeline.PipelineTimer;
-import org.hiero.consensus.benchmark.tools.pipeline.UncaughtExceptionCollector;
 import org.hiero.consensus.event.DefaultIntakeEventCounter;
 import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.main.model.TransactionLimits;
-import org.hiero.consensus.metrics.config.MetricsConfig;
-import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
-import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
-import org.hiero.consensus.metrics.platform.PlatformMetricsFactoryImpl;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.roster.RosterWrapper;
-import org.hiero.consensus.wiring.framework.WiringConfig;
-import org.hiero.consensus.wiring.framework.model.WiringModel;
-import org.hiero.consensus.wiring.framework.model.WiringModelBuilder;
 import org.hiero.consensus.wiring.framework.wires.input.NoInput;
-import org.hiero.otter.fixtures.falcon.recording.FalconRecorder;
-import org.hiero.otter.fixtures.falcon.recording.NodeRecording;
-import org.hiero.otter.fixtures.falcon.recording.Recording;
-import org.hiero.otter.fixtures.falcon.recording.RecordingSpec;
-import org.hiero.otter.fixtures.falcon.recording.Step;
 import org.hiero.otter.fixtures.falcon.recording.Step.CreationAttempt;
 import org.hiero.otter.fixtures.falcon.recording.Step.NewEventWindow;
 import org.hiero.otter.fixtures.falcon.recording.Step.Received;
@@ -60,15 +37,11 @@ import org.openjdk.jmh.annotations.Warmup;
  * duplicates are dropped, its signature is verified, and it waits in the orphan buffer until its parents are released.
  * The branch detector and the branch reporter come after the orphan buffer, so they are not part of the latency.
  *
- * <p>{@link FalconRecorder} simulates a network of 28 nodes once per trial, on the ping times of mainnet, with the
- * transactions of mainnet and RSA signatures, as on mainnet. The benchmark replays what the first node's intake got,
- * at the recorded times: the events received from other nodes, the events the node created, and the event windows
- * from its consensus engine. A {@link PipelineTimer} hands each of them to the intake at its due time, without waiting
- * for earlier events to finish, so the latency includes the time an event waits in the intake's queues and for its
- * parents. A replay at a higher rate would shorten that waiting.
- *
- * <p>The simulated network sends a node its own events back, which a real network does not, so the benchmark leaves
- * these copies out.
+ * <p>{@link RecordedNode} records a simulated network of 28 nodes once per trial. The benchmark replays what the first
+ * node's intake got, at the recorded times: the events received from other nodes, the events the node created, and the
+ * event windows from its consensus engine. A {@link PipelineTimer} hands each of them to the intake at its due time,
+ * without waiting for earlier events to finish, so the latency includes the time an event waits in the intake's queues
+ * and for its parents. A replay at a higher rate would shorten that waiting.
  *
  * <p>One invocation, a pass, replays the whole recording. The pass starts with an intake as a new node has it: the
  * components are cleared and get the genesis event window, as after a reconnect. The events before the first event
@@ -76,11 +49,10 @@ import org.openjdk.jmh.annotations.Warmup;
  * that of a long run; their latencies are not recorded. From that window on, the latency of every received event is
  * recorded. The node's own events enter after the hasher; they are replayed, but their latencies are not recorded.
  *
- * <p>The intake is configured and wired as in production: the default configuration, a thread pool of the production
- * size, the production metrics implementation ({@link DefaultPlatformMetrics}, not started), the event pipeline
- * tracker with its latency gauges, and the system clock. The {@link DefaultIntakeEventCounter} counts every received
- * event of the pass before the pass starts, as gossip would count it when it hands the event over, so that the
- * intake's decrements for the events it drops are real and the increments, which are gossip's work, are not measured.
+ * <p>The intake runs on a {@link NodeContext}, as in production, with the event pipeline tracker and its latency
+ * gauges. In production, gossip counts every event it hands to the intake in the {@link DefaultIntakeEventCounter},
+ * the intake takes out the events it drops, and the shadowgraph the rest. The benchmark has neither gossip nor a
+ * shadowgraph, so at the start of a pass the counter holds just the events the intake is expected to drop.
  *
  * <p>After every pass, the benchmark checks that no pipeline thread threw, that the expected number of received
  * events left the intake, and that the intake dropped the expected number of events from each node. The recording
@@ -117,19 +89,13 @@ import org.openjdk.jmh.annotations.Warmup;
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 public class IntakePipelineBenchmark {
 
-    /** The seed of the simulation. The same seed produces the same events. */
-    private static final long SEED = 0;
-
-    /** The number of nodes in the simulated network. */
-    private static final int NUMBER_OF_NODES = 28;
-
-    /** The number of events the recorded node releases from its orphan buffer, its own included. */
-    private static final int NUMBER_OF_EVENTS = 115_000;
-
     /** The number of received events whose latencies a pass records. */
     private static final int EXPECTED_ARRIVALS = 104_902;
 
-    /** The number of received events the intake drops in a pass, by the node that sent them. */
+    /**
+     * The number of received events the intake drops in a pass, by the node that sent them. If the intake drops more
+     * events from a node, the counter throws on a pipeline thread, which fails the pass.
+     */
     private static final Map<NodeId, Integer> EXPECTED_DROPS = Map.of();
 
     /**
@@ -142,97 +108,44 @@ public class IntakePipelineBenchmark {
     private static final long GENESIS_ANCIENT_THRESHOLD =
             EventWindow.getGenesisEventWindow().ancientThreshold();
 
-    /** The executor the metrics require. It stays idle, because the metrics are not started. */
-    private ScheduledExecutorService metricsExecutor;
+    /** The recorded node whose intake the benchmark replays. */
+    private RecordedNode recordedNode;
 
-    /** The thread pool of the wiring model. */
-    private ForkJoinPool pool;
+    /** The context the event intake runs on. */
+    private NodeContext context;
 
-    /** The wiring model the intake runs on. */
-    private WiringModel model;
-
-    /** Collects the exceptions thrown on the pipeline's threads. */
-    private UncaughtExceptionCollector exceptions;
-
-    /** The intake under test. */
+    /** The event intake module under test. */
     private DefaultEventIntakeModule intake;
 
-    /** The counter of the events in the intake, by the node that sent them. */
+    /** The intake event counter. It holds only the events the intake is expected to drop. */
     private DefaultIntakeEventCounter intakeEventCounter;
-
-    /** The nodes of the network. */
-    private RosterWrapper roster;
-
-    /** The number of received events a pass replays, by the node that sent them. */
-    private Map<NodeId, Integer> receivedEventsBySender;
 
     /** Replays the recording into the intake and records the latencies. */
     private PipelineTimer timer;
 
     /**
-     * Records the network, builds the intake on a wiring model as in production, and builds the timer. This method is
-     * called once per trial.
+     * Records the network, builds the intake as in production, and builds the timer. This method is called once per
+     * trial.
      */
     @Setup(Level.Trial)
     public void setUpTrial() {
-        final Recording recording = FalconRecorder.record(RecordingSpec.builder(NUMBER_OF_NODES, SEED, NUMBER_OF_EVENTS)
-                .signingSchema(SigningSchema.RSA)
-                .build());
-        final NodeRecording node = recording.nodes().getFirst();
-        final NodeId selfId = node.nodeId();
-        roster = recording.roster();
+        recordedNode = RecordedNode.record();
+        context = NodeContext.create(recordedNode.nodeId());
 
-        receivedEventsBySender = new HashMap<>();
-        for (final Step step : node.steps()) {
-            if (step instanceof final Received received && !isOwnEvent(received, selfId)) {
-                receivedEventsBySender.merge(received.sender(), 1, Integer::sum);
-            }
-        }
-
-        // The recorded node's configuration runs some intake components on direct schedulers; production runs them
-        // on their own threads, so the intake gets the default configuration.
-        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
-        final MetricsConfig metricsConfig = configuration.getConfigData(MetricsConfig.class);
-        metricsExecutor = Executors.newSingleThreadScheduledExecutor();
-        final DefaultPlatformMetrics metrics = new DefaultPlatformMetrics(
-                selfId,
-                new MetricKeyRegistry(),
-                metricsExecutor,
-                new PlatformMetricsFactoryImpl(metricsConfig),
-                metricsConfig);
-        final Time time = Time.getCurrent();
-
-        exceptions = new UncaughtExceptionCollector();
-        final WiringConfig wiringConfig = configuration.getConfigData(WiringConfig.class);
-        // This is the same formula as in production
-        final int parallelism = (int) Math.max(
-                1,
-                wiringConfig.defaultPoolMultiplier() * Runtime.getRuntime().availableProcessors()
-                        + wiringConfig.defaultPoolConstant());
-        pool = ExecutorFactory.create("IntakePipelineBenchmark", exceptions).createForkJoinPool(parallelism);
-        model = WiringModelBuilder.create(metrics, time)
-                .withDefaultPool(pool)
-                .withWiringConfig(wiringConfig)
-                .withUncaughtExceptionHandler(exceptions)
-                .build();
-
-        intakeEventCounter = new DefaultIntakeEventCounter(roster);
+        intakeEventCounter = new DefaultIntakeEventCounter(recordedNode.roster());
         intake = new DefaultEventIntakeModule();
         intake.initialize(
-                model,
-                configuration,
-                metrics,
-                time,
-                createRosterWrapperHistory(ROUND_FIRST, roster),
+                context.model(),
+                context.configuration(),
+                context.metrics(),
+                context.time(),
+                createRosterWrapperHistory(ROUND_FIRST, recordedNode.roster()),
                 intakeEventCounter,
                 TRANSACTION_LIMITS,
-                EventPipelineTracker.create(metrics, configuration, time));
+                EventPipelineTracker.create(context.metrics(), context.configuration(), context.time()));
 
-        timer = PipelineTimer.builder(node.steps())
-                .entryPoint(
-                        Received.class,
-                        received -> isOwnEvent(received, selfId) ? null : received.event(),
-                        intake.unhashedEventsInputWire())
+        timer = PipelineTimer.builder(recordedNode.steps())
+                .entryPoint(Received.class, Received::event, intake.unhashedEventsInputWire())
                 .entryPoint(
                         CreationAttempt.class, CreationAttempt::created, intake.nonValidatedEventsInputWire(), INJECT)
                 .entryPoint(NewEventWindow.class, NewEventWindow::window, intake.initialEventWindowInputWire(), INJECT)
@@ -241,7 +154,7 @@ public class IntakePipelineBenchmark {
                         && newWindow.window().ancientThreshold() > GENESIS_ANCIENT_THRESHOLD)
                 .drain(intake::flush)
                 .build();
-        model.start();
+        context.start();
     }
 
     /**
@@ -249,13 +162,11 @@ public class IntakePipelineBenchmark {
      */
     @TearDown(Level.Trial)
     public void tearDownTrial() {
-        model.stop();
-        pool.shutdownNow();
-        metricsExecutor.shutdownNow();
+        context.stop();
     }
 
     /**
-     * Resets the intake to the state of a new node, counts the received events of the pass, and prepares fresh copies
+     * Resets the intake to the state of a new node, counts the events it is expected to drop, and prepares fresh copies
      * of the events. This method is called once per invocation.
      */
     @Setup(Level.Invocation)
@@ -265,8 +176,8 @@ public class IntakePipelineBenchmark {
         intake.flush();
 
         intakeEventCounter.reset();
-        receivedEventsBySender.forEach((sender, count) -> {
-            for (int i = 0; i < count; i++) {
+        EXPECTED_DROPS.forEach((sender, drops) -> {
+            for (int i = 0; i < drops; i++) {
                 intakeEventCounter.eventEnteredIntakePipeline(sender);
             }
         });
@@ -288,45 +199,18 @@ public class IntakePipelineBenchmark {
 
     /**
      * Checks that no pipeline thread threw, that the expected number of received events left the intake, and that the
-     * intake dropped the expected number of events from each node. This method is called once per invocation.
+     * intake dropped no fewer events from each node than expected. This method is called once per invocation.
      */
     @TearDown(Level.Invocation)
     public void verifyInvocation() {
-        exceptions.throwIfAny();
+        context.exceptions().throwIfAny();
         if (timer.arrivals() != EXPECTED_ARRIVALS) {
             throw new IllegalStateException("Expected " + EXPECTED_ARRIVALS + " arrivals, but got " + timer.arrivals());
         }
-        verifyDrops();
-    }
-
-    /**
-     * Checks that the intake dropped the expected number of events from each node. The intake decrements the counter
-     * only for the events it drops, so after the pass every node's count is its received events minus its drops. The
-     * check takes that many events out of the counter, as the shadowgraph would for the events it gets: one more drop
-     * makes the counter throw, one fewer leaves an event in it.
-     */
-    private void verifyDrops() {
-        receivedEventsBySender.forEach((sender, count) -> {
-            final int expectedInCounter = count - EXPECTED_DROPS.getOrDefault(sender, 0);
-            try {
-                for (int i = 0; i < expectedInCounter; i++) {
-                    intakeEventCounter.eventExitedIntakePipeline(sender);
-                }
-            } catch (final IllegalStateException e) {
-                throw new IllegalStateException("The intake dropped more events from " + sender + " than expected", e);
-            }
-        });
-        for (final NodeId nodeId : roster.nodeIds()) {
+        for (final NodeId nodeId : recordedNode.roster().nodeIds()) {
             if (intakeEventCounter.hasUnprocessedEvents(nodeId)) {
                 throw new IllegalStateException("The intake dropped fewer events from " + nodeId + " than expected");
             }
         }
-    }
-
-    /**
-     * Tells whether a received event is one of the node's own events, which the simulated network sends back to it.
-     */
-    private static boolean isOwnEvent(final Received received, final NodeId selfId) {
-        return received.event().getCreatorId().equals(selfId);
     }
 }
