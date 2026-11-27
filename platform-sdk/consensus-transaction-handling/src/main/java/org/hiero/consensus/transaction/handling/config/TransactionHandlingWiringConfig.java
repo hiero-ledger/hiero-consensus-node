@@ -18,5 +18,5 @@ public record TransactionHandlingWiringConfig(
 
         @ConfigProperty(
                 defaultValue =
-                        "SEQUENTIAL_THREAD CAPACITY(5) FLUSHABLE SQUELCHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC")
+                        "SEQUENTIAL_THREAD CAPACITY(25) FLUSHABLE SQUELCHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC")
         TaskSchedulerConfiguration handler) {}
