@@ -204,6 +204,7 @@ public class IntakePipelineBenchmark {
 
         exceptions = new UncaughtExceptionCollector();
         final WiringConfig wiringConfig = configuration.getConfigData(WiringConfig.class);
+        // This is the same formula as in production
         final int parallelism = (int) Math.max(
                 1,
                 wiringConfig.defaultPoolMultiplier() * Runtime.getRuntime().availableProcessors()
