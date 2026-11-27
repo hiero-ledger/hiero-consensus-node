@@ -30,7 +30,7 @@ class LatencyRecorderTest {
         recorder.lap();
         recorder.stopMeasurement();
 
-        assertThat(recorder.discardedPasses()).isZero();
+        assertThat(recorder.discardedInvocations()).isZero();
         assertThat(recorder.histogram().totalCount()).isEqualTo(2);
         assertThat(recorder.histogram().max()).isLessThan(PAUSED_WORK.toNanos());
     }
@@ -44,7 +44,7 @@ class LatencyRecorderTest {
         recorder.lap();
         recorder.stopMeasurement();
 
-        assertThat(recorder.discardedPasses()).isZero();
+        assertThat(recorder.discardedInvocations()).isZero();
         assertThat(recorder.histogram().max()).isGreaterThanOrEqualTo(PAUSED_WORK.toNanos());
     }
 
@@ -60,7 +60,7 @@ class LatencyRecorderTest {
         recorder.lap();
         recorder.stopMeasurement();
 
-        assertThat(recorder.discardedPasses()).isZero();
+        assertThat(recorder.discardedInvocations()).isZero();
         assertThat(recorder.allocatedBytes()).isLessThan(PAUSED_ALLOCATION);
     }
 
@@ -74,7 +74,7 @@ class LatencyRecorderTest {
         recorder.lap();
         recorder.stopMeasurement();
 
-        assertThat(recorder.discardedPasses()).isZero();
+        assertThat(recorder.discardedInvocations()).isZero();
         assertThat(recorder.allocatedBytes()).isGreaterThanOrEqualTo(PAUSED_ALLOCATION);
     }
 

@@ -12,13 +12,14 @@ Metrics (one sample each, at the time of publishing). Only a quiet result publis
 load of other workloads on the node, so every latency sample can give a verdict; a result is quiet if the other
 workloads used fewer than run_benchmarks.py's --max-load CPUs during the measurement:
 - jmh_latency_seconds{statistic=mean|min|p50|p90|p99|p99.9|p99.99|max}, quiet only: LatencyProfiler's latency.*
-  metrics. The mean over the kept passes is tracked rather than JMH's primary score, which also contains discarded
-  passes;
+  metrics. The mean over the kept invocations is tracked rather than JMH's primary score, which also contains
+  discarded invocations;
 - jmh_latency_samples, quiet only: latency samples of the whole run;
 - jmh_allocation_bytes_per_op: alloc.norm;
-- jmh_gc_discarded_passes: measured.gc.discardedPasses, passes dropped because a collection hit them;
-- jmh_saturation_discarded_passes, quiet only: measured.saturation.discardedPasses of a pipeline benchmark, passes
-  dropped because the pipeline did not keep up, which the load can cause;
+- jmh_gc_discarded_invocations: measured.gc.discardedInvocations, invocations dropped because a collection hit their
+  measured part;
+- jmh_saturation_discarded_invocations, quiet only: measured.saturation.discardedInvocations of a pipeline benchmark,
+  invocations dropped because the pipeline did not keep up, which the load can cause;
 - jmh_other_load_cpus: CPUs used by other workloads during the measurement;
 - jmh_attempts: how many attempts the parameter set needed;
 - jmh_run_seconds: wall-clock time of the published attempt's JMH invocation, which sets the nightly job's time budget.
@@ -48,9 +49,9 @@ from benchmark_runs import read_environment, read_properties, read_run_index
 LATENCY = {"latency.mean": "mean", "latency.min": "min", "latency.p50": "p50", "latency.p90": "p90",
            "latency.p99": "p99", "latency.p99.9": "p99.9", "latency.p99.99": "p99.99", "latency.max": "max"}
 LOAD_DEPENDENT = {"latency.samples": "jmh_latency_samples",
-                  "measured.saturation.discardedPasses": "jmh_saturation_discarded_passes"}
+                  "measured.saturation.discardedInvocations": "jmh_saturation_discarded_invocations"}
 LOAD_INDEPENDENT = {"alloc.norm": "jmh_allocation_bytes_per_op",
-                    "measured.gc.discardedPasses": "jmh_gc_discarded_passes"}
+                    "measured.gc.discardedInvocations": "jmh_gc_discarded_invocations"}
 SLOTS = {True: "quiet", False: "loaded", None: "unknown"}
 SECONDS_PER_UNIT = {"ns": 1e-9, "us": 1e-6, "ms": 1e-3, "s": 1.0}
 

@@ -168,17 +168,17 @@ outcome is a fork mode. A benchmark with fork modes gives results that jump betw
 
 ## Heap
 
-- **Choose the heap by `measured.gc.discardedPasses`, not by caution.** A pass is discarded when a garbage collection
-  runs during its measured calls ([writing.md](writing.md#allocation-and-garbage-collection)). Lower `-Xms` and `-Xmx`
-  step by step, take the smallest heap at which no pass is discarded, and add a margin. Below it, discarded passes
-  become frequent; when every pass is discarded, the latency results are missing.
-- **The heap needed depends on one pass, not on the iteration length,** because `System.gc()` runs before every pass.
-  Longer iterations do not need a larger heap.
+- **Choose the heap by `measured.gc.discardedInvocations`, not by caution.** An invocation is discarded when a garbage
+  collection runs during its measured part ([writing.md](writing.md#allocation-and-garbage-collection)). Lower `-Xms`
+  and `-Xmx` step by step, take the smallest heap at which no invocation is discarded, and add a margin. Below it,
+  discarded invocations become frequent; when every invocation is discarded, the latency results are missing.
+- **The heap needed depends on one invocation, not on the iteration length,** because `System.gc()` runs before every
+  invocation. Longer iterations do not need a larger heap.
 - **Set `-Xms` equal to `-Xmx`, with `-XX:+AlwaysPreTouch`,** in the `jvmArgsAppend` of `@Fork`.
 - **The runner needs about the heap plus a few hundred MB per forked JVM,** plus the JVM of JMH itself and, if the same
   job builds, Gradle.
 - **Measure memory use on Linux.** On macOS, the peak resident memory (RSS) shows less than a pre-touched heap uses.
-- **The configuration run checks the heap again:** it discards no pass.
+- **The configuration run checks the heap again:** it discards no invocation.
 
 ## The calibration record
 

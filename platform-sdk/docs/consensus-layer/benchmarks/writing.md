@@ -102,7 +102,7 @@ until it reaches the pipeline's output. Its Javadoc shows the pattern.
 - **Fill a pipeline with state before measuring it,** so that it is measured as in a long run: the inputs before the
   first one that `measureFrom` accepts are replayed, but not measured.
 - **A pass in which the pipeline does not keep up is discarded:** if the latency grows by more than 1% of the elapsed
-  time, the pass counts in `measured.saturation.discardedPasses` instead. At the recorded rate, such passes mean that
+  time, the pass counts in `measured.saturation.discardedInvocations` instead. At the recorded rate, such passes mean that
   the pipeline no longer keeps up with production.
 - **One benchmark thread:** `alloc.norm` counts what all threads of the JVM allocate during a pass, so passes must not
   overlap.
@@ -131,7 +131,7 @@ turns the recorded times into JMH results. Its Javadoc lists them and how JMH co
   - The median (p50) does not replace the mean: when most calls are fast and a few are slow, the median shows only the
     fast ones. The mean is the total cost divided by the number of calls.
 - **Report a metric only if someone acts on it.** Each metric is either tracked (`latency.*`, `alloc.norm`) or helps to
-  find a problem (`measured.*.discardedPasses`). JMH's `-prof gc` shows more about garbage collection when needed.
+  find a problem (`measured.*.discardedInvocations`). JMH's `-prof gc` shows more about garbage collection when needed.
 
 ## Allocation and garbage collection
 
@@ -145,7 +145,7 @@ turns the recorded times into JMH results. Its Javadoc lists them and how JMH co
 - **A garbage collection during the measured calls discards the pass; it never fails the run.** Whether a collection
   falls into the calls varies from run to run, because the G1 collector adjusts the size of its young generation while
   the program runs. `LatencyRecorder` and `PipelineRecorder` drop the pass's times, count the pass in
-  `measured.gc.discardedPasses`, and the next invocation replaces it.
+  `measured.gc.discardedInvocations`, and the next invocation replaces it.
   - A GC log cannot do this check: it does not show whether a collection fell into the setup or into the measured
     calls.
   - The price is the time of the `System.gc()` and the setup of every pass, which calibration includes.
@@ -173,7 +173,7 @@ turns the recorded times into JMH results. Its Javadoc lists them and how JMH co
   invocation. The profiler forgets its recorders after every iteration, so a later benchmark in the same JVM cannot pass
   this check by accident.
 - **`-prof` applies to every benchmark in the run.** A benchmark that records nothing still reports
-  `measured.gc.discardedPasses`, as zero. That metric alone does not show that a benchmark records latency.
+  `measured.gc.discardedInvocations`, as zero. That metric alone does not show that a benchmark records latency.
 
 ## Profiling
 

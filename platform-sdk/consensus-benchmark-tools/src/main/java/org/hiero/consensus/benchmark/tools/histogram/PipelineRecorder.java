@@ -218,7 +218,7 @@ public final class PipelineRecorder {
      *
      * @return the number of passes discarded for a collection
      */
-    long gcDiscardedPasses() {
+    long gcDiscardedInvocations() {
         return gcDiscardedPasses;
     }
 
@@ -227,7 +227,7 @@ public final class PipelineRecorder {
      *
      * @return the number of passes discarded for saturation
      */
-    long saturationDiscardedPasses() {
+    long saturationDiscardedInvocations() {
         return saturationDiscardedPasses;
     }
 }

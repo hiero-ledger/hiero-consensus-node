@@ -5,7 +5,10 @@ import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
 import java.util.List;
 
-/** Counts the garbage collections of the JVM, so that a recorder can discard a pass during which one ran. */
+/**
+ * Counts the garbage collections of the JVM, so that a recorder can discard an invocation during whose measured part
+ * one ran.
+ */
 final class GarbageCollections {
 
     /** The MXBeans that count the JVM's garbage collections. */

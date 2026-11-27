@@ -91,7 +91,7 @@ class PipelineTimerTest {
         assertThat(timer.saturated()).isFalse();
         assertThat(results())
                 .containsEntry("latency.samples", (double) ITEMS.size())
-                .containsEntry("measured.saturation.discardedPasses", 0.0);
+                .containsEntry("measured.saturation.discardedInvocations", 0.0);
     }
 
     @Test
@@ -425,8 +425,8 @@ class PipelineTimerTest {
         assertThat(timer.arrivals()).isEqualTo(ITEMS.size());
         assertThat(results())
                 .doesNotContainKey("latency.samples")
-                .containsEntry("measured.gc.discardedPasses", 1.0)
-                .containsEntry("measured.saturation.discardedPasses", 0.0);
+                .containsEntry("measured.gc.discardedInvocations", 1.0)
+                .containsEntry("measured.saturation.discardedInvocations", 0.0);
     }
 
     @Test
@@ -448,7 +448,7 @@ class PipelineTimerTest {
         assertThat(timer.arrivals()).isEqualTo(ITEMS.size());
         assertThat(results())
                 .doesNotContainKey("latency.samples")
-                .containsEntry("measured.saturation.discardedPasses", 1.0);
+                .containsEntry("measured.saturation.discardedInvocations", 1.0);
     }
 
     @Test
@@ -503,7 +503,7 @@ class PipelineTimerTest {
 
         assertThat(kept).hasSize(fillArrays);
         final Map<String, Double> results = results();
-        assertThat(results).containsEntry("measured.gc.discardedPasses", 0.0);
+        assertThat(results).containsEntry("measured.gc.discardedInvocations", 0.0);
         assertThat(results.get("alloc.norm") * results.get("latency.samples")).isLessThan(fillArrays * 1_000 / 2.0);
     }
 
@@ -523,7 +523,9 @@ class PipelineTimerTest {
         timer.prepare();
         timer.replay();
 
-        assertThat(results()).containsEntry("latency.samples", 500.0).containsEntry("measured.gc.discardedPasses", 0.0);
+        assertThat(results())
+                .containsEntry("latency.samples", 500.0)
+                .containsEntry("measured.gc.discardedInvocations", 0.0);
     }
 
     @Test
