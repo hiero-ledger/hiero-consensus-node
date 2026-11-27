@@ -7,24 +7,24 @@ import com.hedera.hapi.block.internal.BlockBytes;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
 import com.hedera.node.app.blocks.impl.streaming.BlockState;
-import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter;
+import com.hedera.node.app.hapi.utils.blocks.BlockFileUtils;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.OptionalLong;
-import java.util.zip.GZIPOutputStream;
 import javax.inject.Inject;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
  * Locates the block containing a given ISS round in the in-memory {@link BlockBufferService} and writes it to disk as
- * an {@code .iss.gz} artifact, so it can be staged for triage. This is the source for the detection
+ * an {@code .iss.zstd} artifact, so it can be staged for triage. This is the source for the detection
  * path in {@code GRPC} mode, where closed blocks are never written to disk and the buffer is the only place the ISS
  * round still lives at detection time. Capture is best-effort: the block is normally still buffered because a block
  * node never acknowledges a diverged ISS block, and an unacknowledged block is not pruned while back pressure is
@@ -36,9 +36,9 @@ import org.apache.logging.log4j.Logger;
  * first {@code RoundHeader} is its first round, and first-round-per-block increases monotonically with block number.
  * The buffer is small (bounded by {@code maxBlocks}), so a linear scan over the contiguous buffered block numbers is
  * sufficient. The reconstruction mirrors {@code GrpcBlockItemWriter.flushIncompleteBlock()}: the buffered serialized
- * items are concatenated into a {@link BlockBytes} (wire-identical to a {@code Block}) and gzipped, so the file parses
- * back as a {@code Block} for analysis. Reads are a best-effort snapshot — a {@code null} item or a block pruned
- * mid-scan is tolerated and treated as a miss; nothing here ever locks the live stream.
+ * items are concatenated into a {@link BlockBytes} (wire-identical to a {@code Block}) and Zstandard-compressed, so
+ * the file parses back as a {@code Block} for analysis. Reads are a best-effort snapshot — a {@code null} item or a
+ * block pruned mid-scan is tolerated and treated as a miss; nothing here ever locks the live stream.
  */
 public class IssBufferBlockReader {
     private static final Logger log = LogManager.getLogger(IssBufferBlockReader.class);
@@ -54,11 +54,11 @@ public class IssBufferBlockReader {
 
     /**
      * Finds the block containing {@code round} in the buffer (plus up to {@code precedingBlocks} blocks before it) and
-     * writes each as an {@code .iss.gz} file under {@code targetDir}.
+     * writes each as an {@code .iss.zstd} file under {@code targetDir}.
      *
      * @param round the ISS round to locate
      * @param precedingBlocks how many preceding blocks to also capture (clamped to the earliest buffered block)
-     * @param targetDir the directory to write the {@code .iss.gz} artifact(s) into
+     * @param targetDir the directory to write the {@code .iss.zstd} artifact(s) into
      * @return the written files ordered oldest→newest, the ISS-round block always last; empty if the round is not in
      * the buffer or the ISS-round block itself could not be written (a context-only capture is discarded)
      */
@@ -169,7 +169,10 @@ public class IssBufferBlockReader {
         return OptionalLong.empty();
     }
 
-    /** Writes a buffered block's items as a gzipped {@link BlockBytes} {@code .iss.gz} file; null if it had no items. */
+    /**
+     * Writes a buffered block's items as a Zstandard-compressed {@link BlockBytes} {@code .iss.zstd} file; null if it
+     * had no items.
+     */
     private static Path reconstruct(
             final long blockNumber, @NonNull final BlockState state, @NonNull final Path targetDir) throws IOException {
         final int count = state.itemCount();
@@ -184,10 +187,10 @@ public class IssBufferBlockReader {
             return null;
         }
         Files.createDirectories(targetDir);
-        final Path out = targetDir.resolve(FileBlockItemWriter.longToFileName(blockNumber) + ISS_BLOCK_EXT);
-        // Write to a temp sibling then atomically rename, so the deployment's uploader never grabs a partial .iss.gz.
+        final Path out = targetDir.resolve(BlockFileUtils.blockNumberToFileName(blockNumber) + ISS_BLOCK_EXT);
+        // Write to a temp sibling then atomically rename, so the deployment's uploader never grabs a partial file.
         final Path tmp = StagingFiles.tmpFor(out);
-        try (final GZIPOutputStream os = new GZIPOutputStream(Files.newOutputStream(tmp))) {
+        try (final OutputStream os = BlockFileUtils.newZstdOutputStream(Files.newOutputStream(tmp))) {
             os.write(BlockBytes.PROTOBUF.toBytes(new BlockBytes(items)).toByteArray());
         }
         StagingFiles.atomicMoveOnto(tmp, out);

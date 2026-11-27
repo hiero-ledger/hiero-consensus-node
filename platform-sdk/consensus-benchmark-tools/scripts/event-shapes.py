@@ -7,9 +7,10 @@ parents, the number of transactions per event, and the size of each transaction.
 table of each quantity, counted by this script from a week of mainnet block streams. See
 docs/proposals/consensus-benchmarks/benchmark-inputs.md, section "Production Data".
 
-Input: the block files of one node, each a gzipped Block. Every node writes every event, so one node's files hold them
-all. Mainnet's files are in a requester-pays bucket, one folder per node. The names are block numbers; a listing shows
-when each block was uploaded, which finds the blocks of a period:
+Input: the block files of one node, each a plain, gzip, or Zstandard-compressed Block. Zstandard input requires the
+zstd command on PATH. Every node writes every event, so one node's files hold them all. Mainnet's files are in a
+requester-pays bucket, one folder per node. The names are block numbers; a listing shows when each block was uploaded,
+which finds the blocks of a period:
 
     gcloud storage ls -l --billing-project=<project> \\
         'gs://hedera-mainnet-streams/block-preview/mainnet/0/0/000000000000000000000000000108*'
@@ -55,6 +56,7 @@ import gzip
 import json
 import math
 import os
+import subprocess
 import sys
 from collections import Counter
 from concurrent.futures import ProcessPoolExecutor
@@ -151,8 +153,12 @@ def new_hour():
 
 def parse_file(path):
     """Counts the shapes of the events in one block file, per hour of the block's consensus time."""
-    with gzip.open(path, "rb") as f:
-        buf = f.read()
+    if path.endswith(".zstd"):
+        buf = subprocess.run(["zstd", "--decompress", "--stdout", "--", path],
+                             check=True, stdout=subprocess.PIPE).stdout
+    else:
+        with (gzip.open(path, "rb") if path.endswith(".gz") else open(path, "rb")) as f:
+            buf = f.read()
     try:
         return parse_block(buf, os.path.basename(path))
     except (ValueError, IndexError) as e:
@@ -239,11 +245,16 @@ def input_files(paths):
     files = []
     for path in paths:
         if os.path.isdir(path):
-            files += [os.path.join(path, f) for f in os.listdir(path) if f.endswith(".blk.gz")]
+            files += [os.path.join(path, f) for f in os.listdir(path) if f.endswith((".blk", ".blk.gz", ".blk.zstd"))]
         else:
             files.append(path)
-    # the names are zero-padded block numbers
-    return sorted(files, key=os.path.basename)
+    return sorted(files, key=block_order)
+
+
+def block_order(path):
+    """Sorts by block number, since legacy and current names use different padding widths."""
+    stem = os.path.basename(path).split(".", 1)[0]
+    return (int(stem) if stem.isdigit() else -1, path)
 
 
 def count(files, jobs):
@@ -438,14 +449,14 @@ def main():
                         help="keep the rows with at least this frequency (default 1e-4)")
     parser.add_argument("--start", help="first hour to report, UTC, as 2026-10-18 or 2026-10-18T05 (default: all)")
     parser.add_argument("--end", help="hour after the last to report, UTC, in the same format (default: all)")
-    parser.add_argument("paths", nargs="*", help="block files (.blk.gz), or directories that hold them")
+    parser.add_argument("paths", nargs="*", help="block files (.blk, .blk.gz, .blk.zstd; zstd command required for Zstandard), or directories that hold them")
     args = parser.parse_args()
     if args.load:
         totals = load(args.load)
     else:
         files = input_files(args.paths)
         if not files:
-            parser.error("no .blk.gz files given")
+            parser.error("no block files given")
         totals = count(files, args.jobs)
         if args.save:
             save(totals, args.save)

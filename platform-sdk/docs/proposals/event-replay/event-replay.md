@@ -87,7 +87,7 @@ redacted/filtered views intended for downstream consumers.
 
 ### 1. Block stream → PCES conversion tool
 
-Reads `.blk.gz` files, reconstructs `GossipEvent` records, and writes PCES files.
+Reads `.blk.zstd` files (and legacy `.blk.gz`/`.blk` files), reconstructs `GossipEvent` records, and writes PCES files.
 Event reconstruction (block items → unsigned `PlatformEvent`s, with hashes) is
 already implemented by `BlockStreamEventBuilder`; the remaining work is writing
 those events out as PCES files (step 6 below) using `CommonPcesWriter` — the same

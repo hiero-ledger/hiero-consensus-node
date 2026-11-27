@@ -328,7 +328,7 @@ public class IssDetectionStagingCoordinator {
     /**
      * Resolves the ISS-round block from disk, retrying until it is found, the failure path stages the round, or
      * {@code timeout} elapses. The block may be the still-open block at detection (not yet a finished file on disk); it
-     * becomes durable as rounds continue, or is flushed as a {@code .open.gz} at {@code CATASTROPHIC_FAILURE}. Polling
+     * becomes durable as rounds continue, or is flushed as a {@code .open.zstd} at {@code CATASTROPHIC_FAILURE}. Polling
      * makes the capture deterministic instead of a one-shot miss.
      */
     private List<IssBlockRef> resolveWithWait(
@@ -352,8 +352,9 @@ public class IssDetectionStagingCoordinator {
     }
 
     /**
-     * Copies each resolved block's on-disk files (the contents file plus any {@code .pnd.json} proof sidecar, gzipped)
-     * into {@code issDir} atomically, and returns the copied <b>contents</b> paths. Per-block best-effort: a preceding
+     * Copies each resolved block's on-disk files (the contents file plus any {@code .pnd.json} proof sidecar, each
+     * Zstandard-wrapped unless it already ends in {@code .zstd}; see {@link StagingFiles#stageContents}) into
+     * {@code issDir} atomically, and returns the copied <b>contents</b> paths. Per-block best-effort: a preceding
      * context block (or a sidecar) that can no longer be copied — e.g. deleted by block retention cleanup between
      * resolve and copy — is skipped rather than aborting the capture; but if the ISS block itself (the last entry)
      * cannot be copied, the whole capture is discarded so the caller never stages a context block in its place and
@@ -374,9 +375,9 @@ public class IssDetectionStagingCoordinator {
             final IssBlockRef ref = refs.get(i);
             final List<Path> files = ref.files();
             final Path contentsSrc = files.get(0); // the contents file is first; any .pnd.json sidecar follows
-            final Path contentsDest = issDir.resolve(contentsSrc.getFileName().toString());
+            final Path contentsDest;
             try {
-                StagingFiles.atomicCopy(contentsSrc, contentsDest);
+                contentsDest = StagingFiles.stageContents(contentsSrc, issDir);
             } catch (final IOException e) {
                 if (i == refs.size() - 1) {
                     log.warn(
@@ -392,7 +393,7 @@ public class IssDetectionStagingCoordinator {
             for (int j = 1; j < files.size(); j++) {
                 final Path sidecar = files.get(j);
                 try {
-                    StagingFiles.atomicGzipCopy(sidecar, issDir.resolve(StagingFiles.stagedSidecarName(sidecar)));
+                    StagingFiles.atomicZstdCopy(sidecar, issDir.resolve(StagingFiles.stagedSidecarName(sidecar)));
                 } catch (final IOException e) {
                     log.warn("Skipping sidecar {} of block #{}", sidecar, ref.blockNumber(), e);
                 }

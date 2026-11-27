@@ -130,10 +130,11 @@ class IssHandlingTest implements LifecycleTest {
     private static void assertStaged(final Path issBlockDir) {
         final List<String> staged = IssStagingTestSupport.stagedRegularFiles(issBlockDir);
         assertTrue(
-                staged.stream().anyMatch(p -> (p.contains("/detect/") || p.contains("/failure/")) && p.endsWith(".gz")),
+                staged.stream()
+                        .anyMatch(p -> (p.contains("/detect/") || p.contains("/failure/")) && p.endsWith(".zstd")),
                 "expected an ISS block staged under detect/ or failure/; saw " + staged);
         assertTrue(
-                staged.stream().anyMatch(p -> p.contains("/triage/") && p.endsWith(".gz")),
+                staged.stream().anyMatch(p -> p.contains("/triage/") && p.endsWith(".zstd")),
                 "expected a triage/ block staged; saw " + staged);
         assertTrue(
                 staged.stream().anyMatch(p -> (p.contains("/detect/") || p.contains("/failure/")) && p.endsWith(".mf")),

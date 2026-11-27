@@ -38,6 +38,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -267,15 +269,16 @@ class V0740BlockStreamSchemaTest {
         assertEquals(expectedEmptyRoot, written.traceDataRootHash());
     }
 
-    @Test
-    void archivesPreviewBlockFiles() throws IOException {
+    @ParameterizedTest
+    @ValueSource(strings = {"gz", "zstd"})
+    void archivesPreviewBlockFiles(final String compression) throws IOException {
         final var blockDir = tempDir.resolve("blocks");
         Files.createDirectories(blockDir);
         final var subdir = blockDir.resolve("000000000000042");
         Files.createDirectories(subdir);
-        Files.createFile(subdir.resolve("block-42.blk.gz"));
+        Files.createFile(subdir.resolve("block-42.blk." + compression));
         Files.createFile(subdir.resolve("block-42.mf"));
-        Files.createFile(subdir.resolve("pending.pnd.gz"));
+        Files.createFile(subdir.resolve("pending.pnd." + compression));
         Files.createFile(subdir.resolve("proof.pnd.json"));
         // Non-matching file should survive in place
         Files.createFile(subdir.resolve("readme.txt"));
@@ -295,16 +298,16 @@ class V0740BlockStreamSchemaTest {
         final var archivedSubdir = archiveDir.resolve("000000000000042");
         assertTrue(markerCalled.get());
         // Originals moved out of the active directory
-        assertFalse(Files.exists(subdir.resolve("block-42.blk.gz")));
+        assertFalse(Files.exists(subdir.resolve("block-42.blk." + compression)));
         assertFalse(Files.exists(subdir.resolve("block-42.mf")));
-        assertFalse(Files.exists(subdir.resolve("pending.pnd.gz")));
+        assertFalse(Files.exists(subdir.resolve("pending.pnd." + compression)));
         assertFalse(Files.exists(subdir.resolve("proof.pnd.json")));
         // Non-matching file stays put
         assertTrue(Files.exists(subdir.resolve("readme.txt")));
         // Archive sibling contains the moved files, preserving the subdir layout
-        assertTrue(Files.exists(archivedSubdir.resolve("block-42.blk.gz")));
+        assertTrue(Files.exists(archivedSubdir.resolve("block-42.blk." + compression)));
         assertTrue(Files.exists(archivedSubdir.resolve("block-42.mf")));
-        assertTrue(Files.exists(archivedSubdir.resolve("pending.pnd.gz")));
+        assertTrue(Files.exists(archivedSubdir.resolve("pending.pnd." + compression)));
         assertTrue(Files.exists(archivedSubdir.resolve("proof.pnd.json")));
     }
 

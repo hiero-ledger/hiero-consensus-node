@@ -9,6 +9,7 @@ import static org.hiero.consensus.platformstate.PlatformStateUtils.ancientThresh
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.node.app.Hedera;
 import com.hedera.node.app.ServicesMain;
+import com.hedera.node.app.hapi.utils.blocks.BlockFileUtils;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.statevalidation.ReplayPcesCommand;
 import com.swirlds.base.time.Time;
@@ -420,11 +421,11 @@ public final class ReplayPcesWorkflow {
     private static final Duration BLOCK_FINALIZE_POLL = Duration.ofMillis(200);
 
     /**
-     * Waits until all block files under {@code blockStreamsDir} are finalized: every {@code .blk.gz}
-     * (or {@code .blk}) has a sibling {@code .mf} marker and no {@code .pnd.json} pending-proof files
-     * remain. Block proofs and their markers are written asynchronously from the signing callback after
-     * the wiring pipeline is flushed, so this closes the race before the state is written and the platform
-     * is destroyed. Times out (rather than hanging) if a signature never completes.
+     * Waits until all block files under {@code blockStreamsDir} are finalized: every {@code .blk.zstd}
+     * (or legacy {@code .blk.gz}/{@code .blk}) has a sibling {@code .mf} marker and no pending block
+     * or {@code .pnd.json} files remain. Block proofs and their markers are written asynchronously from the signing
+     * callback after the wiring pipeline is flushed, so this closes the race before the state is written and the
+     * platform is destroyed. Times out (rather than hanging) if a signature never completes.
      */
     private static void awaitBlockFinalization(@NonNull final Path blockStreamsDir, @NonNull final Duration timeout) {
         final long deadline = System.nanoTime() + timeout.toNanos();
@@ -452,8 +453,8 @@ public final class ReplayPcesWorkflow {
     }
 
     /**
-     * Returns a description of the first block file that is not yet finalized (a .blk/.blk.gz without a
-     * sibling .mf, or a leftover .pnd.json), or empty if all blocks are finalized. Searches the
+     * Returns a description of the first block file that is not yet finalized (a complete block without a
+     * sibling .mf, or a leftover pending block or .pnd.json), or empty if all blocks are finalized. Searches the
      * node-scoped subdirectory tree under blockStreamsDir.
      */
     private static Optional<String> firstUnfinalized(@NonNull final Path blockStreamsDir) {
@@ -466,20 +467,11 @@ public final class ReplayPcesWorkflow {
         }
         try (final Stream<Path> files = Files.walk(blockStreamsDir)) {
             return files.filter(Files::isRegularFile)
+                    .filter(path -> path.getFileName().toString().endsWith(".pnd.json")
+                            || BlockFileUtils.isPendingBlockFile(path)
+                            || (BlockFileUtils.isCompleteBlockFile(path)
+                                    && !Files.isRegularFile(BlockFileUtils.markerPathFor(path))))
                     .map(Path::toString)
-                    .filter(name -> {
-                        if (name.endsWith(".pnd.json") || name.endsWith(".pnd.gz") || name.endsWith(".pnd")) {
-                            return true;
-                        }
-                        if (name.endsWith(".blk.gz")) {
-                            return !Files.exists(
-                                    Path.of(name.substring(0, name.length() - ".blk.gz".length()) + ".mf"));
-                        }
-                        if (name.endsWith(".blk")) {
-                            return !Files.exists(Path.of(name.substring(0, name.length() - ".blk".length()) + ".mf"));
-                        }
-                        return false;
-                    })
                     .findFirst();
         } catch (final IOException e) {
             // Do NOT treat a scan failure as success. Surface it so the command fails rather than reporting a

@@ -43,11 +43,11 @@ import org.junit.jupiter.api.Tag;
 /**
  * gRPC-only counterpart to {@link IssHandlingTest}, exercising the best-effort ISS-block capture in
  * {@code blockStream.writerMode=GRPC} — where nothing is written to disk, so the ISS-round block is sourced from the
- * in-memory {@code BlockBufferService} (not the disk resolver) and reconstructed to disk as a single {@code .iss.gz}.
+ * in-memory {@code BlockBufferService} (not the disk resolver) and reconstructed to disk as a single {@code .iss.zstd}.
  *
  * <p>{@link #issBlockCapturedFromBufferInGrpcMode()} proves the primary path: the ISS-round block is retained in the
  * buffer through the detection lag and reconstructed + <b>staged</b> to the node-local {@code issBlockDir} as an
- * {@code .iss.gz} (a separate deployment uploader would ship it — the node does no upload itself). This test keeps the
+ * {@code .iss.zstd} (a separate deployment uploader would ship it — the node does no upload itself). This test keeps the
  * block by withholding acks (with mock signatures closing it); on the real path it is retained for a stronger reason —
  * a self-ISS block's divergent root hash never gathers a threshold block proof, so the block is never closed and, since
  * only closed blocks are pruned, never pruned.
@@ -167,7 +167,7 @@ class IssGrpcBufferStagingTest implements LifecycleTest {
                 assertHgcaaLogContainsText(byNodeId(ISS_NODE_ID), "wrote 1 block(s)", Duration.ofSeconds(90)),
                 untilHgcaaLogContainsText(
                         byNodeId(ISS_NODE_ID), "Staged ISS round", Duration.ofSeconds(90), () -> new SpecOperation[0]),
-                // In gRPC-only mode an .iss.gz on disk can only have been reconstructed from the buffer.
+                // In gRPC-only mode an .iss.zstd on disk can only have been reconstructed from the buffer.
                 verify(() -> assertBufferBlockStaged(issBlockDir.get())),
                 // Restore acks so the remaining nodes can drain and freeze cleanly.
                 blockNode(0).updateSendingBlockAcknowledgements(true),
@@ -176,18 +176,18 @@ class IssGrpcBufferStagingTest implements LifecycleTest {
     }
 
     /**
-     * Asserts the reconstructed ISS-round block was staged as an {@code .iss.gz}, with its {@code .mf} upload marker,
+     * Asserts the reconstructed ISS-round block was staged as an {@code .iss.zstd}, with its {@code .mf} upload marker,
      * under {@code detect/} or {@code failure/}.
      */
     private static void assertBufferBlockStaged(final Path issBlockDir) {
         final List<String> staged = IssStagingTestSupport.stagedRegularFiles(issBlockDir);
         final long issBlocks = staged.stream()
-                .filter(p -> (p.contains("/detect/") || p.contains("/failure/")) && p.endsWith(".iss.gz"))
+                .filter(p -> (p.contains("/detect/") || p.contains("/failure/")) && p.endsWith(".iss.zstd"))
                 .count();
-        assertTrue(issBlocks >= 1, "expected an ISS .iss.gz staged from the buffer; saw " + staged);
+        assertTrue(issBlocks >= 1, "expected an ISS .iss.zstd staged from the buffer; saw " + staged);
         assertTrue(
                 staged.stream()
                         .anyMatch(p -> (p.contains("/detect/") || p.contains("/failure/")) && p.endsWith(".iss.mf")),
-                "expected an upload marker for the staged .iss.gz; saw " + staged);
+                "expected an upload marker for the staged .iss.zstd; saw " + staged);
     }
 }

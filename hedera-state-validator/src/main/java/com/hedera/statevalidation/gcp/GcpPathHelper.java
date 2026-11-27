@@ -72,7 +72,7 @@ public final class GcpPathHelper {
 
     /**
      * Converts a block number to the canonical 36-digit zero-padded file name with {@code .blk.gz} extension.
-     * Mirrors {@code FileBlockItemWriter.longToFileName()}.
+     * Matches the node naming used before HIP-1193.
      *
      * @param blockNumber the block number (non-negative)
      * @return file name, e.g. {@code "000000000000000000000000000000382065.blk.gz"}

@@ -41,6 +41,7 @@ import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.BlockImplUtils;
 import com.hedera.node.app.blocks.impl.BlockStreamManagerImpl;
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
+import com.hedera.node.app.hapi.utils.blocks.BlockFileUtils;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.impl.HintsLibraryImpl;
@@ -1440,12 +1441,8 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
 
     private static long candidateBlockNumber(@NonNull final Path path) {
         final var name = path.getFileName().toString();
-        if (name.endsWith(".json") || name.endsWith(".mf")) {
-            return -1;
-        }
-        final var standardBlockNumber = BlockStreamAccess.extractBlockNumber(path);
-        if (standardBlockNumber >= 0) {
-            return standardBlockNumber;
+        if (BlockFileUtils.isCompleteBlockFile(path)) {
+            return BlockStreamAccess.extractBlockNumber(path);
         }
         return pbBlockNumber(name);
     }
@@ -1474,7 +1471,7 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
                 Usage: WrapsFreeBlockSignaturesValidator <block-stream-dir> [<post-cutover-block-stream-dir> ...]
                                                          <hints-threshold-denominator>
 
-                Each block stream directory may contain standard .blk/.blk.gz files or protobuf .pb files.
+                Each block stream directory may contain standard .blk.zstd/.blk.gz/.blk files or protobuf .pb/.pb.gz files.
                 Directories are validated as chronological epochs. At each epoch boundary, state replay continues
                 while the block hash context is reinitialized from BlockInfo in the first block of the new epoch.
                 """);

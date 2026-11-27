@@ -15,7 +15,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter;
+import com.hedera.node.app.hapi.utils.blocks.BlockFileUtils;
 import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfiguration;
@@ -141,13 +141,13 @@ class IssDetectionStagingCoordinatorTest {
         when(issConfig.issBlockStagingEnabled()).thenReturn(true);
         when(blockStreamConfig.writerMode()).thenReturn(BlockStreamWriterMode.FILE);
 
-        final String base = FileBlockItemWriter.longToFileName(7L);
-        final Path sourceBlk = Files.write(tempDir.resolve(base + ".blk.gz"), new byte[] {1, 2, 3});
+        final String base = BlockFileUtils.blockNumberToFileName(7L);
+        final Path sourceBlk = Files.write(tempDir.resolve(base + ".blk.zstd"), new byte[] {1, 2, 3});
         when(diskResolver.resolve(9, 0)).thenReturn(List.of(new IssBlockRef(7, List.of(sourceBlk))));
 
         subject.captureAndStage(9);
 
-        final Path staged = detectDir().resolve(base + ".blk.gz");
+        final Path staged = detectDir().resolve(base + ".blk.zstd");
         assertThat(staged).exists();
         assertThat(Files.readAllBytes(staged)).isEqualTo(new byte[] {1, 2, 3});
         assertThat(detectDir().resolve(base + ".blk.mf")).exists();
@@ -162,11 +162,11 @@ class IssDetectionStagingCoordinatorTest {
         when(issConfig.precedingBlocks()).thenReturn(1);
         when(blockStreamConfig.writerMode()).thenReturn(BlockStreamWriterMode.FILE);
 
-        final String precedingBase = FileBlockItemWriter.longToFileName(6L);
-        final String issBase = FileBlockItemWriter.longToFileName(7L);
-        final Path precedingBlk = Files.write(tempDir.resolve(precedingBase + ".blk.gz"), new byte[] {1});
+        final String precedingBase = BlockFileUtils.blockNumberToFileName(6L);
+        final String issBase = BlockFileUtils.blockNumberToFileName(7L);
+        final Path precedingBlk = Files.write(tempDir.resolve(precedingBase + ".blk.zstd"), new byte[] {1});
         // The ISS block is a pending block, so it carries a .pnd.json proof sidecar that must be staged alongside it.
-        final Path issPnd = Files.write(tempDir.resolve(issBase + ".pnd.gz"), new byte[] {2});
+        final Path issPnd = Files.write(tempDir.resolve(issBase + ".pnd.zstd"), new byte[] {2});
         final Path issProof = Files.write(tempDir.resolve(issBase + ".pnd.json"), new byte[] {3});
         when(diskResolver.resolve(9, 1))
                 .thenReturn(List.of(
@@ -174,12 +174,39 @@ class IssDetectionStagingCoordinatorTest {
 
         subject.captureAndStage(9);
 
-        assertThat(detectDir().resolve(precedingBase + ".blk.gz")).exists();
-        assertThat(detectDir().resolve(issBase + ".pnd.gz")).exists();
-        assertThat(detectDir().resolve(issBase + ".pnd.json.gz")).exists();
+        assertThat(detectDir().resolve(precedingBase + ".blk.zstd")).exists();
+        assertThat(detectDir().resolve(issBase + ".pnd.zstd")).exists();
+        assertThat(detectDir().resolve(issBase + ".pnd.json.zstd")).exists();
         assertThat(detectDir().resolve(precedingBase + ".blk.mf")).exists();
         assertThat(detectDir().resolve(issBase + ".pnd.mf")).exists();
         assertThat(detectDir().resolve(issBase + ".pnd.json.mf")).exists();
+    }
+
+    @Test
+    void fileModeStagesLegacyGzipContextBlockZstandardWrapped() throws IOException {
+        when(issConfig.issBlockStagingEnabled()).thenReturn(true);
+        when(issConfig.precedingBlocks()).thenReturn(1);
+        when(blockStreamConfig.writerMode()).thenReturn(BlockStreamWriterMode.FILE);
+
+        // The preceding block was written by an older version: 36-digit name, gzip.
+        final String legacyName = "000000000000000000000000000000000006.blk.gz";
+        final String issBase = BlockFileUtils.blockNumberToFileName(7L);
+        final Path legacyBlk = Files.write(tempDir.resolve(legacyName), new byte[] {1});
+        final Path issBlk = Files.write(tempDir.resolve(issBase + ".blk.zstd"), new byte[] {2});
+        when(diskResolver.resolve(9, 1))
+                .thenReturn(List.of(new IssBlockRef(6, List.of(legacyBlk)), new IssBlockRef(7, List.of(issBlk))));
+
+        subject.captureAndStage(9);
+
+        // The uploader only ships .zstd files, so the legacy file is wrapped and marked under its wrapped name.
+        final Path stagedLegacy = detectDir().resolve(legacyName + ".zstd");
+        try (final var in = BlockFileUtils.openInputStream(stagedLegacy)) {
+            assertThat(in.readAllBytes()).isEqualTo(new byte[] {1});
+        }
+        assertThat(detectDir().resolve(legacyName + ".mf")).exists();
+        assertThat(detectDir().resolve(legacyName)).doesNotExist();
+        assertThat(detectDir().resolve(issBase + ".blk.zstd")).exists();
+        assertThat(detectDir().resolve(issBase + ".blk.mf")).exists();
     }
 
     @Test
@@ -187,14 +214,14 @@ class IssDetectionStagingCoordinatorTest {
         when(issConfig.issBlockStagingEnabled()).thenReturn(true);
         when(blockStreamConfig.writerMode()).thenReturn(BlockStreamWriterMode.GRPC);
 
-        final String issName = FileBlockItemWriter.longToFileName(7L) + ".iss.gz";
+        final String issName = BlockFileUtils.blockNumberToFileName(7L) + ".iss.zstd";
         when(bufferReader.captureToDir(eq(9L), eq(0), any())).thenAnswer(inv -> writeInto(inv.getArgument(2), issName));
 
         subject.captureAndStage(9);
 
-        // captureToDir is handed the detection subdir, so the reconstructed .iss.gz lands there.
+        // captureToDir is handed the detection subdir, so the reconstructed .iss.zstd lands there.
         assertThat(detectDir().resolve(issName)).exists();
-        assertThat(detectDir().resolve(FileBlockItemWriter.longToFileName(7L) + ".iss.mf"))
+        assertThat(detectDir().resolve(BlockFileUtils.blockNumberToFileName(7L) + ".iss.mf"))
                 .exists();
         verifyNoInteractions(diskResolver);
     }
@@ -216,8 +243,8 @@ class IssDetectionStagingCoordinatorTest {
         when(issConfig.issBlockStagingEnabled()).thenReturn(true);
         when(blockStreamConfig.writerMode()).thenReturn(BlockStreamWriterMode.FILE);
 
-        final String base = FileBlockItemWriter.longToFileName(7L);
-        final Path sourceBlk = Files.write(tempDir.resolve(base + ".blk.gz"), new byte[] {1, 2, 3});
+        final String base = BlockFileUtils.blockNumberToFileName(7L);
+        final Path sourceBlk = Files.write(tempDir.resolve(base + ".blk.zstd"), new byte[] {1, 2, 3});
         when(diskResolver.resolve(9, 0)).thenReturn(List.of(new IssBlockRef(7, List.of(sourceBlk))));
 
         subject.captureAndStage(9);
@@ -225,7 +252,7 @@ class IssDetectionStagingCoordinatorTest {
 
         // The second call sees the round already staged and short-circuits before re-resolving.
         verify(diskResolver, times(1)).resolve(9, 0);
-        assertThat(detectDir().resolve(base + ".blk.gz")).exists();
+        assertThat(detectDir().resolve(base + ".blk.zstd")).exists();
     }
 
     @Test
@@ -249,13 +276,13 @@ class IssDetectionStagingCoordinatorTest {
         assertThat(detectDir()).doesNotExist();
 
         // The fatal flush has made the block durable; the failure path resolves it once and stages it under failure/.
-        final String base = FileBlockItemWriter.longToFileName(7L);
-        final Path sourceBlk = Files.write(tempDir.resolve(base + ".blk.gz"), new byte[] {1, 2, 3});
+        final String base = BlockFileUtils.blockNumberToFileName(7L);
+        final Path sourceBlk = Files.write(tempDir.resolve(base + ".blk.zstd"), new byte[] {1, 2, 3});
         when(diskResolver.resolve(9, 0)).thenReturn(List.of(new IssBlockRef(7, List.of(sourceBlk))));
 
         subject.stageDetectedIssOnFailure();
 
-        assertThat(failureDir().resolve(base + ".blk.gz")).exists();
+        assertThat(failureDir().resolve(base + ".blk.zstd")).exists();
         // The authoritative one-shot resolve drops any negative-cache entry poisoned during the detection poll.
         verify(diskResolver).forgetUnreadable();
     }
@@ -278,15 +305,15 @@ class IssDetectionStagingCoordinatorTest {
         when(issConfig.issBlockStagingEnabled()).thenReturn(true);
         when(blockStreamConfig.writerMode()).thenReturn(BlockStreamWriterMode.FILE);
 
-        final String base = FileBlockItemWriter.longToFileName(7L);
-        final Path sourceBlk = Files.write(tempDir.resolve(base + ".blk.gz"), new byte[] {1, 2, 3});
+        final String base = BlockFileUtils.blockNumberToFileName(7L);
+        final Path sourceBlk = Files.write(tempDir.resolve(base + ".blk.zstd"), new byte[] {1, 2, 3});
         when(diskResolver.resolve(9, 0)).thenReturn(List.of(new IssBlockRef(7, List.of(sourceBlk))));
 
         subject.captureAndStage(9);
         subject.stageDetectedIssOnFailure();
 
         // Detection staged the round, so the failure path de-duplicates and never stages under failure/.
-        assertThat(detectDir().resolve(base + ".blk.gz")).exists();
+        assertThat(detectDir().resolve(base + ".blk.zstd")).exists();
         assertThat(failureDir()).doesNotExist();
         verify(diskResolver, times(1)).resolve(9, 0);
     }
@@ -299,7 +326,7 @@ class IssDetectionStagingCoordinatorTest {
         final List<Runnable> deferred = new ArrayList<>();
         final IssDetectionStagingCoordinator asyncSubject = newSubject(deferred::add);
 
-        final String issName = FileBlockItemWriter.longToFileName(7L) + ".iss.gz";
+        final String issName = BlockFileUtils.blockNumberToFileName(7L) + ".iss.zstd";
         when(bufferReader.captureToDir(eq(9L), eq(0), any())).thenAnswer(inv -> writeInto(inv.getArgument(2), issName));
 
         asyncSubject.captureAndStage(9);
@@ -319,10 +346,10 @@ class IssDetectionStagingCoordinatorTest {
         when(issConfig.precedingBlocks()).thenReturn(1);
         when(blockStreamConfig.writerMode()).thenReturn(BlockStreamWriterMode.FILE);
 
-        final String precedingBase = FileBlockItemWriter.longToFileName(6L);
-        final String issBase = FileBlockItemWriter.longToFileName(7L);
-        final Path precedingBlk = Files.write(tempDir.resolve(precedingBase + ".blk.gz"), new byte[] {1});
-        final Path missingIss = tempDir.resolve(issBase + ".blk.gz"); // never created -> its copy fails
+        final String precedingBase = BlockFileUtils.blockNumberToFileName(6L);
+        final String issBase = BlockFileUtils.blockNumberToFileName(7L);
+        final Path precedingBlk = Files.write(tempDir.resolve(precedingBase + ".blk.zstd"), new byte[] {1});
+        final Path missingIss = tempDir.resolve(issBase + ".blk.zstd"); // never created -> its copy fails
         when(diskResolver.resolve(9, 1))
                 .thenReturn(
                         List.of(new IssBlockRef(6, List.of(precedingBlk)), new IssBlockRef(7, List.of(missingIss))));
@@ -331,8 +358,8 @@ class IssDetectionStagingCoordinatorTest {
 
         // The preceding context block is copied best-effort, but the ISS block itself could not be staged, so the whole
         // capture is discarded: the ISS file is absent and the round is NOT marked staged.
-        assertThat(detectDir().resolve(precedingBase + ".blk.gz")).exists();
-        assertThat(detectDir().resolve(issBase + ".blk.gz")).doesNotExist();
+        assertThat(detectDir().resolve(precedingBase + ".blk.zstd")).exists();
+        assertThat(detectDir().resolve(issBase + ".blk.zstd")).doesNotExist();
         // A discarded capture gets no upload markers, so its context block is never uploaded in the ISS block's place.
         assertThat(detectDir().resolve(precedingBase + ".blk.mf")).doesNotExist();
 
@@ -340,7 +367,7 @@ class IssDetectionStagingCoordinatorTest {
         final Path issBlk = Files.write(missingIss, new byte[] {2, 3});
         when(diskResolver.resolve(9, 1)).thenReturn(List.of(new IssBlockRef(7, List.of(issBlk))));
         subject.stageDetectedIssOnFailure();
-        assertThat(failureDir().resolve(issBase + ".blk.gz")).exists();
+        assertThat(failureDir().resolve(issBase + ".blk.zstd")).exists();
         assertThat(failureDir().resolve(issBase + ".blk.mf")).exists();
     }
 
@@ -350,8 +377,8 @@ class IssDetectionStagingCoordinatorTest {
         when(blockStreamConfig.writerMode()).thenReturn(BlockStreamWriterMode.FILE);
         when(issConfig.captureTimeout()).thenReturn(Duration.ofSeconds(5));
 
-        final String base = FileBlockItemWriter.longToFileName(7L);
-        final Path sourceBlk = Files.write(tempDir.resolve(base + ".blk.gz"), new byte[] {1, 2, 3});
+        final String base = BlockFileUtils.blockNumberToFileName(7L);
+        final Path sourceBlk = Files.write(tempDir.resolve(base + ".blk.zstd"), new byte[] {1, 2, 3});
         // Not durable on the first poll, durable on the next — resolveWithWait must retry rather than miss it.
         when(diskResolver.resolve(9, 0))
                 .thenReturn(List.of())
@@ -359,7 +386,7 @@ class IssDetectionStagingCoordinatorTest {
 
         subject.captureAndStage(9);
 
-        assertThat(detectDir().resolve(base + ".blk.gz")).exists();
+        assertThat(detectDir().resolve(base + ".blk.zstd")).exists();
         verify(diskResolver, atLeast(2)).resolve(9, 0);
     }
 
@@ -410,11 +437,11 @@ class IssDetectionStagingCoordinatorTest {
         assertThat(subject.currentIncidentFolder()).isEqualTo(EXPECTED_FOLDER);
 
         // The failure path stages the FIRST round (9), not the last-notified (11).
-        final String base = FileBlockItemWriter.longToFileName(7L);
-        final Path sourceBlk = Files.write(tempDir.resolve(base + ".blk.gz"), new byte[] {1, 2, 3});
+        final String base = BlockFileUtils.blockNumberToFileName(7L);
+        final Path sourceBlk = Files.write(tempDir.resolve(base + ".blk.zstd"), new byte[] {1, 2, 3});
         when(diskResolver.resolve(9, 0)).thenReturn(List.of(new IssBlockRef(7, List.of(sourceBlk))));
         subject.stageDetectedIssOnFailure();
-        assertThat(failureDir().resolve(base + ".blk.gz")).exists();
+        assertThat(failureDir().resolve(base + ".blk.zstd")).exists();
     }
 
     @Test
@@ -428,7 +455,7 @@ class IssDetectionStagingCoordinatorTest {
         assertThat(detectDir()).doesNotExist();
 
         // The round was not marked staged, so the failure path still recovers the block.
-        final String issName = FileBlockItemWriter.longToFileName(7L) + ".iss.gz";
+        final String issName = BlockFileUtils.blockNumberToFileName(7L) + ".iss.zstd";
         when(bufferReader.captureToDir(eq(9L), eq(0), any())).thenAnswer(inv -> writeInto(inv.getArgument(2), issName));
         subject.stageDetectedIssOnFailure();
         assertThat(failureDir().resolve(issName)).exists();
@@ -440,10 +467,10 @@ class IssDetectionStagingCoordinatorTest {
         when(issConfig.precedingBlocks()).thenReturn(1);
         when(blockStreamConfig.writerMode()).thenReturn(BlockStreamWriterMode.FILE);
 
-        final String precedingBase = FileBlockItemWriter.longToFileName(6L);
-        final String issBase = FileBlockItemWriter.longToFileName(7L);
-        final Path missingPreceding = tempDir.resolve(precedingBase + ".blk.gz"); // never created -> copy fails
-        final Path issBlk = Files.write(tempDir.resolve(issBase + ".blk.gz"), new byte[] {1, 2, 3});
+        final String precedingBase = BlockFileUtils.blockNumberToFileName(6L);
+        final String issBase = BlockFileUtils.blockNumberToFileName(7L);
+        final Path missingPreceding = tempDir.resolve(precedingBase + ".blk.zstd"); // never created -> copy fails
+        final Path issBlk = Files.write(tempDir.resolve(issBase + ".blk.zstd"), new byte[] {1, 2, 3});
         when(diskResolver.resolve(9, 1))
                 .thenReturn(
                         List.of(new IssBlockRef(6, List.of(missingPreceding)), new IssBlockRef(7, List.of(issBlk))));
@@ -451,8 +478,8 @@ class IssDetectionStagingCoordinatorTest {
         subject.captureAndStage(9);
 
         // The preceding context block was unstageable and skipped, but the ISS block was staged.
-        assertThat(detectDir().resolve(precedingBase + ".blk.gz")).doesNotExist();
-        assertThat(detectDir().resolve(issBase + ".blk.gz")).exists();
+        assertThat(detectDir().resolve(precedingBase + ".blk.zstd")).doesNotExist();
+        assertThat(detectDir().resolve(issBase + ".blk.zstd")).exists();
     }
 
     @Test
@@ -460,16 +487,16 @@ class IssDetectionStagingCoordinatorTest {
         when(issConfig.issBlockStagingEnabled()).thenReturn(true);
         when(blockStreamConfig.writerMode()).thenReturn(BlockStreamWriterMode.FILE);
 
-        final String issBase = FileBlockItemWriter.longToFileName(7L);
-        final Path issPnd = Files.write(tempDir.resolve(issBase + ".pnd.gz"), new byte[] {2});
+        final String issBase = BlockFileUtils.blockNumberToFileName(7L);
+        final Path issPnd = Files.write(tempDir.resolve(issBase + ".pnd.zstd"), new byte[] {2});
         final Path missingProof = tempDir.resolve(issBase + ".pnd.json"); // never created -> sidecar copy fails
         when(diskResolver.resolve(9, 0)).thenReturn(List.of(new IssBlockRef(7, List.of(issPnd, missingProof))));
 
         subject.captureAndStage(9);
 
         // The ISS block's contents were staged even though its proof sidecar could not be copied.
-        assertThat(detectDir().resolve(issBase + ".pnd.gz")).exists();
-        assertThat(detectDir().resolve(issBase + ".pnd.json.gz")).doesNotExist();
+        assertThat(detectDir().resolve(issBase + ".pnd.zstd")).exists();
+        assertThat(detectDir().resolve(issBase + ".pnd.json.zstd")).doesNotExist();
     }
 
     @Test
@@ -478,8 +505,8 @@ class IssDetectionStagingCoordinatorTest {
         when(blockStreamConfig.writerMode()).thenReturn(BlockStreamWriterMode.FILE);
         final List<Runnable> deferred = new ArrayList<>();
         final IssDetectionStagingCoordinator asyncSubject = newSubject(deferred::add);
-        final String base = FileBlockItemWriter.longToFileName(7L);
-        final Path sourceBlk = Files.write(tempDir.resolve(base + ".blk.gz"), new byte[] {1, 2, 3});
+        final String base = BlockFileUtils.blockNumberToFileName(7L);
+        final Path sourceBlk = Files.write(tempDir.resolve(base + ".blk.zstd"), new byte[] {1, 2, 3});
         final List<IssBlockRef> refs = List.of(new IssBlockRef(7, List.of(sourceBlk)));
         // Detection resolves the block, but the halt path stages the round before detection copies it.
         final AtomicBoolean firstResolve = new AtomicBoolean(true);
@@ -493,7 +520,7 @@ class IssDetectionStagingCoordinatorTest {
         asyncSubject.captureAndStage(9);
         deferred.getFirst().run();
 
-        assertThat(failureDir().resolve(base + ".blk.gz")).exists();
+        assertThat(failureDir().resolve(base + ".blk.zstd")).exists();
         assertThat(detectDir()).doesNotExist();
     }
 
@@ -504,8 +531,8 @@ class IssDetectionStagingCoordinatorTest {
         when(issConfig.captureTimeout()).thenReturn(Duration.ofSeconds(30));
         final List<Runnable> deferred = new ArrayList<>();
         final IssDetectionStagingCoordinator asyncSubject = newSubject(deferred::add);
-        final String base = FileBlockItemWriter.longToFileName(7L);
-        final Path sourceBlk = Files.write(tempDir.resolve(base + ".blk.gz"), new byte[] {1, 2, 3});
+        final String base = BlockFileUtils.blockNumberToFileName(7L);
+        final Path sourceBlk = Files.write(tempDir.resolve(base + ".blk.zstd"), new byte[] {1, 2, 3});
         // Detection's first poll finds nothing yet; meanwhile the halt path resolves the flushed block and stages it.
         final AtomicInteger resolves = new AtomicInteger();
         when(diskResolver.resolve(9, 0)).thenAnswer(inv -> {
@@ -521,7 +548,7 @@ class IssDetectionStagingCoordinatorTest {
 
         // One poll by detection plus the halt path's single resolve; detection did not keep polling for 30s.
         verify(diskResolver, times(2)).resolve(9, 0);
-        assertThat(failureDir().resolve(base + ".blk.gz")).exists();
+        assertThat(failureDir().resolve(base + ".blk.zstd")).exists();
         assertThat(detectDir()).doesNotExist();
     }
 

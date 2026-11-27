@@ -83,9 +83,15 @@ public class FileAndGrpcBlockItemWriter implements BlockItemWriter {
     @Override
     @Nullable
     public Path flushIncompleteBlock() {
-        // The file writer persists the open block as a ".open.gz" triage artifact. The gRPC buffer block is left as-is
-        // for the buffer service to discard on shutdown (closing it would make it eligible for buffer persistence).
+        // The file writer persists the open block as a ".open.zstd" triage artifact. Leave the gRPC buffer block
+        // unchanged for the buffer service to discard on shutdown; closing it would enable buffer persistence.
         return this.fileBlockItemWriter.flushIncompleteBlock();
+    }
+
+    @Override
+    public void abandonBlock() {
+        // Only the file writer holds a stream; the gRPC buffer block is left for the buffer service.
+        this.fileBlockItemWriter.abandonBlock();
     }
 
     @Override
