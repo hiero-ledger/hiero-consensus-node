@@ -49,6 +49,7 @@ import com.hedera.node.app.service.clpr.impl.test.verifier.PassThroughClprVerifi
 import com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierFactory;
 import com.hedera.node.app.service.clpr.impl.verifier.VerifiedConfig;
 import com.hedera.node.app.service.contract.api.SmartContractServiceApi;
+import com.hedera.node.app.service.entityid.WritableEntityCounters;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fees.ExchangeRateInfo;
 import com.hedera.node.app.spi.fees.FeeCharging;
@@ -212,7 +213,7 @@ class ClprCreateChannelHandlerTest {
         lenient()
                 .when(writableStates.<ProtoBytes, ClprChannel>get(CHANNELS_STATE_ID))
                 .thenReturn(writableChannels);
-        channelStore = new WritableChannelStore(writableStates);
+        channelStore = new WritableChannelStore(writableStates, mock(WritableEntityCounters.class));
     }
 
     @Test

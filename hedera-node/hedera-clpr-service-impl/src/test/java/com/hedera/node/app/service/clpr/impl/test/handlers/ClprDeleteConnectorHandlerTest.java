@@ -12,6 +12,7 @@ import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.res
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -30,6 +31,7 @@ import com.hedera.node.app.service.clpr.impl.WritableConnectorRegistrationStore;
 import com.hedera.node.app.service.clpr.impl.WritableConnectorStore;
 import com.hedera.node.app.service.clpr.impl.handlers.ClprDeleteConnectorHandler;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.node.app.service.entityid.WritableEntityCounters;
 import com.hedera.node.app.service.entityid.impl.AppEntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
@@ -126,7 +128,7 @@ class ClprDeleteConnectorHandlerTest {
         lenient()
                 .when(writableStates.<ClprConnectorKey, ClprConnector>get(CONNECTORS_STATE_ID))
                 .thenReturn(writableConnectors);
-        connectorStore = new WritableConnectorStore(writableStates);
+        connectorStore = new WritableConnectorStore(writableStates, mock(WritableEntityCounters.class));
 
         final var writableRegistrations = MapWritableKVState.<ProtoBytes, ProtoBytes>builder(
                         CONNECTOR_REGISTRATION_HISTORY_STATE_ID, "ClprService:CONNECTOR_REGISTRATION_HISTORY")

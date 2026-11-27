@@ -73,6 +73,7 @@ import com.hedera.node.app.service.clpr.impl.verifier.ClprVerifier;
 import com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierFactory;
 import com.hedera.node.app.service.clpr.impl.verifier.VerifiedConfig;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.node.app.service.entityid.WritableEntityCounters;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
@@ -217,7 +218,7 @@ class ClprDeepDiveBundleAuditTest {
         lenient()
                 .when(writableStates.<Bytes, ClprChannel>get(CHANNELS_STATE_ID))
                 .thenReturn(writableChannels);
-        channelStore = new WritableChannelStore(writableStates);
+        channelStore = new WritableChannelStore(writableStates, mock(WritableEntityCounters.class));
 
         writableMessages = MapWritableKVState.<ClprMessageKey, ClprMessageValue>builder(
                         MESSAGE_QUEUE_STATE_ID, "ClprService:MESSAGE_QUEUE")
@@ -233,7 +234,7 @@ class ClprDeepDiveBundleAuditTest {
         lenient()
                 .when(writableStates.<ClprConnectorKey, ClprConnector>get(CONNECTORS_STATE_ID))
                 .thenReturn(writableConnectors);
-        connectorStore = new WritableConnectorStore(writableStates);
+        connectorStore = new WritableConnectorStore(writableStates, mock(WritableEntityCounters.class));
     }
 
     // ========== pureChecks tests ==========
@@ -3334,7 +3335,8 @@ class ClprDeepDiveBundleAuditTest {
                 com.hedera.node.app.service.clpr.impl.ReadableLedgerConfigurationStoreImpl.class);
         lenient().when(localConfig.getConfiguration()).thenAnswer(ignored -> configStore.getConfiguration());
         return new com.hedera.node.app.service.clpr.impl.ClprServiceApiImpl(
-                new com.hedera.node.app.service.clpr.impl.ReadableChannelStoreImpl(writableStates),
+                new com.hedera.node.app.service.clpr.impl.ReadableChannelStoreImpl(
+                        writableStates, mock(WritableEntityCounters.class)),
                 channelStore,
                 connectorStore,
                 localConfig,

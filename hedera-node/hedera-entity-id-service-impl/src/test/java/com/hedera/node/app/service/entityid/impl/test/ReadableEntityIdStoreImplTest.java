@@ -9,6 +9,7 @@ import static org.mockito.Mockito.*;
 
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.entityid.impl.ReadableEntityIdStoreImpl;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
@@ -150,5 +151,17 @@ class ReadableEntityIdStoreImplTest {
         when(mockEntityCountsState.get()).thenReturn(entityCounts);
 
         assertEquals(12L, subject.numNodes());
+    }
+
+    @Test
+    void testClprCounts() {
+        final var entityCounts = EntityCounts.newBuilder()
+                .numClprChannels(3L)
+                .numClprConnectors(4L)
+                .build();
+        when(mockEntityCountsState.get()).thenReturn(entityCounts);
+
+        assertEquals(3L, subject.getCounterFor(EntityType.CLPR_CHANNEL));
+        assertEquals(4L, subject.getCounterFor(EntityType.CLPR_CONNECTOR));
     }
 }

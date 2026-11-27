@@ -39,6 +39,7 @@ import com.hedera.node.app.service.clpr.impl.WritableConnectorRegistrationStore;
 import com.hedera.node.app.service.clpr.impl.WritableConnectorStore;
 import com.hedera.node.app.service.clpr.impl.handlers.ClprCreateConnectorHandler;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.node.app.service.entityid.WritableEntityCounters;
 import com.hedera.node.app.service.entityid.impl.AppEntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
@@ -140,7 +141,7 @@ class ClprCreateConnectorHandlerTest {
         lenient()
                 .when(writableStates.<ClprConnectorKey, ClprConnector>get(CONNECTORS_STATE_ID))
                 .thenReturn(writableConnectors);
-        connectorStore = new WritableConnectorStore(writableStates);
+        connectorStore = new WritableConnectorStore(writableStates, mock(WritableEntityCounters.class));
 
         // Permanent channel-scoped registrations
         final var writableRegistrations = MapWritableKVState.<ProtoBytes, ProtoBytes>builder(
@@ -163,7 +164,7 @@ class ClprCreateConnectorHandlerTest {
         lenient()
                 .when(writableStates.<ProtoBytes, ClprChannel>get(CHANNELS_STATE_ID))
                 .thenReturn(writableChannels);
-        channelStore = new ReadableChannelStoreImpl(writableStates);
+        channelStore = new ReadableChannelStoreImpl(writableStates, mock(WritableEntityCounters.class));
     }
 
     // ── pureChecks ────────────────────────────────────────────────────────────

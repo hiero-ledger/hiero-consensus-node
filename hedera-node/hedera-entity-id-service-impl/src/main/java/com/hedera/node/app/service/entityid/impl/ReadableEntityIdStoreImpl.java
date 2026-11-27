@@ -134,6 +134,8 @@ public class ReadableEntityIdStoreImpl implements ReadableEntityIdStore {
             case HOOK -> entityState.numHooks();
             case EVM_HOOK_STORAGE -> entityState.numEvmHookStorageSlots();
             case REGISTERED_NODE -> entityState.numRegisteredNodes();
+            case CLPR_CHANNEL -> entityState.numClprChannels();
+            case CLPR_CONNECTOR -> entityState.numClprConnectors();
         };
     }
 
