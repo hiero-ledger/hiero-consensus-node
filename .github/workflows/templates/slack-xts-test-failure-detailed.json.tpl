@@ -35,7 +35,7 @@
             },
             {
               "type": "mrkdwn",
-              "text": {{ printf "*Failing Test(s)*: %s" (getenv "FAILED_TESTS" | required "FAILED_TESTS must be set") | data.ToJSON }}
+              "text": {{ printf "*Failing Test(s)*: %s" (getenv "FAILED_TESTS" "None reported") | data.ToJSON }}
             },
             {
               "type": "mrkdwn",
@@ -102,14 +102,8 @@
           "type": "section",
           "text": {
             "type": "mrkdwn",
-            "text": "*Commit List*:"
-          },
-          "fields": [
-            {
-              "type": "mrkdwn",
-              "text": {{ getenv "COMMIT_LIST" | required "COMMIT_LIST must be set" | data.ToJSON }}
-            }
-          ]
+            "text": {{ printf "*Commit List*:\n%s" (getenv "COMMIT_LIST" | required "COMMIT_LIST must be set") | data.ToJSON }}
+          }
         }
       ]
     }

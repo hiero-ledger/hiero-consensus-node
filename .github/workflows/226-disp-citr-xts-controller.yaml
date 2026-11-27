@@ -206,22 +206,24 @@ jobs:
           LATEST_XTS_PASS_TAG="$(git tag --list --sort=-version:refname "${XTS_PASS_PATTERN}" | head --lines 1)"
           LATEST_PROMOTED_BUILD_TAG="$(git tag --list --sort=-version:refname "${BUILD_PATTERN}" | head --lines 1)"
           set -e
+          COMMIT_RANGE=()
           if [[ -n "${LATEST_XTS_PASS_TAG}" ]]; then
             echo "::debug::Using latest xts-pass tag"
             echo "Latest XTS Pass Tag: ${LATEST_XTS_PASS_TAG}"
             LATEST_XTS_PASS_COMMIT="$(git rev-list -n 1 "${LATEST_XTS_PASS_TAG}")"
-            COMMIT_LIST="$(git log --pretty=format:"- [%h: %s](https://github.com/${{ github.repository }}/commit/%H)" "${LATEST_XTS_PASS_COMMIT}..${XTS_COMMIT}")"
+            COMMIT_RANGE=("${LATEST_XTS_PASS_COMMIT}..${XTS_COMMIT}")
           elif [[ -n "${LATEST_PROMOTED_BUILD_TAG}" ]]; then
             echo "::debug::Using latest promoted build tag as no xts-pass tag found"
             echo "Latest Promoted Tag: ${LATEST_PROMOTED_BUILD_TAG}"
             LATEST_PROMOTED_BUILD_COMMIT="$(git rev-list -n 1 "${LATEST_PROMOTED_BUILD_TAG}")"
-            COMMIT_LIST="$(git log --pretty=format:"- [%h: %s](https://github.com/${{ github.repository }}/commit/%H)" "${LATEST_PROMOTED_BUILD_COMMIT}..${XTS_COMMIT}")"
+            COMMIT_RANGE=("${LATEST_PROMOTED_BUILD_COMMIT}..${XTS_COMMIT}")
           fi
           # Empty when there is no prior tag, or when the candidate is not ahead of the latest
           # xts-pass (a re-run of an older commit); list the candidate itself.
-          if [[ -z "${COMMIT_LIST//[[:space:]]/}" ]]; then
-            COMMIT_LIST="$(git log -n 1 --pretty=format:"- [%h: %s](https://github.com/${{ github.repository }}/commit/%H)" "${XTS_COMMIT}")"
+          if [[ ${#COMMIT_RANGE[@]} -eq 0 || -z "$(git rev-list "${COMMIT_RANGE[@]}")" ]]; then
+            COMMIT_RANGE=(-n 1 "${XTS_COMMIT}")
           fi
+          COMMIT_LIST="$(git log --pretty=format:"- [%h: %s](https://github.com/${{ github.repository }}/commit/%H)" "${COMMIT_RANGE[@]}")"
           echo "::endgroup::" # Check Promotion Eligibility
 
           echo "::group::Check if XTS COMMIT is on default branch"
@@ -295,20 +297,20 @@ jobs:
             echo "xts-tag-commit-email=${AUTHOR_EMAIL}" >> "${GITHUB_OUTPUT}"
             echo "xts-info=${XTS_COMMIT_BRANCH} - ${XTS_SHORT_COMMIT}" >> "${GITHUB_OUTPUT}"
 
-            COMMIT_COUNT=$(echo "$COMMIT_LIST" | wc -l)
-            COMMIT_LIST_STR=""
             if [[ -z "${COMMIT_LIST//[[:space:]]/}" ]]; then
               # should never get here.
               echo "::error::No commits associated with this release; exiting."
               exit 1
-            elif [[ ${COMMIT_COUNT} -gt 15 ]]; then
-              COMMIT_LIST_STR="Please refer to the workflow summary for the full list of associated commits."
-            else
-              PARSED_COMMIT_LIST="${COMMIT_LIST//\`/}"
-              ESCAPED_COMMIT_LIST=$(jq -Rs . <<< "${PARSED_COMMIT_LIST}")
-              COMMIT_LIST_STR=${ESCAPED_COMMIT_LIST:1:-1}
             fi
-            echo "commit-list=${COMMIT_LIST_STR}" >> "${GITHUB_OUTPUT}"
+            # The Slack reports' copy: Slack's link syntax, and cut to fit the 3000-character limit of the
+            # section it's posted in. The step summary below keeps the full list.
+            SLACK_COMMIT_LIST="$(.github/workflows/support/scripts/slack-commit-list.sh \
+              "${{ github.server_url }}/${{ github.repository }}" 2900 "${COMMIT_RANGE[@]}")"
+            {
+              echo "commit-list<<EOF"
+              echo "${SLACK_COMMIT_LIST}"
+              echo "EOF"
+            } >> "${GITHUB_OUTPUT}"
 
             # GitHub Step Summary
             echo "### XTS-Candidate commit found" >>  "${GITHUB_STEP_SUMMARY}"
@@ -535,8 +537,16 @@ jobs:
   report-failure:
     name: Report XTS execution failure
     runs-on: hl-cn-default-lin-sm
+    # Every job xts-execution waits on is listed, so a run cancelled before XTS starts is reported as
+    # cancelled rather than as a test failure: xts-execution itself is then skipped, not cancelled.
     needs:
+      - extract-citr-vars
+      - verify-citr-vars
+      - compute-solo-ge-0440
+      - parameters
       - fetch-xts-candidate
+      - extract-jdk-version
+      - state-validator-uberjar
       - xts-execution
       - tag-for-promotion
     # A candidate that was resolved but rejected (xts-proceed=false) is not a failure; stay quiet.
@@ -559,11 +569,12 @@ jobs:
       - name: Determine Report Category
         id: report-category
         run: |
-          if [[ "${{ needs.xts-execution.result }}" == "cancelled" ]] \
-            || [[ "${{ needs.fetch-xts-candidate.result }}" == "cancelled" ]]; then
+          if [[ "${{ contains(needs.*.result, 'cancelled') }}" == "true" ]]; then
             echo "category=cancelled" >> "${GITHUB_OUTPUT}"
           elif [[ "${{ needs.fetch-xts-candidate.result }}" =~ ^(skipped|failure)$ ]] \
-            || [[ "${{ needs.xts-execution.outputs.failure-mode }}" == "workflow" ]]; then
+            || [[ "${{ needs.xts-execution.outputs.failure-mode }}" == "workflow" ]] \
+            || [[ "${{ needs.xts-execution.result }}" == "skipped" ]]; then
+            # A skipped xts-execution means a job it depends on failed: nothing was tested.
             echo "category=environment" >> "${GITHUB_OUTPUT}"
           else
             echo "category=test" >> "${GITHUB_OUTPUT}"
@@ -764,8 +775,15 @@ jobs:
   # Required: a failed report fails the run.
   report-xts-result:
     name: Report XTS Result to Chewie
+    # The jobs xts-execution depends on are listed so a run cancelled before XTS starts reports cancelled.
     needs:
+      - extract-citr-vars
+      - verify-citr-vars
+      - compute-solo-ge-0440
+      - parameters
       - fetch-xts-candidate
+      - extract-jdk-version
+      - state-validator-uberjar
       - report-xts-running # keeps the terminal report after the running one, so it is the latest
       - xts-execution
     if: ${{ always() && needs.fetch-xts-candidate.outputs.xts-tag-commit != '' }}
@@ -779,7 +797,7 @@ jobs:
         ${{ needs.fetch-xts-candidate.outputs.xts-proceed != 'true' && 'not_run'
         || needs.xts-execution.result == 'success' && 'passed'
         || needs.xts-execution.result == 'failure' && 'failed'
-        || needs.xts-execution.result == 'cancelled' && 'cancelled'
+        || contains(needs.*.result, 'cancelled') && 'cancelled'
         || 'not_run' }}
     secrets:
       chewie-key: ${{ secrets.CHEWIE_REPO_IDENTITY_KEY }}
