@@ -22,15 +22,22 @@ testModuleInfo {
 
 jmhModuleInfo {
     requires("com.swirlds.config.extensions.test.fixtures")
+    requires("org.hiero.base.concurrent")
     requires("org.hiero.consensus.benchmark.tools")
     requires("org.hiero.consensus.event.intake.impl")
     requires("org.hiero.consensus.metrics")
     requires("org.hiero.consensus.model.test.fixtures")
     requires("org.hiero.consensus.utility.test.fixtures")
+    requires("org.hiero.otter.fixtures")
     requires("jmh.core")
 }
 
 jmh {
     // the benchmarks that are tracked; -PjmhTests=<pattern> runs others instead
-    includes.convention(listOf("EventSignatureValidatorBenchmark"))
+    includes.convention(listOf("EventSignatureValidatorBenchmark", "IntakePipelineBenchmark"))
+}
+
+benchmarkTracking {
+    // the Falcon recording of IntakePipelineBenchmark does not fit into the default heap
+    smokeJvmArgs = "-Xms4g -Xmx4g"
 }
