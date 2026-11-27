@@ -19,7 +19,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.base.CompareTo;
 import org.hiero.consensus.main.model.ConsensusEvent;
 import org.hiero.consensus.main.model.NodeId;
-import org.hiero.consensus.main.model.Round;
+import org.hiero.consensus.model.event.EventOrigin;
+import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.roster.RosterEntryWrapper;
 import org.hiero.consensus.model.roster.RosterWrapper;
@@ -70,12 +71,15 @@ public class UptimeTracker {
      * Look at the events in a round to determine which nodes are up and which nodes are down.
      *
      * @param round the round to analyze
-     * @return true if a new self event was found in this round
+     * @return a {@link SelfEventRoundSignal} describing whether this round contains a new self
+     *         event reaching consensus and, if so, whether any such event was created in the
+     *         current runtime
      */
-    public boolean trackRound(@NonNull final ConsensusRound round) {
+    @NonNull
+    public SelfEventRoundSignal trackRound(@NonNull final ConsensusRound round) {
 
         if (round.isEmpty()) {
-            return false;
+            return SelfEventRoundSignal.NONE;
         }
 
         final Instant start = time.now();
@@ -83,7 +87,7 @@ public class UptimeTracker {
         final RosterWrapper roster = round.getConsensusRosterWrapper();
         addAndRemoveNodes(uptimeData, roster);
         final Map<NodeId, ConsensusEvent> lastEventsInRoundByCreator = new HashMap<>();
-        final boolean newSelfEvent = scanRound(round, lastEventsInRoundByCreator);
+        final SelfEventRoundSignal signal = scanRound(round, lastEventsInRoundByCreator);
         updateUptimeData(roster, uptimeData, lastEventsInRoundByCreator, round.getRoundNum());
         reportUptime(roster, uptimeData, round.getConsensusTimestamp(), round.getRoundNum());
 
@@ -92,7 +96,7 @@ public class UptimeTracker {
         uptimeMetrics
                 .getUptimeComputationTimeMetric()
                 .update(UNIT_NANOSECONDS.convertTo(elapsed.toNanos(), UNIT_MICROSECONDS));
-        return newSelfEvent;
+        return signal;
     }
 
     /**
@@ -138,32 +142,42 @@ public class UptimeTracker {
     }
 
     /**
-     * Scan all events in the round.
+     * Scan all events in the round, recording the last event per creator and detecting whether
+     * this round contains a new self event reaching consensus.
      *
      * @param round                      the round
      * @param lastEventsInRoundByCreator the last event in the round by creator, is updated by this method
-     * @return true if a new self event was found in this round
+     * @return the {@link SelfEventRoundSignal} describing this round's self-event situation
      */
-    private boolean scanRound(
-            @NonNull final Round round, @NonNull final Map<NodeId, ConsensusEvent> lastEventsInRoundByCreator) {
+    @NonNull
+    private SelfEventRoundSignal scanRound(
+            @NonNull final ConsensusRound round,
+            @NonNull final Map<NodeId, ConsensusEvent> lastEventsInRoundByCreator) {
 
         // capture previous self event consensus timestamp, so we can tell if the current round contains a
         // new self event
         final Instant previousSelfEventConsensusTimestamp = lastSelfEventTime.get();
 
-        for (final ConsensusEvent event : round.getConsensusEvents()) {
+        boolean runtimeSelfEventSeen = false;
+        for (final PlatformEvent event : round.getConsensusEvents()) {
             lastEventsInRoundByCreator.put(event.getCreatorId(), event);
+            if (!runtimeSelfEventSeen
+                    && event.getCreatorId().equals(selfId)
+                    && event.getOrigin() == EventOrigin.RUNTIME) {
+                runtimeSelfEventSeen = true;
+            }
         }
 
         final ConsensusEvent lastSelfEvent = lastEventsInRoundByCreator.get(selfId);
-        if (lastSelfEvent != null) {
-            final Instant lastSelfEventConsensusTimestamp = lastSelfEvent.getConsensusTimestamp();
-            if (!lastSelfEventConsensusTimestamp.equals(previousSelfEventConsensusTimestamp)) {
-                lastSelfEventTime.set(lastSelfEventConsensusTimestamp);
-                return true;
-            }
+        if (lastSelfEvent == null) {
+            return SelfEventRoundSignal.NONE;
         }
-        return false;
+        final Instant lastSelfEventConsensusTimestamp = lastSelfEvent.getConsensusTimestamp();
+        if (lastSelfEventConsensusTimestamp.equals(previousSelfEventConsensusTimestamp)) {
+            return SelfEventRoundSignal.NONE;
+        }
+        lastSelfEventTime.set(lastSelfEventConsensusTimestamp);
+        return runtimeSelfEventSeen ? SelfEventRoundSignal.RUNTIME_PRESENT : SelfEventRoundSignal.NON_RUNTIME_ONLY;
     }
 
     /**

@@ -21,6 +21,7 @@ import org.hiero.consensus.status.monitor.actions.PlatformStatusAction;
 import org.hiero.consensus.status.monitor.actions.SelfEventReachedConsensusAction;
 import org.hiero.consensus.status.monitor.actions.StateWrittenToDiskAction;
 import org.hiero.consensus.status.monitor.actions.TimeElapsedAction;
+import org.hiero.consensus.status.monitor.uptime.SelfEventRoundSignal;
 import org.hiero.consensus.status.monitor.uptime.UptimeTracker;
 
 /**
@@ -83,11 +84,15 @@ public class DefaultPlatformMonitor implements PlatformMonitor {
 
     /**
      * {@inheritDoc}
+     *
+     * <p>Only a self event created in the current runtime demonstrates event-creation liveness
+     * and triggers the {@code CHECKING} &rarr; {@code ACTIVE} transition. Self events reaching
+     * consensus only via replay from local storage or via gossip are not sufficient on their
+     * own; {@link UptimeTracker} reports this distinction via {@link SelfEventRoundSignal}.
      */
     @Override
     public PlatformStatus consensusRound(@NonNull final ConsensusRound round) {
-        final boolean selfEventReachedConsensus = uptimeTracker.trackRound(round);
-        if (!selfEventReachedConsensus) {
+        if (uptimeTracker.trackRound(round) != SelfEventRoundSignal.RUNTIME_PRESENT) {
             return null;
         }
         // the action receives the wall clock time, NOT the consensus timestamp
