@@ -132,6 +132,9 @@ jobs:
         run: |
           kubectl --context kind-solo-migration logs -n solo -l "app.kubernetes.io/component=importer,app.kubernetes.io/instance=mirror-1" \
             --all-containers --since=24h --timestamps --prefix --tail=-1 > mirror-importer.log || true
+          # Blocks-only baselines (0.80+) feed the mirror node through a block node.
+          kubectl --context kind-solo-migration logs -n solo -l "app.kubernetes.io/name=block-node-1" \
+            --all-containers --since=24h --timestamps --prefix --tail=-1 > block-node.log || true
 
           env -u KUBERNETES_SERVICE_HOST solo deployment diagnostics all -d solo-migration --dev -q || true
           LOG_FOLDER="${HOME}/.solo/logs/solo"
@@ -154,7 +157,9 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: mn-log
-          path: mirror-importer.log
+          path: |
+            mirror-importer.log
+            block-node.log
 
       - name: Upload CN Logs
         if: always()
@@ -171,7 +176,7 @@ jobs:
             echo "### 📜 Logs"
             echo ""
             echo "Artifacts:"
-            echo "- [Mirror Node importer log](${{ steps.upload_mn_logs.outputs.artifact-url }})"
+            echo "- [Mirror Node importer and Block Node logs](${{ steps.upload_mn_logs.outputs.artifact-url }})"
             echo "- [Consensus Node logs](${{ steps.upload_cn_logs.outputs.artifact-url }})"
           } >> "${GITHUB_STEP_SUMMARY}"
 
