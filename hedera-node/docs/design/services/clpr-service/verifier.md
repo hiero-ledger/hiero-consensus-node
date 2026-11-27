@@ -261,8 +261,17 @@ plus the exact field offsets `{1,2,4,5,16}`. The optional last-message hash key 
 using the proven next-message ID, which must be at least 2 because message IDs start at 1.
 The QBFT verifier also accepts a bundle that ends before `nextMessageId - 1`: it then proves
 the running-hash slot of the bundle's last message `L`, a non-zero value, and the system
-contract binds the key to `L` in `[ackedMessageId + messageCount, nextMessageId - 1]`, trying
-at most 512 message IDs.
+contract binds the key to `L` in `[ackedMessageId + messageCount, nextMessageId - 1]`. It tries
+the first and the last ID of that range, then the rest in order, and charges gas for each ID it
+tries, so the search is bounded by the caller's gas, as in the Solidity verifier.
+
+The QBFT `verifyBundle` charges the gas the verification uses rather than a flat amount: a
+per-bundle charge, plus a charge for each header's committed seals (per seal, and per seal per
+member of the validator set it is checked against), for each Merkle Patricia proof node, and for
+each message ID tried. The constants are fitted to the Solidity QBFT verifiers' measurements, so
+a bundle costs about what it costs to verify on an EVM chain. The verification may use at most
+the gas left in the calling frame and stops as soon as it is used up, so a bundle can cross any
+number of hops; the caller's gas bounds the work.
 Proof order is irrelevant; duplicate, missing, and unrelated keys are rejected. A valid
 state proof for another channel cannot satisfy these checks, even if its counters and
 running hashes have the same values.

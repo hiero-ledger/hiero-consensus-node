@@ -111,12 +111,31 @@ public final class BesuQbftVerifier {
     /** Items in a contract-mode bundle's validator source (field 1): {@code [trustedSet, hops, contractProof]}. */
     private static final int CONTRACT_MODE_VALIDATOR_SOURCE_ITEMS = 3;
 
+    // ── Gas schedule (charged to the bound VerificationGas meter) ──
+    // Fitted to the Solidity QBFT verifiers' Foundry measurements in the CLPR spec (verifier_contract.md), so a
+    // bundle costs about what it costs to verify on an EVM chain. Work is charged where it happens, so a bundle can
+    // carry any number of hops and the last-message search has no fixed bound: the caller's gas limits both.
+
     /**
-     * Most hops a contract-mode bundle may cross. Each hop costs a validator-array proof and up to a quorum of
-     * signature recoveries; a relay that is further behind delivers the catch-up over several bundles (the relay
-     * sends at most 5 by default).
+     * Per {@code verifyBundle} call, charged by the system contract before verifying: decoding the trust anchor and the
+     * payload, deriving the channel's storage slots, and building the result.
      */
-    static final int MAX_CONTRACT_MODE_HOPS = 32;
+    public static final long GAS_PER_BUNDLE = 90_000L;
+
+    /** Per header whose seals are checked (the current block and each hop): decoding and the commit-seal hash. */
+    public static final long GAS_PER_HEADER = 20_000L;
+
+    /** Per committed seal recovered: the signature recovery (EVM {@code ECRECOVER}) and its bookkeeping. */
+    public static final long GAS_PER_SEAL = 11_500L;
+
+    /** Per committed seal, per member of the validator set it is checked against: the membership check. */
+    public static final long GAS_PER_SEAL_PER_VALIDATOR = 60L;
+
+    /** Per Merkle Patricia proof node, on top of hashing it: decoding and walking the node. */
+    public static final long GAS_PER_TRIE_NODE = 4_000L;
+
+    /** Per message id tried by {@link #findLastMessageId}: two keccak256 hashes and a comparison. */
+    public static final long GAS_PER_PROBE = 100L;
 
     /** Field index of {@code stateRoot} inside the canonical Ethereum block-header RLP. */
     private static final int HEADER_STATE_ROOT_INDEX = 3;
@@ -175,15 +194,6 @@ public final class BesuQbftVerifier {
     // keccak256(abi.encode(uint64(L), keccak256(abi.encode(channelId, 1)))) + 1.
     private static final int MESSAGE_QUEUES_MAPPING_SLOT = 1;
     private static final int MESSAGE_OFFSET_RUNNING_HASH = 1;
-
-    /**
-     * Most message ids {@link #findLastMessageId} tries. Each probe costs two keccak256 hashes (about 84 gas in the
-     * EVM); 512 probes is roughly half of the flat {@code verifyBundle} charge of 100k gas, leaving the rest for the
-     * other verification work. An honest bundle starts right after the peer's acked id and matches on the first probe.
-     *
-     * <p>Future: charge gas by the work done (per probe, seal, hop and byte) instead of a flat amount.
-     */
-    static final int MAX_LAST_MESSAGE_PROBES = 512;
 
     private static final int CHANNEL_OFFSET_STATUS_NEXTMSGID = 1;
     private static final int CHANNEL_OFFSET_ACKED_RECEIVED = 2;
@@ -425,10 +435,6 @@ public final class BesuQbftVerifier {
                     "validator source trustedSet does not match the trust anchor's validator set");
         }
         final List<Rlp.Item> hops = hopsItem.children();
-        if (hops.size() > MAX_CONTRACT_MODE_HOPS) {
-            throw ProofException.besuQbft(
-                    "bundle crosses " + hops.size() + " hops; at most " + MAX_CONTRACT_MODE_HOPS + " are accepted");
-        }
 
         // --- 0. Walk the hops: each is sealed by the trusted set and its state gives the next set -------------
         List<byte[]> validators = anchorValidators;
@@ -1731,6 +1737,8 @@ public final class BesuQbftVerifier {
                     + validatorCount + "-validator set");
         }
 
+        VerificationGas.charge(GAS_PER_HEADER
+                + committedSeals.size() * (GAS_PER_SEAL + GAS_PER_SEAL_PER_VALIDATOR * (long) validatorCount));
         final byte[] commitSealMessageHash = buildCommitSealHash(headerItem, extra);
 
         // 2. ecRecover every seal; collect recovered addresses into a list.
@@ -1905,16 +1913,19 @@ public final class BesuQbftVerifier {
     /**
      * Finds the message whose running-hash slot is {@code lastMessageSlotKey32}: the last message L of a bundle
      * of {@code messageCount} messages. The bundle's messages are not yet acknowledged by the sender, so L lies in
-     * {@code [ackedMessageId + messageCount, nextMessageId - 1]}. It hits on its first probe when the bundle starts
-     * at {@code ackedMessageId + 1}, and tries at most {@link #MAX_LAST_MESSAGE_PROBES} ids. Mirrors the Solidity
-     * {@code ClprEvmBundleVerifier._findLastMessageId}, which is bounded by gas instead.
+     * {@code [ackedMessageId + messageCount, nextMessageId - 1]}. It first tries the two likely ids, the first of that
+     * range (the bundle starts right after the acked id) and the last (the bundle ends at the latest message), then
+     * the rest in order. Each id tried is charged {@link #GAS_PER_PROBE}, so the search is bounded by the caller's gas,
+     * as the Solidity {@code ClprEvmBundleVerifier._findLastMessageId} is; a receiver that is far ahead of the
+     * sender's acked id pays for the longer search instead of having the bundle rejected.
      *
      * @param channelId32 the channel the slot must belong to
      * @param lastMessageSlotKey32 the proven 6th slot's key
      * @param ackedMessageId the sender's proven {@code ackedMessageId}
      * @param nextMessageId the sender's proven {@code nextMessageId}
      * @param messageCount the number of messages in the bundle
-     * @return L, or empty when none of the ids tried has that slot
+     * @return L, or empty when no id in the range has that slot
+     * @throws ProofException if the bound gas meter runs out before L is found
      */
     @NonNull
     public static OptionalLong findLastMessageId(
@@ -1931,14 +1942,30 @@ public final class BesuQbftVerifier {
         final byte[] queueBase =
                 MiscCryptoUtils.keccak256DigestOf(concat(channelId32, uint256Bytes(MESSAGE_QUEUES_MAPPING_SLOT)));
         final long first = ackedMessageId + messageCount;
-        final long end = Math.min(nextMessageId, first + MAX_LAST_MESSAGE_PROBES);
-        for (long id = first; id > 0 && id < end; id++) {
-            final byte[] messageBase = MiscCryptoUtils.keccak256DigestOf(concat(uint256Bytes(id), queueBase));
-            if (Arrays.equals(addToBytes32(messageBase, MESSAGE_OFFSET_RUNNING_HASH), lastMessageSlotKey32)) {
+        final long last = nextMessageId - 1;
+        if (first <= 0 || first > last) {
+            return OptionalLong.empty();
+        }
+        if (isRunningHashSlotOf(first, queueBase, lastMessageSlotKey32)) {
+            return OptionalLong.of(first);
+        }
+        if (last > first && isRunningHashSlotOf(last, queueBase, lastMessageSlotKey32)) {
+            return OptionalLong.of(last);
+        }
+        for (long id = first + 1; id < last; id++) {
+            if (isRunningHashSlotOf(id, queueBase, lastMessageSlotKey32)) {
                 return OptionalLong.of(id);
             }
         }
         return OptionalLong.empty();
+    }
+
+    /** Whether {@code slotKey32} is the running-hash slot of message {@code id}; charges one probe. */
+    private static boolean isRunningHashSlotOf(
+            final long id, @NonNull final byte[] queueBase, @NonNull final byte[] slotKey32) {
+        VerificationGas.charge(GAS_PER_PROBE);
+        final byte[] messageBase = MiscCryptoUtils.keccak256DigestOf(concat(uint256Bytes(id), queueBase));
+        return Arrays.equals(addToBytes32(messageBase, MESSAGE_OFFSET_RUNNING_HASH), slotKey32);
     }
 
     /** {@code value} as a 32-byte big-endian ABI word. */
@@ -2590,6 +2617,7 @@ public final class BesuQbftVerifier {
                 if (node.length == 0) {
                     throw ProofException.besuQbft("empty proof node");
                 }
+                VerificationGas.charge(GAS_PER_TRIE_NODE + VerificationGas.keccakGas(node.length));
                 nodesByHash.put(new BytesKey(MiscCryptoUtils.keccak256DigestOf(node)), node.clone());
             }
 
