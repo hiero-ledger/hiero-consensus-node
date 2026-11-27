@@ -64,6 +64,7 @@ public abstract class UpdateCommonDecoder {
 
     protected static final int EXPIRY = 1;
     protected static final int TOKEN_KEYS = 1;
+    protected static final int TOKEN_KEYS_IN_HEDERA_TOKEN = 7;
 
     protected static final int KEY_TYPE = 0;
     protected static final int KEY_VALUE = 1;
@@ -92,7 +93,7 @@ public abstract class UpdateCommonDecoder {
         final var tokenTreasury = addressIdConverter.convert(hederaToken.get(2));
         final var memo = (String) hederaToken.get(3);
         final List<TokenKeyWrapper> tokenKeys =
-                decodeTokenKeys(hederaToken.get(7), addressIdConverter, nativeOperation);
+                decodeTokenKeys(hederaToken.get(TOKEN_KEYS_IN_HEDERA_TOKEN), addressIdConverter, nativeOperation);
         final var tokenExpiry = decodeTokenExpiry(hederaToken.get(8), addressIdConverter);
 
         // Build the transaction body
@@ -157,6 +158,45 @@ public abstract class UpdateCommonDecoder {
         }
 
         return tokenKeys;
+    }
+
+    /**
+     * Returns whether any of the given token keys asks to inherit the caller's account key. That key is only
+     * resolved when creating a token; on an update it is dropped from the decoded body.
+     *
+     * @param tokenKeysTuples the token keys from the call data
+     * @return whether any key sets {@code inheritAccountKey}
+     */
+    public static boolean requestsInheritedAccountKey(@NonNull final Tuple[] tokenKeysTuples) {
+        for (final var tokenKeyTuple : tokenKeysTuples) {
+            final Tuple keyValueTuple = tokenKeyTuple.get(KEY_VALUE);
+            if (Boolean.TRUE.equals(keyValueTuple.get(INHERIT_ACCOUNT_KEY))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Returns whether any key of the token in a decoded {@code updateTokenInfo} call asks to inherit the caller's
+     * account key.
+     *
+     * @param call the decoded {@code updateTokenInfo} call
+     * @return whether any key sets {@code inheritAccountKey}
+     */
+    public static boolean tokenRequestsInheritedAccountKey(@NonNull final Tuple call) {
+        final Tuple hederaToken = call.get(HEDERA_TOKEN);
+        return requestsInheritedAccountKey(hederaToken.get(TOKEN_KEYS_IN_HEDERA_TOKEN));
+    }
+
+    /**
+     * Returns whether any key in an {@code updateTokenKeys} call asks to inherit the caller's account key.
+     *
+     * @param attempt the {@code updateTokenKeys} call attempt
+     * @return whether any key sets {@code inheritAccountKey}
+     */
+    public boolean keysRequestInheritedAccountKey(@NonNull final HtsCallAttempt attempt) {
+        return requestsInheritedAccountKey(decodeCall(attempt).get(TOKEN_KEYS));
     }
 
     @Nullable

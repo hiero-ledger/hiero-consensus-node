@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hss.schedulenative;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_KEY_ENCODING;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.successResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_167_CONTRACT_ID;
@@ -17,16 +18,20 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.never;
 import static org.mockito.BDDMockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.scheduled.SchedulableTransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.schedulenative.ScheduleNativeCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.DispatchForResponseCodeHtsCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallFactory;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.InheritedKeyUpdateCall;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
@@ -67,6 +72,9 @@ class ScheduleNativeCallTest extends CallTestBase {
 
     @Mock
     private DispatchForResponseCodeHtsCall nativeCall;
+
+    @Mock
+    private InheritedKeyUpdateCall rejectedCall;
 
     private ScheduleNativeCall subject;
 
@@ -128,6 +136,24 @@ class ScheduleNativeCallTest extends CallTestBase {
 
         // when/then
         assertThrows(NullPointerException.class, () -> subject.execute(frame));
+    }
+
+    @Test
+    void revertsWithoutSchedulingWhenNativeUpdateInheritsAccountKey() {
+        // given
+        final var rejectedResult = PricedResult.gasOnly(
+                FullResult.revertResult(INVALID_KEY_ENCODING, 1_234L), INVALID_KEY_ENCODING, false);
+        given(htsCallFactory.createCallAttemptFrom(any(), any(), any(), any())).willReturn(nativeAttempt);
+        given(nativeAttempt.asExecutableCall()).willReturn(rejectedCall);
+        given(rejectedCall.rejectScheduling()).willReturn(rejectedResult);
+
+        // when
+        final var result = subject.execute(frame);
+
+        // then
+        assertEquals(rejectedResult, result);
+        verify(rejectedCall, never()).asSchedulableDispatchIn();
+        verifyNoInteractions(systemContractOperations);
     }
 
     @Test

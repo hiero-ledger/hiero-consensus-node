@@ -26,7 +26,10 @@ public abstract class UpdateKeysCommonTranslator extends AbstractCallTranslator<
 
     @Override
     public Call callFrom(@NonNull final HtsCallAttempt attempt) {
-        return new DispatchForResponseCodeHtsCall(
-                attempt, decoder.decodeTokenUpdateKeys(attempt), UpdateCommons::gasRequirement, FAILURE_CUSTOMIZER);
+        final var body = decoder.decodeTokenUpdateKeys(attempt);
+        if (body != null && decoder.keysRequestInheritedAccountKey(attempt)) {
+            return new InheritedKeyUpdateCall(attempt, body);
+        }
+        return new DispatchForResponseCodeHtsCall(attempt, body, UpdateCommons::gasRequirement, FAILURE_CUSTOMIZER);
     }
 }
