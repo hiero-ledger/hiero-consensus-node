@@ -15,6 +15,7 @@ import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.BootstrapConfig;
 import com.hedera.node.config.data.ContractsConfig;
+import com.hedera.node.config.data.DiskSpaceConfig;
 import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.FilesConfig;
 import com.hedera.node.config.data.GovernanceTransactionsConfig;
@@ -66,6 +67,7 @@ public class BootstrapConfigProviderImpl extends ConfigProviderBase {
                 .withSource(new PropertyConfigSource(SEMANTIC_VERSION_PROPERTIES_DEFAULT_PATH, 500))
                 .withConfigDataType(BlockStreamConfig.class)
                 .withConfigDataType(BootstrapConfig.class)
+                .withConfigDataType(DiskSpaceConfig.class)
                 .withConfigDataType(HederaConfig.class)
                 .withConfigDataType(FilesConfig.class)
                 .withConfigDataType(VersionConfig.class)

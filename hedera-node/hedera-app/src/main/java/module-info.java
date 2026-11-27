@@ -129,6 +129,7 @@ module com.hedera.node.app {
     requires org.hiero.consensus.event.stream;
     requires org.hiero.consensus.fakes;
     requires org.hiero.consensus.metrics;
+    requires org.hiero.consensus.pces;
     requires org.hiero.consensus.roster;
     requires org.hiero.consensus.state;
     requires org.hiero.consensus.utility;
@@ -141,6 +142,7 @@ module com.hedera.node.app {
     requires io.netty.transport.classes.epoll;
     requires io.netty.transport;
     requires org.apache.commons.lang3;
+    requires org.apache.logging.log4j.core;
     requires static transitive com.github.spotbugs.annotations;
     requires static java.compiler;
 
