@@ -654,6 +654,48 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
     }
 
     @Test
+    @DisplayName("pureChecks reject an ECDSA key alias that is not a point on the curve")
+    void pureChecksRejectEcdsaKeyAliasOffTheCurve() {
+        final var offCurveKey = Key.newBuilder()
+                .ecdsaSecp256k1(Bytes.fromHex("030000000000000000000000000000000000000000000000000000000000000005"))
+                .build();
+        txn = new CryptoCreateBuilder()
+                .withAlias(Key.PROTOBUF.toBytes(offCurveKey))
+                .withStakedAccountId(3)
+                .build();
+        given(pureChecksContext.body()).willReturn(txn);
+
+        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
+
+        assertEquals(INVALID_ALIAS_KEY, msg.responseCode());
+    }
+
+    @Test
+    @DisplayName("handle rejects an ECDSA key alias that is not a point on the curve")
+    void handleRejectsEcdsaKeyAliasOffTheCurve() {
+        // 0x02 prefix and x = 5: no y satisfies y^2 = x^3 + 7 (mod p), so no EVM address can be derived
+        final var offCurveKey = Key.newBuilder()
+                .ecdsaSecp256k1(Bytes.fromHex("020000000000000000000000000000000000000000000000000000000000000005"))
+                .build();
+        final var keyAlias = Key.PROTOBUF.toBytes(offCurveKey);
+        txn = new CryptoCreateBuilder()
+                .withAlias(keyAlias)
+                .withStakedAccountId(3)
+                .build();
+        given(handleContext.body()).willReturn(txn);
+        given(handleContext.payer()).willReturn(idFactory.newAccountId(id.accountNum()));
+        given(handleContext.consensusNow()).willReturn(consensusInstant);
+        given(entityNumGenerator.newEntityNum()).willReturn(1000L);
+        setupConfig();
+        setupExpiryValidator();
+
+        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+
+        assertEquals(INVALID_ALIAS_KEY, msg.getStatus());
+        assertNull(writableStore.getAccountIDByAlias(0, 0, keyAlias));
+    }
+
+    @Test
     @DisplayName("handle commits delegation address mentioned in the transaction")
     void handleCommitsDelegationAddress() {
         final var evmAddress = "6aeb3773ea468a814d954e6dec795bfee7d76e26";

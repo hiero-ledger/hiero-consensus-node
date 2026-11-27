@@ -299,6 +299,8 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
                 final var key = asKeyFromAlias(alias);
                 validateTrue(isValid(key), INVALID_ALIAS_KEY); // In case the protobuf encoded key is BOGUS!
                 final var evmAddress = extractEvmAddress(key);
+                // An ECDSA key that is not a point on the curve yields no EVM address
+                validateTrue(evmAddress == null || isOfEvmAddressSize(evmAddress), INVALID_ALIAS_KEY);
                 if (evmAddress != null) {
                     accountStore.putAndIncrementCountAlias(evmAddress, createdAccountID);
                     recordBuilder.evmAddress(evmAddress);

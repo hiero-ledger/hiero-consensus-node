@@ -162,6 +162,42 @@ class AliasUtilsTest {
     }
 
     @Test
+    void isSerializedProtoKeyAgreesWithIsKeyAliasOnMalformedKeys() {
+        final var good = "03af80b90d25145da28c583359beb47b21796b2fe1a23c1511e443e7a64dfdb27d";
+        final var malformed = new Bytes[] {
+            ecdsaKeyAlias(good.substring(0, 64)), // 32 bytes
+            ecdsaKeyAlias(good + "00"), // 34 bytes
+            ecdsaKeyAlias("04" + good.substring(2)), // wrong parity byte
+            Key.PROTOBUF.toBytes(
+                    Key.newBuilder().ed25519(Bytes.wrap(new byte[31])).build()),
+        };
+        for (final var alias : malformed) {
+            assertFalse(AliasUtils.isKeyAlias(alias));
+            assertFalse(AliasUtils.isSerializedProtoKey(alias));
+        }
+        assertTrue(AliasUtils.isKeyAlias(ecdsaKeyAlias(good)));
+        assertTrue(AliasUtils.isSerializedProtoKey(ecdsaKeyAlias(good)));
+    }
+
+    @Test
+    void ecdsaKeyAliasNotOnTheCurveIsNotAKeyAlias() {
+        // Well formed (33 bytes, 0x02 or 0x03 prefix) but x = 5 is not the x-coordinate of any secp256k1 point
+        for (final var prefix : new String[] {"02", "03"}) {
+            final var offCurve =
+                    ecdsaKeyAlias(prefix + "0000000000000000000000000000000000000000000000000000000000000005");
+            assertFalse(AliasUtils.isKeyAlias(offCurve));
+            assertFalse(AliasUtils.isSerializedProtoKey(offCurve));
+            // No EVM address can be derived from such a key
+            assertEquals(Bytes.EMPTY, AliasUtils.extractEvmAddress(offCurve));
+        }
+    }
+
+    private static Bytes ecdsaKeyAlias(final String hex) {
+        return Key.PROTOBUF.toBytes(
+                Key.newBuilder().ecdsaSecp256k1(Bytes.fromHex(hex)).build());
+    }
+
+    @Test
     void isSerializedProtoKeyReturnsFalseForEvmAddress() {
         var evmAddress = Bytes.wrap(HexFormat.of().parseHex(SAMPLE_EVM_ADDRESS.substring(2)));
         assertFalse(AliasUtils.isSerializedProtoKey(evmAddress));
