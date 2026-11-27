@@ -21,6 +21,7 @@ import com.hederahashgraph.api.proto.java.ClprMessagePayload;
 import com.hederahashgraph.api.proto.java.ClprQueueMetadata;
 import com.hederahashgraph.api.proto.java.EthereumPosLedgerConfigurationPayload;
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.List;
@@ -45,6 +46,24 @@ class SyncCommitteeProofsTest {
 
     /** {@code keccak256(CHANNEL_ID ‖ uint256(11)) + 1}, computed with foundry's {@code cast}. */
     private static final String FIRST_CHANNEL_SLOT = "84a3a2a33f3a9d2d4bdfb74276b46bd8cfd61cb5498b54f182ee03cfbcbdedcf";
+
+    /**
+     * Non-signers at full participation (512/512): the proof carries no non-signer proofs.
+     */
+    private static final int FULL_PARTICIPATION_NON_SIGNERS = 0;
+
+    /**
+     * Non-signers at the lowest participation (480/512) at which {@code ClprEthSyncCommitteeVerifierSuite} creates a
+     * mainnet channel with the default {@code clpr.verifierGasLimit}.
+     */
+    private static final int LOWEST_DEFAULT_GAS_NON_SIGNERS = 32;
+
+    /**
+     * Non-signers at the 2/3 supermajority of the 512-member mainnet committee, the lowest valid participation.
+     */
+    private static final int MIN_SUPERMAJORITY_NON_SIGNERS = 170;
+
+    private static final int MANIFEST_ENDPOINTS = 2;
 
     @Test
     @DisplayName("given each preset, then configPayload carries a bootstrap and an update of that preset's size")
@@ -214,6 +233,42 @@ class SyncCommitteeProofsTest {
         assertThat(manifest.version()).isEqualTo(1L);
         assertThat(manifest.serviceAddress().toByteArray()).isEqualTo(SyncCommitteeProofs.SERVICE_ADDRESS);
         assertThat(manifest.endpoints()).hasSize(2);
+    }
+
+    /**
+     * The mainnet-sized proof must pass the production verifier, real BLS included, at full participation (no
+     * non-signer proofs), at the participation {@code ClprEthSyncCommitteeVerifierSuite} tests and at the 2/3
+     * supermajority, and must carry one non-signer proof per clear participation bit.
+     */
+    @ParameterizedTest
+    @ValueSource(ints = {FULL_PARTICIPATION_NON_SIGNERS, LOWEST_DEFAULT_GAS_NON_SIGNERS, MIN_SUPERMAJORITY_NON_SIGNERS})
+    @DisplayName("given a mainnet config manifest proof, then the production verifier accepts its non-signers")
+    void givenMainnetConfigManifestProof_thenProductionVerifierAcceptsItsNonSigners(final int nonSignerCount) {
+        final var verifier = new EthereumSyncCommitteeProofVerifier(NativeBlsSignatureVerifier.INSTANCE);
+        final byte[] proof = SyncCommitteeProofs.mainnetConfigManifestProof(
+                SyncCommitteeProofs.manifestBytes(1L, MANIFEST_ENDPOINTS), nonSignerCount);
+
+        final ClprEndpointManifest manifest = verifier.verifyConfigPayload(SyncCommitteeProofs.configPayload(), proof)
+                .endpointManifest();
+
+        assertThat(manifest.endpoints()).hasSize(MANIFEST_ENDPOINTS);
+        final List<RLPItem> items = topList(proof).elements();
+        final byte[] participationBits =
+                items.get(2).asRLPList().elements().get(0).data();
+        assertThat(Preset.MAINNET.committeeSize
+                        - BitSet.valueOf(participationBits).cardinality())
+                .isEqualTo(nonSignerCount);
+        // Each non-signer proof is a 128-byte key and a 9 × 32-byte branch.
+        assertThat(items.get(3).asRLPList().elements())
+                .hasSize(nonSignerCount)
+                .allSatisfy(entry -> assertThat(entry.data()).hasSize(416));
+        // A mainnet header has 21 fields; the account leaf sits under 8 branch nodes, the manifest slot's under 3.
+        final byte[] blockHeaderRlp = items.get(4).asRLPList().elements().get(2).data();
+        assertThat(topList(blockHeaderRlp).elements()).hasSize(21);
+        assertThat(items.get(6).asRLPList().elements()).hasSize(9);
+        final List<RLPItem> manifestEntry =
+                items.get(7).asRLPList().elements().get(0).asRLPList().elements();
+        assertThat(manifestEntry.get(1).asRLPList().elements()).hasSize(4);
     }
 
     /** A proven manifest of another service address must still fail the production verifier's §4.8 check. */

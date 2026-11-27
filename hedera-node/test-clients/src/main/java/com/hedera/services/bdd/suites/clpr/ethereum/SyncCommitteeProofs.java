@@ -70,6 +70,26 @@ public final class SyncCommitteeProofs {
     /** Every member signs the config payload's update. */
     private static final int[] NO_NON_SIGNERS = {};
 
+    // ── Mainnet proof sizes (otherwise the proofs are as small as they can be) ──
+    /**
+     * Full branch nodes above the CLPR service account's leaf in a mainnet-sized account proof. With ~300M accounts,
+     * the top 7 levels of the mainnet state trie are full, so {@code eth_getProof} returns ~4 KB; 8 full branches
+     * (~4.4 KB) err on the large side.
+     */
+    private static final int MAINNET_ACCOUNT_PROOF_BRANCHES = 8;
+
+    /** Full branch nodes above the manifest commitment slot's leaf in a mainnet-sized storage proof (~1.7 KB). */
+    private static final int MAINNET_STORAGE_PROOF_BRANCHES = 3;
+
+    /** Size of the bloom filter of an execution block header. */
+    private static final int LOGS_BLOOM_SIZE = 256;
+
+    /** Size of the {@code extraData} of an execution block header: the 32-byte maximum. */
+    private static final int MAX_EXTRA_DATA_SIZE = 32;
+
+    /** The gas limit of a mainnet execution block. */
+    private static final long MAINNET_BLOCK_GAS_LIMIT = 45_000_000L;
+
     // ── Gloas generalized indices (consensus-specs light-client constants) ──
     private static final long FINALIZED_ROOT_GINDEX = 735L;
     private static final long CURRENT_SYNC_COMMITTEE_GINDEX = 2945L;
@@ -236,6 +256,28 @@ public final class SyncCommitteeProofs {
      * {@code keccak256(manifestBytes)} at slot {@value #MANIFEST_COMMITMENT_SLOT_INDEX}.
      */
     public static byte[] configManifestProof(final byte[] manifestBytes) {
+        return configManifestProof(configManifestDelivery(manifestBytes));
+    }
+
+    /**
+     * A {@link #configManifestProof} with the sizes a proof built from Ethereum mainnet data has: {@code nonSignerCount}
+     * members of the 512-member committee, spread across it, do not sign its header, so it carries that many
+     * non-signer proofs. Its account proof and manifest storage proof pass through full branch nodes, as mainnet tries
+     * do, and its execution block header has every field of a mainnet header.
+     *
+     * @param manifestBytes the {@code ClprEndpointManifest} preimage to prove
+     * @param nonSignerCount the number of committee members that do not sign, from 0 to 512
+     * @throws IllegalArgumentException if {@code nonSignerCount} is out of range
+     */
+    public static byte[] mainnetConfigManifestProof(final byte[] manifestBytes, final int nonSignerCount) {
+        final Delivery delivery = configManifestDelivery(manifestBytes);
+        delivery.nonSigners = spreadNonSigners(Preset.MAINNET, nonSignerCount);
+        delivery.mainnetSized = true;
+        return configManifestProof(delivery);
+    }
+
+    /** A delivery signed by the initial committee in the configured period, proving {@code manifestBytes}. */
+    private static Delivery configManifestDelivery(final byte[] manifestBytes) {
         final Delivery delivery = new Delivery(
                 Preset.MAINNET,
                 CONFIG_PERIOD,
@@ -243,6 +285,24 @@ public final class SyncCommitteeProofs {
                 new byte[32],
                 ClprBundleContent.getDefaultInstance());
         delivery.manifestBytes = manifestBytes;
+        return delivery;
+    }
+
+    /** {@code count} member indices spread evenly across the committee of {@code preset}, in ascending order. */
+    private static int[] spreadNonSigners(final Preset preset, final int count) {
+        if (count < 0 || count > preset.committeeSize) {
+            throw new IllegalArgumentException(
+                    "nonSignerCount must be between 0 and " + preset.committeeSize + ", got " + count);
+        }
+        final int[] nonSigners = new int[count];
+        for (int i = 0; i < count; i++) {
+            nonSigners[i] = i * preset.committeeSize / count;
+        }
+        return nonSigners;
+    }
+
+    /** The delivery's RLP items without the Channel slot proofs and the bundle content. */
+    private static byte[] configManifestProof(final Delivery delivery) {
         final List<Object> items = delivery.toRlpItems();
         final List<Object> proof = new ArrayList<>(items.subList(0, DELIVERY_INDEX_STORAGE_PROOF));
         proof.addAll(items.subList(DELIVERY_INDEX_MANIFEST_PROOF, items.size()));
@@ -448,8 +508,12 @@ public final class SyncCommitteeProofs {
         final byte[] bodyRoot = generateBytes(32, 0x62);
         return List.of(
                 header(attestedSlot, 11L, parentRoot, stateRoot, bodyRoot),
-                syncAggregate(signer, preset, beaconHeaderRoot(attestedSlot, 11L, parentRoot, stateRoot, bodyRoot)),
-                signer.nonSignerEntries(),
+                syncAggregate(
+                        signer,
+                        preset,
+                        beaconHeaderRoot(attestedSlot, 11L, parentRoot, stateRoot, bodyRoot),
+                        NON_SIGNERS),
+                signer.nonSignerEntries(NON_SIGNERS),
                 header(finalizedSlot, 5L, finalizedParentRoot, finalizedStateRoot, finalizedBodyRoot),
                 byteList(sparseBranch(state, FINALIZED_ROOT_GINDEX)),
                 List.of(next.pubkeysRoot, next.uncompressedAggregate),
@@ -462,6 +526,10 @@ public final class SyncCommitteeProofs {
      * hash ({@code keccak256(blockHeaderRlp)}, gindex 2856); the block header carries the execution state root that
      * commits the CLPR service account; the account's storage trie holds the Channel slots of {@code channelId}
      * encoding {@code content}'s metadata, and the manifest commitment when one is set.
+     *
+     * <p>When {@link #mainnetSized}, the account and storage proofs pass through full branch nodes and the block
+     * header has every field of a mainnet header. The storage trie must then hold a single non-zero slot, as in a
+     * config manifest proof.
      */
     private static final class Delivery {
         private final Preset preset;
@@ -472,6 +540,8 @@ public final class SyncCommitteeProofs {
         private boolean tamperAccountProof;
         private boolean signOtherRoot;
         private byte[] manifestBytes;
+        private int[] nonSigners = NON_SIGNERS;
+        private boolean mainnetSized;
 
         private Delivery(
                 final Preset preset,
@@ -497,25 +567,31 @@ public final class SyncCommitteeProofs {
                 slots.add(slotKey(MANIFEST_COMMITMENT_SLOT_INDEX));
                 values.add(MiscCryptoUtils.keccak256DigestOf(manifestBytes));
             }
-            final StorageTrie storageTrie = StorageTrie.of(slots, values);
+            final StorageTrie storageTrie =
+                    StorageTrie.of(slots, values, mainnetSized ? MAINNET_STORAGE_PROOF_BRANCHES : 0);
 
-            // 2) Account proof: single leaf for SERVICE_ADDRESS committing the storage root. When tampering, the
-            //    served leaf no longer hashes to the execution state root.
-            final byte[] accountLeaf = accountLeaf(SERVICE_ADDRESS, storageTrie.root);
-            final byte[] executionStateRoot = MiscCryptoUtils.keccak256DigestOf(accountLeaf);
-            final byte[] servedAccountLeaf = accountLeaf.clone();
+            // 2) Account proof: the leaf for SERVICE_ADDRESS committing the storage root, under its branch nodes. When
+            //    tampering, the served leaf no longer hashes to the node above it.
+            final SingleLeafProof accountProof =
+                    accountProof(SERVICE_ADDRESS, storageTrie.root, mainnetSized ? MAINNET_ACCOUNT_PROOF_BRANCHES : 0);
+            final byte[] executionStateRoot = accountProof.root();
+            final List<Object> servedAccountProof = new ArrayList<>(accountProof.nodes());
             if (tamperAccountProof) {
+                final byte[] servedAccountLeaf = accountProof.nodes().getLast().clone();
                 servedAccountLeaf[servedAccountLeaf.length - 1] ^= 0x01;
+                servedAccountProof.set(servedAccountProof.size() - 1, servedAccountLeaf);
             }
 
             // 3) Execution block header committing the state root; the finalized body commits its hash.
-            final byte[] blockHeaderRlp = RLPEncoder.list(List.of(
-                    generateBytes(32, 0x31),
-                    generateBytes(32, 0x32),
-                    generateBytes(20, 0x33),
-                    executionStateRoot,
-                    generateBytes(32, 0x34),
-                    generateBytes(32, 0x35)));
+            final byte[] blockHeaderRlp = mainnetSized
+                    ? mainnetBlockHeader(executionStateRoot)
+                    : RLPEncoder.list(List.of(
+                            generateBytes(32, 0x31),
+                            generateBytes(32, 0x32),
+                            generateBytes(20, 0x33),
+                            executionStateRoot,
+                            generateBytes(32, 0x34),
+                            generateBytes(32, 0x35)));
             final Map<Long, byte[]> finalizedBody =
                     Map.of(EXECUTION_BLOCK_HASH_GINDEX, MiscCryptoUtils.keccak256DigestOf(blockHeaderRlp));
             final byte[] finalizedBodyRoot = sparseRoot(finalizedBody);
@@ -548,14 +624,14 @@ public final class SyncCommitteeProofs {
             return List.of(
                     header(attestedSlot, 7L, attestedParentRoot, attestedStateRoot, attestedBodyRoot),
                     minimalBE(attestedSlot + 1), // signature slot
-                    syncAggregate(signer, preset, signedRoot),
-                    signer.nonSignerEntries(),
+                    syncAggregate(signer, preset, signedRoot, nonSigners),
+                    signer.nonSignerEntries(nonSigners),
                     List.of(
                             header(finalizedSlot, 3L, finalizedParentRoot, finalizedStateRoot, finalizedBodyRoot),
                             byteList(sparseBranch(finalizedBody, EXECUTION_BLOCK_HASH_GINDEX)),
                             blockHeaderRlp),
                     byteList(sparseBranch(state, FINALIZED_ROOT_GINDEX)),
-                    List.of((Object) servedAccountLeaf),
+                    servedAccountProof,
                     storageEntries,
                     content.toByteArray(),
                     manifestProof,
@@ -564,16 +640,44 @@ public final class SyncCommitteeProofs {
     }
 
     /**
-     * {@code signer}'s sync aggregate over an attested header: every member signs except {@link #NON_SIGNERS}.
+     * An execution block header with every field of a mainnet header (Prague): its size is what matters, so every
+     * field but {@code stateRoot} is filler of the field's mainnet size.
      */
-    private static Object syncAggregate(final Committee signer, final Preset preset, final byte[] attestedRoot) {
+    private static byte[] mainnetBlockHeader(final byte[] stateRoot) {
+        return RLPEncoder.list(List.of(
+                generateBytes(32, 0x31), // parentHash
+                generateBytes(32, 0x32), // ommersHash
+                generateBytes(20, 0x33), // coinbase
+                stateRoot,
+                generateBytes(32, 0x34), // transactionsRoot
+                generateBytes(32, 0x35), // receiptsRoot
+                generateBytes(LOGS_BLOOM_SIZE, 0x36), // logsBloom
+                new byte[0], // difficulty, zero since the merge
+                minimalBE(24_000_000L), // number
+                minimalBE(MAINNET_BLOCK_GAS_LIMIT), // gasLimit
+                minimalBE(MAINNET_BLOCK_GAS_LIMIT / 2), // gasUsed
+                minimalBE(1_780_000_000L), // timestamp
+                generateBytes(MAX_EXTRA_DATA_SIZE, 0x37), // extraData
+                generateBytes(32, 0x38), // prevRandao
+                new byte[8], // nonce, zero since the merge
+                minimalBE(1_000_000_000L), // baseFeePerGas
+                generateBytes(32, 0x39), // withdrawalsRoot
+                minimalBE(786_432L), // blobGasUsed
+                minimalBE(80_000_000L), // excessBlobGas
+                generateBytes(32, 0x3A), // parentBeaconBlockRoot
+                generateBytes(32, 0x3B))); // requestsHash
+    }
+
+    /** {@code signer}'s sync aggregate over an attested header: every member signs except {@code nonSigners}. */
+    private static Object syncAggregate(
+            final Committee signer, final Preset preset, final byte[] attestedRoot, final int[] nonSigners) {
         final byte[] bits = new byte[preset.committeeSize / 8];
         Arrays.fill(bits, (byte) 0xFF);
-        for (final int index : NON_SIGNERS) {
+        for (final int index : nonSigners) {
             bits[index / 8] &= (byte) ~(1 << (index % 8));
         }
         final byte[] signingRoot = computeSigningRoot(attestedRoot, FORK_VERSION, GENESIS_VALIDATORS_ROOT);
-        return List.of(bits, signer.sign(signingRoot, NON_SIGNERS));
+        return List.of(bits, signer.sign(signingRoot, nonSigners));
     }
 
     // ── Storage-slot layout and packing (mirrors the ClprService Channel struct) ──
@@ -772,10 +876,10 @@ public final class SyncCommitteeProofs {
             return sum.mod(BlsSigner.SUBGROUP_ORDER);
         }
 
-        /** One {@code key128 ‖ siblings} entry per {@link #NON_SIGNERS} member, in ascending index order. */
-        List<Object> nonSignerEntries() {
+        /** One {@code key128 ‖ siblings} entry per {@code nonSigners} member, in the order given (ascending index). */
+        List<Object> nonSignerEntries(final int[] nonSigners) {
             final List<Object> entries = new ArrayList<>();
-            for (final int index : NON_SIGNERS) {
+            for (final int index : nonSigners) {
                 final List<byte[]> parts = new ArrayList<>(List.of(uncompressedKeys[index]));
                 byte[][] level = leaves;
                 int position = index;
@@ -822,8 +926,14 @@ public final class SyncCommitteeProofs {
             this.nodes = nodes;
         }
 
-        /** Trie over the non-zero {@code values}, each keyed by {@code keccak256} of the slot at the same position. */
-        static StorageTrie of(final List<byte[]> slots, final List<byte[]> values) {
+        /**
+         * Trie over the non-zero {@code values}, each keyed by {@code keccak256} of the slot at the same position. With
+         * {@code fullBranches > 0} the single non-zero slot's leaf sits under that many full branch nodes, as in a
+         * populated trie.
+         *
+         * @throws IllegalArgumentException if {@code fullBranches > 0} and there is not exactly one non-zero slot
+         */
+        static StorageTrie of(final List<byte[]> slots, final List<byte[]> values, final int fullBranches) {
             final List<int[]> keyHashes = new ArrayList<>();
             final List<byte[]> nonZeroValues = new ArrayList<>();
             for (int i = 0; i < slots.size(); i++) {
@@ -832,7 +942,16 @@ public final class SyncCommitteeProofs {
                     nonZeroValues.add(values.get(i));
                 }
             }
-            return build(keyHashes, nonZeroValues);
+            if (fullBranches == 0) {
+                return build(keyHashes, nonZeroValues);
+            }
+            if (keyHashes.size() != 1) {
+                throw new IllegalArgumentException(
+                        "full branches need exactly one non-zero slot, got " + keyHashes.size());
+            }
+            final SingleLeafProof proof =
+                    singleLeafProof(keyHashes.getFirst(), RLPEncoder.sequence(nonZeroValues.getFirst()), fullBranches);
+            return new StorageTrie(proof.root(), new ArrayList<>(proof.nodes()));
         }
 
         private static StorageTrie build(final List<int[]> keyHashes, final List<byte[]> values) {
@@ -920,12 +1039,45 @@ public final class SyncCommitteeProofs {
         }
     }
 
-    /** A single-leaf account proof committing {@code storageRoot} and {@link #CODE_HASH}; returns the leaf node RLP. */
-    private static byte[] accountLeaf(final byte[] address20, final byte[] storageRoot32) {
+    /**
+     * The account proof of {@code address20}, committing {@code storageRoot} and {@link #CODE_HASH}: its leaf under
+     * {@code fullBranches} full branch nodes.
+     */
+    private static SingleLeafProof accountProof(
+            final byte[] address20, final byte[] storageRoot32, final int fullBranches) {
         final int[] path = nibbles(MiscCryptoUtils.keccak256DigestOf(address20));
         // account = [nonce=0, balance=0, storageRoot, codeHash]
         final byte[] account = RLPEncoder.list(List.of(new byte[0], new byte[0], storageRoot32, CODE_HASH));
-        return RLPEncoder.list(List.of(hexPrefix(path, 0, 64, true), account));
+        return singleLeafProof(path, account, fullBranches);
+    }
+
+    /**
+     * A Merkle-Patricia proof of one key, from the root down to its leaf.
+     *
+     * @param root the root hash
+     * @param nodes the RLP nodes, root first
+     */
+    private record SingleLeafProof(byte[] root, List<byte[]> nodes) {}
+
+    /**
+     * The proof of the leaf holding {@code encodedValue} at {@code path}, under {@code fullBranches} branch nodes. Each
+     * branch's 15 other children are filler hashes, as in a populated trie: a proof never opens them, but they give
+     * the proof its mainnet size.
+     */
+    private static SingleLeafProof singleLeafProof(
+            final int[] path, final byte[] encodedValue, final int fullBranches) {
+        final byte[][] nodes = new byte[fullBranches + 1][];
+        nodes[fullBranches] = RLPEncoder.list(List.of(hexPrefix(path, fullBranches, 64, true), encodedValue));
+        for (int depth = fullBranches - 1; depth >= 0; depth--) {
+            final Object[] branch = new Object[17];
+            for (int i = 0; i < 16; i++) {
+                branch[i] = generateBytes(32, depth * 16 + i);
+            }
+            branch[path[depth]] = childRef(nodes[depth + 1]);
+            branch[16] = new byte[0];
+            nodes[depth] = RLPEncoder.list(branch);
+        }
+        return new SingleLeafProof(MiscCryptoUtils.keccak256DigestOf(nodes[0]), List.of(nodes));
     }
 
     /** A storage/leaf node {@code [hexPrefix(path[from..64], leaf), rlp(value32)]}. */

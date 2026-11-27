@@ -88,6 +88,20 @@ derived from the network's HIP-26 EVM chain ID, `contracts.chainId`, as `eip155:
 > message. An Ethereum mainnet-preset `verifyConfig` carries both sync committees' full key sets (2 × 512 keys,
 > ~50 KB), so it needs ~2.1M, and ~2.2M with an endpoint manifest proof.
 >
+> At mainnet sizes, the Ethereum endpoint manifest proof also carries one non-signer proof (~419 bytes, ~16K gas) per
+> sync committee member that did not sign its header, so `verifyConfig` grows as participation drops: ~2.4M gas at
+> 512/512, and the default `verifierGasLimit` supports participation down to 480/512 (~2.91M). Raising
+> `verifierGasLimit` lowers that floor until two size limits on the createChannel bind:
+>
+> |             Limit              |   Value   |    Configurable     |       Lowest participation that fits       |
+> |--------------------------------|-----------|---------------------|--------------------------------------------|
+> | gRPC transaction size          | 133,120 B | no (hard-coded)     | 342/512, the 2/3 supermajority (132,316 B) |
+> | EVM calldata of `verifyConfig` | 131,072 B | yes (network prop.) | 345/512 (130,980 B, ~5.04M gas)            |
+>
+> The gRPC limit is `NettyGrpcServerManager.MAX_TRANSACTION_SIZE`; the calldata limit is
+> `jumboTransactions.ethereumMaxCallDataSize`, which applies to every EVM call. The calldata limit binds first, so a
+> mainnet channel can't be opened at 342–344/512 even though the verifier accepts that participation.
+>
 > Application-message dispatch gas is **not** a node-config value. `ClprSubmitBundleHandler`
 > caps each application callback (`onClprMessage` / `onClprResponse`) at the per-Channel
 > `ClprThrottles.maxGasPerMessage` throttle read from `LEDGER_CONFIGURATION` (spec §1.1, §6.0).
