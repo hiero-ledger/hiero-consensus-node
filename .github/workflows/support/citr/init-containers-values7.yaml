@@ -139,7 +139,7 @@ defaults:
     image:
       registry: "ghcr.io"
       repository: "hiero-ledger/solo-containers/debian-s6-java25"
-      tag: "kernel7"
+      tag: "0.47.1"
       pullPolicy: "IfNotPresent"
 
 deployment:
