@@ -356,6 +356,9 @@ public class ParentTxnFactory {
         final var preHandleResult = parentTxn.preHandleResult();
         final var stack = parentTxn.stack();
         final var consensusNow = parentTxn.consensusNow();
+        // The applied congestion multiplier is not saved in state; re-evaluate it at this transaction's
+        // consensus time so a node that restarted or reconnected charges the same fee as its peers
+        networkUtilizationManager.refreshCongestionMultipliers(consensusNow);
         final var creatorInfo = parentTxn.creatorInfo();
         final var tokenContextImpl = parentTxn.tokenContextImpl();
         final var entityIdStore = new WritableEntityIdStoreImpl(stack.getWritableStates(EntityIdService.NAME));

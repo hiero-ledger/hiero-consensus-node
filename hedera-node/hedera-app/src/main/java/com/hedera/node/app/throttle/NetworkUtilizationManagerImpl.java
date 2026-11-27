@@ -61,6 +61,11 @@ public class NetworkUtilizationManagerImpl implements NetworkUtilizationManager 
     }
 
     @Override
+    public void refreshCongestionMultipliers(@NonNull final Instant consensusNow) {
+        congestionMultipliers.refreshMultipliers(requireNonNull(consensusNow));
+    }
+
+    @Override
     public boolean wasLastTxnGasThrottled() {
         return backendThrottle.wasLastTxnGasThrottled();
     }

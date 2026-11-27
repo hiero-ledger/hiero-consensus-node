@@ -6,6 +6,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SignatureMap;
@@ -56,6 +57,14 @@ class NetworkUtilizationManagerImplTest {
         // then
         verify(throttleAccumulator).checkAndEnforceThrottle(transactionInfo, consensusNow, state, null, false);
         verify(congestionMultipliers).updateMultiplier(consensusNow);
+    }
+
+    @Test
+    void refreshesCongestionMultipliersWithoutTrackingUsage() {
+        subject.refreshCongestionMultipliers(consensusNow);
+
+        verify(congestionMultipliers).refreshMultipliers(consensusNow);
+        verifyNoInteractions(throttleAccumulator);
     }
 
     @Test

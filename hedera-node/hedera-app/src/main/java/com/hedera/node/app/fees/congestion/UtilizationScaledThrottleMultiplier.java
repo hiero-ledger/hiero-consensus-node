@@ -215,6 +215,15 @@ public class UtilizationScaledThrottleMultiplier {
     }
 
     /**
+     * Re-evaluates the congestion multiplier at the given consensus time without tracking new usage.
+     *
+     * @param consensusTime the consensus time of the transaction about to be charged
+     */
+    public void refreshMultiplier(@NonNull final Instant consensusTime) {
+        delegate.refreshMultiplier(consensusTime);
+    }
+
+    /**
      * Rebuilds the internal state of the ThrottleMultiplier.
      */
     public void resetExpectations() {
