@@ -6,6 +6,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_NFT_SERIAL_NUMBER;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_METADATA_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_METADATA_OR_SUPPLY_KEY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_IS_PAUSED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_WAS_DELETED;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.NFTS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.NFTS_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.test.handlers.util.TestStoreFactory.newReadableStoreWithTokens;
@@ -26,6 +28,7 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
+import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.base.TransactionID;
@@ -395,6 +398,31 @@ class TokenUpdateNftsHandlerTest extends CryptoTokenHandlerTestBase {
         Assertions.assertThatThrownBy(() -> subject.handle(handleContext))
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(INVALID_NFT_ID));
+    }
+
+    @Test
+    void cannotUpdateMetadataOfPausedToken() {
+        assertMetadataUpdateRejected(nonFungibleToken.copyBuilder().paused(true).build(), TOKEN_IS_PAUSED);
+    }
+
+    @Test
+    void cannotUpdateMetadataOfDeletedToken() {
+        assertMetadataUpdateRejected(
+                nonFungibleToken.copyBuilder().deleted(true).build(), TOKEN_WAS_DELETED);
+    }
+
+    private void assertMetadataUpdateRejected(final Token unusableToken, final ResponseCodeEnum expectedStatus) {
+        final var existingMetadata =
+                writableNftStore.get(nonFungibleTokenId, 1L).metadata();
+        readableTokenStore = newReadableStoreWithTokens(unusableToken);
+        txn = new TokenUpdateNftBuilder()
+                .newNftUpdateTransactionBody(nonFungibleTokenId, Bytes.wrap("NFT test metadata"), 1L);
+        mockContext(txn);
+
+        Assertions.assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(expectedStatus));
+        assertThat(writableNftStore.get(nonFungibleTokenId, 1L).metadata()).isEqualTo(existingMetadata);
     }
 
     private class TokenUpdateNftBuilder {
