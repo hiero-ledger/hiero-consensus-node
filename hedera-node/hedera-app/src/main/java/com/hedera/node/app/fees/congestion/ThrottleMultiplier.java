@@ -36,6 +36,8 @@ public class ThrottleMultiplier {
     private List<? extends CongestibleThrottle> activeThrottles = Collections.emptyList();
     private long[][] activeTriggerValues = {};
     private Instant[] congestionLevelStarts = NO_CONGESTION_STARTS;
+    // Counts the rebuilds of the internal state, each of which discards the congestion level starts
+    private long stateGeneration;
 
     public ThrottleMultiplier(
             @NonNull final String usageType,
@@ -171,7 +173,18 @@ public class ThrottleMultiplier {
         return false;
     }
 
+    /**
+     * Returns a number that changes every time the internal state is rebuilt, which discards the congestion level
+     * starts. Two equal values mean the starts were not discarded in between.
+     *
+     * @return the generation of the internal state
+     */
+    public long stateGeneration() {
+        return stateGeneration;
+    }
+
     private void rebuildState() {
+        stateGeneration++;
         int n = activeThrottles.size();
         int[] triggers = activeConfig.usagePercentTriggers();
         long[] multipliers = activeConfig.multipliers();

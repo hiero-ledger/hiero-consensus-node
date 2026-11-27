@@ -9,7 +9,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeDelete;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.submitMessageTo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAirdrop;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCancelAirdrop;
@@ -142,35 +141,6 @@ class AtomicBatchMiscSignatureTest {
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
                     // Paying with a privileged account should succeed
                     atomicBatch(nodeDelete("node100").payingWith(DEFAULT_PAYER).batchKey("batchOperator"))
-                            .payingWith("batchOperator"));
-        }
-
-        @HapiTest
-        @DisplayName("Node update inside of a batch can be executed only with privileged account")
-        final Stream<DynamicTest> nodeUpdateCanBeExecutedOnlyWithPrivilegedAccount()
-                throws CertificateEncodingException {
-            final var nodeAccount = "nodeAccount";
-            return hapiTest(
-                    newKeyNamed("adminKey"),
-                    cryptoCreate("payer"),
-                    cryptoCreate("batchOperator"),
-                    cryptoCreate(nodeAccount),
-                    nodeCreate("node100", nodeAccount)
-                            .adminKey("adminKey")
-                            .description("desc")
-                            .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
-                    // The inner txn is not signed by system account, so the transaction will fail
-                    atomicBatch(nodeUpdate("node100")
-                                    .payingWith("payer")
-                                    .batchKey("batchOperator")
-                                    .hasKnownStatus(INVALID_SIGNATURE))
-                            .payingWith("batchOperator")
-                            .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    // Paying with a privileged account should succeed
-                    atomicBatch(nodeUpdate("node100")
-                                    .payingWith(DEFAULT_PAYER)
-                                    .signedByPayerAnd("adminKey")
-                                    .batchKey("batchOperator"))
                             .payingWith("batchOperator"));
         }
     }

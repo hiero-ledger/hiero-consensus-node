@@ -11,6 +11,7 @@ import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.config.ConfigProvider;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -209,6 +210,31 @@ public class BlockNodeConnectionManager extends BlockStreamingBase {
     }
 
     /**
+     * Keeps this manager and the block buffer on the given committed configuration while a transaction tries out an
+     * update of a configuration file; see {@link BlockStreamingBase#holdConfiguration(Configuration)}. Both are held:
+     * the block buffer makes the pruning, acknowledgement and back pressure decisions, and this manager decides how
+     * many observing connections to keep from the same acknowledgement requirement, so it must not close observers the
+     * buffer still counts on.
+     *
+     * @param configuration the committed configuration to hold
+     */
+    @Override
+    public void holdConfiguration(@NonNull final Configuration configuration) {
+        super.holdConfiguration(configuration);
+        blockBufferService.holdConfiguration(configuration);
+    }
+
+    /**
+     * Returns this manager and the block buffer to the current configuration once the outcome of the transaction is
+     * final.
+     */
+    @Override
+    public void releaseConfiguration() {
+        blockBufferService.releaseConfiguration();
+        super.releaseConfiguration();
+    }
+
+    /**
      * Gracefully shuts down the connection manager, closing the active connection.
      */
     public void shutdown() {
@@ -244,7 +270,18 @@ public class BlockNodeConnectionManager extends BlockStreamingBase {
      * block.
      */
     public void start() {
-        if (!isStreamingEnabled()) {
+        start(isStreamingEnabled());
+    }
+
+    /**
+     * Starts the connection manager if the caller has determined that streaming to block nodes is enabled, without
+     * consulting the current configuration for that decision. Used when the caller knows the writer mode that was
+     * committed, which the configuration in effect when this runs may not reflect.
+     *
+     * @param streamingEnabled whether streaming to block nodes is enabled
+     */
+    public void start(final boolean streamingEnabled) {
+        if (!streamingEnabled) {
             logger.warn("Streaming is not enabled; block node connection manager will not be started");
             return;
         }
@@ -266,7 +303,7 @@ public class BlockNodeConnectionManager extends BlockStreamingBase {
         }
 
         // Start the block buffer service
-        blockBufferService.start();
+        blockBufferService.start(streamingEnabled);
 
         // Start a watcher to monitor changes to the block-nodes.json file for dynamic updates
         blockNodeConfigService.start();

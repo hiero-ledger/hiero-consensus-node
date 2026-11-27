@@ -3,6 +3,7 @@ package com.hedera.node.app.fees.congestion;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -126,5 +127,29 @@ class ThrottleMultiplierTest {
         assertEquals(startTimes[0], subject.congestionLevelStarts()[0]);
         assertEquals(startTimes[1], subject.congestionLevelStarts()[1]);
         assertEquals(startTimes[2], subject.congestionLevelStarts()[2]);
+    }
+
+    @Test
+    void stateGenerationChangesExactlyWhenTheCongestionLevelStartsAreDiscarded() {
+        when(congestionMultipliers.multipliers()).thenReturn(new long[] {2L, 3L});
+        when(congestionMultipliers.usagePercentTriggers()).thenReturn(new int[] {50, 90});
+        subject.resetExpectations();
+        final var afterReset = subject.stateGeneration();
+
+        // An update under the same configuration keeps the starts
+        subject.updateMultiplier(Instant.ofEpochSecond(1L));
+        assertEquals(afterReset, subject.stateGeneration());
+
+        // A changed configuration makes the next update discard them
+        congestionMultipliers = mock(CongestionMultipliers.class);
+        when(congestionMultipliers.multipliers()).thenReturn(new long[] {2L, 4L});
+        when(congestionMultipliers.usagePercentTriggers()).thenReturn(new int[] {50, 90});
+        subject.updateMultiplier(Instant.ofEpochSecond(2L));
+        final var afterConfigChange = subject.stateGeneration();
+        assertNotEquals(afterReset, afterConfigChange);
+
+        // And so does an explicit reset
+        subject.resetExpectations();
+        assertNotEquals(afterConfigChange, subject.stateGeneration());
     }
 }

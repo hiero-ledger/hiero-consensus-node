@@ -21,6 +21,10 @@ import javax.inject.Singleton;
  * Keeps track of the amount of usage of different TPS throttle categories and gas, and returns whether a given
  * transaction or query should be throttled based on that.
  * Meant to be used in multithreaded context. This is thread-safe ingest wrapper.
+ *
+ * <p>Every decision is made while holding the monitor of the wrapped ingest accumulator. That accumulator is shared
+ * with {@link ThrottleServiceManager}, which holds the same monitor while it captures the ingest usage or rebuilds the
+ * ingest buckets and restores usage into them, so a decision never observes, or charges, a bucket in between.
  */
 @Singleton
 public class SynchronizedThrottleAccumulator {
@@ -48,15 +52,17 @@ public class SynchronizedThrottleAccumulator {
      * @param throttleUsages a list to accumulate throttle usages during the decision
      * @return whether the transaction should be throttled
      */
-    public synchronized boolean shouldThrottle(
+    public boolean shouldThrottle(
             @NonNull final TransactionInfo txnInfo,
             @NonNull final State state,
             @NonNull final List<ThrottleUsage> throttleUsages) {
         requireNonNull(txnInfo);
         requireNonNull(state);
         requireNonNull(throttleUsages);
-        setDecisionTime(instantSource.instant());
-        return frontendThrottle.checkAndEnforceThrottle(txnInfo, lastDecisionTime, state, throttleUsages, false);
+        synchronized (frontendThrottle) {
+            setDecisionTime(instantSource.instant());
+            return frontendThrottle.checkAndEnforceThrottle(txnInfo, lastDecisionTime, state, throttleUsages, false);
+        }
     }
 
     /**
@@ -69,15 +75,18 @@ public class SynchronizedThrottleAccumulator {
      * @param queryPayerId the payer id of the query
      * @return whether the query should be throttled
      */
-    public synchronized boolean shouldThrottle(
+    public boolean shouldThrottle(
             @NonNull final HederaFunctionality queryFunction,
             @NonNull final Query query,
             @NonNull final State state,
             @Nullable AccountID queryPayerId) {
         requireNonNull(query);
         requireNonNull(queryFunction);
-        setDecisionTime(instantSource.instant());
-        return frontendThrottle.checkAndEnforceThrottle(queryFunction, lastDecisionTime, query, state, queryPayerId);
+        synchronized (frontendThrottle) {
+            setDecisionTime(instantSource.instant());
+            return frontendThrottle.checkAndEnforceThrottle(
+                    queryFunction, lastDecisionTime, query, state, queryPayerId);
+        }
     }
 
     private void setDecisionTime(@NonNull final Instant time) {
@@ -94,8 +103,10 @@ public class SynchronizedThrottleAccumulator {
      * @return the utilization percentage in hundredths of one percent (0 to 10,000),
      *         or 0 if no high-volume throttle exists for the functionality
      */
-    public synchronized int getHighVolumeThrottleUtilization(@NonNull final HederaFunctionality function) {
+    public int getHighVolumeThrottleUtilization(@NonNull final HederaFunctionality function) {
         requireNonNull(function);
-        return frontendThrottle.getHighVolumeThrottleInstantaneousUtilizationBps(function, instantSource.instant());
+        synchronized (frontendThrottle) {
+            return frontendThrottle.getHighVolumeThrottleInstantaneousUtilizationBps(function, instantSource.instant());
+        }
     }
 }
