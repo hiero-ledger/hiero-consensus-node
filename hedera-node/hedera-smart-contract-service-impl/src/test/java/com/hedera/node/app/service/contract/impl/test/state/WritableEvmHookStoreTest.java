@@ -4,10 +4,13 @@ package com.hedera.node.app.service.contract.impl.test.state;
 import static com.hedera.node.app.service.contract.impl.schemas.V065ContractSchema.EVM_HOOK_STATES_STATE_ID;
 import static com.hedera.node.app.service.contract.impl.schemas.V065ContractSchema.EVM_HOOK_STORAGE_STATE_ID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -84,7 +87,7 @@ class WritableEvmHookStoreTest {
                 .when(hookStates)
                 .put(any(), any());
 
-        given(storage.get(any())).willAnswer(invocation -> currentStorage.get(invocation.getArgument(0)));
+        lenient().when(storage.get(any())).thenAnswer(invocation -> currentStorage.get(invocation.getArgument(0)));
         lenient()
                 .when(storage.getOriginalValue(any()))
                 .thenAnswer(invocation -> originalStorage.get(invocation.getArgument(0)));
@@ -192,7 +195,7 @@ class WritableEvmHookStoreTest {
     }
 
     @Test
-    void persistingZeroIntoUnlistedSlotChangesNothing() {
+    void persistingZeroIntoUnlistedSlotOnlyRemovesThatEntry() {
         givenHookInCurrentStateOnly(
                 B,
                 1,
@@ -205,7 +208,38 @@ class WritableEvmHookStoreTest {
         assertEquals(0, delta);
         assertEquals(B, currentHookStates.get(HOOK_ID).firstContractStorageKey());
         assertEquals(1L, currentHookStates.get(HOOK_ID).numStorageSlots());
+        assertFalse(currentStorage.containsKey(slotKey(A)));
+        assertEquals(slot(VALUE_2, Bytes.EMPTY, Bytes.EMPTY), currentStorage.get(slotKey(B)));
         verifyNoInteractions(entityCounters);
+    }
+
+    @Test
+    void persistingZeroIntoAbsentSlotChangesNothing() {
+        givenHookInCurrentStateOnly(B, 1, Map.of(B, slot(VALUE_2, Bytes.EMPTY, Bytes.EMPTY)));
+
+        final int delta = subject.persistSlotValues(HOOK_ID, List.of(A), List.of(Bytes.EMPTY));
+
+        assertEquals(0, delta);
+        assertEquals(B, currentHookStates.get(HOOK_ID).firstContractStorageKey());
+        assertEquals(1L, currentHookStates.get(HOOK_ID).numStorageSlots());
+        assertFalse(currentStorage.containsKey(slotKey(A)));
+        assertEquals(slot(VALUE_2, Bytes.EMPTY, Bytes.EMPTY), currentStorage.get(slotKey(B)));
+        verify(storage, never()).remove(any());
+        verifyNoInteractions(entityCounters);
+    }
+
+    @Test
+    void updatingAbsentSlotToZeroChangesNothing() {
+        givenExistingHookWithSlots(A, Map.of(A, slot(VALUE_1, Bytes.EMPTY, Bytes.EMPTY)));
+
+        final int delta = subject.updateStorage(HOOK_ID, List.of(slotUpdate(X, Bytes.EMPTY)));
+
+        assertEquals(0, delta);
+        assertFalse(currentStorage.containsKey(slotKey(X)));
+        assertEquals(slot(VALUE_1, Bytes.EMPTY, Bytes.EMPTY), currentStorage.get(slotKey(A)));
+        assertEquals(A, currentHookStates.get(HOOK_ID).firstContractStorageKey());
+        assertEquals(1L, currentHookStates.get(HOOK_ID).numStorageSlots());
+        verify(storage, never()).remove(any());
     }
 
     private void givenHookInCurrentStateOnly(

@@ -451,6 +451,34 @@ public class RepeatableEvmHookStoreTests {
                 }));
     }
 
+    @Order(17)
+    @RepeatableHapiTest(NEEDS_STATE_ACCESS)
+    Stream<DynamicTest> hookSetThenClearOfNewSlotsLeavesNoStorage(
+            @Contract(contract = "StorageLinkedListHook", creationGas = 5_000_000) SpecContract contract) {
+        final AtomicLong totalHookStorageSlots = new AtomicLong();
+        return hapiTest(
+                contract.getInfo(),
+                cryptoCreate("setThenClearOwner").withHooks(accountAllowanceHook(43L, contract.name())),
+                doingContextual(spec -> totalHookStorageSlots.set(spec.repeatableEmbeddedHederaOrThrow()
+                        .state()
+                        .getReadableStates(ContractService.NAME)
+                        .get(V065ContractSchema.EVM_HOOK_STORAGE_STATE_ID)
+                        .size())),
+                // On calldata 0x04, StorageLinkedListHook.allow() writes three new slots and zeroes them again
+                cryptoTransfer(movingHbar(1).between("setThenClearOwner", FUNDING))
+                        .withPreHookFor("setThenClearOwner", 43L, 250_000L, ByteString.copyFrom(new byte[] {0x04})),
+                viewAccount("setThenClearOwner", account -> assertEquals(0, account.numberEvmHookStorageSlots())),
+                // No zero entries may be left behind in hook storage
+                doingContextual(spec -> {
+                    final ReadableKVState<EvmHookSlotKey, SlotValue> hookStorage =
+                            spec.repeatableEmbeddedHederaOrThrow()
+                                    .state()
+                                    .getReadableStates(ContractService.NAME)
+                                    .get(V065ContractSchema.EVM_HOOK_STORAGE_STATE_ID);
+                    assertEquals(totalHookStorageSlots.get(), hookStorage.size());
+                }));
+    }
+
     @Order(15)
     @RepeatableHapiTest(NEEDS_STATE_ACCESS)
     Stream<DynamicTest> mappingEntriesHashingToLeadingZerosDecrementCountOnHookStoreRemoval(
