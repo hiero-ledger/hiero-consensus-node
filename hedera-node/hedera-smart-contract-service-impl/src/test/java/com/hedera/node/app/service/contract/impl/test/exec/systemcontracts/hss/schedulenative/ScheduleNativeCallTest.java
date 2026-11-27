@@ -4,13 +4,15 @@ package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hss.
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.successResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_167_CONTRACT_ID;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasOnly;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasPlus;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.RC_AND_ADDRESS_ENCODER;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_SCHEDULE_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.TRANSACTION_ID;
+import static com.hedera.node.app.service.contract.impl.utils.ConstantUtils.ZERO_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.headlongAddressOf;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -23,11 +25,12 @@ import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.scheduled.SchedulableTransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.schedulenative.ScheduleNativeCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.DispatchForResponseCodeHtsCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallFactory;
-import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
 import com.hedera.node.app.spi.workflows.DispatchOptions.UsePresetTxnId;
@@ -46,9 +49,6 @@ class ScheduleNativeCallTest extends CallTestBase {
 
     @Mock
     private SystemContractGasCalculator gasCalculator;
-
-    @Mock
-    private HederaWorldUpdater.Enhancement enhancement;
 
     @Mock
     private VerificationStrategy verificationStrategy;
@@ -73,7 +73,6 @@ class ScheduleNativeCallTest extends CallTestBase {
     @BeforeEach
     void setUp() {
         prepareCall();
-        //        mockSystemOperations();
     }
 
     @Test
@@ -156,6 +155,44 @@ class ScheduleNativeCallTest extends CallTestBase {
                         eq(UsePresetTxnId.YES));
     }
 
+    @Test
+    void reencodesSuccessfulPreemptedResultAndSchedulesNothing() {
+        given(htsCallFactory.createCallAttemptFrom(any(), any(), any(), any())).willReturn(nativeAttempt);
+        given(nativeAttempt.asExecutableCall()).willReturn(nativeCall);
+        given(nativeCall.asSchedulableDispatchIn())
+                .willReturn(SchedulableTransactionBody.newBuilder().build());
+        final var status = ResponseCodeEnum.INVALID_TRANSACTION_BODY;
+        // The inner call encodes only a response code
+        given(nativeCall.preemptedResult(100L))
+                .willReturn(gasOnly(successResult(ReturnTypes.encodedRc(status), 100L, recordBuilder), status, false));
+
+        final var result = subject.execute(frame);
+
+        assertEquals(State.COMPLETED_SUCCESS, result.fullResult().result().state());
+        assertEquals(status, result.responseCode());
+        assertEquals(
+                Bytes.wrap(RC_AND_ADDRESS_ENCODER
+                        .encode(Tuple.of((long) status.protoOrdinal(), ZERO_ADDRESS))
+                        .array()),
+                result.fullResult().output());
+        verify(systemContractOperations, never()).dispatch(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void returnsHaltedPreemptedResultAsIs() {
+        given(htsCallFactory.createCallAttemptFrom(any(), any(), any(), any())).willReturn(nativeAttempt);
+        given(nativeAttempt.asExecutableCall()).willReturn(nativeCall);
+        given(nativeCall.asSchedulableDispatchIn())
+                .willReturn(SchedulableTransactionBody.newBuilder().build());
+        final var halted = gasOnly(FullResult.haltResult(100L), ResponseCodeEnum.INVALID_TRANSACTION_BODY, false);
+        given(nativeCall.preemptedResult(100L)).willReturn(halted);
+
+        final var result = subject.execute(frame);
+
+        assertSame(halted, result);
+        verify(systemContractOperations, never()).dispatch(any(), any(), any(), any(), any(), any());
+    }
+
     private void prepareCall() {
         subject = new ScheduleNativeCall(
                 HTS_167_CONTRACT_ID,
@@ -163,16 +200,10 @@ class ScheduleNativeCallTest extends CallTestBase {
                 mockEnhancement(),
                 verificationStrategy,
                 SENDER_ID,
-                (body, calc, enh, payer) -> 100L,
+                (_, _, _, _) -> 100L,
                 Set.of(),
                 Bytes.of(),
                 htsCallFactory,
                 false);
-    }
-
-    private void mockSystemOperations() {
-        given(enhancement.nativeOperations()).willReturn(nativeOperations);
-        given(enhancement.systemOperations()).willReturn(systemContractOperations);
-        given(nativeOperations.getTransactionID()).willReturn(TRANSACTION_ID);
     }
 }

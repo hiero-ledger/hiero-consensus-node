@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts;
+package com.hedera.node.app.service.contract.impl.exec.utils;
 
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asHeadlongAddress;
 

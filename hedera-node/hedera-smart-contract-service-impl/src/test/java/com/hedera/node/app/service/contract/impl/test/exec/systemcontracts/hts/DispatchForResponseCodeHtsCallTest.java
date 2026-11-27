@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TREASURY_ACCOUNT_FOR_TOKEN;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.ERROR_DECODING_PRECOMPILE_INPUT;
@@ -21,9 +22,12 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.scheduled.SchedulableTransactionBody;
 import com.hedera.hapi.node.token.TokenCreateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -171,6 +175,39 @@ class DispatchForResponseCodeHtsCallTest extends CallTestBase {
                 Optional.of(ERROR_DECODING_PRECOMPILE_INPUT),
                 fullResult.result().haltReason());
         assertEquals(DEFAULT_CONTRACTS_CONFIG.precompileHtsDefaultGasCost(), fullResult.gasRequirement());
+    }
+
+    @Test
+    void preemptedDispatchIsExternalizedWithoutDispatching() {
+        subject = new DispatchForResponseCodeHtsCall(
+                mockEnhancement(),
+                gasCalculator,
+                AccountID.DEFAULT,
+                TransactionBody.DEFAULT,
+                verificationStrategy,
+                dispatchGasCalculator,
+                failureCustomizer,
+                DispatchForResponseCodeHtsCall.SuccessProcessor.NOOP_PROCESSOR,
+                INVALID_TRANSACTION_BODY,
+                HederaFunctionality.TOKEN_UPDATE,
+                STANDARD_OUTPUT_FN);
+        given(dispatchGasCalculator.gasRequirement(
+                        TransactionBody.DEFAULT, gasCalculator, mockEnhancement(), AccountID.DEFAULT))
+                .willReturn(123L);
+        given(systemContractOperations.externalizePreemptedDispatch(
+                        TransactionBody.DEFAULT, INVALID_TRANSACTION_BODY, HederaFunctionality.TOKEN_UPDATE))
+                .willReturn(recordBuilder);
+        given(recordBuilder.status()).willReturn(INVALID_TRANSACTION_BODY);
+
+        final var pricedResult = subject.execute(frame);
+
+        // The status is returned as the response code, the call is charged for the dispatch it would have been
+        assertArrayEquals(
+                ReturnTypes.encodedRc(INVALID_TRANSACTION_BODY).array(),
+                pricedResult.fullResult().result().output().toArray());
+        assertEquals(123L, pricedResult.fullResult().gasRequirement());
+        verify(systemContractOperations, never()).dispatch(any(), any(), any(), any());
+        verifyNoInteractions(failureCustomizer);
     }
 
     @Test

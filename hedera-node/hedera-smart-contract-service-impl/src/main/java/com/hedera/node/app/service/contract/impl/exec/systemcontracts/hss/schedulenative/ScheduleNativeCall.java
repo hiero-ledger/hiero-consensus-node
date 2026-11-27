@@ -5,9 +5,12 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.revertResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.successResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasOnly;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.RC_AND_ADDRESS_ENCODER;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CallType.DIRECT_OR_PROXY_REDIRECT;
+import static com.hedera.node.app.service.contract.impl.utils.ConstantUtils.ZERO_ADDRESS;
 import static java.util.Objects.requireNonNull;
 
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Key;
@@ -17,6 +20,7 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.gas.DispatchGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.DispatchForResponseCodeHssCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallFactory;
@@ -27,6 +31,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.evm.frame.MessageFrame;
+import org.hyperledger.besu.evm.precompile.PrecompiledContract;
 
 /**
  * Handle a call to schedule a native function call.
@@ -75,6 +80,11 @@ public class ScheduleNativeCall extends AbstractCall {
         final var scheduleCreateTransactionBody = bodyForScheduleCreate(scheduleTransactionBody);
         final var gasRequirement = dispatchGasCalculator.gasRequirement(
                 scheduleCreateTransactionBody, gasCalculator, enhancement, payerID);
+        // A call that fails before dispatching would schedule a body that looks valid, so report its failure instead
+        final var preempted = call.preemptedResult(gasRequirement);
+        if (preempted != null) {
+            return scheduleResultOf(preempted);
+        }
         // payerID is caller-supplied fee responsibility; execution authority stays bound to
         // the trusted frame's sender in verificationStrategy, never to this payer field.
         final var recordBuilder = systemContractOperations()
@@ -98,6 +108,33 @@ public class ScheduleNativeCall extends AbstractCall {
                     status,
                     isViewCall);
         }
+    }
+
+    /**
+     * Gives the successful result of a pre-empted inner call the output of {@code scheduleNative()}, a response code
+     * and a schedule address, since the inner call encodes its own output, which may be only a response code. No
+     * schedule is created, so the address is zero. The gas, status and record of the inner call are kept.
+     * <p>
+     * A result that is not a success, a halt or a revert, already says how the call ended and has no output to
+     * translate, so it is returned as it is.
+     *
+     * @param preempted the result of the pre-empted inner call
+     * @return the result of this call
+     */
+    private PricedResult scheduleResultOf(@NonNull final PricedResult preempted) {
+        final var full = preempted.fullResult();
+        if (full.result().state() != MessageFrame.State.COMPLETED_SUCCESS) {
+            return preempted;
+        }
+        final var status = preempted.responseCode();
+        final var output = RC_AND_ADDRESS_ENCODER.encode(Tuple.of((long) status.protoOrdinal(), ZERO_ADDRESS));
+        return gasOnly(
+                new FullResult(
+                        PrecompiledContract.PrecompileContractResult.success(Bytes.wrap(output.array())),
+                        full.gasRequirement(),
+                        full.recordBuilder()),
+                status,
+                isViewCall);
     }
 
     /**

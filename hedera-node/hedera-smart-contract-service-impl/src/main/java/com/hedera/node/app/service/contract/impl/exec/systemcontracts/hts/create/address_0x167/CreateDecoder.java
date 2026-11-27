@@ -7,12 +7,12 @@ import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.CreateCommonDecoder;
+import com.hedera.node.app.service.contract.impl.exec.utils.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.utils.TokenCreateWrapper;
+import com.hedera.node.app.service.contract.impl.exec.utils.TokenTransactionBodyWrapper;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.math.BigInteger;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -41,7 +41,7 @@ public class CreateDecoder extends CreateCommonDecoder {
      * @param addressIdConverter the address ID converter for this call
      * @return the synthetic transaction body
      */
-    public @Nullable TransactionBody decodeCreateFungibleTokenV1(
+    public TokenTransactionBodyWrapper decodeCreateFungibleTokenV1(
             @NonNull final byte[] encoded,
             @NonNull final AccountID senderId,
             @NonNull final HederaNativeOperations nativeOperations,
@@ -64,7 +64,7 @@ public class CreateDecoder extends CreateCommonDecoder {
      * @param addressIdConverter the address ID converter for this call
      * @return the synthetic transaction body
      */
-    public TransactionBody decodeCreateFungibleTokenV2(
+    public TokenTransactionBodyWrapper decodeCreateFungibleTokenV2(
             @NonNull final byte[] encoded,
             @NonNull final AccountID senderId,
             @NonNull final HederaNativeOperations nativeOperations,
@@ -87,7 +87,7 @@ public class CreateDecoder extends CreateCommonDecoder {
      * @param addressIdConverter the address ID converter for this call
      * @return the synthetic transaction body
      */
-    public TransactionBody decodeCreateFungibleTokenV3(
+    public TokenTransactionBodyWrapper decodeCreateFungibleTokenV3(
             @NonNull final byte[] encoded,
             @NonNull final AccountID senderId,
             @NonNull final HederaNativeOperations nativeOperations,
@@ -113,7 +113,7 @@ public class CreateDecoder extends CreateCommonDecoder {
      * @param addressIdConverter the address ID converter for this call
      * @return the synthetic transaction body
      */
-    public TransactionBody decodeCreateFungibleTokenWithCustomFeesV1(
+    public TokenTransactionBodyWrapper decodeCreateFungibleTokenWithCustomFeesV1(
             @NonNull final byte[] encoded,
             @NonNull final AccountID senderId,
             @NonNull final HederaNativeOperations nativeOperations,
@@ -145,7 +145,7 @@ public class CreateDecoder extends CreateCommonDecoder {
      * @param addressIdConverter the address ID converter for this call
      * @return the synthetic transaction body
      */
-    public TransactionBody decodeCreateFungibleTokenWithCustomFeesV2(
+    public TokenTransactionBodyWrapper decodeCreateFungibleTokenWithCustomFeesV2(
             @NonNull final byte[] encoded,
             @NonNull final AccountID senderId,
             @NonNull final HederaNativeOperations nativeOperations,
@@ -177,7 +177,7 @@ public class CreateDecoder extends CreateCommonDecoder {
      * @param addressIdConverter the address ID converter for this call
      * @return the synthetic transaction body
      */
-    public TransactionBody decodeCreateFungibleTokenWithCustomFeesV3(
+    public TokenTransactionBodyWrapper decodeCreateFungibleTokenWithCustomFeesV3(
             @NonNull final byte[] encoded,
             @NonNull final AccountID senderId,
             @NonNull final HederaNativeOperations nativeOperations,
@@ -204,7 +204,7 @@ public class CreateDecoder extends CreateCommonDecoder {
      * @param addressIdConverter the address ID converter for this call
      * @return the synthetic transaction body
      */
-    public TransactionBody decodeCreateNonFungibleV1(
+    public TokenTransactionBodyWrapper decodeCreateNonFungibleV1(
             @NonNull final byte[] encoded,
             @NonNull final AccountID senderId,
             @NonNull final HederaNativeOperations nativeOperations,
@@ -224,7 +224,7 @@ public class CreateDecoder extends CreateCommonDecoder {
      * @param addressIdConverter the address ID converter for this call
      * @return the synthetic transaction body
      */
-    public TransactionBody decodeCreateNonFungibleV2(
+    public TokenTransactionBodyWrapper decodeCreateNonFungibleV2(
             @NonNull final byte[] encoded,
             @NonNull final AccountID senderId,
             @NonNull final HederaNativeOperations nativeOperations,
@@ -244,7 +244,7 @@ public class CreateDecoder extends CreateCommonDecoder {
      * @param addressIdConverter the address ID converter for this call
      * @return the synthetic transaction body
      */
-    public TransactionBody decodeCreateNonFungibleV3(
+    public TokenTransactionBodyWrapper decodeCreateNonFungibleV3(
             @NonNull final byte[] encoded,
             @NonNull final AccountID senderId,
             @NonNull final HederaNativeOperations nativeOperations,
@@ -264,7 +264,7 @@ public class CreateDecoder extends CreateCommonDecoder {
      * @param addressIdConverter the address ID converter for this call
      * @return the synthetic transaction body
      */
-    public TransactionBody decodeCreateNonFungibleWithCustomFeesV1(
+    public TokenTransactionBodyWrapper decodeCreateNonFungibleWithCustomFeesV1(
             @NonNull final byte[] encoded,
             @NonNull final AccountID senderId,
             @NonNull final HederaNativeOperations nativeOperations,
@@ -289,7 +289,7 @@ public class CreateDecoder extends CreateCommonDecoder {
      * @param addressIdConverter the address ID converter for this call
      * @return the synthetic transaction body
      */
-    public TransactionBody decodeCreateNonFungibleWithCustomFeesV2(
+    public TokenTransactionBodyWrapper decodeCreateNonFungibleWithCustomFeesV2(
             @NonNull final byte[] encoded,
             @NonNull final AccountID senderId,
             @NonNull final HederaNativeOperations nativeOperations,
@@ -314,7 +314,7 @@ public class CreateDecoder extends CreateCommonDecoder {
      * @param addressIdConverter the address ID converter for this call
      * @return the synthetic transaction body
      */
-    public TransactionBody decodeCreateNonFungibleWithCustomFeesV3(
+    public TokenTransactionBodyWrapper decodeCreateNonFungibleWithCustomFeesV3(
             @NonNull final byte[] encoded,
             @NonNull final AccountID senderId,
             @NonNull final HederaNativeOperations nativeOperations,
@@ -378,11 +378,11 @@ public class CreateDecoder extends CreateCommonDecoder {
         return tokenCreateWrapper;
     }
 
-    private @Nullable TransactionBody bodyFor(@NonNull final TokenCreateWrapper tokenCreateWrapper) {
+    private TokenTransactionBodyWrapper bodyFor(@NonNull final TokenCreateWrapper tokenCreateWrapper) {
         try {
-            return bodyOf(createToken(tokenCreateWrapper));
+            return createToken(tokenCreateWrapper, false);
         } catch (IllegalArgumentException ignore) {
-            return null;
+            return TokenTransactionBodyWrapper.EMPTY;
         }
     }
 }
