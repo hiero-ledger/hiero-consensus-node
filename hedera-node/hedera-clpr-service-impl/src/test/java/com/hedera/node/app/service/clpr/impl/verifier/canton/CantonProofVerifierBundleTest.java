@@ -12,12 +12,7 @@ import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtur
 import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.versioned;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
-import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.state.clpr.ClprBundleContent;
 import com.hedera.hapi.node.state.clpr.ClprChannelStatus;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
@@ -25,13 +20,8 @@ import com.hedera.hapi.node.state.clpr.ClprMessage;
 import com.hedera.hapi.node.state.clpr.ClprMessagePayload;
 import com.hedera.hapi.node.state.clpr.ClprMessageReply;
 import com.hedera.hapi.node.state.clpr.ClprMessageReplyStatus;
-import com.hedera.hapi.node.state.clpr.ClprMessageValue;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
-import com.hedera.node.app.service.clpr.ReadableMessageQueueStore;
 import com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.Pb;
-import com.hedera.node.app.spi.store.StoreFactory;
-import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
@@ -458,138 +448,6 @@ class CantonProofVerifierBundleTest {
         }
     }
 
-    @Nested
-    class ClprVerifierSurface {
-        @Test
-        void clprVerifierVerifyBundleReturnsContent() {
-            final var b = new Bundle().payload(data(APP, OTHER));
-            final ClprBundleContent c = new CantonProofVerifier()
-                    .verifyBundle(
-                            Bytes.wrap(b.proof()),
-                            Bytes.wrap(b.anchor()),
-                            Bytes.wrap(CHANNEL_CONTEXT),
-                            mock(HandleContext.class));
-            assertThat(c.messages()).hasSize(1);
-            assertThat(c.metadata().nextMessageId()).isEqualTo(7);
-        }
-
-        @Test
-        void clprVerifierReadsTheOutboundMessageFromTheMessageQueue() {
-            final var queue = mock(ReadableMessageQueueStore.class);
-            final var storeFactory = mock(StoreFactory.class);
-            final var context = mock(HandleContext.class);
-            when(context.storeFactory()).thenReturn(storeFactory);
-            when(storeFactory.readableStore(ReadableMessageQueueStore.class)).thenReturn(queue);
-            when(queue.getMessage(any(), anyLong()))
-                    .thenReturn(ClprMessageValue.newBuilder()
-                            .payload(dataPayload(APP, OTHER))
-                            .build());
-
-            final var b = new Bundle()
-                    .writeFirst(6)
-                    .payload(reply(5, ClprMessageReplyStatus.SUCCESS, new byte[] {1}))
-                    .alsoConfirmedBy(ENDPOINTS);
-            // The stored DATA message went to OTHER, but the reply comes from the anchor's app.
-            assertThatThrownBy(() -> new CantonProofVerifier()
-                            .verifyBundle(
-                                    Bytes.wrap(b.proof()),
-                                    Bytes.wrap(b.anchor()),
-                                    Bytes.wrap(CHANNEL_CONTEXT),
-                                    context))
-                    .isInstanceOf(HandleException.class)
-                    .satisfies(e -> assertThat(((HandleException) e).getStatus())
-                            .isEqualTo(ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED));
-
-            when(queue.getMessage(any(), anyLong()))
-                    .thenReturn(ClprMessageValue.newBuilder()
-                            .payload(dataPayload(OTHER, APP))
-                            .build());
-            final ClprBundleContent c = new CantonProofVerifier()
-                    .verifyBundle(Bytes.wrap(b.proof()), Bytes.wrap(b.anchor()), Bytes.wrap(CHANNEL_CONTEXT), context);
-            assertThat(c.messages()).hasSize(1);
-
-            // An absent stored message is nothing to bind: ClprService's reply ordering rejects it.
-            when(queue.getMessage(any(), anyLong())).thenReturn(null);
-            assertThat(new CantonProofVerifier()
-                            .verifyBundle(
-                                    Bytes.wrap(b.proof()), Bytes.wrap(b.anchor()), Bytes.wrap(CHANNEL_CONTEXT), context)
-                            .messages())
-                    .hasSize(1);
-        }
-
-        @Test
-        void clprVerifierMapsAnyFailureToBundleVerificationFailed() {
-            final var b = new Bundle().anchorMediatorsHash(sha("some other set"));
-            assertThatThrownBy(() -> new CantonProofVerifier()
-                            .verifyBundle(
-                                    Bytes.wrap(b.proof()),
-                                    Bytes.wrap(b.anchor()),
-                                    Bytes.wrap(CHANNEL_CONTEXT),
-                                    mock(HandleContext.class)))
-                    .isInstanceOf(HandleException.class)
-                    .satisfies(e -> assertThat(((HandleException) e).getStatus())
-                            .isEqualTo(ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED));
-            // Not even RLP: also a HandleException, not a raw runtime exception.
-            assertThatThrownBy(() -> new CantonProofVerifier()
-                            .verifyBundle(
-                                    Bytes.wrap(new byte[] {(byte) 0xff, 1}),
-                                    Bytes.wrap(b.anchor()),
-                                    Bytes.wrap(CHANNEL_CONTEXT),
-                                    mock(HandleContext.class)))
-                    .isInstanceOf(HandleException.class);
-        }
-
-        @Test
-        void clprVerifierMapsAMessageQueueThatCannotBeOpenedToBundleVerificationFailed() {
-            final var storeFactory = mock(StoreFactory.class);
-            when(storeFactory.readableStore(ReadableMessageQueueStore.class))
-                    .thenThrow(new IllegalStateException("gone"));
-            final var context = mock(HandleContext.class);
-            when(context.storeFactory()).thenReturn(storeFactory);
-            // Only a REPLY consults the queue.
-            final var b = new Bundle()
-                    .writeFirst(6)
-                    .payload(reply(5, ClprMessageReplyStatus.SUCCESS, new byte[] {1}))
-                    .alsoConfirmedBy(ENDPOINTS);
-            assertBundleVerificationFailed(b, context);
-        }
-
-        @Test
-        void clprVerifierMapsAnUnexpectedRuntimeExceptionToBundleVerificationFailed() {
-            final var queue = mock(ReadableMessageQueueStore.class);
-            when(queue.getMessage(any(), anyLong())).thenThrow(new IllegalStateException("boom"));
-            final var storeFactory = mock(StoreFactory.class);
-            when(storeFactory.readableStore(ReadableMessageQueueStore.class)).thenReturn(queue);
-            final var context = mock(HandleContext.class);
-            when(context.storeFactory()).thenReturn(storeFactory);
-            final var b = new Bundle()
-                    .writeFirst(6)
-                    .payload(reply(5, ClprMessageReplyStatus.SUCCESS, new byte[] {1}))
-                    .alsoConfirmedBy(ENDPOINTS);
-            assertBundleVerificationFailed(b, context);
-        }
-
-        @Test
-        void clprVerifierTreatsAStoredMessageWithoutPayloadAsAbsent() {
-            final var queue = mock(ReadableMessageQueueStore.class);
-            when(queue.getMessage(any(), anyLong()))
-                    .thenReturn(ClprMessageValue.newBuilder().build());
-            final var storeFactory = mock(StoreFactory.class);
-            when(storeFactory.readableStore(ReadableMessageQueueStore.class)).thenReturn(queue);
-            final var context = mock(HandleContext.class);
-            when(context.storeFactory()).thenReturn(storeFactory);
-            final var b = new Bundle()
-                    .writeFirst(6)
-                    .payload(reply(5, ClprMessageReplyStatus.SUCCESS, new byte[] {1}))
-                    .alsoConfirmedBy(ENDPOINTS);
-            assertThat(new CantonProofVerifier()
-                            .verifyBundle(
-                                    Bytes.wrap(b.proof()), Bytes.wrap(b.anchor()), Bytes.wrap(CHANNEL_CONTEXT), context)
-                            .messages())
-                    .hasSize(1);
-        }
-    }
-
     /**
      * The reference's {@code ClprProtobuf.decodeEndpointManifest} rejects a known manifest field carried under the
      * wrong wire type (its counting pass would otherwise disagree with its decode pass). The Java side parses the
@@ -961,15 +819,6 @@ class CantonProofVerifierBundleTest {
             out.write(0); // previous keys
             return out.toByteArray();
         }
-    }
-
-    private static void assertBundleVerificationFailed(final Bundle b, final HandleContext context) {
-        assertThatThrownBy(() -> new CantonProofVerifier()
-                        .verifyBundle(
-                                Bytes.wrap(b.proof()), Bytes.wrap(b.anchor()), Bytes.wrap(CHANNEL_CONTEXT), context))
-                .isInstanceOf(HandleException.class)
-                .satisfies(e -> assertThat(((HandleException) e).getStatus())
-                        .isEqualTo(ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED));
     }
 
     private static void assertRejectsPayload(final String errorName, final byte[] payload) {

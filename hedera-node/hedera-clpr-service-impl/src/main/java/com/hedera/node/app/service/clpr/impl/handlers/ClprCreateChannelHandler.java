@@ -33,7 +33,6 @@ import com.hedera.node.app.service.clpr.impl.calculator.ClprFeeCalculator;
 import com.hedera.node.app.service.clpr.impl.verifier.ClprVerifier;
 import com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierFactory;
 import com.hedera.node.app.service.clpr.impl.verifier.VerifiedConfig;
-import com.hedera.node.app.service.clpr.impl.verifier.VerifiersRegistry;
 import com.hedera.node.app.service.contract.api.SmartContractServiceApi;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -68,10 +67,11 @@ public final class ClprCreateChannelHandler extends AbstractClprHandler {
      *   <li>{@code 0x16e} (366) — CLPR system contract precompile.</li>
      *   <li>{@code 0x16f} (367) — Besu QBFT verifier system contract.</li>
      *   <li>{@code 0x171} (369) — Ethereum (sync-committee) verifier system contract.</li>
-     *   <li>{@code 0x173} (371) — Canton (non-EVM, native verifier).</li>
+     *   <li>{@code 0x173} (371) — Canton verifier system contract.</li>
      * </ul>
-     * Mirrors {@code BesuQBFTVerifierSystemContract.BESU_QBFT_VERIFIER_EVM_ADDRESS} and
-     * {@code EthereumVerifierSystemContract.ETHEREUM_VERIFIER_EVM_ADDRESS} in the
+     * Mirrors {@code BesuQBFTVerifierSystemContract.BESU_QBFT_VERIFIER_EVM_ADDRESS},
+     * {@code EthereumVerifierSystemContract.ETHEREUM_VERIFIER_EVM_ADDRESS} and
+     * {@code CantonVerifierSystemContract.CANTON_VERIFIER_EVM_ADDRESS} in the
      * smart-contract-service-impl module for the verifier addresses.
      *
      * <p>The Sei (CometBFT) verifier system contract at {@code 0x170} is not supported
@@ -91,11 +91,12 @@ public final class ClprCreateChannelHandler extends AbstractClprHandler {
     private static final Bytes ETHEREUM_VERIFIER_SYSTEM_CONTRACT_EVM_ADDRESS =
             Bytes.wrap(new byte[] {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01, (byte) 0x71});
 
-    /** Canton verifier reserved contract num (0x173); non-EVM, dispatched natively by the {@link VerifiersRegistry}. */
-    private static final long CANTON_VERIFIER_SYSTEM_CONTRACT_NUM = VerifiersRegistry.CANTON_CONTRACT_NUM;
+    /** Canton verifier system contract; mirrors {@code CANTON_VERIFIER_EVM_ADDRESS} (0x173). */
+    private static final long CANTON_VERIFIER_SYSTEM_CONTRACT_NUM = 0x173L;
 
     /** EVM-address form of {@link #CANTON_VERIFIER_SYSTEM_CONTRACT_NUM}. */
-    private static final Bytes CANTON_VERIFIER_SYSTEM_CONTRACT_EVM_ADDRESS = VerifiersRegistry.CANTON_EVM_ADDRESS;
+    private static final Bytes CANTON_VERIFIER_SYSTEM_CONTRACT_EVM_ADDRESS =
+            Bytes.wrap(new byte[] {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01, (byte) 0x73});
 
     private record BuiltInVerifier(String displayName, Bytes fingerprint) {}
 

@@ -9,6 +9,7 @@ module com.hedera.node.app.service.clpr.impl {
     exports com.hedera.node.app.service.clpr.impl.handlers;
     exports com.hedera.node.app.service.clpr.impl.roster;
     exports com.hedera.node.app.service.clpr.impl.schemas;
+    exports com.hedera.node.app.service.clpr.impl.verifier.canton;
     exports com.hedera.node.app.service.clpr.impl.verifier.ethereum;
     exports com.hedera.node.app.service.clpr.impl.verifier.sei;
     exports com.hedera.node.app.service.clpr.impl.verifier;

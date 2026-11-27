@@ -25,6 +25,7 @@ import static java.util.Objects.requireNonNull;
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.INVALID_OPERATION;
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.PRECOMPILE_ERROR;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason;
@@ -67,11 +68,13 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
     private static final long BESU_QBFT_VERIFIER_SYSTEM_CONTRACT_NUM = 0x16fL;
     private static final long SEI_VERIFIER_SYSTEM_CONTRACT_NUM = 0x170L;
     private static final long ETHEREUM_VERIFIER_SYSTEM_CONTRACT_NUM = 0x171L;
+    private static final long CANTON_VERIFIER_SYSTEM_CONTRACT_NUM = 0x173L;
     private static final byte[] CLPR_ROUTER_EVM_ADDRESS = systemContractAddress(0x6e);
     private static final byte[] BESU_QBFT_VERIFIER_EVM_ADDRESS = systemContractAddress(0x6f);
     private static final byte[] SEI_VERIFIER_EVM_ADDRESS = systemContractAddress(0x70);
 
     private static final byte[] ETHEREUM_VERIFIER_EVM_ADDRESS = systemContractAddress(0x71);
+    private static final byte[] CANTON_VERIFIER_EVM_ADDRESS = systemContractAddress(0x73);
 
     private final CallFactory callFactory;
     private final ContractMetrics contractMetrics;
@@ -455,20 +458,23 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
     //
     protected abstract FrameUtils.CallType callTypeOf(@NonNull final MessageFrame frame);
 
-    private static boolean isClprVerifierDebugTarget(@NonNull final ContractID contractID, @NonNull final Bytes input) {
+    @VisibleForTesting
+    static boolean isClprVerifierDebugTarget(@NonNull final ContractID contractID, @NonNull final Bytes input) {
         if (contractID.hasContractNum()) {
             final var num = contractID.contractNumOrThrow();
             return num == CLPR_ROUTER_SYSTEM_CONTRACT_NUM
                     || num == BESU_QBFT_VERIFIER_SYSTEM_CONTRACT_NUM
                     || num == SEI_VERIFIER_SYSTEM_CONTRACT_NUM
-                    || num == ETHEREUM_VERIFIER_SYSTEM_CONTRACT_NUM;
+                    || num == ETHEREUM_VERIFIER_SYSTEM_CONTRACT_NUM
+                    || num == CANTON_VERIFIER_SYSTEM_CONTRACT_NUM;
         }
         if (contractID.hasEvmAddress()) {
             final var evmAddress = contractID.evmAddressOrThrow().toByteArray();
             return Arrays.equals(evmAddress, CLPR_ROUTER_EVM_ADDRESS)
                     || Arrays.equals(evmAddress, BESU_QBFT_VERIFIER_EVM_ADDRESS)
                     || Arrays.equals(evmAddress, SEI_VERIFIER_EVM_ADDRESS)
-                    || Arrays.equals(evmAddress, ETHEREUM_VERIFIER_EVM_ADDRESS);
+                    || Arrays.equals(evmAddress, ETHEREUM_VERIFIER_EVM_ADDRESS)
+                    || Arrays.equals(evmAddress, CANTON_VERIFIER_EVM_ADDRESS);
         }
         return false;
     }

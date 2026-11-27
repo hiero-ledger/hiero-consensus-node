@@ -1,7 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 /**
- * Java port of the Solidity {@code CantonVerifier}: a {@link com.hedera.node.app.service.clpr.impl.verifier.ClprVerifier}
- * that checks a CLPR bundle was committed by the CLPR service on a Canton synchronizer.
+ * Java port of the Solidity {@code CantonVerifier}: checks that a CLPR bundle was committed by the CLPR service on a
+ * Canton synchronizer.
+ *
+ * <p>It is not a {@link com.hedera.node.app.service.clpr.impl.verifier.ClprVerifier}. Channels reach it through the
+ * Canton verifier system contract at {@code 0x173} ({@code CantonVerifierSystemContract} in the smart-contract
+ * service), which {@code EvmClprVerifier} calls like any other verifier contract, both at consensus and in local
+ * prevalidation of inbound bundles. That system contract supplies {@link CantonProofVerifier#verifyConfig} with this
+ * ledger's chain id, and {@link CantonProofVerifier#verifyBundle} with an
+ * {@link CantonProofVerifier.OutboundLookup} over this ledger's outbound message queue.
  *
  * <p>The Solidity {@code CantonVerifier} and its supporting contracts are the reference; this port must match them
  * byte for byte.

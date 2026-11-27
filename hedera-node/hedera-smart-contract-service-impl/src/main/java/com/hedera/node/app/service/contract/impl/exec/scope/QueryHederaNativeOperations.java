@@ -9,6 +9,8 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.node.app.service.clpr.ReadableChannelStore;
 import com.hedera.node.app.service.clpr.ReadableEndpointManifestStore;
+import com.hedera.node.app.service.clpr.ReadableLedgerConfigurationStore;
+import com.hedera.node.app.service.clpr.ReadableMessageQueueStore;
 import com.hedera.node.app.service.contract.impl.annotations.QueryScope;
 import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
@@ -102,6 +104,22 @@ public class QueryHederaNativeOperations implements HederaNativeOperations {
     @Override
     public @NonNull ReadableEndpointManifestStore readableEndpointManifestStore() {
         return context.createStore(ReadableEndpointManifestStore.class);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public @NonNull ReadableMessageQueueStore readableMessageQueueStore() {
+        return context.createStore(ReadableMessageQueueStore.class);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public @NonNull ReadableLedgerConfigurationStore readableLedgerConfigurationStore() {
+        return context.createStore(ReadableLedgerConfigurationStore.class);
     }
 
     /**

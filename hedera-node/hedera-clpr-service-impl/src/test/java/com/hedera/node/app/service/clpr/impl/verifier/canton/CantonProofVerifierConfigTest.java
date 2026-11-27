@@ -9,20 +9,13 @@ import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtur
 import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.versioned;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
-import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.state.clpr.ClprEndpoint;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
-import com.hedera.node.app.service.clpr.ReadableLedgerConfigurationStore;
 import com.hedera.node.app.service.clpr.impl.verifier.VerifiedConfig;
 import com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.Pb;
-import com.hedera.node.app.spi.store.StoreFactory;
-import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.io.ByteArrayOutputStream;
 import java.math.BigInteger;
@@ -424,33 +417,6 @@ class CantonProofVerifierConfigTest {
             final var tx = new Cfg().contractManifestHash(MANIFEST_HASH);
             final byte[] badlySigned = tx.manifestProofWithBadSignature(MANIFEST_BYTES);
             assertThatThrownBy(() -> verify(new Cfg(), badlySigned)).isInstanceOf(CantonProofException.class);
-        }
-    }
-
-    @Nested
-    class ClprVerifierSurface {
-        @Test
-        void clprVerifierReadsTheLocalChainIdFromTheLedgerConfiguration() {
-            final var cfg = new Cfg();
-            final var context = contextWithChain(LOCAL_CHAIN);
-            final VerifiedConfig v = new CantonProofVerifier()
-                    .verifyConfig(Bytes.wrap(cfg.proof()), Bytes.wrap(CHANNEL_ID), Bytes.EMPTY, context);
-            assertThat(v.config().chainId()).isEqualTo(PEER_CHAIN);
-            assertThat(v.manifest().version()).isZero();
-        }
-
-        @Test
-        void clprVerifierMapsAnyFailureToConfigFailed() {
-            final var cfg = new Cfg();
-            // Another local chain id than the one the ChannelConfig names.
-            assertConfigFailed(Bytes.wrap(cfg.proof()), Bytes.wrap(CHANNEL_ID), contextWithChain("eip155:1"));
-            // Not even RLP.
-            assertConfigFailed(
-                    Bytes.wrap(new byte[] {(byte) 0xff, 1}), Bytes.wrap(CHANNEL_ID), contextWithChain(LOCAL_CHAIN));
-            // No ledger configuration to read.
-            assertConfigFailed(Bytes.wrap(cfg.proof()), Bytes.wrap(CHANNEL_ID), mock(HandleContext.class));
-            // A channel id that is not 32 bytes.
-            assertConfigFailed(Bytes.wrap(cfg.proof()), Bytes.wrap(new byte[31]), contextWithChain(LOCAL_CHAIN));
         }
     }
 
@@ -862,25 +828,6 @@ class CantonProofVerifierConfigTest {
             out.write(0); // previous keys
             return out.toByteArray();
         }
-    }
-
-    private static HandleContext contextWithChain(final String chainId) {
-        final var store = mock(ReadableLedgerConfigurationStore.class);
-        when(store.getConfiguration())
-                .thenReturn(
-                        ClprLedgerConfiguration.newBuilder().chainId(chainId).build());
-        final var storeFactory = mock(StoreFactory.class);
-        when(storeFactory.readableStore(ReadableLedgerConfigurationStore.class)).thenReturn(store);
-        final var context = mock(HandleContext.class);
-        when(context.storeFactory()).thenReturn(storeFactory);
-        return context;
-    }
-
-    private static void assertConfigFailed(final Bytes proof, final Bytes channelId, final HandleContext context) {
-        assertThatThrownBy(() -> new CantonProofVerifier().verifyConfig(proof, channelId, Bytes.EMPTY, context))
-                .isInstanceOf(HandleException.class)
-                .satisfies(e -> assertThat(((HandleException) e).getStatus())
-                        .isEqualTo(ResponseCodeEnum.CLPR_VERIFIER_CONFIG_FAILED));
     }
 
     private static VerifiedConfig verify(final Cfg c) {

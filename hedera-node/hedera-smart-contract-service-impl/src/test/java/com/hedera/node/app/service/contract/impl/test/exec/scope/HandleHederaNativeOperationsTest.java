@@ -46,6 +46,8 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.service.clpr.ReadableLedgerConfigurationStore;
+import com.hedera.node.app.service.clpr.ReadableMessageQueueStore;
 import com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
@@ -123,6 +125,12 @@ class HandleHederaNativeOperationsTest {
     @Mock
     EntityIdFactory entityIdFactory;
 
+    @Mock
+    private ReadableMessageQueueStore messageQueueStore;
+
+    @Mock
+    private ReadableLedgerConfigurationStore ledgerConfigurationStore;
+
     private final Deque<MessageFrame> stack = new ArrayDeque<>();
 
     private HandleHederaNativeOperations subject;
@@ -144,6 +152,21 @@ class HandleHederaNativeOperationsTest {
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
         given(accountStore.getAccountById(NON_SYSTEM_ACCOUNT_ID)).willReturn(Account.DEFAULT);
         assertSame(Account.DEFAULT, subject.getAccount(NON_SYSTEM_ACCOUNT_ID));
+    }
+
+    @Test
+    void readableMessageQueueStoreUsesContextStoreFactory() {
+        given(context.storeFactory()).willReturn(storeFactory);
+        given(storeFactory.readableStore(ReadableMessageQueueStore.class)).willReturn(messageQueueStore);
+        assertSame(messageQueueStore, subject.readableMessageQueueStore());
+    }
+
+    @Test
+    void readableLedgerConfigurationStoreUsesContextStoreFactory() {
+        given(context.storeFactory()).willReturn(storeFactory);
+        given(storeFactory.readableStore(ReadableLedgerConfigurationStore.class))
+                .willReturn(ledgerConfigurationStore);
+        assertSame(ledgerConfigurationStore, subject.readableLedgerConfigurationStore());
     }
 
     @Test

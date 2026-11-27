@@ -3,6 +3,7 @@ package com.hedera.node.app.service.contract.impl.exec.processors;
 
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.BesuQBFTVerifierSystemContract.BESU_QBFT_VERIFIER_EVM_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.CantonVerifierSystemContract.CANTON_VERIFIER_EVM_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.EthereumVerifierSystemContract.ETHEREUM_VERIFIER_EVM_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.ExchangeRateSystemContract.EXCHANGE_RATE_SYSTEM_CONTRACT_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HasSystemContract.HAS_EVM_ADDRESS;
@@ -15,6 +16,7 @@ import static java.util.Map.entry;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.BesuQBFTVerifierSystemContract;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.CantonVerifierSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.ClprSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.EthereumVerifierSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.ExchangeRateSystemContract;
@@ -45,7 +47,8 @@ import org.hyperledger.besu.evm.internal.EvmConfiguration;
             ClprTranslatorsModule.class,
             BesuQBFTTranslatorsModule.class,
             SeiVerifierTranslatorsModule.class,
-            EthereumVerifierTranslatorsModule.class
+            EthereumVerifierTranslatorsModule.class,
+            CantonVerifierTranslatorsModule.class
         })
 public interface ProcessorModule {
     long INITIAL_CONTRACT_NONCE = 1L;
@@ -81,7 +84,8 @@ public interface ProcessorModule {
             @NonNull final ClprSystemContract clprSystemContract,
             @NonNull final BesuQBFTVerifierSystemContract besuQBFTVerifierSystemContract,
             @NonNull final SeiVerifierSystemContract seiVerifierSystemContract,
-            @NonNull final EthereumVerifierSystemContract ethereumVerifierSystemContract) {
+            @NonNull final EthereumVerifierSystemContract ethereumVerifierSystemContract,
+            @NonNull final CantonVerifierSystemContract cantonVerifierSystemContract) {
         return Map.ofEntries(
                 entry(Address.fromHexString(HTS_167_EVM_ADDRESS), requireNonNull(htsSystemContract)),
                 entry(Address.fromHexString(HTS_16C_EVM_ADDRESS), requireNonNull(htsSystemContract)),
@@ -98,6 +102,9 @@ public interface ProcessorModule {
                 entry(Address.fromHexString(SEI_VERIFIER_EVM_ADDRESS), requireNonNull(seiVerifierSystemContract)),
                 entry(
                         Address.fromHexString(ETHEREUM_VERIFIER_EVM_ADDRESS),
-                        requireNonNull(ethereumVerifierSystemContract)));
+                        requireNonNull(ethereumVerifierSystemContract)),
+                entry(
+                        Address.fromHexString(CANTON_VERIFIER_EVM_ADDRESS),
+                        requireNonNull(cantonVerifierSystemContract)));
     }
 }

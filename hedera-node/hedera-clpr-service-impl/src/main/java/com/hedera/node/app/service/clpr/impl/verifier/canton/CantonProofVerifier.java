@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.verifier.canton;
 
-import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_VERIFIER_CONFIG_FAILED;
 import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.concat;
 
-import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.clpr.ClprBundleContent;
 import com.hedera.hapi.node.state.clpr.ClprChannelStatus;
@@ -15,14 +13,9 @@ import com.hedera.hapi.node.state.clpr.ClprMessageReplyStatus;
 import com.hedera.hapi.node.state.clpr.ClprQueueMetadata;
 import com.hedera.hapi.node.state.clpr.ClprThrottles;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
-import com.hedera.node.app.service.clpr.ReadableLedgerConfigurationStore;
-import com.hedera.node.app.service.clpr.ReadableMessageQueueStore;
-import com.hedera.node.app.service.clpr.impl.verifier.ClprVerifier;
 import com.hedera.node.app.service.clpr.impl.verifier.VerifiedConfig;
 import com.hedera.node.app.service.clpr.impl.verifier.canton.CantonProto.Range;
 import com.hedera.node.app.service.clpr.impl.verifier.canton.CantonRlp.Slice;
-import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -49,7 +42,7 @@ import org.apache.logging.log4j.Logger;
  * up to the root views, each step {@code [[hash before, ...], [hash after, ...]]}. Leaves are hashed with their
  * {@code UntypedVersionedMessage} wrapper and parsed without it.
  */
-public final class CantonProofVerifier implements ClprVerifier {
+public final class CantonProofVerifier {
     private static final Logger log = LogManager.getLogger(CantonProofVerifier.class);
 
     /** Bundle proof: {@code [verdict, opening, createdIndex, mediatorSet, rotations, manifest, payloads]}. */
@@ -185,51 +178,6 @@ public final class CantonProofVerifier implements ClprVerifier {
      */
     public CantonProofVerifier() {}
 
-    // ── ClprVerifier ───────────────────────────────────────────────────────
-
-    /**
-     * {@inheritDoc}
-     *
-     * <p>Runs {@link #verifyConfig(byte[], byte[], byte[], byte[])} with this ledger's chain id, which the reference
-     * reads from the calling {@code ClprService}'s {@code getLedgerConfiguration}; any verification failure is a
-     * {@link HandleException} with {@code CLPR_VERIFIER_CONFIG_FAILED}.
-     */
-    @Override
-    @NonNull
-    public VerifiedConfig verifyConfig(
-            @NonNull final Bytes configProofBytes,
-            @NonNull final Bytes channelId,
-            @NonNull final Bytes endpointManifestProofBytes,
-            @NonNull final HandleContext context)
-            throws HandleException {
-        Objects.requireNonNull(configProofBytes, "configProofBytes");
-        Objects.requireNonNull(channelId, "channelId");
-        Objects.requireNonNull(endpointManifestProofBytes, "endpointManifestProofBytes");
-        Objects.requireNonNull(context, "context");
-        try {
-            final byte[] localChainId;
-            try {
-                localChainId = context.storeFactory()
-                        .readableStore(ReadableLedgerConfigurationStore.class)
-                        .getConfiguration()
-                        .chainId()
-                        .getBytes(StandardCharsets.UTF_8);
-            } catch (final RuntimeException e) {
-                log.error("Failed to read ledger configuration for Canton config verification", e);
-                throw withCause(CantonProofException.serviceCallFailed("ledger configuration unavailable"), e);
-            }
-            return verifyConfig(
-                    configProofBytes.toByteArray(),
-                    channelId.toByteArray(),
-                    endpointManifestProofBytes.toByteArray(),
-                    localChainId);
-        } catch (final RuntimeException e) {
-            // The reference reverts on any malformed input; so does this.
-            log.error("Canton config verification failed", e);
-            throw new HandleException(CLPR_VERIFIER_CONFIG_FAILED);
-        }
-    }
-
     // ── verifyConfig ───────────────────────────────────────────────────────
 
     /**
@@ -254,7 +202,7 @@ public final class CantonProofVerifier implements ClprVerifier {
      * @throws CantonProofException on any verification failure
      */
     @NonNull
-    static VerifiedConfig verifyConfig(
+    public static VerifiedConfig verifyConfig(
             @NonNull final byte[] configProofBytes,
             @NonNull final byte[] channelId,
             @NonNull final byte[] endpointManifestProofBytes,
@@ -613,50 +561,6 @@ public final class CantonProofVerifier implements ClprVerifier {
         }
     }
 
-    /**
-     * {@inheritDoc}
-     *
-     * <p>Runs {@link #verifyBundle(byte[], byte[], byte[], OutboundLookup)}; any verification failure is a
-     * {@link HandleException} with {@code CLPR_BUNDLE_VERIFICATION_FAILED}. The sender's live outbound message that
-     * a REPLY answers is read from the CLPR message queue in state, as the reference reads it from the calling
-     * {@code ClprService}.
-     */
-    @Override
-    @NonNull
-    public ClprBundleContent verifyBundle(
-            @NonNull final Bytes bundlePayload,
-            @NonNull final Bytes trustAnchor,
-            @NonNull final Bytes channelContext,
-            @NonNull final HandleContext context)
-            throws HandleException {
-        Objects.requireNonNull(bundlePayload, "bundlePayload");
-        Objects.requireNonNull(trustAnchor, "trustAnchor");
-        Objects.requireNonNull(channelContext, "channelContext");
-        Objects.requireNonNull(context, "context");
-        final OutboundLookup outbound = (channelId, messageId) -> {
-            final ReadableMessageQueueStore queue;
-            try {
-                queue = context.storeFactory().readableStore(ReadableMessageQueueStore.class);
-            } catch (final RuntimeException e) {
-                log.error("Failed to get message queue store for outbound lookup", e);
-                throw withCause(CantonProofException.serviceCallFailed("message queue unavailable"), e);
-            }
-            final var stored = queue.getMessage(Bytes.wrap(channelId), messageId);
-            return stored == null || !stored.hasPayload() ? null : stored.payload();
-        };
-        try {
-            return verifyBundle(
-                    bundlePayload.toByteArray(), trustAnchor.toByteArray(), channelContext.toByteArray(), outbound);
-        } catch (final CantonProofException e) {
-            log.error("Canton bundle verification failed: {}", e.getMessage());
-            throw new HandleException(e.responseCode());
-        } catch (final RuntimeException e) {
-            log.error("Unexpected error verifying bundle", e);
-            // The reference reverts on any malformed input; so does this.
-            throw new HandleException(ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED);
-        }
-    }
-
     // ── verifyBundle ───────────────────────────────────────────────────────
 
     /**
@@ -685,7 +589,7 @@ public final class CantonProofVerifier implements ClprVerifier {
      * @throws CantonProofException on any verification failure
      */
     @NonNull
-    static ClprBundleContent verifyBundle(
+    public static ClprBundleContent verifyBundle(
             @NonNull final byte[] proofBytes,
             @NonNull final byte[] trustAnchor,
             @NonNull final byte[] channelContext,
@@ -766,12 +670,6 @@ public final class CantonProofVerifier implements ClprVerifier {
     private static int createdIndex(final Slice item) {
         final BigInteger v = new BigInteger(1, CantonRlp.readBytes32(item));
         return v.bitLength() > 30 ? Integer.MAX_VALUE : v.intValue();
-    }
-
-    /** {@code e} with {@code cause} attached, so the original stack trace is not lost. */
-    private static CantonProofException withCause(final CantonProofException e, final Throwable cause) {
-        e.initCause(cause);
-        return e;
     }
 
     private static byte[] bytesOf(final Slice s) {

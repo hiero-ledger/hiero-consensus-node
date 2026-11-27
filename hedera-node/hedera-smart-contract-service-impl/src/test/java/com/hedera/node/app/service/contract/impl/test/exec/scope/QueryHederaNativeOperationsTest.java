@@ -24,6 +24,8 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
+import com.hedera.node.app.service.clpr.ReadableLedgerConfigurationStore;
+import com.hedera.node.app.service.clpr.ReadableMessageQueueStore;
 import com.hedera.node.app.service.contract.impl.exec.scope.QueryHederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
@@ -62,6 +64,12 @@ class QueryHederaNativeOperationsTest {
 
     @Mock
     private EntityIdFactory entityIdFactory;
+
+    @Mock
+    private ReadableMessageQueueStore messageQueueStore;
+
+    @Mock
+    private ReadableLedgerConfigurationStore ledgerConfigurationStore;
 
     private QueryHederaNativeOperations subject;
 
@@ -116,6 +124,20 @@ class QueryHederaNativeOperationsTest {
         given(context.createStore(ReadableAccountStore.class)).willReturn(accountStore);
         given(accountStore.getAccountIDByAlias(0, 0, alias)).willReturn(NON_SYSTEM_ACCOUNT_ID);
         assertEquals(NON_SYSTEM_ACCOUNT_ID.accountNumOrThrow(), subject.resolveAlias(0, 0, alias));
+    }
+
+    @Test
+    void readableMessageQueueStoreUsesQueryContextStore() {
+        // storeFactory() throws in query mode, so local CLPR prevalidation needs this typed accessor
+        assertThrows(UnsupportedOperationException.class, () -> subject.storeFactory());
+        given(context.createStore(ReadableMessageQueueStore.class)).willReturn(messageQueueStore);
+        assertSame(messageQueueStore, subject.readableMessageQueueStore());
+    }
+
+    @Test
+    void readableLedgerConfigurationStoreUsesQueryContextStore() {
+        given(context.createStore(ReadableLedgerConfigurationStore.class)).willReturn(ledgerConfigurationStore);
+        assertSame(ledgerConfigurationStore, subject.readableLedgerConfigurationStore());
     }
 
     @Test

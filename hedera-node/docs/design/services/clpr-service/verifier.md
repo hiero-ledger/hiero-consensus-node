@@ -4,11 +4,15 @@
 > (Bundle Verification Algorithm). This doc covers how verifier resolution and dispatch
 > work in Hiero — i.e. how `ClprSubmitBundleHandler` actually calls a verifier contract.
 
-A verifier is a per-source-ledger EVM contract or native system contract adapter. For a
-generic deployed verifier, Hiero delegates proof verification through `EvmClprVerifier`.
-For first-party proof systems, such as the CLPR Hiero TSS verifier, Besu QBFT verifier,
-and Sei CometBFT verifier, the EVM-facing method dispatches into native system-contract
-logic that understands that source ledger's proof scheme.
+A verifier is a per-source-ledger EVM contract or native system contract adapter. Hiero
+always delegates proof verification through `EvmClprVerifier`, for deployed verifiers and
+built-ins alike. For first-party proof systems, the CLPR Hiero TSS verifier (`0x16e`), Besu
+QBFT verifier (`0x16f`), Ethereum sync-committee verifier (`0x171`) and Canton verifier
+(`0x173`), the EVM-facing method dispatches into native system-contract logic that
+understands that source ledger's proof scheme. (The Sei CometBFT system contract at `0x170`
+exists but halts every call with `NOT_SUPPORTED`.) Because every verifier is an EVM call,
+consensus verification (`verifyBundle`) and local prevalidation of inbound bundles
+(`verifyBundleLocally`, a `ContractCallLocal`) share one code path.
 
 All classes live under
 `hedera-node/hedera-clpr-service-impl/src/main/java/com/hedera/node/app/service/clpr/impl/verifier/`.
@@ -430,9 +434,12 @@ failure → channel moves to `PAUSED` (spec §4.5).
 - **Upgradeability:** spec §8.8 — proxy verifiers are dangerous; the channel
   immutability rule (§5.1.5) does not stop a verifier owner from rotating implementations
   underneath. There is no Hiero-side check for this.
-- **No native-bypass yet:** the built-in registry in `ClprVerifierFactory` is
-  deliberately empty pending CLPR-5.3. All verifications go through `EvmClprVerifier`
-  today, including Hiero-source bundles which thus pay an EVM round-trip.
+- **No native bypass:** `ClprVerifierFactory` has no registry of native verifiers. All
+  verifications go through `EvmClprVerifier`, including the built-in system contracts,
+  which thus pay an EVM round-trip. Canton was briefly a native `ClprVerifier` reached
+  through a `VerifiersRegistry`; that path could not run local prevalidation, so every
+  inbound Canton bundle was dropped before submission. It is now the `0x173` system
+  contract.
 
 ## Verifier ABI: returned PBJ wire format
 
@@ -467,10 +474,22 @@ ongoing effort to promote `ClprBundleContent` to the canonical spec.
 
 ## Adding a built-in verifier
 
-(When you want to skip EVM round-trip for a known proof system.)
+Built-in verifiers are system contracts, reached through `EvmClprVerifier` like any
+deployed verifier. Do not implement `ClprVerifier` for them: a native `ClprVerifier` has no
+local-prevalidation path (`verifyBundleLocally` throws by default). Follow the Ethereum
+(`0x171`) and Canton (`0x173`) system contracts in `hedera-smart-contract-service-impl`:
 
-1. Implement `ClprVerifier` (e.g. `HieroStateProofVerifier`) under `verifier/`.
-2. Register it by `ContractID` (or sentinel) inside `ClprVerifierFactory`.
-3. Make sure `ClprChannel.verifier_contract` lookups can dispense it without
-   construction cost (the factory is called per submit-bundle handle).
-4. Add unit tests parallelling `EvmClprVerifier` tests.
+1. Put the proof logic in `hedera-clpr-service-impl` under `verifier/<ledger>/` as plain
+   static or instance methods (not a `ClprVerifier`), and export the package to the
+   smart-contract module.
+2. Add `<Ledger>VerifierSystemContract`, its call factory, call attempt, and
+   `verifyConfig(bytes,bytes32,bytes)` / `verifyBundle(bytes,bytes,bytes)` translators and
+   calls, returning `ClprVerifierAbi.VERIFY_CONFIG_OUTPUTS` / `VERIFY_BUNDLE_RETURN`.
+3. Register it: the `ProcessorModule` system-contract map and module includes, a
+   `<Ledger>VerifierTranslatorsModule`, `SystemContractMethod.SystemContract` and
+   `Category`, and `AbstractNativeSystemContract.isClprVerifierDebugTarget`.
+4. Add the address to `ClprCreateChannelHandler`'s built-in verifier maps, since it has no
+   account record.
+5. If the call reads state, use a typed `HederaNativeOperations` accessor (such as
+   `readableMessageQueueStore()`), never `storeFactory()`, which throws in the query
+   context that local prevalidation uses.

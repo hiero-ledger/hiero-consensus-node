@@ -3,6 +3,7 @@ package com.hedera.node.app.service.contract.impl.test.exec.processors;
 
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.BesuQBFTVerifierSystemContract.BESU_QBFT_VERIFIER_EVM_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.CantonVerifierSystemContract.CANTON_VERIFIER_EVM_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.EthereumVerifierSystemContract.ETHEREUM_VERIFIER_EVM_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HasSystemContract.HAS_EVM_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HssSystemContract.HSS_EVM_ADDRESS;
@@ -14,6 +15,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hedera.node.app.service.contract.impl.exec.processors.ProcessorModule;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.BesuQBFTVerifierSystemContract;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.CantonVerifierSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.ClprSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.EthereumVerifierSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.ExchangeRateSystemContract;
@@ -57,6 +59,9 @@ class ProcessorModuleTest {
     @Mock
     private EthereumVerifierSystemContract ethereumVerifierSystemContract;
 
+    @Mock
+    private CantonVerifierSystemContract cantonVerifierSystemContract;
+
     @Test
     void provideHederaSystemContracts() {
         final var hederaSystemContracts = ProcessorModule.provideHederaSystemContracts(
@@ -68,10 +73,11 @@ class ProcessorModuleTest {
                 clprSystemContract,
                 besuQBFTVerifierSystemContract,
                 seiVerifierSystemContract,
-                ethereumVerifierSystemContract);
+                ethereumVerifierSystemContract,
+                cantonVerifierSystemContract);
         assertThat(hederaSystemContracts)
                 .isNotNull()
-                .hasSize(10)
+                .hasSize(11)
                 .containsKey(Address.fromHexString(HTS_167_EVM_ADDRESS))
                 .containsKey(Address.fromHexString(HTS_16C_EVM_ADDRESS))
                 .containsKey(Address.fromHexString(ExchangeRateSystemContract.EXCHANGE_RATE_SYSTEM_CONTRACT_ADDRESS))
@@ -81,6 +87,7 @@ class ProcessorModuleTest {
                 .containsKey(Address.fromHexString(CLPR_EVM_ADDRESS))
                 .containsKey(Address.fromHexString(BESU_QBFT_VERIFIER_EVM_ADDRESS))
                 .containsKey(Address.fromHexString(SEI_VERIFIER_EVM_ADDRESS))
-                .containsKey(Address.fromHexString(ETHEREUM_VERIFIER_EVM_ADDRESS));
+                .containsKey(Address.fromHexString(ETHEREUM_VERIFIER_EVM_ADDRESS))
+                .containsEntry(Address.fromHexString(CANTON_VERIFIER_EVM_ADDRESS), cantonVerifierSystemContract);
     }
 }

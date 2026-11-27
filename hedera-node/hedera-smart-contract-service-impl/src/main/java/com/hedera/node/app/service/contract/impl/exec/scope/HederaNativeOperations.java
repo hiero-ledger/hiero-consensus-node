@@ -21,6 +21,8 @@ import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.node.app.service.clpr.ReadableChannelStore;
 import com.hedera.node.app.service.clpr.ReadableEndpointManifestStore;
+import com.hedera.node.app.service.clpr.ReadableLedgerConfigurationStore;
+import com.hedera.node.app.service.clpr.ReadableMessageQueueStore;
 import com.hedera.node.app.service.contract.impl.state.DispatchingEvmFrameState;
 import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
@@ -103,6 +105,24 @@ public interface HederaNativeOperations {
      */
     @NonNull
     ReadableEndpointManifestStore readableEndpointManifestStore();
+
+    /**
+     * Returns the {@link ReadableMessageQueueStore} for this {@link HederaNativeOperations}.
+     * Available in both query and handle contexts, unlike {@link #storeFactory()}, which throws in a query context.
+     *
+     * @return the {@link ReadableMessageQueueStore}
+     */
+    @NonNull
+    ReadableMessageQueueStore readableMessageQueueStore();
+
+    /**
+     * Returns the {@link ReadableLedgerConfigurationStore} for this {@link HederaNativeOperations}.
+     * Available in both query and handle contexts, unlike {@link #storeFactory()}, which throws in a query context.
+     *
+     * @return the {@link ReadableLedgerConfigurationStore}
+     */
+    @NonNull
+    ReadableLedgerConfigurationStore readableLedgerConfigurationStore();
 
     /**
      * Returns the {@link WritableEvmHookStore} for this {@link HederaNativeOperations}.

@@ -108,7 +108,8 @@ public record SystemContractMethod(
         CLPR,
         BESU_QBFT_VERIFIER,
         SEI_VERIFIER,
-        ETHEREUM_VERIFIER
+        ETHEREUM_VERIFIER,
+        CANTON_VERIFIER
     }
 
     public interface AsSuffix {
@@ -183,7 +184,8 @@ public record SystemContractMethod(
         CLPR("CLPR", "(Cross-Ledger Protocol Router)"),
         BESU_QBFT("BESU_QBFT", "(Besu QBFT Verifier)"),
         SEI("SEI", "(Sei CometBFT Verifier)"),
-        ETHEREUM("ETHEREUM", "(Ethereum Sync Committee Verifier)");
+        ETHEREUM("ETHEREUM", "(Ethereum Sync Committee Verifier)"),
+        CANTON("CANTON", "(Canton Verifier)");
 
         private final String asSuffix;
         private final String clarification;
@@ -367,11 +369,10 @@ public record SystemContractMethod(
      */
     public @NonNull String qualifiedMethodName() {
         final var systemContractName = systemContract.map(Enum::name).orElse("???");
-        final var methodName =
-                switch (via) {
-                    case DIRECT -> systemContractName + "." + variatedMethodName();
-                    case PROXY -> systemContractName + "(PROXY)." + variatedMethodName();
-                };
+        final var methodName = switch (via) {
+            case DIRECT -> systemContractName + "." + variatedMethodName();
+            case PROXY -> systemContractName + "(PROXY)." + variatedMethodName();
+        };
         return methodName;
     }
 
