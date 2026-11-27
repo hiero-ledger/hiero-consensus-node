@@ -21,7 +21,25 @@ testing {
     }
 
     suites.register<JvmTestSuite>("testOtter") {
-        targets.configureEach {
+        targets.named("testOtter") {
+            testTask { dependsOn(":consensus-otter-docker-app:assemble") }
+        }
+
+        // Runs tests against the Container environment
+        targets.register("testContainer") {
+            testTask {
+                systemProperty("otter.env", "container")
+                dependsOn(":consensus-otter-docker-app:assemble")
+            }
+        }
+
+        // Runs tests against the Turtle environment
+        targets.register("testTurtle") { testTask { systemProperty("otter.env", "turtle") } }
+    }
+
+    // Runs tests against the Falcon environment
+    suites.register<JvmTestSuite>("testFalcon") {
+        targets.named("testFalcon") {
             // Forwards e.g. -Dfalcon.repetitions=10 to the test JVM
             testTask { systemProperties(providers.systemPropertiesPrefixedBy("falcon.").get()) }
             // Attributes the output to each test case instead of the whole class, so a Falcon sweep
@@ -29,33 +47,6 @@ testing {
             // large for the test report parser
             testTask { reports.junitXml.isOutputPerTestCase = true }
         }
-
-        targets.named("testOtter") {
-            testTask {
-                useJUnitPlatform { excludeTags("falcon") }
-                dependsOn(":consensus-otter-docker-app:assemble")
-            }
-        }
-
-        // Runs tests against the Container environment
-        targets.register("testContainer") {
-            testTask {
-                systemProperty("otter.env", "container")
-                useJUnitPlatform { excludeTags("falcon") }
-                dependsOn(":consensus-otter-docker-app:assemble")
-            }
-        }
-
-        // Runs tests against the Turtle environment
-        targets.register("testTurtle") {
-            testTask {
-                systemProperty("otter.env", "turtle")
-                useJUnitPlatform { excludeTags("falcon") }
-            }
-        }
-
-        // Runs tests against the Falcon environment
-        targets.register("testFalcon") { testTask { useJUnitPlatform { includeTags("falcon") } } }
     }
 
     suites.register<JvmTestSuite>("testChaos") {
