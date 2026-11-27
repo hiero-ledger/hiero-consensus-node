@@ -230,6 +230,55 @@ public class EthereumSuite {
                         .hasPriority(recordWith().transfers(includingDeduction("HAPI fees", RELAYER))));
     }
 
+    @HapiTest
+    final Stream<DynamicTest> relayerMustHoldItsWholeMaxGasAllowanceAtIngest() {
+        // The ingest solvency check requires the relayer to hold its fee plus the whole maxGasAllowance.
+        // An allowance close to Long.MAX_VALUE is checked the same way as any other unaffordable one,
+        // instead of wrapping the sum and passing.
+        return hapiTest(
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                cryptoCreate(RELAYER).balance(ONE_HUNDRED_HBARS),
+                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
+                uploadInitCode(PAY_RECEIVABLE_CONTRACT),
+                contractCreate(PAY_RECEIVABLE_CONTRACT).adminKey(THRESHOLD),
+                ethereumCall(PAY_RECEIVABLE_CONTRACT, DEPOSIT, BigInteger.valueOf(DEPOSIT_AMOUNT))
+                        .type(EthTxData.EthTransactionType.EIP1559)
+                        .signingWith(SECP_256K1_SOURCE_KEY)
+                        .payingWith(RELAYER)
+                        .nonce(0)
+                        .maxGasAllowance(2 * ONE_HUNDRED_HBARS)
+                        .gasLimit(1_000_000L)
+                        .sending(DEPOSIT_AMOUNT)
+                        .hasPrecheck(INSUFFICIENT_PAYER_BALANCE),
+                ethereumCall(PAY_RECEIVABLE_CONTRACT, DEPOSIT, BigInteger.valueOf(DEPOSIT_AMOUNT))
+                        .type(EthTxData.EthTransactionType.EIP1559)
+                        .signingWith(SECP_256K1_SOURCE_KEY)
+                        .payingWith(RELAYER)
+                        .nonce(0)
+                        .maxGasAllowance(Long.MAX_VALUE)
+                        .gasLimit(1_000_000L)
+                        .sending(DEPOSIT_AMOUNT)
+                        .hasPrecheck(INSUFFICIENT_PAYER_BALANCE),
+                ethereumCall(PAY_RECEIVABLE_CONTRACT, DEPOSIT, BigInteger.valueOf(DEPOSIT_AMOUNT))
+                        .type(EthTxData.EthTransactionType.EIP1559)
+                        .signingWith(SECP_256K1_SOURCE_KEY)
+                        .payingWith(RELAYER)
+                        .nonce(0)
+                        .maxGasAllowance(Long.MAX_VALUE - 1)
+                        .gasLimit(1_000_000L)
+                        .sending(DEPOSIT_AMOUNT)
+                        .hasPrecheck(INSUFFICIENT_PAYER_BALANCE),
+                ethereumCall(PAY_RECEIVABLE_CONTRACT, DEPOSIT, BigInteger.valueOf(DEPOSIT_AMOUNT))
+                        .type(EthTxData.EthTransactionType.EIP1559)
+                        .signingWith(SECP_256K1_SOURCE_KEY)
+                        .payingWith(RELAYER)
+                        .nonce(0)
+                        .maxGasAllowance(FIVE_HBARS)
+                        .gasLimit(1_000_000L)
+                        .sending(DEPOSIT_AMOUNT)
+                        .hasKnownStatus(SUCCESS));
+    }
+
     @LeakyHapiTest(overrides = "contracts.evm.ethTransaction.zeroHapiFees.enabled")
     final Stream<DynamicTest> baseRelayerCostAsExpected() {
         return hapiTest(
@@ -1508,7 +1557,8 @@ public class EthereumSuite {
         return hapiTest(
                 cryptoCreate(RELAYER).balance(ONE_MILLION_HBARS),
                 explicitEthereumTransaction(
-                                "rawEthTransaction", (_, b) -> b.setEthereumData(ByteString.copyFrom(rawBytes))
+                                "rawEthTransaction",
+                                (_, b) -> b.setEthereumData(ByteString.copyFrom(rawBytes))
                                         .setMaxGasAllowance(ONE_HUNDRED_HBARS))
                         .payingWith(RELAYER)
                         .markAsJumboTxn()

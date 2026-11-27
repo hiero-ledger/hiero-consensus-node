@@ -52,6 +52,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -438,6 +440,162 @@ class SolvencyPreCheckTest extends AppTestBase {
 
             assertThatCode(() -> subject.checkSolvency(txInfo, payer, FEE, INGEST))
                     .doesNotThrowAnyException();
+        }
+    }
+
+    @Nested
+    @DisplayName("Tests related to the additional cost estimate")
+    final class CheckSolvencyTestsWithOverflowingContractCosts {
+
+        @Test
+        void testContractCallAmountThatDoesNotFitWithTheGasCostIsRejected() {
+            when(feeManager.getGasPriceInTinyCents(any())).thenReturn(1_000_000L);
+            when(exchangeRateManager.getTinybarsFromTinycents(eq(1_000_000L), any()))
+                    .thenReturn(2L);
+
+            // gas=10, amount=Long.MAX_VALUE-1 → the estimate saturates instead of wrapping to a negative number
+            final var builder = TransactionBody.newBuilder()
+                    .contractCall(
+                            ContractCallTransactionBody.newBuilder().gas(10L).amount(Long.MAX_VALUE - 1));
+            final var txInfo = createTransactionInfo(FEE.totalFee(), START, CONTRACT_CALL, builder);
+            final var payer = ALICE.account()
+                    .copyBuilder()
+                    .tinybarBalance(FEE.totalFee() + 25L)
+                    .build();
+
+            assertThatThrownBy(() -> subject.checkSolvency(txInfo, payer, FEE, INGEST))
+                    .isInstanceOf(InsufficientBalanceException.class)
+                    .has(responseCode(ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE));
+        }
+
+        @Test
+        void testContractCallGasCostThatDoesNotFitInALongIsRejected() {
+            when(feeManager.getGasPriceInTinyCents(any())).thenReturn(1_000_000L);
+            when(exchangeRateManager.getTinybarsFromTinycents(eq(1_000_000L), any()))
+                    .thenReturn(2L);
+
+            // gas=Long.MAX_VALUE, price=2 → the gas cost saturates instead of wrapping to a negative number
+            final var builder = TransactionBody.newBuilder()
+                    .contractCall(ContractCallTransactionBody.newBuilder()
+                            .gas(Long.MAX_VALUE)
+                            .amount(0L));
+            final var txInfo = createTransactionInfo(FEE.totalFee(), START, CONTRACT_CALL, builder);
+            final var payer = ALICE.account()
+                    .copyBuilder()
+                    .tinybarBalance(FEE.totalFee() + 25L)
+                    .build();
+
+            assertThatThrownBy(() -> subject.checkSolvency(txInfo, payer, FEE, INGEST))
+                    .isInstanceOf(InsufficientBalanceException.class)
+                    .has(responseCode(ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE));
+        }
+
+        @Test
+        void testContractCreateBalanceThatDoesNotFitWithTheGasCostIsRejected() {
+            when(feeManager.getGasPriceInTinyCents(any())).thenReturn(1_000_000L);
+            when(exchangeRateManager.getTinybarsFromTinycents(eq(1_000_000L), any()))
+                    .thenReturn(2L);
+
+            final var builder = TransactionBody.newBuilder()
+                    .contractCreateInstance(
+                            ContractCreateTransactionBody.newBuilder().gas(10L).initialBalance(Long.MAX_VALUE - 1));
+            final var txInfo = createTransactionInfo(FEE.totalFee(), START, CONTRACT_CREATE, builder);
+            final var payer = ALICE.account()
+                    .copyBuilder()
+                    .tinybarBalance(FEE.totalFee() + 25L)
+                    .build();
+
+            assertThatThrownBy(() -> subject.checkSolvency(txInfo, payer, FEE, INGEST))
+                    .isInstanceOf(InsufficientBalanceException.class)
+                    .has(responseCode(ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE));
+        }
+    }
+
+    @Nested
+    @DisplayName("Tests related to additional costs close to Long.MAX_VALUE")
+    final class CheckSolvencyTestsWithAdditionalCostsNearMaxValue {
+        // A realistic balance that covers the fee but cannot cover a non-fee debit close to Long.MAX_VALUE;
+        // before the sum saturated, the fee plus such a debit wrapped to a negative number and passed
+        private static final long LARGE_BALANCE = 50_000_000_000L * 100_000_000L;
+
+        @Test
+        void testCryptoCreateInitialBalanceNearMaxValueIsRejectedAtIngest() {
+            final var builder = TransactionBody.newBuilder()
+                    .cryptoCreateAccount(
+                            CryptoCreateTransactionBody.newBuilder().initialBalance(Long.MAX_VALUE - 1));
+            final var txInfo = createTransactionInfo(FEE.totalFee(), START, CRYPTO_CREATE, builder);
+            final var payer =
+                    ALICE.account().copyBuilder().tinybarBalance(LARGE_BALANCE).build();
+
+            assertThatThrownBy(() -> subject.checkSolvency(txInfo, payer, FEE, INGEST))
+                    .isInstanceOf(InsufficientBalanceException.class)
+                    .has(responseCode(ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE))
+                    .has(estimatedFee(FEE.totalFee()));
+        }
+
+        @Test
+        void testCryptoTransferPayerDebitNearMaxValueIsRejectedAtIngest() {
+            final var transferList =
+                    TransferList.newBuilder().accountAmounts(send(ALICE.accountID(), Long.MAX_VALUE - 1));
+            final var builder = TransactionBody.newBuilder()
+                    .cryptoTransfer(CryptoTransferTransactionBody.newBuilder().transfers(transferList));
+            final var txInfo = createTransactionInfo(FEE.totalFee(), START, CRYPTO_TRANSFER, builder);
+            final var payer =
+                    ALICE.account().copyBuilder().tinybarBalance(LARGE_BALANCE).build();
+
+            assertThatThrownBy(() -> subject.checkSolvency(txInfo, payer, FEE, INGEST))
+                    .isInstanceOf(InsufficientBalanceException.class)
+                    .has(responseCode(ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE))
+                    .has(estimatedFee(FEE.totalFee()));
+        }
+
+        @ParameterizedTest
+        @ValueSource(longs = {Long.MAX_VALUE, Long.MAX_VALUE - 1})
+        void testEthereumMaxGasAllowanceNearMaxValueIsRejectedAtIngest(final long maxGasAllowance) {
+            final var builder = TransactionBody.newBuilder()
+                    .ethereumTransaction(EthereumTransactionBody.newBuilder().maxGasAllowance(maxGasAllowance));
+            final var txInfo = createTransactionInfo(FEE.totalFee(), START, ETHEREUM_TRANSACTION, builder);
+            final var payer =
+                    ALICE.account().copyBuilder().tinybarBalance(LARGE_BALANCE).build();
+
+            assertThatThrownBy(() -> subject.checkSolvency(txInfo, payer, FEE, INGEST))
+                    .isInstanceOf(InsufficientBalanceException.class)
+                    .has(responseCode(ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE))
+                    .has(estimatedFee(FEE.totalFee()));
+        }
+
+        @Test
+        void testEthereumMaxGasAllowanceNearMaxValueIsNotCheckedAtHandle() {
+            // The relayer is charged only the gas it actually covers, so handle does not check the allowance
+            final var builder = TransactionBody.newBuilder()
+                    .ethereumTransaction(EthereumTransactionBody.newBuilder().maxGasAllowance(Long.MAX_VALUE));
+            final var txInfo = createTransactionInfo(FEE.totalFee(), START, ETHEREUM_TRANSACTION, builder);
+            final var payer =
+                    ALICE.account().copyBuilder().tinybarBalance(LARGE_BALANCE).build();
+
+            assertThatCode(() -> subject.checkSolvency(txInfo, payer, FEE, NOT_INGEST))
+                    .doesNotThrowAnyException();
+        }
+
+        @Test
+        void testContractCreateGasCostThatDoesNotFitInALongIsRejectedAtIngest() {
+            when(feeManager.getGasPriceInTinyCents(any())).thenReturn(1_000_000L);
+            when(exchangeRateManager.getTinybarsFromTinycents(eq(1_000_000L), any()))
+                    .thenReturn(2L);
+
+            // gas=Long.MAX_VALUE, price=2 -> the gas cost saturates instead of wrapping to a negative number
+            final var builder = TransactionBody.newBuilder()
+                    .contractCreateInstance(ContractCreateTransactionBody.newBuilder()
+                            .gas(Long.MAX_VALUE)
+                            .initialBalance(0L));
+            final var txInfo = createTransactionInfo(FEE.totalFee(), START, CONTRACT_CREATE, builder);
+            final var payer =
+                    ALICE.account().copyBuilder().tinybarBalance(LARGE_BALANCE).build();
+
+            assertThatThrownBy(() -> subject.checkSolvency(txInfo, payer, FEE, INGEST))
+                    .isInstanceOf(InsufficientBalanceException.class)
+                    .has(responseCode(ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE))
+                    .has(estimatedFee(FEE.totalFee()));
         }
     }
 
