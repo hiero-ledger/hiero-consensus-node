@@ -5,8 +5,9 @@
 ########################################################################################################################
 ARG UBUNTU_SHA="sha256:80dd3c3b9c6cecb9f1667e9290b3bc61b78c2678c02cbdae5f0fea92cc6734ab"
 
-ARG OPENJDK_VERSION=25.0.2
-ARG OPENJDK_DL_KEY="b1e0dfa218384cb9959bdcb897162d4e/10"
+# Eclipse Temurin build to install, e.g. 25.0.5.1 + 2 => jdk-25.0.5.1+2. Needs matching files in checksums/.
+ARG OPENJDK_VERSION=25.0.5.1
+ARG OPENJDK_BUILD=2
 
 ########################################################################################################################
 #
@@ -16,7 +17,7 @@ ARG OPENJDK_DL_KEY="b1e0dfa218384cb9959bdcb897162d4e/10"
 FROM ubuntu@${UBUNTU_SHA} AS openjdk-builder
 
 # Define Global Argument Refs
-ARG OPENJDK_DL_KEY
+ARG OPENJDK_BUILD
 ARG OPENJDK_VERSION
 
 # Define Standard Environment Variables
@@ -37,20 +38,27 @@ RUN apt-get update && \
 ####    Java Setup    ####
 ##########################
 
-# Download Java Archive
+# Download, validate and unpack the Temurin archive into /usr/local/java/jdk-${OPENJDK_VERSION}.
 WORKDIR "/tmp/java"
-RUN wget --quiet https://download.java.net/java/GA/jdk${OPENJDK_VERSION}/${OPENJDK_DL_KEY}/GPL/openjdk-${OPENJDK_VERSION}_linux-x64_bin.tar.gz
-
-# Validate Java Archive
-RUN sha256sum -c /tmp/checksums/openjdk-${OPENJDK_VERSION}_linux-x64_bin.tar.gz.sha256
-
-# Unpack Java Archive
-RUN mkdir -p /usr/local/java && \
-	tar -zxf openjdk-${OPENJDK_VERSION}_linux-x64_bin.tar.gz -C /usr/local/java
-
-WORKDIR /usr/local/java/jdk-${OPENJDK_VERSION}
-# Validate Java Files
-RUN	hashdeep -rlx -k /tmp/checksums/openjdk-${OPENJDK_VERSION}_linux-x64_bin.chkd *
+RUN set -eux; \
+    if [ "$(dpkg --print-architecture)" != "amd64" ]; then \
+        echo "ERROR: network-node-base supports linux/amd64 only (found $(dpkg --print-architecture))." >&2; \
+        exit 1; \
+    fi; \
+    JDK_MAJOR="${OPENJDK_VERSION%%.*}"; \
+    JDK_TAR="OpenJDK${JDK_MAJOR}U-jdk_x64_linux_hotspot_${OPENJDK_VERSION}_${OPENJDK_BUILD}.tar.gz"; \
+    JDK_CHECKSUMS="/tmp/checksums/temurin-${OPENJDK_VERSION}_${OPENJDK_BUILD}_linux-x64"; \
+    if [ ! -f "${JDK_CHECKSUMS}.tar.gz.sha256" ]; then \
+        echo "ERROR: JDK ${OPENJDK_VERSION}+${OPENJDK_BUILD} is not supported. Only Temurin builds with checksum files can be built. Supported: $(ls /tmp/checksums | sed -n 's/^temurin-\(.*\)_linux-x64\.tar\.gz\.sha256$/\1/p' | sed 's/_/+/' | tr '\n' ' ')" >&2; \
+        exit 1; \
+    fi; \
+    wget --quiet "https://github.com/adoptium/temurin${JDK_MAJOR}-binaries/releases/download/jdk-${OPENJDK_VERSION}%2B${OPENJDK_BUILD}/${JDK_TAR}"; \
+    sha256sum -c "${JDK_CHECKSUMS}.tar.gz.sha256"; \
+    mkdir -p /usr/local/java; \
+    tar -zxf "${JDK_TAR}" -C /usr/local/java; \
+    mv "/usr/local/java/jdk-${OPENJDK_VERSION}+${OPENJDK_BUILD}" "/usr/local/java/jdk-${OPENJDK_VERSION}"; \
+    cd "/usr/local/java/jdk-${OPENJDK_VERSION}"; \
+    hashdeep -rlx -k "${JDK_CHECKSUMS}.chkd" *
 
 
 ########################################################################################################################
