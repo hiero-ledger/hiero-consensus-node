@@ -89,6 +89,23 @@ import org.openjdk.jmh.annotations.Warmup;
  *
  * <p>{@link LatencyProfiler} reports the latencies and the bytes allocated per recorded event: run the benchmark with
  * {@code -prof} and the profiler's class name. JMH's primary score is the time of a pass, which the recording fixes.
+ *
+ * <p>A pass takes about 3.5 minutes, longer than the 1 s of an iteration, so every iteration is one pass. A pass records
+ * just over the 100,000 latencies that p99.9 needs. The heap holds what a pass allocates in the young generation, so
+ * that no garbage collection falls into a pass; the calibration discarded none.
+ *
+ * <h2>Calibration</h2>
+ * <ul>
+ *   <li>Date / commit: 2026-11-27, 50fcaa19d3</li>
+ *   <li>Machine: hl-cn-benchmark-lin, AS-2115GT-HNTR, AMD EPYC 9254 24-Core Processor, JDK 25.0.2, -XX:ActiveProcessorCount=12 -Xms8g -Xmx8g -XX:+AlwaysPreTouch</li>
+ *   <li>Parameter sets: IntakePipelineBenchmark.intake</li>
+ *   <li>Steady state after: 0 s</li>
+ *   <li>Noise (latency.mean, CV): 0.65% per 1 s iteration, 0.00% between forks, - between runs (1 of 1 runs quiet)</li>
+ *   <li>Expected detectable regression: 0.61% (95 % CI half-width of one run)</li>
+ *   <li>Samples per iteration: 105 k; expected stable: mean, p90, p99, p99.9, max; unmeasured: p99.99</li>
+ *   <li>Runtime: 34.0 min per parameter set</li>
+ *   <li>Raw data: https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/45962879422, https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/45985427770</li>
+ * </ul>
  */
 @State(Scope.Thread)
 @Fork(
