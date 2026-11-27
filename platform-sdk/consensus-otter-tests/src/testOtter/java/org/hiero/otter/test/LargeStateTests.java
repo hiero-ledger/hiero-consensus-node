@@ -152,7 +152,7 @@ class LargeStateTests {
 
     // This method should be called before the network is started
     private void enableAccountsService(@NonNull final Network network) {
-        network.withConfigValue("event.services", "org.hiero.otter.fixtures.app.services.accounts.AccountsService");
+        network.withConfigValue("otterApp.services", "org.hiero.otter.fixtures.app.services.accounts.AccountsService");
     }
 
     private static void createAccounts(
