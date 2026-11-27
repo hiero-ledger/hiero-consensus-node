@@ -102,14 +102,8 @@
           "type": "section",
           "text": {
             "type": "mrkdwn",
-            "text": "*Commit List*:"
-          },
-          "fields": [
-            {
-              "type": "mrkdwn",
-              "text": {{ getenv "COMMIT_LIST" | required "COMMIT_LIST must be set" | data.ToJSON }}
-            }
-          ]
+            "text": {{ printf "*Commit List*:\n%s" (getenv "COMMIT_LIST" | required "COMMIT_LIST must be set") | data.ToJSON }}
+          }
         }
       ]
     }
