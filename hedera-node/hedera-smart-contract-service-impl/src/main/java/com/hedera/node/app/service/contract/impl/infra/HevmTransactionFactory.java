@@ -30,7 +30,6 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.as
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToBesuAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.removeIfAnyLeading0x;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthEthTxCreation;
-import static com.hedera.node.app.service.contract.impl.utils.ValidationUtils.getMaxGasLimit;
 import static com.hedera.node.app.service.token.HookDispatchUtils.HTS_HOOKS_CONTRACT_NUM;
 import static com.hedera.node.app.spi.validation.ExpiryMeta.NA;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
@@ -153,14 +152,13 @@ public class HevmTransactionFactory {
             @NonNull final TransactionBody body,
             @NonNull final AccountID payerId,
             @Nullable final ClprDispatchMetadata clprDispatchMetadata) {
-        final var hederaEvmTxn =
-                switch (body.data().kind()) {
-                    case CONTRACT_CREATE_INSTANCE -> fromHapiCreate(payerId, body.contractCreateInstanceOrThrow());
-                    case CONTRACT_CALL -> fromHapiCall(payerId, body.contractCallOrThrow(), clprDispatchMetadata);
-                    case ETHEREUM_TRANSACTION -> fromHapiEthereum(payerId, body.ethereumTransactionOrThrow());
-                    case HOOK_DISPATCH -> fromHookDispatch(payerId, body.hookDispatchOrThrow());
-                    default -> throw new IllegalArgumentException("Not a contract operation");
-                };
+        final var hederaEvmTxn = switch (body.data().kind()) {
+            case CONTRACT_CREATE_INSTANCE -> fromHapiCreate(payerId, body.contractCreateInstanceOrThrow());
+            case CONTRACT_CALL -> fromHapiCall(payerId, body.contractCallOrThrow(), clprDispatchMetadata);
+            case ETHEREUM_TRANSACTION -> fromHapiEthereum(payerId, body.ethereumTransactionOrThrow());
+            case HOOK_DISPATCH -> fromHookDispatch(payerId, body.hookDispatchOrThrow());
+            default -> throw new IllegalArgumentException("Not a contract operation");
+        };
         assertValidGasAndAmount(hederaEvmTxn);
         return hederaEvmTxn;
     }
@@ -332,29 +330,28 @@ public class HevmTransactionFactory {
         AccountID relayer = null;
         ContractID contractId = null;
 
-        final var gasLimit =
-                switch (body.data().kind()) {
-                    case CONTRACT_CREATE_INSTANCE ->
-                        body.contractCreateInstanceOrThrow().gas();
-                    case CONTRACT_CALL -> {
-                        final var contractCall = body.contractCallOrThrow();
-                        contractId = contractCall.contractID();
-                        yield contractCall.gas();
-                    }
-                    case ETHEREUM_TRANSACTION -> {
-                        final var ethTxData = assertValidEthTx(body.ethereumTransactionOrThrow());
-                        sender = asAliasedSender(ethTxData);
-                        relayer = body.transactionIDOrThrow().accountID();
-                        yield ethTxData.gasLimit();
-                    }
-                    case HOOK_DISPATCH ->
-                        body.hookDispatchOrThrow()
-                                .executionOrThrow()
-                                .callOrThrow()
-                                .evmHookCallOrThrow()
-                                .gasLimit();
-                    default -> throw new IllegalArgumentException("Not a contract operation");
-                };
+        final var gasLimit = switch (body.data().kind()) {
+            case CONTRACT_CREATE_INSTANCE ->
+                body.contractCreateInstanceOrThrow().gas();
+            case CONTRACT_CALL -> {
+                final var contractCall = body.contractCallOrThrow();
+                contractId = contractCall.contractID();
+                yield contractCall.gas();
+            }
+            case ETHEREUM_TRANSACTION -> {
+                final var ethTxData = assertValidEthTx(body.ethereumTransactionOrThrow());
+                sender = asAliasedSender(ethTxData);
+                relayer = body.transactionIDOrThrow().accountID();
+                yield ethTxData.gasLimit();
+            }
+            case HOOK_DISPATCH ->
+                body.hookDispatchOrThrow()
+                        .executionOrThrow()
+                        .callOrThrow()
+                        .evmHookCallOrThrow()
+                        .gasLimit();
+            default -> throw new IllegalArgumentException("Not a contract operation");
+        };
         final var isClprContractCall = body.hasContractCall() && clprDispatchMetadata != null;
         final var syntheticSenderAddress =
                 isClprContractCall ? pbjToBesuAddress(clprDispatchMetadata.senderAddress()) : null;
@@ -410,7 +407,7 @@ public class HevmTransactionFactory {
         final var gasLimit = execution.callOrThrow().evmHookCallOrThrow().gasLimit();
         validateTrue(gasLimit > 0, INSUFFICIENT_GAS);
         validateTrue(gasLimit >= hooksConfig.evmHookIntrinsicGasCost(), INSUFFICIENT_GAS);
-        validateTrue(gasLimit <= getMaxGasLimit(contractsConfig), MAX_GAS_LIMIT_EXCEEDED);
+        validateTrue(gasLimit <= contractsConfig.effectiveMaxGasPerTransaction(), MAX_GAS_LIMIT_EXCEEDED);
 
         final var entityId = execution.hookEntityIdOrThrow();
 
@@ -431,7 +428,7 @@ public class HevmTransactionFactory {
         attributeValidator.validateAutoRenewPeriod(autoRenewPeriod);
         validateTrue(body.gas() >= 0, CONTRACT_NEGATIVE_GAS);
         validateTrue(body.initialBalance() >= 0, CONTRACT_NEGATIVE_VALUE);
-        validateTrue(body.gas() <= getMaxGasLimit(contractsConfig), MAX_GAS_LIMIT_EXCEEDED);
+        validateTrue(body.gas() <= contractsConfig.effectiveMaxGasPerTransaction(), MAX_GAS_LIMIT_EXCEEDED);
         final var usesInvalidAutoAssociations = body.maxAutomaticTokenAssociations() < UNLIMITED_AUTOMATIC_ASSOCIATIONS
                 && entitiesConfig.unlimitedAutoAssociationsEnabled();
         validateFalse(usesInvalidAutoAssociations, INVALID_MAX_AUTO_ASSOCIATIONS);
@@ -471,7 +468,8 @@ public class HevmTransactionFactory {
                         .intrinsicGas());
         validateTrue(hederaEvmTxn.gasLimit() >= minGasLimit, INSUFFICIENT_GAS);
         validateTrue(hederaEvmTxn.value() >= 0, CONTRACT_NEGATIVE_VALUE);
-        validateTrue(hederaEvmTxn.gasLimit() <= getMaxGasLimit(contractsConfig), MAX_GAS_LIMIT_EXCEEDED);
+        validateTrue(
+                hederaEvmTxn.gasLimit() <= contractsConfig.effectiveMaxGasPerTransaction(), MAX_GAS_LIMIT_EXCEEDED);
     }
 
     private void assertInitcodeSize(@NonNull final Bytes initcode) {

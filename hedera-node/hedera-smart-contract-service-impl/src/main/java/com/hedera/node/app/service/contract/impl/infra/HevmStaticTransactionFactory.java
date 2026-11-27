@@ -6,7 +6,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_GAS_LIMIT_EXCEEDED;
 import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction.NOT_APPLICABLE;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asPriorityId;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToBesuAddress;
-import static com.hedera.node.app.service.contract.impl.utils.ValidationUtils.getMaxGasLimit;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
@@ -158,6 +157,6 @@ public class HevmStaticTransactionFactory {
         // accessLists and codeDelegations are null because both are not supported for 'ContractCallLocal'
         final var gasRequirements = gasCalculator.transactionGasRequirements(0, 0, false, null, null);
         validateTrue(body.gas() >= gasRequirements.minimumGasUsed(), INSUFFICIENT_GAS);
-        validateTrue(body.gas() <= getMaxGasLimit(contractsConfig), MAX_GAS_LIMIT_EXCEEDED);
+        validateTrue(body.gas() <= contractsConfig.effectiveMaxGasPerTransaction(), MAX_GAS_LIMIT_EXCEEDED);
     }
 }

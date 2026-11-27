@@ -38,6 +38,13 @@ class ClprLedgerConfigurationFileTest {
             .maxPeerEndpoints(0)
             .build();
 
+    private static final long MAX_GAS_PER_TRANSACTION = 15_000_000L;
+    private static final long MAX_GAS_PER_SEC = 8_000_000L;
+
+    /** Throttles whose max_gas_per_message exceeds both gas limits. */
+    private static final ClprThrottles OVER_GAS_THROTTLES =
+            CUSTOM_THROTTLES.copyBuilder().maxGasPerMessage(20_000_000L).build();
+
     @TempDir
     private Path tempDir;
 
@@ -137,6 +144,18 @@ class ClprLedgerConfigurationFileTest {
     }
 
     @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void initialThrottlesCapGasAtEffectiveMaxGasPerTransaction(final boolean throttleByGas) throws IOException {
+        final var file = writeFile(jsonOf(OVER_GAS_THROTTLES));
+
+        assertThat(ClprLedgerConfigurationFile.initialThrottles(configWithGasLimits(file, throttleByGas)))
+                .isEqualTo(OVER_GAS_THROTTLES
+                        .copyBuilder()
+                        .maxGasPerMessage(effectiveMaxGasPerTransaction(throttleByGas))
+                        .build());
+    }
+
+    @ParameterizedTest
     @ValueSource(
             strings = {
                 // Malformed JSON
@@ -188,6 +207,21 @@ class ClprLedgerConfigurationFileTest {
                         .build());
     }
 
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void upgradeConfigurationCapsGasAtEffectiveMaxGasPerTransaction(final boolean throttleByGas) {
+        final var existing = existingWith(BUNDLED_THROTTLES);
+
+        assertThat(ClprLedgerConfigurationFile.upgradeConfiguration(
+                        existing, OVER_GAS_THROTTLES, configWithGasLimits(tempDir, throttleByGas)))
+                .contains(ClprLedgerConfiguration.newBuilder()
+                        .throttles(OVER_GAS_THROTTLES
+                                .copyBuilder()
+                                .maxGasPerMessage(effectiveMaxGasPerTransaction(throttleByGas))
+                                .build())
+                        .build());
+    }
+
     private static ClprLedgerConfiguration existingWith(final ClprThrottles throttles) {
         return ClprLedgerConfiguration.newBuilder()
                 .chainId("eip155:298")
@@ -202,6 +236,20 @@ class ClprLedgerConfigurationFileTest {
                 .withValue("clpr.ledgerConfigurationFile", file.toString())
                 .withValue("contracts.maxGasPerTransaction", maxGasPerTransaction)
                 .getOrCreateConfig();
+    }
+
+    private static Configuration configWithGasLimits(final Path file, final boolean throttleByGas) {
+        return HederaTestConfigBuilder.create()
+                .withValue("clpr.ledgerConfigurationFile", file.toString())
+                .withValue("contracts.maxGasPerTransaction", MAX_GAS_PER_TRANSACTION)
+                .withValue("contracts.maxGasPerSec", MAX_GAS_PER_SEC)
+                .withValue("contracts.throttle.throttleByGas", throttleByGas)
+                .getOrCreateConfig();
+    }
+
+    /** The gas throttle lowers the EVM's per-transaction limit to {@code contracts.maxGasPerSec}. */
+    private static long effectiveMaxGasPerTransaction(final boolean throttleByGas) {
+        return throttleByGas ? MAX_GAS_PER_SEC : MAX_GAS_PER_TRANSACTION;
     }
 
     private Path writeFile(final String json) throws IOException {

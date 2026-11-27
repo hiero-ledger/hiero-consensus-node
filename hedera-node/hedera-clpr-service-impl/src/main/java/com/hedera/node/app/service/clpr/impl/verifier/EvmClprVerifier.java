@@ -358,8 +358,8 @@ public class EvmClprVerifier implements ClprVerifier {
         if (gasLimit <= 0) {
             throw new HandleException(INSUFFICIENT_GAS);
         }
-        if (gasLimit
-                > context.configuration().getConfigData(ContractsConfig.class).maxGasPerTransaction()) {
+        final ContractsConfig contractsConfig = context.configuration().getConfigData(ContractsConfig.class);
+        if (gasLimit > contractsConfig.effectiveMaxGasPerTransaction()) {
             throw new HandleException(MAX_GAS_LIMIT_EXCEEDED);
         }
         final var functionParameters = Bytes.wrap(callData);

@@ -80,7 +80,8 @@ public final class ClprLedgerConfigurationFile {
      * Returns the throttles to seed at genesis: from {@link ClprConfig#ledgerConfigurationFile()} if it exists
      * and is valid, otherwise from {@link #BUNDLED_RESOURCE}. An invalid file is logged and ignored rather than
      * thrown, since seeding runs on the handle thread and an exception there would leave the CLPR singletons
-     * missing on this node. {@code max_gas_per_message} is capped at {@code contracts.maxGasPerTransaction}.
+     * missing on this node. {@code max_gas_per_message} is capped at
+     * {@link ContractsConfig#effectiveMaxGasPerTransaction()}.
      *
      * @param configuration the active configuration
      * @return the throttles to seed
@@ -111,7 +112,7 @@ public final class ClprLedgerConfigurationFile {
      * Returns the configuration to dispatch in a {@code ClprUpdateLedgerConfiguration} to apply the given
      * throttles from an upgrade file, or empty if they match the existing throttles. Applying unchanged
      * throttles would still set a new timestamp, which queues a config update on every channel.
-     * {@code max_gas_per_message} is capped at {@code contracts.maxGasPerTransaction}.
+     * {@code max_gas_per_message} is capped at {@link ContractsConfig#effectiveMaxGasPerTransaction()}.
      *
      * @param existing the existing ledger configuration
      * @param throttles the validated throttles from the upgrade file
@@ -148,11 +149,11 @@ public final class ClprLedgerConfigurationFile {
 
     private static ClprThrottles capped(
             @NonNull final ClprThrottles throttles, @NonNull final Configuration configuration) {
-        final var maxGasPerTransaction =
-                configuration.getConfigData(ContractsConfig.class).maxGasPerTransaction();
+        final ContractsConfig contractsConfig = configuration.getConfigData(ContractsConfig.class);
+        final var effectiveMaxGasPerTransaction = contractsConfig.effectiveMaxGasPerTransaction();
         return throttles
                 .copyBuilder()
-                .maxGasPerMessage(Math.min(throttles.maxGasPerMessage(), maxGasPerTransaction))
+                .maxGasPerMessage(Math.min(throttles.maxGasPerMessage(), effectiveMaxGasPerTransaction))
                 .build();
     }
 }

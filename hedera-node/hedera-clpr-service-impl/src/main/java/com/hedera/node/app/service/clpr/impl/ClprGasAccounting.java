@@ -45,8 +45,9 @@ public final class ClprGasAccounting {
     private ClprGasAccounting(@NonNull final HandleContext context) {
         this.context = context;
         parentPayer = context.payer();
+        // The EVM refuses any call above its effective gas limit, so the transaction's gas budget stops there
         final long maximum = Math.max(
-                0, context.configuration().getConfigData(ContractsConfig.class).maxGasPerTransaction());
+                0, context.configuration().getConfigData(ContractsConfig.class).effectiveMaxGasPerTransaction());
         totalGas = context.body() != null && context.body().hasClprCreateChannel()
                 ? Math.min(
                         maximum,
