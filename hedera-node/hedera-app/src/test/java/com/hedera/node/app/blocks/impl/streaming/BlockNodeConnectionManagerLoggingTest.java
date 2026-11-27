@@ -34,6 +34,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.Future.State;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.junit.jupiter.api.AfterEach;
@@ -49,6 +50,7 @@ class BlockNodeConnectionManagerLoggingTest extends BlockNodeCommunicationTestBa
 
     private static final VarHandle isConnectionManagerActiveHandle;
     private static final VarHandle blockNodesHandle;
+    private static final VarHandle lifecycleGenerationHandle;
 
     private static final MethodHandle updateConnectionIfNeededHandle;
     private static final MethodHandle checkActiveStreamingConnectionStalledHandle;
@@ -61,8 +63,9 @@ class BlockNodeConnectionManagerLoggingTest extends BlockNodeCommunicationTestBa
             isConnectionManagerActiveHandle =
                     lookup.findVarHandle(cls, "isConnectionManagerActive", AtomicBoolean.class);
             blockNodesHandle = lookup.findVarHandle(cls, "nodes", ConcurrentMap.class);
+            lifecycleGenerationHandle = lookup.findVarHandle(cls, "lifecycleGeneration", AtomicLong.class);
 
-            final Method updateConnectionIfNeeded = cls.getDeclaredMethod("updateConnectionIfNeeded");
+            final Method updateConnectionIfNeeded = cls.getDeclaredMethod("updateConnectionIfNeeded", long.class);
             updateConnectionIfNeeded.setAccessible(true);
             updateConnectionIfNeededHandle = lookup.unreflect(updateConnectionIfNeeded);
 
@@ -295,7 +298,8 @@ class BlockNodeConnectionManagerLoggingTest extends BlockNodeCommunicationTestBa
     }
 
     void invoke_updateConnectionIfNeeded() throws Throwable {
-        updateConnectionIfNeededHandle.invoke(connectionManager);
+        final long generation = ((AtomicLong) lifecycleGenerationHandle.get(connectionManager)).get();
+        updateConnectionIfNeededHandle.invoke(connectionManager, generation);
     }
 
     void invoke_checkActiveStreamingConnectionStalled(

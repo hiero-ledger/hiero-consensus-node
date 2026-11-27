@@ -8,8 +8,10 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
@@ -420,7 +422,7 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
         when(connection.configuration()).thenReturn(configuration);
         when(connection.connectionId()).thenReturn(connId);
         when(connection.closeReason()).thenReturn(CloseReason.PERIODIC_RESET);
-        // the close lands once the history entry exists, so onClose() already undoes the registration
+        // the close lands before the registration, so onActive() must not register the connection afterwards
         when(connection.currentState()).thenAnswer(invocation -> {
             node.onClose(connection);
             return ConnectionState.CLOSED;
@@ -428,12 +430,11 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
 
         node.onActive(connection);
 
-        // onActive() must not undo it a second time, or the counters would go negative
+        // neither call may count the connection, or the counters would drift
         assertThat(activeStreamingConnectionRef()).hasNullValue();
         assertThat(globalActiveStreamingConnectionCount).hasValue(0);
         assertThat(localActiveStreamingConnectionCount()).hasValue(0);
-        assertThat(connectionHistories()).containsOnlyKeys(connId);
-        assertThat(connectionHistories().get(connId).closeReason).isEqualTo(CloseReason.PERIODIC_RESET);
+        assertThat(connectionHistories()).isEmpty();
     }
 
     @Test
@@ -443,7 +444,7 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
         when(connection.configuration()).thenReturn(configuration);
         when(connection.connectionId()).thenReturn(connId);
         when(connection.closeReason()).thenReturn(CloseReason.SHUTDOWN);
-        // the close lands once the history entry exists, so onClose() already undoes the registration
+        // the close lands before the registration, so onActive() must not register the connection afterwards
         when(connection.currentState()).thenAnswer(invocation -> {
             node.onClose(connection);
             return ConnectionState.CLOSED;
@@ -451,12 +452,11 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
 
         node.onActive(connection);
 
-        // onActive() must not undo it a second time, or the counters would go negative
+        // neither call may count the connection, or the counters would drift
         assertThat(activeObservingConnectionRef()).hasNullValue();
         assertThat(globalActiveObservingConnectionCount).hasValue(0);
         assertThat(localActiveObservingConnectionCount()).hasValue(0);
-        assertThat(connectionHistories()).containsOnlyKeys(connId);
-        assertThat(connectionHistories().get(connId).closeReason).isEqualTo(CloseReason.SHUTDOWN);
+        assertThat(connectionHistories()).isEmpty();
     }
 
     @Test
@@ -499,6 +499,202 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
         assertThat(globalActiveObservingConnectionCount).hasValue(0);
         assertThat(localActiveObservingConnectionCount()).hasValue(0);
         assertThat(connectionHistories().get(connId).closeReason).isEqualTo(CloseReason.CONNECTION_ERROR);
+    }
+
+    @Test
+    void recordsStreamerCloseDuringRetirementOfPreviousStreamer() {
+        final BlockNodeStreamingConnection previous = mock(BlockNodeStreamingConnection.class);
+        activeStreamingConnectionRef().set(previous);
+        final BlockNodeStreamingConnection candidate = mock(BlockNodeStreamingConnection.class);
+        final ConnectionId id = new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 1);
+        final AtomicReference<ConnectionState> state = new AtomicReference<>(ConnectionState.ACTIVE);
+        when(candidate.configuration()).thenReturn(configuration);
+        when(candidate.connectionId()).thenReturn(id);
+        when(candidate.currentState()).thenAnswer(_ -> state.get());
+        when(candidate.closeReason()).thenReturn(CloseReason.CONNECTION_ERROR);
+        doAnswer(_ -> {
+                    state.set(ConnectionState.CLOSED);
+                    node.onClose(candidate);
+                    return null;
+                })
+                .when(previous)
+                .closeAtBlockBoundary(CloseReason.NEW_CONNECTION);
+
+        node.onActive(candidate);
+
+        assertThat(activeStreamingConnectionRef()).hasNullValue();
+        assertThat(globalActiveStreamingConnectionCount).hasValue(0);
+        assertThat(localActiveStreamingConnectionCount()).hasValue(0);
+        assertThat(connectionHistories().get(id).closeReason).isEqualTo(CloseReason.CONNECTION_ERROR);
+    }
+
+    @Test
+    void recordsObserverCloseDuringRetirementOfPreviousObserver() {
+        final BlockNodeObservingConnection previous = mock(BlockNodeObservingConnection.class);
+        activeObservingConnectionRef().set(previous);
+        final BlockNodeObservingConnection candidate = mock(BlockNodeObservingConnection.class);
+        final ConnectionId id = new ConnectionId(NODE_ID, ConnectionType.ACK_OBSERVING, 1);
+        final AtomicReference<ConnectionState> state = new AtomicReference<>(ConnectionState.ACTIVE);
+        when(candidate.configuration()).thenReturn(configuration);
+        when(candidate.connectionId()).thenReturn(id);
+        when(candidate.currentState()).thenAnswer(_ -> state.get());
+        when(candidate.closeReason()).thenReturn(CloseReason.CONNECTION_ERROR);
+        doAnswer(_ -> {
+                    state.set(ConnectionState.CLOSED);
+                    node.onClose(candidate);
+                    return null;
+                })
+                .when(previous)
+                .close(CloseReason.NEW_CONNECTION, true, EndStream.Code.RESET);
+
+        node.onActive(candidate);
+
+        assertThat(activeObservingConnectionRef()).hasNullValue();
+        assertThat(globalActiveObservingConnectionCount).hasValue(0);
+        assertThat(localActiveObservingConnectionCount()).hasValue(0);
+        assertThat(connectionHistories().get(id).closeReason).isEqualTo(CloseReason.CONNECTION_ERROR);
+    }
+
+    @Test
+    void onActiveIgnoresClosedCandidateAndKeepsExistingStreamer() {
+        final BlockNodeStreamingConnection existing = mock(BlockNodeStreamingConnection.class);
+        activeStreamingConnectionRef().set(existing);
+        final BlockNodeStreamingConnection candidate = mock(BlockNodeStreamingConnection.class);
+        when(candidate.configuration()).thenReturn(configuration);
+        when(candidate.connectionId()).thenReturn(new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 2));
+        when(candidate.currentState()).thenReturn(ConnectionState.CLOSED);
+
+        node.onActive(candidate);
+
+        assertThat(activeStreamingConnectionRef()).hasValue(existing);
+        assertThat(connectionHistories()).isEmpty();
+        assertThat(globalActiveStreamingConnectionCount).hasValue(0);
+        assertThat(localActiveStreamingConnectionCount()).hasValue(0);
+        verify(existing, never()).closeAtBlockBoundary(any());
+    }
+
+    @Test
+    void onActiveIsIdempotent() {
+        final BlockNodeStreamingConnection connection = mock(BlockNodeStreamingConnection.class);
+        when(connection.configuration()).thenReturn(configuration);
+        when(connection.connectionId()).thenReturn(new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 1));
+        when(connection.currentState()).thenReturn(ConnectionState.ACTIVE);
+
+        node.onActive(connection);
+        node.onActive(connection);
+
+        assertThat(activeStreamingConnectionRef()).hasValue(connection);
+        assertThat(connectionHistories()).hasSize(1);
+        assertThat(globalActiveStreamingConnectionCount).hasValue(1);
+        assertThat(localActiveStreamingConnectionCount()).hasValue(1);
+        verify(connection, never()).closeAtBlockBoundary(any());
+    }
+
+    @Test
+    void lateCloseOfRetiredConnectionKeepsNewerRegistration() {
+        final BlockNodeStreamingConnection retired = mock(BlockNodeStreamingConnection.class);
+        final ConnectionId retiredId = new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 1);
+        when(retired.configuration()).thenReturn(configuration);
+        when(retired.connectionId()).thenReturn(retiredId);
+        when(retired.currentState()).thenReturn(ConnectionState.ACTIVE);
+        when(retired.closeReason()).thenReturn(CloseReason.NEW_CONNECTION);
+        final BlockNodeStreamingConnection newer = mock(BlockNodeStreamingConnection.class);
+        final ConnectionId newerId = new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 2);
+        when(newer.configuration()).thenReturn(configuration);
+        when(newer.connectionId()).thenReturn(newerId);
+        when(newer.currentState()).thenReturn(ConnectionState.ACTIVE);
+
+        node.onActive(retired);
+        node.onActive(newer);
+        node.onClose(retired);
+
+        assertThat(activeStreamingConnectionRef()).hasValue(newer);
+        assertThat(globalActiveStreamingConnectionCount).hasValue(1);
+        assertThat(localActiveStreamingConnectionCount()).hasValue(1);
+        assertThat(connectionHistories().get(retiredId).closeReason).isEqualTo(CloseReason.NEW_CONNECTION);
+        assertThat(connectionHistories().get(newerId).closeTimestamp).isNull();
+        assertThat(nodeCoolDownTimestampRef()).hasNullValue();
+    }
+
+    @Test
+    void repeatedCloseOfRegisteredConnectionIsCountedOnce() {
+        final BlockNodeStreamingConnection connection = mock(BlockNodeStreamingConnection.class);
+        final ConnectionId id = new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 1);
+        when(connection.configuration()).thenReturn(configuration);
+        when(connection.connectionId()).thenReturn(id);
+        when(connection.currentState()).thenReturn(ConnectionState.ACTIVE);
+        when(connection.closeReason()).thenReturn(CloseReason.NEW_CONNECTION);
+        node.onActive(connection);
+
+        node.onClose(connection);
+        node.onClose(connection);
+
+        assertThat(activeStreamingConnectionRef()).hasNullValue();
+        assertThat(globalActiveStreamingConnectionCount).hasValue(0);
+        assertThat(localActiveStreamingConnectionCount()).hasValue(0);
+        assertThat(connectionHistories().get(id).closeReason).isEqualTo(CloseReason.NEW_CONNECTION);
+    }
+
+    @Test
+    void observerClosedBeforeActivationAppliesCoolDown() {
+        final BlockNodeObservingConnection connection = mock(BlockNodeObservingConnection.class);
+        when(connection.configuration()).thenReturn(configuration);
+        when(connection.connectionId()).thenReturn(new ConnectionId(NODE_ID, ConnectionType.ACK_OBSERVING, 7));
+        when(connection.closeReason()).thenReturn(CloseReason.INTERNAL_ERROR);
+
+        node.onClose(connection);
+
+        assertThat(nodeCoolDownTimestampRef()).hasValue(Instant.now(clock).plusSeconds(BASIC_COOL_DOWN_SECONDS));
+        assertThat(node.isObservingCandidate()).isFalse();
+        assertThat(globalActiveObservingConnectionCount).hasValue(0);
+        assertThat(localActiveObservingConnectionCount()).hasValue(0);
+    }
+
+    @Test
+    void longerCoolDownIsNotOverwritten() {
+        final BlockNodeConfiguration mockConfig = mock(BlockNodeConfiguration.class);
+        final AtomicBoolean armed = new AtomicBoolean(true);
+        final AtomicReference<BlockNode> nodeRef = new AtomicReference<>();
+        // The extended cool down lands between the basic one being installed and the end of applyCoolDown
+        when(mockConfig.streamingEndpoint()).thenAnswer(_ -> {
+            if (armed.compareAndSet(true, false)) {
+                nodeRef.get().applyCoolDown(new DeviantConnectionClose(CloseReason.TOO_MANY_END_STREAM_RESPONSES));
+            }
+            return configuration.streamingEndpoint();
+        });
+        nodeRef.set(new BlockNode(
+                configProvider,
+                mockConfig,
+                globalActiveStreamingConnectionCount,
+                globalActiveObservingConnectionCount,
+                nodeStats,
+                clock));
+
+        nodeRef.get().applyCoolDown(new DeviantConnectionClose(CloseReason.CONNECTION_ERROR));
+
+        assertThat(armed).isFalse();
+        node = nodeRef.get();
+        assertThat(nodeCoolDownTimestampRef()).hasValue(Instant.now(clock).plusSeconds(EXTENDED_COOL_DOWN_SECONDS));
+    }
+
+    @Test
+    void onReviveClearsTerminationAndCoolDownButKeepsConnections() {
+        final BlockNodeStreamingConnection streamingConnection = mock(BlockNodeStreamingConnection.class);
+        final BlockNodeObservingConnection observingConnection = mock(BlockNodeObservingConnection.class);
+        activeStreamingConnectionRef().set(streamingConnection);
+        activeObservingConnectionRef().set(observingConnection);
+        isTerminated().set(true);
+        nodeCoolDownTimestampRef().set(Instant.now(clock).plusSeconds(90));
+        final BlockNodeConfiguration newConfig = newBlockNodeConfig("localhost", 1234, 3);
+
+        node.onRevive(newConfig);
+
+        assertThat(node.isTerminated()).isFalse();
+        assertThat(nodeCoolDownTimestampRef()).hasNullValue();
+        assertThat(node.configuration()).isSameAs(newConfig);
+        assertThat(activeStreamingConnectionRef()).hasValue(streamingConnection);
+        assertThat(activeObservingConnectionRef()).hasValue(observingConnection);
+        verifyNoInteractions(streamingConnection, observingConnection);
     }
 
     @Test
@@ -577,9 +773,12 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
         // since there is no matching history entry for the connection, the connection counters should not change
         assertThat(localActiveObservingConnectionCount()).hasValue(1);
         assertThat(globalActiveObservingConnectionCount).hasValue(1);
+        // no close reason was recorded, so there is nothing to cool down for
+        assertThat(nodeCoolDownTimestampRef()).hasNullValue();
 
         verify(connection).configuration();
         verify(connection, times(2)).connectionId();
+        verify(connection).closeReason();
         verifyNoMoreInteractions(connection);
     }
 

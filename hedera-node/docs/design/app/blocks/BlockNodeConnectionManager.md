@@ -191,20 +191,27 @@ sequenceDiagram
 sequenceDiagram
     participant Manager as BlockNodeConnectionManager
     participant Conn as BlockNodeStreamingConnection
+    participant Obs as BlockNodeObservingConnection
+    participant Node as BlockNode
+    participant Buffer as BlockBufferService
 
     alt shutdown
-      Manager -> Manager: Stop configuration watcher
-      Manager -> Manager: Deactivate connection manager
-      Manager -> Manager: Shutdown block buffer service
-      Manager -> Manager: Shutdown executor service
-      Manager -> Manager: Stop worker thread
-      loop over all connections
-        Manager ->> Conn: Close connection
-        Conn ->> Conn: Transition to CLOSING state
-        Conn ->> Conn: Close pipeline
-        Conn ->> Conn: Transition to CLOSED state
+      Manager -> Manager: Deactivate connection manager and detach the registered connections (lifecycle ends)
+      Note over Manager: The connection monitor exits after its current pass
+      Manager -> Manager: Shutdown shared status executor service
+      Manager ->> Conn: Close at the next block boundary
+      Note over Conn: Bounded by blockNode.closeAtBlockBoundaryTimeout<br/>Closes at once if the buffer no longer holds its open block
+      loop over all observing connections
+        Manager ->> Obs: Close connection now
+        Obs ->> Obs: Transition to CLOSING state
+        Obs ->> Obs: Close pipeline
+        Obs ->> Obs: Transition to CLOSED state
       end
-      Manager -> Manager: Clear connection map and metadata
+      loop over all block nodes
+        Manager ->> Node: Terminate
+      end
+      Manager -> Manager: Stop configuration watcher
+      Manager ->> Buffer: Shutdown (persist the buffer, then clear it)
     end
 
 ```

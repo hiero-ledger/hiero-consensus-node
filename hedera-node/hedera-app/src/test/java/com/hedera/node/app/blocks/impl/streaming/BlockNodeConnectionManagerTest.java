@@ -8,10 +8,12 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockConstruction;
@@ -39,6 +41,7 @@ import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeEndpoint;
 import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
+import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.config.ConfigProvider;
@@ -60,6 +63,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
@@ -69,14 +73,17 @@ import java.util.concurrent.Future.State;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import org.apache.logging.log4j.LogManager;
 import org.hiero.block.api.PublishStreamRequest.EndStream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.InOrder;
 import org.mockito.MockedConstruction;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -93,6 +100,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     private static final VarHandle connectionMonitorThreadRefHandle;
     private static final VarHandle activeObservingConnectionsHandle;
     private static final VarHandle idealObserversLastAttemptTimestampRefHandle;
+    private static final VarHandle lifecycleGenerationHandle;
+    private static final VarHandle activatingStreamersHandle;
 
     private static final VarHandle retrieveBlockNodeStatusTask_svcConnectionHandle;
 
@@ -137,6 +146,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                     lookup.findVarHandle(cls, "activeObservingConnections", ConcurrentMap.class);
             idealObserversLastAttemptTimestampRefHandle =
                     lookup.findVarHandle(cls, "idealObserversLastAttemptTimestampRef", AtomicReference.class);
+            lifecycleGenerationHandle = lookup.findVarHandle(cls, "lifecycleGeneration", AtomicLong.class);
+            activatingStreamersHandle = lookup.findVarHandle(cls, "activatingStreamers", Set.class);
 
             retrieveBlockNodeStatusTask_svcConnectionHandle = lookup.findVarHandle(
                     RetrieveBlockNodeStatusTask.class, "svcConnection", BlockNodeServiceConnection.class);
@@ -178,7 +189,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                     boolean.class,
                     NodeSelectionCriteria.class,
                     CloseReason.class,
-                    BlockNodeStreamingConnection.class);
+                    BlockNodeStreamingConnection.class,
+                    long.class);
             selectNewStreamingBlockNode.setAccessible(true);
             selectNewStreamingBlockNodeHandle = lookup.unreflect(selectNewStreamingBlockNode);
 
@@ -186,7 +198,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
             pruneNodes.setAccessible(true);
             pruneNodesHandle = lookup.unreflect(pruneNodes);
 
-            final Method updateConnectionIfNeeded = cls.getDeclaredMethod("updateConnectionIfNeeded");
+            final Method updateConnectionIfNeeded = cls.getDeclaredMethod("updateConnectionIfNeeded", long.class);
             updateConnectionIfNeeded.setAccessible(true);
             updateConnectionIfNeededHandle = lookup.unreflect(updateConnectionIfNeeded);
 
@@ -204,7 +216,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
             sortBlockNodesHandle = lookup.unreflect(sortBlockNodes);
 
             final Method tryNewObservingConnection =
-                    cls.getDeclaredMethod("tryNewObservingConnection", BlockNode.class);
+                    cls.getDeclaredMethod("tryNewObservingConnection", BlockNode.class, long.class);
             tryNewObservingConnection.setAccessible(true);
             tryNewObservingConnectionHandle = lookup.unreflect(tryNewObservingConnection);
 
@@ -212,16 +224,17 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                     "tryUpdateNewStreamingConnection",
                     BlockNode.class,
                     CloseReason.class,
-                    BlockNodeStreamingConnection.class);
+                    BlockNodeStreamingConnection.class,
+                    long.class);
             tryUpdateNewStreamingConnection.setAccessible(true);
             tryUpdateNewStreamingConnectionHandle = lookup.unreflect(tryUpdateNewStreamingConnection);
 
             final Method maybeUpdateObservingConnection =
-                    cls.getDeclaredMethod("maybeUpdateObservingConnections", List.class, int.class);
+                    cls.getDeclaredMethod("maybeUpdateObservingConnections", List.class, int.class, long.class);
             maybeUpdateObservingConnection.setAccessible(true);
             maybeUpdateObservingConnectionsHandle = lookup.unreflect(maybeUpdateObservingConnection);
 
-            final Method refreshObservingConnections = cls.getDeclaredMethod("refreshObservingConnections");
+            final Method refreshObservingConnections = cls.getDeclaredMethod("refreshObservingConnections", long.class);
             refreshObservingConnections.setAccessible(true);
             refreshObservingConnectionsHandle = lookup.unreflect(refreshObservingConnections);
 
@@ -658,6 +671,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         assertThat(isUpdated).isTrue();
         assertThat(activeConfigRef()).hasValue(newConfig);
 
+        verify(node1).isTerminated();
         verify(node1).onConfigUpdate(node1NewConfig);
         verify(node2).onTerminate(CloseReason.CONFIG_UPDATE);
         verify(blockNodeConfigService).latestConfiguration();
@@ -2297,9 +2311,12 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         assertThat(isConnectionManagerActive()).isFalse();
         assertThat(connectionMonitorThreadRef()).hasNullValue();
 
-        verify(node).onTerminate(CloseReason.SHUTDOWN);
-        verify(bufferService).shutdown();
-        verify(blockNodeConfigService).shutdown();
+        // the buffer is cleared last, after the publishers were asked to close
+        final InOrder inOrder = inOrder(connection, node, blockNodeConfigService, bufferService);
+        inOrder.verify(connection).closeAtBlockBoundary(CloseReason.SHUTDOWN);
+        inOrder.verify(node).onTerminate(CloseReason.SHUTDOWN);
+        inOrder.verify(blockNodeConfigService).shutdown();
+        inOrder.verify(bufferService).shutdown();
     }
 
     @Test
@@ -2878,6 +2895,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
             verify(newConnection).initialize();
             verify(newConnection).updateConnectionState(ConnectionState.ACTIVE);
+            verify(newConnection).currentState();
             verifyNoMoreInteractions(newConnection);
         }
 
@@ -3741,7 +3759,510 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         assertThat(updateNeeded).isFalse();
     }
 
+    @Test
+    void retainsExistingStreamerWhenReplacementClosesDuringActivation() throws Throwable {
+        final BlockNode node = mockBlockNode("localhost", 8080, 1);
+        final BlockNodeConfiguration config = node.configuration();
+        final BlockNodeStreamingConnection existing = mock(BlockNodeStreamingConnection.class);
+        activeStreamingConnectionRef().set(existing);
+
+        try (final MockedConstruction<BlockNodeStreamingConnection> ignored =
+                mockConstruction(BlockNodeStreamingConnection.class, (candidate, _) -> {
+                    when(candidate.configuration()).thenReturn(config);
+                    doAnswer(_ -> {
+                                connectionManager.notifyConnectionClosed(candidate);
+                                return null;
+                            })
+                            .when(candidate)
+                            .updateConnectionState(ConnectionState.ACTIVE);
+                })) {
+            assertThat(invoke_tryUpdateNewStreamingConnection(node, CloseReason.CONFIG_UPDATE, existing))
+                    .isFalse();
+        }
+
+        assertThat(activeStreamingConnectionRef()).hasValue(existing);
+        verify(existing, never()).closeAtBlockBoundary(any());
+    }
+
+    @Test
+    void retainsExistingStreamerWhenReplacementIsClosingAfterActivation() throws Throwable {
+        final BlockNode node = mockBlockNode("localhost", 8080, 1);
+        final BlockNodeStreamingConnection existing = mock(BlockNodeStreamingConnection.class);
+        activeStreamingConnectionRef().set(existing);
+
+        try (final MockedConstruction<BlockNodeStreamingConnection> candidates = mockConstruction(
+                BlockNodeStreamingConnection.class,
+                // its worker has started closing it, but the close has not reached the manager yet
+                (candidate, _) -> when(candidate.currentState()).thenReturn(ConnectionState.CLOSING))) {
+            assertThat(invoke_tryUpdateNewStreamingConnection(node, CloseReason.CONFIG_UPDATE, existing))
+                    .isFalse();
+
+            final BlockNodeStreamingConnection candidate =
+                    candidates.constructed().getFirst();
+            verify(candidate).updateConnectionState(ConnectionState.ACTIVE);
+            // the close already in progress owns the candidate
+            verify(candidate, never()).close(any(), anyBoolean(), any());
+        }
+
+        assertThat(activeStreamingConnectionRef()).hasValue(existing);
+        verify(existing, never()).closeAtBlockBoundary(any());
+        assertThat(activatingStreamers()).isEmpty();
+    }
+
+    @Test
+    void shutsDownCandidateStreamerThatFinishesOpeningAfterManagerShutdown() throws Throwable {
+        final BlockNode node = mockBlockNode("localhost", 8080, 1);
+        isConnectionManagerActive().set(true);
+
+        try (final MockedConstruction<BlockNodeStreamingConnection> candidates = mockConstruction(
+                BlockNodeStreamingConnection.class,
+                (candidate, _) -> doAnswer(_ -> {
+                            connectionManager.shutdown();
+                            return null;
+                        })
+                        .when(candidate)
+                        .initialize())) {
+            final boolean opened = invoke_tryUpdateNewStreamingConnection(node, CloseReason.UNKNOWN, null);
+
+            assertThat(opened).isFalse();
+            final BlockNodeStreamingConnection candidate =
+                    candidates.constructed().getFirst();
+            verify(candidate, never()).updateConnectionState(ConnectionState.ACTIVE);
+            verify(candidate).close(eq(CloseReason.SHUTDOWN), anyBoolean(), any());
+        }
+        assertThat(activeStreamingConnectionRef()).hasNullValue();
+    }
+
+    @Test
+    void shutsDownCandidateObserverThatFinishesOpeningAfterManagerShutdown() throws Throwable {
+        final BlockNode node = mockBlockNode("localhost", 8080, 1);
+        isConnectionManagerActive().set(true);
+
+        try (final MockedConstruction<BlockNodeObservingConnection> candidates = mockConstruction(
+                BlockNodeObservingConnection.class,
+                (candidate, _) -> doAnswer(_ -> {
+                            connectionManager.shutdown();
+                            return null;
+                        })
+                        .when(candidate)
+                        .initialize())) {
+            final boolean opened = invoke_tryNewObservingConnection(node);
+
+            assertThat(opened).isFalse();
+            final BlockNodeObservingConnection candidate =
+                    candidates.constructed().getFirst();
+            verify(candidate, never()).updateConnectionState(ConnectionState.ACTIVE);
+            verify(candidate).close(eq(CloseReason.SHUTDOWN), anyBoolean(), any());
+        }
+        assertThat(activeObservingConnections()).isEmpty();
+    }
+
+    @Test
+    void stopsOpeningObserversOnceLifecycleEnds() throws Throwable {
+        final List<BlockNode> rankedNodes = List.of(
+                mockBlockNode("localhost", 8080, 1),
+                mockBlockNode("localhost", 8081, 1),
+                mockBlockNode("localhost", 8082, 1),
+                mockBlockNode("localhost", 8083, 1));
+        isConnectionManagerActive().set(true);
+
+        final LogCaptor logCaptor = new LogCaptor(LogManager.getLogger(BlockNodeConnectionManager.class));
+        try (final MockedConstruction<BlockNodeObservingConnection> candidates =
+                mockConstruction(BlockNodeObservingConnection.class, (candidate, context) -> {
+                    if (context.getCount() == 1) {
+                        doAnswer(_ -> {
+                                    connectionManager.shutdown();
+                                    return null;
+                                })
+                                .when(candidate)
+                                .initialize();
+                    }
+                })) {
+            final ObservingConnectionsUpdateResult result = invoke_maybeUpdateObservingConnection(rankedNodes, 3);
+
+            assertThat(candidates.constructed()).hasSize(1);
+            final BlockNodeObservingConnection candidate =
+                    candidates.constructed().getFirst();
+            verify(candidate, never()).updateConnectionState(ConnectionState.ACTIVE);
+            verify(candidate).close(eq(CloseReason.SHUTDOWN), anyBoolean(), any());
+            assertThat(result.updated()).isFalse();
+        } finally {
+            logCaptor.stopCapture();
+        }
+        assertThat(activeObservingConnections()).isEmpty();
+        assertThat(logCaptor.warnLogs()).noneMatch(log -> log.contains("Not enough observing connections"));
+    }
+
+    @Test
+    void closingObserverDoesNotExpireAcknowledgementsOfItsReplacementStreamer() {
+        final BlockNode node = mockBlockNode("localhost", 8080, 1);
+        final BlockNodeConfiguration config = node.configuration();
+        final BlockNodeStreamingConnection streamer = mock(BlockNodeStreamingConnection.class);
+        when(streamer.configuration()).thenReturn(config);
+        when(streamer.isActive()).thenReturn(true);
+        activeStreamingConnectionRef().set(streamer);
+        final BlockNodeObservingConnection observer = mock(BlockNodeObservingConnection.class);
+        when(observer.blockNode()).thenReturn(node);
+        when(observer.configuration()).thenReturn(config);
+        activeObservingConnections().put(node, observer);
+
+        connectionManager.notifyConnectionClosed(observer);
+
+        assertThat(activeObservingConnections()).isEmpty();
+        verify(bufferService, never()).notifyBlockNodeDisconnected(config.streamingEndpoint());
+    }
+
+    @Test
+    void revivesTerminatedNodeReAddedWithSameConfiguration() throws Throwable {
+        final BlockNodeConfiguration configA = newBlockNodeConfig("localhost", 8080, 1);
+        final BlockNodeConfiguration configB = newBlockNodeConfig("localhost", 8081, 1);
+        final BlockNode nodeA = newBlockNode(configA);
+        final BlockNodeStreamingConnection draining = activateStreamer(nodeA, configA);
+        nodeA.onTerminate(CloseReason.CONFIG_UPDATE);
+        blockNodes().put(configA.streamingEndpoint(), nodeA);
+        blockNodes().put(configB.streamingEndpoint(), newBlockNode(configB));
+        activeConfigRef().set(new VersionedBlockNodeConfigurationSet(2, List.of(configB)));
+        final VersionedBlockNodeConfigurationSet latest =
+                new VersionedBlockNodeConfigurationSet(3, List.of(configA, configB));
+        when(blockNodeConfigService.latestConfiguration()).thenReturn(latest);
+
+        final boolean isUpdated = invoke_isConfigUpdated();
+
+        assertThat(isUpdated).isTrue();
+        assertThat(activeConfigRef()).hasValue(latest);
+        assertThat(blockNodes().get(configA.streamingEndpoint())).isSameAs(nodeA);
+        // the draining connection still holds the node until it closes
+        assertThat(nodeA.isStreamingCandidate()).isFalse();
+        nodeA.onClose(draining);
+        assertThat(nodeA.isStreamingCandidate()).isTrue();
+    }
+
+    @Test
+    void revivesTerminatedNodeReAddedWithChangedConfiguration() throws Throwable {
+        final BlockNodeConfiguration configA = newBlockNodeConfig("localhost", 8080, 1);
+        final BlockNodeConfiguration changedConfigA = newBlockNodeConfig("localhost", 8080, 2);
+        final BlockNodeConfiguration configB = newBlockNodeConfig("localhost", 8081, 1);
+        final BlockNode nodeA = newBlockNode(configA);
+        final BlockNodeStreamingConnection draining = activateStreamer(nodeA, configA);
+        nodeA.onTerminate(CloseReason.CONFIG_UPDATE);
+        blockNodes().put(configA.streamingEndpoint(), nodeA);
+        blockNodes().put(configB.streamingEndpoint(), newBlockNode(configB));
+        activeConfigRef().set(new VersionedBlockNodeConfigurationSet(2, List.of(configB)));
+        final VersionedBlockNodeConfigurationSet latest =
+                new VersionedBlockNodeConfigurationSet(3, List.of(changedConfigA, configB));
+        when(blockNodeConfigService.latestConfiguration()).thenReturn(latest);
+
+        final boolean isUpdated = invoke_isConfigUpdated();
+
+        assertThat(isUpdated).isTrue();
+        assertThat(activeConfigRef()).hasValue(latest);
+        assertThat(blockNodes().get(configA.streamingEndpoint())).isSameAs(nodeA);
+        assertThat(nodeA.configuration()).isEqualTo(changedConfigA);
+        nodeA.onClose(draining);
+        assertThat(nodeA.isStreamingCandidate()).isTrue();
+    }
+
+    @Test
+    void rejectsCandidateWhenShutdownHappensDuringActivation() throws Throwable {
+        final BlockNode node = mockBlockNode("localhost", 8080, 1);
+        isConnectionManagerActive().set(true);
+        final BlockNodeStreamingConnection existing = mock(BlockNodeStreamingConnection.class);
+        activeStreamingConnectionRef().set(existing);
+
+        try (final MockedConstruction<BlockNodeStreamingConnection> candidates = mockConstruction(
+                BlockNodeStreamingConnection.class,
+                (candidate, _) -> doAnswer(_ -> {
+                            connectionManager.shutdown();
+                            return null;
+                        })
+                        .when(candidate)
+                        .updateConnectionState(ConnectionState.ACTIVE))) {
+            final boolean opened =
+                    invoke_tryUpdateNewStreamingConnection(node, CloseReason.HIGHER_PRIORITY_FOUND, existing);
+
+            assertThat(opened).isFalse();
+            final BlockNodeStreamingConnection candidate =
+                    candidates.constructed().getFirst();
+            verify(candidate).close(eq(CloseReason.SHUTDOWN), anyBoolean(), any());
+        }
+
+        assertThat(activeStreamingConnectionRef()).hasNullValue();
+        verify(existing).closeAtBlockBoundary(CloseReason.SHUTDOWN);
+        verifyNoMoreInteractions(existing);
+    }
+
+    @Test
+    void shutdownAsksStreamerToCloseBeforeStoppingBuffer() {
+        isConnectionManagerActive().set(true);
+        final BlockNodeStreamingConnection streamer = mock(BlockNodeStreamingConnection.class);
+        activeStreamingConnectionRef().set(streamer);
+        final BlockNode node = mockBlockNode("localhost", 8081, 1);
+        final BlockNodeObservingConnection observer = mock(BlockNodeObservingConnection.class);
+        activeObservingConnections().put(node, observer);
+
+        connectionManager.shutdown();
+
+        final InOrder inOrder = inOrder(streamer, observer, bufferService);
+        inOrder.verify(streamer).closeAtBlockBoundary(CloseReason.SHUTDOWN);
+        inOrder.verify(observer).close(CloseReason.SHUTDOWN, true, EndStream.Code.RESET);
+        inOrder.verify(bufferService).shutdown();
+        assertThat(activeStreamingConnectionRef()).hasNullValue();
+        assertThat(activeObservingConnections()).isEmpty();
+    }
+
+    @Test
+    void failedCandidateOnObservedNodeDoesNotExpireAcks() throws Throwable {
+        final BlockNode node = mockBlockNode("localhost", 8080, 1);
+        final BlockNodeConfiguration config = node.configuration();
+        final BlockNodeObservingConnection observer = mock(BlockNodeObservingConnection.class);
+        when(observer.isActive()).thenReturn(true);
+        when(observer.configuration()).thenReturn(config);
+        activeObservingConnections().put(node, observer);
+
+        try (final MockedConstruction<BlockNodeStreamingConnection> ignored =
+                mockConstruction(BlockNodeStreamingConnection.class, (candidate, _) -> {
+                    when(candidate.configuration()).thenReturn(config);
+                    doThrow(new RuntimeException("connect failed"))
+                            .when(candidate)
+                            .initialize();
+                    doAnswer(_ -> {
+                                connectionManager.notifyConnectionClosed(candidate);
+                                return null;
+                            })
+                            .when(candidate)
+                            .close(any(), anyBoolean(), any());
+                })) {
+            assertThat(invoke_tryUpdateNewStreamingConnection(node, CloseReason.UNKNOWN, null))
+                    .isFalse();
+        }
+
+        assertThat(activeObservingConnections()).containsEntry(node, observer);
+        verify(bufferService, never()).notifyBlockNodeDisconnected(config.streamingEndpoint());
+    }
+
+    @Test
+    void activationFailureKeepsCurrentStreamer() throws Throwable {
+        final BlockNode node = mockBlockNode("localhost", 8080, 1);
+        final BlockNodeStreamingConnection existing = mock(BlockNodeStreamingConnection.class);
+        activeStreamingConnectionRef().set(existing);
+        final IllegalConnectionStateTransition failure = new IllegalConnectionStateTransition(
+                new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 1),
+                ConnectionState.CLOSED,
+                ConnectionState.ACTIVE);
+
+        try (final MockedConstruction<BlockNodeStreamingConnection> candidates =
+                mockConstruction(BlockNodeStreamingConnection.class, (candidate, _) -> {
+                    when(candidate.connectionType()).thenReturn(ConnectionType.BLOCK_STREAMING);
+                    doThrow(failure).when(candidate).updateConnectionState(ConnectionState.ACTIVE);
+                })) {
+            assertThat(invoke_tryUpdateNewStreamingConnection(node, CloseReason.HIGHER_PRIORITY_FOUND, existing))
+                    .isFalse();
+            verify(candidates.constructed().getFirst()).close(CloseReason.INTERNAL_ERROR, true, EndStream.Code.ERROR);
+        }
+
+        assertThat(activeStreamingConnectionRef()).hasValue(existing);
+        verify(existing, never()).closeAtBlockBoundary(any());
+        verify(metrics).recordConnectionCreateFailure(ConnectionType.BLOCK_STREAMING);
+        assertThat(activatingStreamers()).isEmpty();
+    }
+
+    @Test
+    void pruneRemovesObserversByIdentity() throws Throwable {
+        final BlockNode node = mockBlockNode("localhost", 8080, 1);
+        final BlockNodeObservingConnection pruned = mock(BlockNodeObservingConnection.class);
+        final BlockNodeObservingConnection replacement = mock(BlockNodeObservingConnection.class);
+        doAnswer(_ -> {
+                    activeObservingConnections().put(node, replacement);
+                    return null;
+                })
+                .when(pruned)
+                .close(CloseReason.OBSOLETE, true, EndStream.Code.RESET);
+        activeObservingConnections().put(node, pruned);
+
+        final ObservingConnectionsUpdateResult result = invoke_pruneExcessObservers(1);
+
+        assertThat(result.prunedObservers()).containsExactly(node);
+        assertThat(activeObservingConnections()).containsEntry(node, replacement);
+        verifyNoInteractions(replacement);
+    }
+
+    @Test
+    void overlappingActivationsLeaveNoCandidateUntracked() throws Throwable {
+        final BlockNode node1 = mockBlockNode("localhost", 8080, 1);
+        final BlockNode node2 = mockBlockNode("localhost", 8081, 1);
+        final AtomicBoolean nestedOpened = new AtomicBoolean(false);
+
+        try (final MockedConstruction<BlockNodeStreamingConnection> candidates =
+                mockConstruction(BlockNodeStreamingConnection.class, (candidate, context) -> {
+                    if (context.arguments().get(1) == node1) {
+                        // a second activation in the same lifecycle runs while the first one is still activating
+                        doAnswer(_ -> {
+                                    nestedOpened.set(
+                                            invoke_tryUpdateNewStreamingConnection(node2, CloseReason.UNKNOWN, null));
+                                    return null;
+                                })
+                                .when(candidate)
+                                .updateConnectionState(ConnectionState.ACTIVE);
+                    }
+                })) {
+            final boolean opened = invoke_tryUpdateNewStreamingConnection(node1, CloseReason.UNKNOWN, null);
+
+            assertThat(nestedOpened).isTrue();
+            assertThat(opened).isTrue();
+            final BlockNodeStreamingConnection first = candidates.constructed().get(0);
+            final BlockNodeStreamingConnection second = candidates.constructed().get(1);
+            // the later publication displaces the earlier one, which is retired instead of left running untracked
+            assertThat(activeStreamingConnectionRef()).hasValue(first);
+            verify(second).closeAtBlockBoundary(CloseReason.UNKNOWN);
+            verify(first, never()).closeAtBlockBoundary(any());
+            verify(first, never()).close(any(), anyBoolean(), any());
+        }
+        assertThat(activatingStreamers()).isEmpty();
+    }
+
+    @Test
+    void closingStreamerExpiresAcksWhenOnlyAnotherEndpointIsObserved() {
+        final BlockNodeConfiguration streamerConfig = newBlockNodeConfig("localhost", 8080, 1);
+        final BlockNodeStreamingConnection streamer = mock(BlockNodeStreamingConnection.class);
+        when(streamer.configuration()).thenReturn(streamerConfig);
+        activeStreamingConnectionRef().set(streamer);
+        final BlockNode observedNode = mockBlockNode("localhost", 8081, 1);
+        final BlockNodeConfiguration observedConfig = observedNode.configuration();
+        final BlockNodeObservingConnection observer = mock(BlockNodeObservingConnection.class);
+        when(observer.isActive()).thenReturn(true);
+        when(observer.configuration()).thenReturn(observedConfig);
+        activeObservingConnections().put(observedNode, observer);
+
+        connectionManager.notifyConnectionClosed(streamer);
+
+        assertThat(activeStreamingConnectionRef()).hasNullValue();
+        verify(bufferService).notifyBlockNodeDisconnected(streamerConfig.streamingEndpoint());
+    }
+
+    @Test
+    void closingObserverExpiresAcksWhenStreamerOnSameEndpointIsNotActive() {
+        final BlockNode node = mockBlockNode("localhost", 8080, 1);
+        final BlockNodeConfiguration config = node.configuration();
+        final BlockNodeStreamingConnection streamer = mock(BlockNodeStreamingConnection.class);
+        when(streamer.isActive()).thenReturn(false);
+        lenient().when(streamer.configuration()).thenReturn(config);
+        activeStreamingConnectionRef().set(streamer);
+        final BlockNodeObservingConnection observer = mock(BlockNodeObservingConnection.class);
+        when(observer.blockNode()).thenReturn(node);
+        when(observer.configuration()).thenReturn(config);
+        activeObservingConnections().put(node, observer);
+
+        connectionManager.notifyConnectionClosed(observer);
+
+        assertThat(activeObservingConnections()).isEmpty();
+        verify(bufferService).notifyBlockNodeDisconnected(config.streamingEndpoint());
+    }
+
+    @Test
+    void closingObserverDoesNotExpireAcksOfStreamerBeingActivated() throws Throwable {
+        final BlockNode node = mockBlockNode("localhost", 8080, 1);
+        final BlockNodeConfiguration config = node.configuration();
+        final BlockNodeObservingConnection observer = mock(BlockNodeObservingConnection.class);
+        when(observer.blockNode()).thenReturn(node);
+        when(observer.configuration()).thenReturn(config);
+        activeObservingConnections().put(node, observer);
+
+        try (final MockedConstruction<BlockNodeStreamingConnection> candidates =
+                mockConstruction(BlockNodeStreamingConnection.class, (candidate, _) -> {
+                    when(candidate.configuration()).thenReturn(config);
+                    when(candidate.isActive()).thenReturn(true);
+                    doAnswer(_ -> {
+                                connectionManager.notifyConnectionClosed(observer);
+                                return null;
+                            })
+                            .when(candidate)
+                            .updateConnectionState(ConnectionState.ACTIVE);
+                })) {
+            assertThat(invoke_tryUpdateNewStreamingConnection(node, CloseReason.UNKNOWN, null))
+                    .isTrue();
+            assertThat(activeStreamingConnectionRef())
+                    .hasValue(candidates.constructed().getFirst());
+        }
+
+        assertThat(activeObservingConnections()).isEmpty();
+        verify(bufferService, never()).notifyBlockNodeDisconnected(config.streamingEndpoint());
+    }
+
+    @Test
+    void failedRetirementStillClosesPromotedObserver() throws Throwable {
+        final BlockNode node = mockBlockNode("localhost", 8080, 1);
+        final BlockNodeStreamingConnection existing = mock(BlockNodeStreamingConnection.class);
+        doThrow(new IllegalStateException("retire failed"))
+                .when(existing)
+                .closeAtBlockBoundary(CloseReason.HIGHER_PRIORITY_FOUND);
+        activeStreamingConnectionRef().set(existing);
+        final BlockNodeObservingConnection observer = mock(BlockNodeObservingConnection.class);
+        activeObservingConnections().put(node, observer);
+
+        try (final MockedConstruction<BlockNodeStreamingConnection> candidates =
+                mockConstruction(BlockNodeStreamingConnection.class)) {
+            assertThat(invoke_tryUpdateNewStreamingConnection(node, CloseReason.HIGHER_PRIORITY_FOUND, existing))
+                    .isTrue();
+            assertThat(activeStreamingConnectionRef())
+                    .hasValue(candidates.constructed().getFirst());
+        }
+
+        verify(observer).close(CloseReason.NEW_CONNECTION, true, EndStream.Code.RESET);
+        assertThat(activeObservingConnections()).isEmpty();
+        assertThat(globalCoolDownTimestampRef()).doesNotHaveNullValue();
+    }
+
+    @Test
+    void obsoleteObserverCleanUpRemovesByIdentity() throws Throwable {
+        final BlockNode node = mockBlockNode("localhost", 8080, 1);
+        final BlockNodeObservingConnection obsolete = mock(BlockNodeObservingConnection.class);
+        final BlockNodeObservingConnection replacement = mock(BlockNodeObservingConnection.class);
+        doAnswer(_ -> {
+                    activeObservingConnections().put(node, replacement);
+                    return null;
+                })
+                .when(obsolete)
+                .close(CloseReason.NEW_CONNECTION, true, EndStream.Code.RESET);
+        activeObservingConnections().put(node, obsolete);
+
+        final ObservingConnectionsUpdateResult result = invoke_maybeUpdateObservingConnection(List.of(), 1);
+
+        assertThat(result.prunedObservers()).containsExactly(node);
+        assertThat(activeObservingConnections()).containsEntry(node, replacement);
+        verifyNoInteractions(replacement);
+    }
+
+    @Test
+    void fetchBlockNodeStatusAfterShutdownReturnsNoResults() throws Throwable {
+        isConnectionManagerActive().set(true);
+        connectionManager.shutdown();
+        final BlockNode node = mockBlockNode("localhost", 8080, 1);
+
+        assertThat(invoke_fetchBlockNodeStatus(List.of(node))).isEmpty();
+        verifyNoInteractions(node);
+    }
+
     // Utilities
+
+    private BlockNode newBlockNode(final BlockNodeConfiguration config) {
+        return new BlockNode(
+                configProvider,
+                config,
+                globalActiveStreamingConnectionCount(),
+                new AtomicInteger(),
+                new BlockNodeStats());
+    }
+
+    private static BlockNodeStreamingConnection activateStreamer(
+            final BlockNode node, final BlockNodeConfiguration config) {
+        final BlockNodeStreamingConnection connection = mock(BlockNodeStreamingConnection.class);
+        when(connection.configuration()).thenReturn(config);
+        when(connection.connectionId()).thenReturn(new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 1));
+        when(connection.currentState()).thenReturn(ConnectionState.ACTIVE);
+        when(connection.closeReason()).thenReturn(CloseReason.CONFIG_UPDATE);
+        node.onActive(connection);
+        return connection;
+    }
 
     @SuppressWarnings("unchecked")
     AtomicReference<Instant> idealObserversLastAttemptTimestampRef() {
@@ -3757,7 +4278,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     boolean invoke_refreshObservingConnections() throws Throwable {
-        return (boolean) refreshObservingConnectionsHandle.invoke(connectionManager);
+        return (boolean) refreshObservingConnectionsHandle.invoke(connectionManager, currentGeneration());
     }
 
     @SuppressWarnings("unchecked")
@@ -3775,8 +4296,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     ObservingConnectionsUpdateResult invoke_maybeUpdateObservingConnection(
             final List<BlockNode> rankedNodes, final int numObserversWanted) throws Throwable {
-        return (ObservingConnectionsUpdateResult)
-                maybeUpdateObservingConnectionsHandle.invoke(connectionManager, rankedNodes, numObserversWanted);
+        return (ObservingConnectionsUpdateResult) maybeUpdateObservingConnectionsHandle.invoke(
+                connectionManager, rankedNodes, numObserversWanted, currentGeneration());
     }
 
     boolean invoke_tryUpdateNewStreamingConnection(
@@ -3785,11 +4306,11 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
             final BlockNodeStreamingConnection activeConnection)
             throws Throwable {
         return (boolean) tryUpdateNewStreamingConnectionHandle.invoke(
-                connectionManager, streamingNode, closeReason, activeConnection);
+                connectionManager, streamingNode, closeReason, activeConnection, currentGeneration());
     }
 
     boolean invoke_tryNewObservingConnection(final BlockNode node) throws Throwable {
-        return (boolean) tryNewObservingConnectionHandle.invoke(connectionManager, node);
+        return (boolean) tryNewObservingConnectionHandle.invoke(connectionManager, node, currentGeneration());
     }
 
     SortedBlockNodes invoke_sortBlockNodes(final Map<BlockNode, BlockNodeStatus> results) throws Throwable {
@@ -3822,7 +4343,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     void invoke_updateConnectionIfNeeded() throws Throwable {
-        updateConnectionIfNeededHandle.invoke(connectionManager);
+        updateConnectionIfNeededHandle.invoke(connectionManager, currentGeneration());
     }
 
     void invoke_selectNewStreamingBlockNode(
@@ -3831,7 +4352,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
             final CloseReason closeReason,
             final BlockNodeStreamingConnection activeConnection)
             throws Throwable {
-        selectNewStreamingBlockNodeHandle.invoke(connectionManager, force, criteria, closeReason, activeConnection);
+        selectNewStreamingBlockNodeHandle.invoke(
+                connectionManager, force, criteria, closeReason, activeConnection, currentGeneration());
     }
 
     void invoke_pruneNodes() throws Throwable {
@@ -3904,6 +4426,15 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     AtomicBoolean isConnectionManagerActive() {
         return (AtomicBoolean) isConnectionManagerActiveHandle.get(connectionManager);
+    }
+
+    long currentGeneration() {
+        return ((AtomicLong) lifecycleGenerationHandle.get(connectionManager)).get();
+    }
+
+    @SuppressWarnings("unchecked")
+    Set<BlockNodeStreamingConnection> activatingStreamers() {
+        return (Set<BlockNodeStreamingConnection>) activatingStreamersHandle.get(connectionManager);
     }
 
     void resetMocks() {

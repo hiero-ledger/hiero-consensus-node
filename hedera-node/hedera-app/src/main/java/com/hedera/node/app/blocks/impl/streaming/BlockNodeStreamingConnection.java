@@ -21,7 +21,7 @@ import java.util.List;
 import java.util.StringJoiner;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -70,16 +70,19 @@ public class BlockNodeStreamingConnection extends BlockNodePublisherConnection {
      */
     private final AtomicReference<Thread> workerThreadRef = new AtomicReference<>();
     /**
-     * Flag indicating if this connection should be closed at the next block boundary. For example: if set to true while
-     * the connection is actively streaming a block, then the connection will continue to stream the remaining block and
+     * A request to close this connection at the next block boundary.
+     *
+     * @param reason the reason why this connection is being closed
+     * @param deadlineNanos the {@link System#nanoTime()} value after which the connection is closed even if the
+     *                      boundary has not been reached
+     */
+    private record PendingClose(@NonNull CloseReason reason, long deadlineNanos) {}
+    /**
+     * The pending request to close this connection at the next block boundary, else null. For example: if set while the
+     * connection is actively streaming a block, then the connection will continue to stream the remaining block and
      * once it is finished it will close the connection.
      */
-    private final AtomicBoolean closeAtNextBlockBoundary = new AtomicBoolean(false);
-    /**
-     * Reference to the reason why this connection is being closed. This is mainly used to track the close reason when
-     * the connection is intending to close at some time in the future - e.g. at the next close boundary.
-     */
-    private final AtomicReference<CloseReason> pendingCloseReason = new AtomicReference<>();
+    private final AtomicReference<PendingClose> pendingCloseRef = new AtomicReference<>();
     /**
      * The timestamp of when this connection should be auto reset - the "periodic" reset interval.
      */
@@ -570,20 +573,23 @@ public class BlockNodeStreamingConnection extends BlockNodePublisherConnection {
      * Indicates that this connection should be closed at the next block boundary. If this connection is actively
      * streaming a block, then the connection will wait until the block is fully sent before closing. If the connection
      * is waiting to stream a block that is not available, then the connection will be closed without sending any items
-     * for the pending block.
+     * for the pending block. If no boundary is reached within {@code blockNode.closeAtBlockBoundaryTimeout}, or the
+     * buffer no longer holds the open block being streamed, then the connection is closed anyway. Only the first
+     * request is honored.
      *
      * @param closeReason the reason why this connection is being closed (for observability)
      */
     public void closeAtBlockBoundary(@NonNull final CloseReason closeReason) {
         requireNonNull(closeReason, "Close reason is required");
 
-        if (closeAtNextBlockBoundary.get()) {
-            return; // we are already closing the connection so don't override the previous close reason
+        final long timeoutNanos =
+                Math.max(0L, TimeUnit.NANOSECONDS.convert(bncConfig().closeAtBlockBoundaryTimeout()));
+        // captured before publishing, since the worker may close the connection before the log line is written
+        final String context = toString();
+        // first request wins; reason and deadline are published together
+        if (pendingCloseRef.compareAndSet(null, new PendingClose(closeReason, System.nanoTime() + timeoutNanos))) {
+            logger.info("{} Connection will be closed at the next block boundary (reason: {})", context, closeReason);
         }
-
-        logger.info("{} Connection will be closed at the next block boundary (reason: {})", this, closeReason);
-        closeAtNextBlockBoundary.set(true);
-        pendingCloseReason.set(closeReason);
     }
 
     /**
@@ -678,18 +684,42 @@ public class BlockNodeStreamingConnection extends BlockNodePublisherConnection {
         private boolean doWork() {
             connectionStatistics().recordHeartbeat(System.currentTimeMillis());
 
+            final PendingClose pendingClose = pendingCloseRef.get();
+            if (pendingClose != null && System.nanoTime() - pendingClose.deadlineNanos() >= 0) {
+                logger.warn(
+                        "{} Block boundary not reached before the close deadline; closing connection (reason: {})",
+                        BlockNodeStreamingConnection.this,
+                        pendingClose.reason());
+                close(pendingClose.reason(), true, EndStream.Code.RESET);
+                return true;
+            }
+
+            // an open block the buffer dropped (e.g. on shutdown) can never close, but a closed one may still be sent;
+            // isClosed() is read again after the lookup because the block may close and be dropped in between
+            if (pendingClose != null
+                    && block != null
+                    && !block.isClosed()
+                    && bufferService().getBlockState(block.blockNumber()) != block
+                    && !block.isClosed()) {
+                logger.info(
+                        "{} Block boundary unreachable (open block no longer buffered); closing connection",
+                        BlockNodeStreamingConnection.this);
+                close(pendingClose.reason(), true, EndStream.Code.RESET);
+                return true;
+            }
+
             switchBlockIfNeeded();
 
             if (block == null) {
                 // The block we want to stream is not available
-                if (closeAtNextBlockBoundary.get()) {
-                    // The flag to indicate that we should close the connection at a block boundary is set to true
-                    // since no block is available to stream, we are at a safe "boundary" and can close the connection
+                final PendingClose boundaryClose = pendingCloseRef.get();
+                if (boundaryClose != null) {
+                    // The connection should be closed at a block boundary and since no block is available to stream,
+                    // we are at a safe "boundary" and can close the connection
                     logger.info(
                             "{} Block boundary reached; closing connection (no block available)",
                             BlockNodeStreamingConnection.this);
-                    final CloseReason closeReason = pendingCloseReason.get();
-                    close(closeReason != null ? closeReason : CloseReason.UNKNOWN, true, EndStream.Code.RESET);
+                    close(boundaryClose.reason(), true, EndStream.Code.RESET);
                 }
 
                 return true;
@@ -930,13 +960,13 @@ public class BlockNodeStreamingConnection extends BlockNodePublisherConnection {
                instead of closing the connection mid-block.
              */
 
-            if (closeAtNextBlockBoundary.get()) {
+            final PendingClose pendingClose = pendingCloseRef.get();
+            if (pendingClose != null) {
                 // the connection manager wants us to gracefully stop this connection
                 logger.info(
                         "{} Block boundary reached; closing connection (finished sending block)",
                         BlockNodeStreamingConnection.this);
-                final CloseReason closeReason = pendingCloseReason.get();
-                close(closeReason != null ? closeReason : CloseReason.UNKNOWN, true, EndStream.Code.RESET);
+                close(pendingClose.reason(), true, EndStream.Code.RESET);
             } else {
                 // the connection manager hasn't informed us to close this connection, so we are now free to advance to
                 // the next block
@@ -1196,7 +1226,11 @@ public class BlockNodeStreamingConnection extends BlockNodePublisherConnection {
             // Swap blocks and reset
             block = bufferService().getBlockState(latestActiveBlockNumber);
 
-            if (block == null && latestActiveBlockNumber < bufferService().getEarliestAvailableBlockNumber()) {
+            // A missing block below the latest produced one will never arrive, e.g. a gap between blocks restored
+            // from disk and blocks produced after a reconnect; the latest produced block itself is always buffered
+            if (block == null
+                    && (latestActiveBlockNumber < bufferService().getEarliestAvailableBlockNumber()
+                            || latestActiveBlockNumber < bufferService().getLastBlockNumberProduced())) {
                 // Indicate that the block node should catch up from another trustworthy block node
                 logger.warn(
                         "{} Wanted block ({}) is not obtainable; notifying block node it is too far behind and closing connection",

@@ -243,14 +243,17 @@ will NOT be sent upon close.
 2. If the connection is actively streaming a block, a best effort to stream the rest of the block will be performed
 before closing the connection.
 
-A caveat to this is if the connection manager is being shutdown, then the connections will NOT be closed gracefully.
+A connection asked to close at a block boundary - including when the connection manager is shut down - waits for that
+boundary for at most `blockNode.closeAtBlockBoundaryTimeout`. If the boundary is not reached in time, or the buffer no
+longer holds the open block being streamed (for example after shutdown cleared it), the connection is closed anyway,
+still sending EndStream(`RESET`). Observing connections are closed immediately.
 
 ### Connection States
 
 - **UNINITIALIZED**: Initial state when a connection object is created. The bidi RequestObserver needs to be created.
 - **READY**: The bidi RequestObserver is established, but this connection has not been chosen as the active one (priority-based selection).
 - **ACTIVE**: Connection is active and the Block Stream Worker Thread is sending `PublishStreamRequest`s to the block node through the async bidirectional stream. Only one connection can be ACTIVE at a time.
-- **CLOSING**: The connection is being closed. This is a terminal state where only cleanup operations are permitted. No more requests can be sent.
+- **CLOSING**: The connection is being closed. This is a terminal state where only cleanup operations are permitted. The only request still permitted is the final EndStream sent by the thread that moved the connection to CLOSING (and only if the connection was ACTIVE).
 - **CLOSED**: Connection has been fully closed and the pipeline terminated. This is a terminal state. No more requests can be sent and no more responses will be received.
 
 ## State Machine Diagrams
@@ -361,6 +364,9 @@ The connection implements a configurable rate limiting mechanism for EndOfStream
 
 <dt>blockNode.maxRequestDelay</dt>
 <dd>The maximum amount of time between attempting to send block items to a block node, regardless of the number of items ready to send.</dd>
+
+<dt>blockNode.closeAtBlockBoundaryTimeout</dt>
+<dd>The maximum time to wait for a block boundary before a connection that was asked to close at the boundary is closed anyway. Default: 30 seconds.</dd>
 
 <dt>pipelineOperationTimeout</dt>
 <dd>The maximum duration allowed for pipeline onNext() and onComplete() operations before considering the block node unresponsive. Default: 30 seconds.</dd>

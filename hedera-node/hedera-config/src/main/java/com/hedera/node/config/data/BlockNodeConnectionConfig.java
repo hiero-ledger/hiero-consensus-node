@@ -50,6 +50,7 @@ import java.time.Duration;
  * @param grpcCompressionType the type of compression to use while communicating to the block node
  * @param maxObserverIdleSeconds the maximum amount of time (in seconds) that an observing connection can go without receiving an acknowledgement before being closed
  * @param idealObserversCoolDownSeconds the minimum amount of time (in seconds) to permit trying to establish the ideal number of observers when the minimum number is already established
+ * @param closeAtBlockBoundaryTimeout the maximum time to wait for a block boundary before a connection that was asked to close at the boundary is closed anyway
  */
 // spotless:off
 @ConfigData("blockNode")
@@ -88,6 +89,7 @@ public record BlockNodeConnectionConfig(
         @ConfigProperty(value = "operationTimeout.timeoutWindowDuration", defaultValue = "60s") @NetworkProperty Duration opTimeoutWindowDuration,
         @ConfigProperty(defaultValue = "ZSTD") @NetworkProperty BlockStreamGrpcCompressionType grpcCompressionType,
         @ConfigProperty(defaultValue = "30") @NetworkProperty int maxObserverIdleSeconds,
-        @ConfigProperty(defaultValue = "30") @Min(1) @NetworkProperty int idealObserversCoolDownSeconds) {
+        @ConfigProperty(defaultValue = "30") @Min(1) @NetworkProperty int idealObserversCoolDownSeconds,
+        @ConfigProperty(defaultValue = "30s") @NodeProperty Duration closeAtBlockBoundaryTimeout) {
 }
 // spotless:on

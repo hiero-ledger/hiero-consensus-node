@@ -98,9 +98,9 @@ public record BlockStreamConfig(
         boolean enhancedObservabilityEnabled) {
 
     /**
-     * Whether the node should maintain an active stream to block nodes — true when the main
-     * stream writes via gRPC <b>or</b> the WRB path is enabled (the WRB writer also publishes
-     * through {@code BlockBufferService}).
+     * Whether the node should maintain an active stream to block nodes, which is true whenever
+     * {@code writerMode} is not {@code FILE}. This applies to wrapped record blocks (WRB) too:
+     * in {@code FILE} mode they do not reach block nodes, even when {@code streamWrappedRecordBlocks} is on.
      */
     public boolean streamToBlockNodes() {
         return writerMode != BlockStreamWriterMode.FILE;

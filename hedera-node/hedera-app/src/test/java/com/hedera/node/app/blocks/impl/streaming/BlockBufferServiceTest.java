@@ -2302,6 +2302,35 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
+    void testStartupRestoredBlocksAreEarliestAvailableBeforeFirstPrune() throws Exception {
+        final Configuration config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(BlockBufferConfig.class)
+                .withValue("blockStream.writerMode", "GRPC")
+                .withValue("blockStream.blockPeriod", Duration.ofSeconds(1))
+                .withValue("blockStream.buffer.workerInterval", Duration.ofMinutes(10))
+                .withValue("blockStream.buffer.isBufferPersistenceEnabled", true)
+                .withValue("blockStream.buffer.bufferDirectory", testDir)
+                .getOrCreateConfig();
+        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
+
+        final File blockDir = new File(testDirFile, Long.toString(Instant.now().toEpochMilli()));
+        Files.createDirectories(blockDir.toPath());
+        for (long blockNumber = 5; blockNumber <= 9; ++blockNumber) {
+            final BlockState block = BlockTestUtils.generateRandomBlock(blockNumber);
+            writeBlockToDisk(block, false, new File(blockDir, "block-" + blockNumber + ".bin"));
+        }
+
+        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics, streamingObs);
+        blockBufferService.start();
+        // the worker interval is long, so no prune runs before the assertion
+        blockBufferService.openBlock(10L);
+
+        assertThat(blockBuffer(blockBufferService)).containsOnlyKeys(5L, 6L, 7L, 8L, 9L, 10L);
+        assertThat(blockBufferService.getEarliestAvailableBlockNumber()).isEqualTo(5L);
+    }
+
+    @Test
     void testStartupSkipsInvalidBlockOnDisk() throws Exception {
         final Configuration config = HederaTestConfigBuilder.create()
                 .withConfigDataType(BlockStreamConfig.class)

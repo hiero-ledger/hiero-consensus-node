@@ -4,13 +4,16 @@ package com.hedera.node.app.blocks.impl.streaming;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -35,8 +38,11 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.block.api.BlockNodeServiceInterface.BlockNodeServiceClient;
 import org.hiero.block.api.ServerStatusRequest;
@@ -54,7 +60,6 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
 
     private static final VarHandle connectionStateHandle;
     private static final VarHandle clientRefHandle;
-    private static final VarHandle closeTaskClientHandle;
 
     static {
         try {
@@ -63,8 +68,6 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
                     .findVarHandle(BlockNodeServiceConnection.class, "clientRef", AtomicReference.class);
             connectionStateHandle = MethodHandles.privateLookupIn(AbstractBlockNodeConnection.class, lookup)
                     .findVarHandle(AbstractBlockNodeConnection.class, "stateRef", AtomicReference.class);
-            closeTaskClientHandle = MethodHandles.privateLookupIn(CloseClientTask.class, lookup)
-                    .findVarHandle(CloseClientTask.class, "clientHolder", ServiceClientHolder.class);
         } catch (final Exception e) {
             if (e instanceof final RuntimeException re) {
                 throw re;
@@ -149,9 +152,6 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
         clientRef().set(clientAHolder);
         stateRef().set(ConnectionState.ACTIVE);
 
-        final Future<?> closeFuture = CompletableFuture.completedFuture(null);
-        doReturn(closeFuture).when(executorService).submit(any(CloseClientTask.class));
-
         // sanity check
         assertThat(clientRef()).hasValue(clientAHolder);
         assertThat(stateRef()).hasValue(ConnectionState.ACTIVE);
@@ -161,26 +161,18 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(clientRef()).hasValue(clientAHolder);
         assertThat(stateRef()).hasValue(ConnectionState.ACTIVE);
 
-        final ArgumentCaptor<? extends Runnable> execSvcCaptor = ArgumentCaptor.forClass(Runnable.class);
-
         verify(clientFactory)
                 .createServiceClient(
                         eq(nodeConfiguration),
                         any(Duration.class),
                         anyString(),
                         any(BlockStreamGrpcCompressionType.class));
-        verify(executorService).submit(execSvcCaptor.capture());
+        // the losing client is closed directly, since the task already runs on the executor
+        verify(client).close();
 
-        assertThat(execSvcCaptor.getAllValues()).hasSize(1);
-        final Runnable r = execSvcCaptor.getValue();
-        assertThat(r).isNotNull().isInstanceOf(CloseClientTask.class);
-        final CloseClientTask closeTask = (CloseClientTask) r;
-        final ServiceClientHolder closedClientHolder = (ServiceClientHolder) closeTaskClientHandle.get(closeTask);
-        assertThat(closedClientHolder.client()).isEqualTo(client);
-        assertThat(clientRef()).hasValue(clientAHolder);
-
-        verifyNoMoreInteractions(executorService);
-        verifyNoInteractions(client);
+        verifyNoInteractions(executorService);
+        verifyNoMoreInteractions(client);
+        verifyNoInteractions(clientA);
         verifyNoMoreInteractions(clientFactory);
         verifyNoInteractions(metrics);
     }
@@ -197,8 +189,8 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
         stateRef().set(ConnectionState.ACTIVE);
 
         doThrow(new RuntimeException("run boy run! the world is not made for you"))
-                .when(executorService)
-                .submit(any(CloseClientTask.class));
+                .when(client)
+                .close();
 
         // sanity check
         assertThat(clientRef()).hasValue(clientAHolder);
@@ -209,26 +201,18 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(clientRef()).hasValue(clientAHolder);
         assertThat(stateRef()).hasValue(ConnectionState.ACTIVE);
 
-        final ArgumentCaptor<? extends Runnable> execSvcCaptor = ArgumentCaptor.forClass(Runnable.class);
-
         verify(clientFactory)
                 .createServiceClient(
                         eq(nodeConfiguration),
                         any(Duration.class),
                         anyString(),
                         any(BlockStreamGrpcCompressionType.class));
-        verify(executorService).submit(execSvcCaptor.capture());
+        // the failure to close the losing client is suppressed
+        verify(client).close();
 
-        assertThat(execSvcCaptor.getAllValues()).hasSize(1);
-        final Runnable r = execSvcCaptor.getValue();
-        assertThat(r).isNotNull().isInstanceOf(CloseClientTask.class);
-        final CloseClientTask closeTask = (CloseClientTask) r;
-        final ServiceClientHolder closedClientHolder = (ServiceClientHolder) closeTaskClientHandle.get(closeTask);
-        assertThat(closedClientHolder.client()).isEqualTo(client);
-        assertThat(clientRef()).hasValue(clientAHolder);
-
-        verifyNoMoreInteractions(executorService);
-        verifyNoInteractions(client);
+        verifyNoInteractions(executorService);
+        verifyNoMoreInteractions(client);
+        verifyNoInteractions(clientA);
         verifyNoMoreInteractions(clientFactory);
         verifyNoInteractions(metrics);
     }
@@ -418,8 +402,17 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
         stateRef().set(ConnectionState.ACTIVE);
 
         final Future<?> future = mock(Future.class);
-        doReturn(future).when(executorService).submit(any(CloseClientTask.class));
         final RuntimeException error = new RuntimeException("well, this is awkward...");
+        doThrow(error).when(client).close();
+        // an ExecutionException means the executor ran the task and the close failed
+        doAnswer(invocation -> {
+                    assertThatThrownBy(() ->
+                                    invocation.getArgument(0, Runnable.class).run())
+                            .isSameAs(error);
+                    return future;
+                })
+                .when(executorService)
+                .submit(any(CloseClientTask.class));
         doThrow(new ExecutionException(error)).when(future).get(anyLong(), any(TimeUnit.class));
 
         // sanity check
@@ -432,10 +425,11 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(clientRef()).hasNullValue();
 
         verify(executorService).submit(any(CloseClientTask.class));
-        verify(future).cancel(true);
+        // the task already ran, so close() neither runs it again nor cancels it
+        verify(client).close();
 
         verifyNoMoreInteractions(future);
-        verifyNoInteractions(client);
+        verifyNoMoreInteractions(client);
         verifyNoInteractions(clientFactory);
         verify(metrics).recordConnectionClosed(ConnectionType.SERVER_STATUS, CloseReason.OBSOLETE);
         verifyNoMoreInteractions(metrics);
@@ -479,10 +473,11 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(clientRef()).hasNullValue();
 
         verify(executorService).submit(any(CloseClientTask.class));
-        verify(future).cancel(true);
+        // the mocked executor never ran the task, so close() runs it itself instead of cancelling it
+        verify(client).close();
 
         verifyNoMoreInteractions(future);
-        verifyNoInteractions(client);
+        verifyNoMoreInteractions(client);
         verifyNoInteractions(clientFactory);
         verify(metrics).recordConnectionClosed(ConnectionType.SERVER_STATUS, CloseReason.OBSOLETE);
         verifyNoMoreInteractions(metrics);
@@ -548,6 +543,162 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
             unblockExecutorLatch.countDown();
             realExecutor.shutdownNow();
         }
+    }
+
+    @Test
+    void closesServiceClientWhenExecutorRejectsCleanup() {
+        connection.new CreateClientTask().run();
+        doThrow(new RejectedExecutionException("executor is shutting down"))
+                .when(executorService)
+                .submit(any(CloseClientTask.class));
+
+        connection.close();
+
+        assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);
+        verify(client).close();
+    }
+
+    @Test
+    void closesServiceClientWhenCleanupTimesOutBeforeStarting() throws Exception {
+        connection.new CreateClientTask().run();
+        final Future<?> future = mock(Future.class);
+        doReturn(future).when(executorService).submit(any(CloseClientTask.class));
+        doThrow(new TimeoutException()).when(future).get(anyLong(), any(TimeUnit.class));
+
+        connection.close();
+
+        assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);
+        verify(client).close();
+        final ArgumentCaptor<Runnable> task = ArgumentCaptor.forClass(Runnable.class);
+        verify(executorService).submit(task.capture());
+        task.getValue().run();
+        verify(client).close();
+    }
+
+    @Test
+    void closeRunsCleanupInlineWhenInterruptedBeforeItStarts() throws Exception {
+        clientRef().set(new ServiceClientHolder(1, client));
+        stateRef().set(ConnectionState.ACTIVE);
+        final Future<?> future = mock(Future.class);
+        doReturn(future).when(executorService).submit(any(CloseClientTask.class));
+        doThrow(new InterruptedException()).when(future).get(anyLong(), any(TimeUnit.class));
+
+        final AtomicReference<Throwable> errorRef = new AtomicReference<>();
+        final AtomicBoolean interruptRestored = new AtomicBoolean();
+        final Thread closer = Thread.ofPlatform().start(() -> {
+            try {
+                connection.close();
+                interruptRestored.set(Thread.currentThread().isInterrupted());
+            } catch (final Throwable t) {
+                errorRef.set(t);
+            }
+        });
+        assertThat(closer.join(Duration.ofSeconds(5))).isTrue();
+
+        assertThat(errorRef).hasNullValue();
+        assertThat(interruptRestored).isTrue();
+        assertThat(stateRef()).hasValue(ConnectionState.CLOSED);
+        assertThat(clientRef()).hasNullValue();
+        verify(client).close();
+        verify(future, never()).cancel(anyBoolean());
+    }
+
+    @Test
+    void closeLetsRunningCleanupFinishAfterTimeout() throws Exception {
+        clientRef().set(new ServiceClientHolder(1, client));
+        stateRef().set(ConnectionState.ACTIVE);
+
+        final CountDownLatch cleanupStarted = new CountDownLatch(1);
+        final CountDownLatch releaseCleanup = new CountDownLatch(1);
+        final AtomicInteger closeCalls = new AtomicInteger();
+        final AtomicBoolean cleanupInterrupted = new AtomicBoolean();
+        final AtomicBoolean cleanupFinished = new AtomicBoolean();
+        doAnswer(_ -> {
+                    // only the first close blocks, so a second close on the closing thread is counted, not hung
+                    if (closeCalls.incrementAndGet() == 1) {
+                        cleanupStarted.countDown();
+                        try {
+                            releaseCleanup.await(5, TimeUnit.SECONDS);
+                        } catch (final InterruptedException e) {
+                            cleanupInterrupted.set(true);
+                        }
+                        cleanupFinished.set(true);
+                    }
+                    return null;
+                })
+                .when(client)
+                .close();
+
+        final AtomicReference<Thread> cleanupThread = new AtomicReference<>();
+        final Future<?> future = mock(Future.class);
+        doAnswer(invocation -> {
+                    cleanupThread.set(Thread.ofPlatform().start(invocation.getArgument(0, Runnable.class)));
+                    return future;
+                })
+                .when(executorService)
+                .submit(any(CloseClientTask.class));
+        // the wait times out only once the cleanup is running
+        doAnswer(_ -> {
+                    assertThat(cleanupStarted.await(5, TimeUnit.SECONDS)).isTrue();
+                    throw new TimeoutException();
+                })
+                .when(future)
+                .get(anyLong(), any(TimeUnit.class));
+        // like a real future, cancel(true) interrupts the running cleanup
+        lenient()
+                .doAnswer(invocation -> {
+                    if (invocation.getArgument(0, Boolean.class)) {
+                        cleanupThread.get().interrupt();
+                    }
+                    return true;
+                })
+                .when(future)
+                .cancel(anyBoolean());
+
+        try {
+            connection.close();
+
+            assertThat(stateRef()).hasValue(ConnectionState.CLOSED);
+            assertThat(cleanupFinished).isFalse();
+        } finally {
+            releaseCleanup.countDown();
+            if (cleanupThread.get() != null) {
+                assertThat(cleanupThread.get().join(Duration.ofSeconds(5))).isTrue();
+            }
+        }
+
+        assertThat(cleanupFinished).isTrue();
+        assertThat(cleanupInterrupted).isFalse();
+        assertThat(closeCalls).hasValue(1);
+        verify(future, never()).cancel(anyBoolean());
+    }
+
+    @Test
+    void losingCreateClientTaskClosesItsClientWithoutExecutor() {
+        final ServiceClientHolder winner = new ServiceClientHolder(-10, mock(BlockNodeServiceClient.class));
+        clientRef().set(winner);
+        stateRef().set(ConnectionState.ACTIVE);
+
+        connection.new CreateClientTask().run();
+
+        assertThat(clientRef()).hasValue(winner);
+        assertThat(stateRef()).hasValue(ConnectionState.ACTIVE);
+        verify(client).close();
+        verifyNoInteractions(executorService);
+    }
+
+    @Test
+    void createClientTaskAfterCloseClosesItsClientDirectly() {
+        connection.close();
+        assertThat(stateRef()).hasValue(ConnectionState.CLOSED);
+
+        connection.new CreateClientTask().run();
+
+        assertThat(clientRef()).hasNullValue();
+        assertThat(stateRef()).hasValue(ConnectionState.CLOSED);
+        verify(client).close();
+        verifyNoInteractions(executorService);
+        verifyNoInteractions(metrics);
     }
 
     @Test

@@ -9,6 +9,8 @@ import com.hedera.node.app.blocks.impl.streaming.ConnectionId.ConnectionType;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -140,6 +142,23 @@ public class BlockNodeObservingConnection extends BlockNodePublisherConnection {
                 "{} Acknowledging the last verified block ({}) from the EndOfStream response", this, lastVerifiedBlock);
         bufferService.acknowledgeBlock(
                 lastVerifiedBlock, blockNode().configuration().streamingEndpoint());
+
+        // EndOfStream responses count against the same per-node limit as on the streaming connection
+        final int maxEndStreamsAllowed = bncConfig().maxEndOfStreamsAllowed();
+        final Duration eosTimeframe = bncConfig().endOfStreamTimeFrame();
+
+        if (blockNode().stats().addEndOfStreamAndCheckLimit(Instant.now(), maxEndStreamsAllowed, eosTimeframe)) {
+            logger.info(
+                    "{} Block node has exceeded the number of allowed EndOfStream responses (received: {}, permitted: {}, timeWindow: {})",
+                    this,
+                    blockNode().stats().getEndOfStreamCount(),
+                    maxEndStreamsAllowed,
+                    eosTimeframe);
+
+            metrics().recordEndOfStreamLimitExceeded();
+            close(CloseReason.TOO_MANY_END_STREAM_RESPONSES, true, null);
+            return;
+        }
 
         switch (responseCode) {
             case Code.TIMEOUT, Code.DUPLICATE_BLOCK, Code.BAD_BLOCK_PROOF, Code.INVALID_REQUEST -> {
