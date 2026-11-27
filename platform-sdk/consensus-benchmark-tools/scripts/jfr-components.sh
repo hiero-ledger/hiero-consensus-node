@@ -33,19 +33,20 @@ done | awk '
   function bucket(fr) {
     if (fr ~ /\.pipeline\.PipelineTimer\$Output\.arrive/) return "timer: output"
     if (fr ~ /\.pipeline\.PipelineTimer\.replay/) return "timer: waiting"
-    if (fr ~ /event\.intake/) return "intake"
+    if (fr ~ /event\.intake|consensus\.orphan\.|crypto\.DefaultEventHasher/) return "intake"
     if (fr ~ /event\.creator/) return "event creation"
     if (fr ~ /hashgraph/) return "hashgraph/consensus"
     if (fr ~ /\.gossip|\.sync|broadcast|shadowgraph/) return "gossip"
     if (fr ~ /\.pces/) return "pces"
-    if (fr ~ /\.state|StateSignature|iss|platformstate/) return "state/signatures"
+    if (fr ~ /\.state|StateSignature|\.iss\.|platformstate/) return "state/signatures"
     if (fr ~ /transaction|\.sloth\./) return "app/transactions"
     if (fr ~ /\.metrics|Stats[A-Z]|statistics/) return "metrics"
     if (fr ~ /wiring/) return "wiring"
     return ""
   }
   function helper(fr) {
-    if (fr ~ /Libsodium|base\.crypto|\.crypto\./) return "crypto"
+    if (fr ~ /consensus\.crypto\.(PbjStreamHasher|DefaultEventHasher)/) return "serialization/hashing"
+    if (fr ~ /Libsodium|base\.crypto|\.crypto\.|\.verifySignature/) return "crypto"
     if (fr ~ /pbj|StreamingData|OutputStream|InputStream|Bytes|ProtoWriter|Hash/) return "serialization/hashing"
     return ""
   }
