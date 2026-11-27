@@ -110,6 +110,8 @@ public class HookStoreHandler implements TransactionHandler {
             } else if (update.hasMappingEntries()) {
                 final var mappingEntries = update.mappingEntriesOrThrow();
                 validateWord(mappingEntries.mappingSlot());
+                // A mapping update without entries writes nothing, so it is as empty as an unset update
+                validateFalsePreCheck(mappingEntries.entries().isEmpty(), EMPTY_EVM_HOOK_STORAGE_UPDATE);
                 for (final var entry : mappingEntries.entries()) {
                     validateEntry(entry);
                 }
@@ -151,7 +153,8 @@ public class HookStoreHandler implements TransactionHandler {
         final var evmHookStore = context.storeFactory().writableStore(WritableEvmHookStore.class);
         final var storageUpdates = op.storageUpdates();
         final var config = context.configuration().getConfigData(HooksConfig.class);
-        validateTrue(storageUpdates.size() <= config.maxHookStoreUpdates(), TOO_MANY_EVM_HOOK_STORAGE_UPDATES);
+        // The limit is on storage slots, so each mapping entry counts as one update
+        validateTrue(slotCount(storageUpdates) <= config.maxHookStoreUpdates(), TOO_MANY_EVM_HOOK_STORAGE_UPDATES);
         // We translate any contract id used at the HAPI boundary for internal simplicity
         final var hookId = effectiveHookId(op.hookIdOrThrow());
         final int delta = evmHookStore.updateStorage(hookId, op.storageUpdates());
