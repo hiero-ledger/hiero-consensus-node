@@ -6,14 +6,12 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INVALID_CHANNEL_ST
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_PEER_ENDPOINT_NOT_FOUND;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.test.handlers.ChannelIndexStubs.stubChannelIndex;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.lenient;
-import static org.mockito.BDDMockito.then;
-import static org.mockito.Mockito.never;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.TransactionID;
@@ -25,7 +23,6 @@ import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.hapi.node.state.clpr.ClprServiceEndpoint;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.service.clpr.ClprChannelLifecycle;
 import com.hedera.node.app.service.clpr.impl.WritableChannelStore;
 import com.hedera.node.app.service.clpr.impl.handlers.ClprEvictPeerEndpointHandler;
 import com.hedera.node.app.spi.store.StoreFactory;
@@ -66,21 +63,19 @@ class ClprEvictPeerEndpointHandlerTest {
     @Mock
     private WritableStates writableStates;
 
-    @Mock
-    private ClprChannelLifecycle channelLifecycle;
-
     private ClprEvictPeerEndpointHandler subject;
     private WritableChannelStore channelStore;
 
     @BeforeEach
     void setUp() {
-        subject = new ClprEvictPeerEndpointHandler(channelLifecycle);
+        subject = new ClprEvictPeerEndpointHandler();
         final var writableChannels = MapWritableKVState.<ProtoBytes, ClprChannel>builder(
                         CHANNELS_STATE_ID, "ClprService:CHANNELS")
                 .build();
         lenient()
                 .when(writableStates.<ProtoBytes, ClprChannel>get(CHANNELS_STATE_ID))
                 .thenReturn(writableChannels);
+        stubChannelIndex(writableStates);
         channelStore = new WritableChannelStore(writableStates);
     }
 
@@ -105,7 +100,7 @@ class ClprEvictPeerEndpointHandlerTest {
     }
 
     @Test
-    @DisplayName("removes every matching endpoint, keeps the manifest version, and reseeds the dial cache")
+    @DisplayName("removes every matching endpoint and keeps the manifest version")
     void evictsMatchingEndpoints() {
         putChannel(ClprChannelStatus.ACTIVE, List.of(endpoint(BAD), endpoint(GOOD), endpoint(BAD)));
         setupHandleContext(txnWith(CHANNEL_ID, BAD));
@@ -115,7 +110,6 @@ class ClprEvictPeerEndpointHandlerTest {
         final var manifest = channelStore.getChannel(CHANNEL_ID).endpointManifestOrThrow();
         assertThat(manifest.endpoints()).containsExactly(endpoint(GOOD));
         assertThat(manifest.version()).isEqualTo(4L);
-        then(channelLifecycle).should().seedPeerEndpoints(CHANNEL_ID, List.of(endpoint(GOOD)));
     }
 
     @Test
@@ -127,7 +121,6 @@ class ClprEvictPeerEndpointHandlerTest {
         assertThatThrownBy(() -> subject.handle(handleContext))
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(CLPR_PEER_ENDPOINT_NOT_FOUND));
-        then(channelLifecycle).should(never()).seedPeerEndpoints(any(), any());
     }
 
     @Test

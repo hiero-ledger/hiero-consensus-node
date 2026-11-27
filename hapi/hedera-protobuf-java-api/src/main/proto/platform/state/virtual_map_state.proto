@@ -57,6 +57,7 @@ import "services/state/token/token_relation.proto";
 import "services/state/clpr/clpr_channel.proto";
 import "services/state/clpr/clpr_endpoint_manifest.proto";
 import "services/state/clpr/clpr_endpoint_manifest_construction.proto";
+import "services/state/clpr/clpr_channel_index.proto";
 import "services/state/clpr/clpr_ledger_configuration.proto";
 import "services/state/clpr/clpr_message.proto";
 import "services/state/clpr/clpr_connector.proto";
@@ -313,6 +314,18 @@ message StateKey {
      * Legacy entries use a 32-byte commitment hash.
      */
     proto.ProtoBytes ClprService_I_CONNECTOR_REGISTRATION_HISTORY = 64;
+
+    /**
+     * A state identifier for the CLPR indexed channels.
+     * Key is an index number issued by the channel index singleton.
+     */
+    proto.ProtoLong ClprService_I_INDEXED_CHANNELS = 72;
+
+    /**
+     * A state identifier for the CLPR channel index numbers.
+     * Key is the 32-byte id of a syncable Channel.
+     */
+    proto.ProtoBytes ClprService_I_CHANNEL_INDEX_NUMS = 73;
 
     /** The target hinTS construction ID for an adopted key's signing witness. */
     proto.ProtoLong HistoryService_I_HINTS_KEY_WITNESSES = 70;
@@ -731,6 +744,23 @@ message StateValue {
     com.hedera.hapi.node.state.clpr.ClprEndpointManifestConstruction ClprService_I_ENDPOINT_MANIFEST_CONSTRUCTION = 67;
 
     /**
+     * A state identifier for the CLPR channel index. Singleton state.
+     */
+    com.hedera.hapi.node.state.clpr.ClprChannelIndex ClprService_I_CHANNEL_INDEX = 71;
+
+    /**
+     * A state identifier for the CLPR indexed channels.
+     * Value is the 32-byte id of the syncable Channel with that index number.
+     */
+    proto.ProtoBytes ClprService_I_INDEXED_CHANNELS = 72;
+
+    /**
+     * A state identifier for the CLPR channel index numbers.
+     * Value is the index number of the syncable Channel with that id.
+     */
+    proto.ProtoLong ClprService_I_CHANNEL_INDEX_NUMS = 73;
+
+    /**
      * Metadata of the round receipts queue.
      */
     proto.TransactionReceiptEntries RecordCache_I_TRANSACTION_RECEIPTS = 126;
@@ -954,6 +984,12 @@ enum SingletonType {
    * change, and is deleted on close. Singleton state.
    */
   ClprService_I_ENDPOINT_MANIFEST_CONSTRUCTION = 67;
+
+  /**
+   * A state identifier for the CLPR channel index — the last index number issued to a
+   * Channel that is neither PENDING nor CLOSED. Singleton state.
+   */
+  ClprService_I_CHANNEL_INDEX = 71;
 
   // Queue metadata
 

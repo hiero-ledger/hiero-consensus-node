@@ -8,6 +8,7 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.clpr.ClprService;
 import com.hedera.node.app.service.clpr.impl.calculator.ClprFeeCalculator;
 import com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema;
+import com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.SchemaRegistry;
@@ -23,6 +24,7 @@ public final class ClprServiceImpl implements ClprService {
     @Override
     public void registerSchemas(@NonNull final SchemaRegistry registry) {
         registry.register(new V0780ClprSchema());
+        registry.register(new V0800ClprSchema());
     }
 
     @Override

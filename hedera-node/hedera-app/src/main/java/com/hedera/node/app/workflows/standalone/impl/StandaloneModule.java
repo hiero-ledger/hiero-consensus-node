@@ -145,11 +145,6 @@ public interface StandaloneModule {
             public void onChannelClosed(@NonNull final Bytes channelId) {}
 
             @Override
-            public void seedPeerEndpoints(
-                    @NonNull final Bytes channelId,
-                    @NonNull final java.util.List<com.hedera.hapi.node.state.clpr.ClprEndpoint> endpoints) {}
-
-            @Override
             public void recordPeerObservedManifestVersion(
                     @NonNull final Bytes channelId, final long peerObservedVersion) {}
         };

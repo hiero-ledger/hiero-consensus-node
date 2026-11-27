@@ -13,6 +13,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BOD
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CONNECTORS_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.MESSAGE_QUEUE_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.test.handlers.ChannelIndexStubs.stubChannelIndex;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -217,6 +218,7 @@ class ClprDeepDiveBundleAuditTest {
         lenient()
                 .when(writableStates.<Bytes, ClprChannel>get(CHANNELS_STATE_ID))
                 .thenReturn(writableChannels);
+        stubChannelIndex(writableStates);
         channelStore = new WritableChannelStore(writableStates);
 
         writableMessages = MapWritableKVState.<ClprMessageKey, ClprMessageValue>builder(
@@ -1906,7 +1908,6 @@ class ClprDeepDiveBundleAuditTest {
 
         assertThat(channelStore.getChannel(CHANNEL_ID).endpointManifestOrThrow().endpoints())
                 .isEmpty();
-        verify(channelLifecycle).seedPeerEndpoints(CHANNEL_ID, List.of());
     }
 
     @Test
@@ -2634,14 +2635,12 @@ class ClprDeepDiveBundleAuditTest {
                 final var accounting = ClprGasAccounting.forContext(handleContext);
                 assertThat(accounting.prepayVerifier(PAYER_ID, 1000L)).isTrue();
                 accounting.settleVerifierWithGasUsage(PAYER_ID, 1000L, gasUsage);
+                if (failureMode == 2) {
+                    throw new IllegalStateException("Unexpected failure after the verifier settled its gas");
+                }
                 return content;
             });
 
-            if (failureMode == 2) {
-                org.mockito.Mockito.doThrow(new IllegalStateException("Unexpected endpoint-cache failure"))
-                        .when(channelLifecycle)
-                        .seedPeerEndpoints(any(), any());
-            }
             if (failureMode == 1) {
                 final var failure = org.junit.jupiter.api.Assertions.assertThrows(
                         HandleException.class, () -> subject.handle(handleContext));
@@ -2650,7 +2649,6 @@ class ClprDeepDiveBundleAuditTest {
                 failure.maybeReplay(mock(FeeCharging.Context.class), rollbackContext);
                 verify(rollbackContext).tryToCharge(PAYER_ID, 400L);
                 verify(handleContext, never()).refundHandlerCharge(any(), anyLong());
-                verify(channelLifecycle, never()).seedPeerEndpoints(any(), any());
             } else if (failureMode == 2) {
                 final var failure = org.junit.jupiter.api.Assertions.assertThrows(
                         RollbackAwareException.class, () -> subject.handle(handleContext));
@@ -2658,7 +2656,7 @@ class ClprDeepDiveBundleAuditTest {
                 final var rollbackContext = mock(HandleContext.class);
                 failure.maybeReplay(mock(FeeCharging.Context.class), rollbackContext);
                 verify(rollbackContext).tryToCharge(PAYER_ID, 400L);
-                verify(handleContext).refundHandlerCharge(PAYER_ID, 600L);
+                verify(handleContext, never()).refundHandlerCharge(any(), anyLong());
             } else {
                 subject.handle(handleContext);
                 verify(handleContext).refundHandlerCharge(PAYER_ID, 600L);

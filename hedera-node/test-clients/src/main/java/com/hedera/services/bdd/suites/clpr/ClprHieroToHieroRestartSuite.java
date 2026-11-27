@@ -33,14 +33,12 @@ import org.junit.jupiter.api.*;
 /**
  * Multi-network restart regression for the outbound-sync orchestrator.
  *
- * <p>{@code ClprChannelManager}'s in-memory channel registry, per-channel sync timers,
- * intervals, and peer endpoints are runtime-only — they are not part of consensus state, so they
- * are empty after a node restart. Because the {@code CHANNELS} key/value state cannot be
- * iterated, the orchestrator rebuilds them on startup from a <b>node-local file</b>
- * ({@code data/clpr/peer-endpoints.json}, configured by {@code clpr.peerEndpointsFile}) that the
- * manager rewrites on every channel lifecycle change (activated / closed / endpoints updated).
- * Without that rehydration an already-ACTIVE channel's outbound sync is permanently dead after a
- * restart — the channel never re-triggers {@code onChannelActivated}.
+ * <p>{@code ClprChannelManager}'s in-memory channel registry and per-channel sync timers are
+ * runtime-only — they are not part of consensus state, so they are empty after a node restart, and
+ * an already-ACTIVE channel never re-triggers {@code onChannelActivated}. Because the
+ * {@code CHANNELS} key/value state cannot be iterated, the orchestrator rebuilds the registry on
+ * startup from the channel index singleton in state, which lists every channel that is neither
+ * PENDING nor CLOSED.
  *
  * <p>This suite exercises several restart paths end to end across two subprocess ledgers:
  * <ul>
@@ -58,7 +56,7 @@ import org.junit.jupiter.api.*;
  * </ul>
  *
  * <p><b>Same-port restart.</b> Cross-network CLPR sync reaches a peer at the {@code ip:port} stored
- * in that peer's attested ledger configuration and in the node-local peer-endpoints file, not via the
+ * in the channel's cached endpoint manifest (consensus state), not via the
  * platform address book. The stock {@code LifecycleTest.upgradeToConfigVersion} restarts via
  * {@code FakeNmt.restartNetwork} ({@code ReassignPorts.YES}), which would bring B back on a new port
  * and permanently strand A's cached endpoint. This suite instead restarts via
