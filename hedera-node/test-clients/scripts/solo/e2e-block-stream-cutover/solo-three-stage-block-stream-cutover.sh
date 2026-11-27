@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # Three-stage block-stream cutover from a published CN baseline to the checkout's local CN build:
-#   0. Genesis on the published CN baseline (v0.78.1) with record streaming only, without a BN.
+#   0. Genesis on the published CN baseline (v0.79.2) with record streaming only, without a BN.
 #   1. 0.79.0 configuration: upgrade to the local build; WRB streaming + disk hashes with mock
 #      signatures, without a BN.
 #   2. 0.79.1 configuration: generate jumpstart.bin with offline Block Node tooling,
@@ -23,7 +23,8 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../../../" && pwd)"
 # ---- Pinned versions ------------------------------------------------------------------------
 # Published CN release deployed at genesis, before the three local-build stages.
 # DEPLOY_RELEASE_TAG is accepted as a legacy alias (the workflows' starting-tag input).
-CN_BASELINE_RELEASE_TAG="${CN_BASELINE_RELEASE_TAG:-${DEPLOY_RELEASE_TAG:-v0.78.1}}"
+# Must be 0.79 or later: the local build cannot read the SHA-384 events of older releases.
+CN_BASELINE_RELEASE_TAG="${CN_BASELINE_RELEASE_TAG:-${DEPLOY_RELEASE_TAG:-v0.79.2}}"
 # The one Block Node pin is block-node-version in .citr-env; fail here rather than let Solo pick a chart.
 CITR_ENV_FILE="${REPO_ROOT}/.github/workflows/support/citr/.citr-env"
 CITR_BLOCK_NODE_VERSION="$(sed -n 's/^block-node-version=//p' "${CITR_ENV_FILE}" | head -n 1)"
@@ -55,7 +56,7 @@ LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH:-${REPO_ROOT}/hedera-node/data}"
 # concurrent provers from starving consensus on shared CI runners. Set empty (or 0) to use all cores.
 WRAPS_NUM_CORES="${WRAPS_NUM_CORES:-1}"
 
-APP_PROPS_BASELINE_FILE="${APP_PROPS_BASELINE_FILE:-${SCRIPT_DIR}/resources/0.78.1/application.properties}"
+APP_PROPS_BASELINE_FILE="${APP_PROPS_BASELINE_FILE:-${SCRIPT_DIR}/resources/baseline/application.properties}"
 APP_PROPS_STAGE1_FILE="${APP_PROPS_STAGE1_FILE:-${SCRIPT_DIR}/resources/0.79.0/application.properties}"
 APP_PROPS_STAGE2_FILE="${APP_PROPS_STAGE2_FILE:-${SCRIPT_DIR}/resources/0.79.1/application.properties}"
 APP_PROPS_STAGE3_FILE="${APP_PROPS_STAGE3_FILE:-${SCRIPT_DIR}/resources/0.80.0/application.properties}"

@@ -20,7 +20,7 @@ on:
         required: false
         type: string
       starting-tag:
-        description: "Optional published CN tag for the stage 0 genesis baseline. Leave blank to use the script default (v0.78.1); all three stages use the checkout local build."
+        description: "Optional published CN tag for the stage 0 genesis baseline. Leave blank to use the script default (v0.79.2); must be 0.79 or later. All three stages use the checkout local build."
         required: false
         type: string
     outputs:
