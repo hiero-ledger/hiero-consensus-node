@@ -46,7 +46,7 @@ on:
         type: boolean
         default: true
       three-stage-block-stream-cutover-starting-tag:
-        description: "[three-stage-block-stream-cutover] Optional published CN tag for the stage 0 genesis baseline. Blank → v0.78.1; all three stages use the checkout local build."
+        description: "[three-stage-block-stream-cutover] Optional published CN tag for the stage 0 genesis baseline. Blank → v0.79.2; must be 0.79 or later. All three stages use the checkout local build."
         required: false
         type: string
         default: ""

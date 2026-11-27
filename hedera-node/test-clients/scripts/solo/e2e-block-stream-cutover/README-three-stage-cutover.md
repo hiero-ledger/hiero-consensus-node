@@ -2,16 +2,18 @@
 
 `solo-three-stage-block-stream-cutover.sh` implements the cutover scenario for [#27649](https://github.com/hiero-ledger/hiero-consensus-node/issues/27649).
 The network starts at genesis on a published CN release (`CN_BASELINE_RELEASE_TAG`, default
-**v0.78.1**) with record streaming only, then upgrades to the checkout's local CN build. The 0.79.0,
-0.79.1 and 0.80.0 directories describe the three configuration stages that follow; every one uses
-the local build until published versions are available. `hedera.config.version`
-increases from 0 to 1 to 2 so the same binary exercises upgrade initialization at each hop.
+**v0.79.2**) with record streaming only, then upgrades to the checkout's local CN build. The baseline
+must be 0.79 or later: older releases write SHA-384 event hashes, which the local build can no
+longer read (#28395). The 0.79.0, 0.79.1 and 0.80.0 directories describe the three configuration
+stages that follow; every one uses the local build until published versions are available.
+`hedera.config.version` increases from 0 to 1 to 2 so the same binary exercises upgrade
+initialization at each hop.
 
 All pinned versions sit together at the top of the script:
 
 |          Variable          |               Default               |                                Purpose                                 |
 |----------------------------|-------------------------------------|------------------------------------------------------------------------|
-| `CN_BASELINE_RELEASE_TAG`  | v0.78.1                             | Published CN release deployed at genesis (alias: `DEPLOY_RELEASE_TAG`) |
+| `CN_BASELINE_RELEASE_TAG`  | v0.79.2                             | Published CN release deployed at genesis (alias: `DEPLOY_RELEASE_TAG`) |
 | `BLOCK_NODE_TOOLS_REF`     | `block-node-version` in `.citr-env` | `hiero-block-node` tag for the offline `blocks wrap` CLI and BN protos |
 | `BLOCK_NODE_CHART_VERSION` | `block-node-version` in `.citr-env` | Block Node chart/image deployed after stage 2 and kept through cutover |
 | `MIRROR_NODE_VERSION`      | v0.165.2-rc1                        | Mirror node deployed before stage 2 and kept through cutover           |
@@ -22,12 +24,12 @@ settings restores CN defaults (295 and true), breaking TCK Ethereum and gossip-d
 independently of the block-stream cutover. Runtime checks assert both values on every CN after
 each deployment or upgrade.
 
-| Stage  |                                                          Behavior                                                           |                                                                                   Required verification                                                                                   |
-|--------|-----------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| 0.78.1 | Published release genesis: BOTH / FILE, mock signatures, TSS off, no wrapped hashes, no BN                                  | Runtime properties and release JAR version                                                                                                                                                |
-| 0.79.0 | Upgrade to local build: BOTH / FILE_AND_GRPC, mock signatures, TSS off, wrapped-record streaming and disk writing on, no BN | Runtime properties and local JAR version; hashes file exists and grows on every CN                                                                                                        |
-| 0.79.1 | Jumpstart, live wrapped records, TSS enabled, mock signatures; then add the pinned BN                                       | Offline jumpstart matches every CN's saved hashes; migration consumes the file; every migration vote matches an offline replay and every live chain syncs to it; WRAPS constructs a proof |
-| 0.80.0 | BLOCKS / GRPC, cutover enabled, real signatures                                                                             | Runtime properties and local JAR version; WRAPS proof construction; BN verifies and persists new blocks; CN restart has no SELF_ISS                                                       |
+|  Stage   |                                                          Behavior                                                           |                                                                                   Required verification                                                                                   |
+|----------|-----------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| baseline | Published release genesis: BOTH / FILE, mock signatures, TSS off, no wrapped hashes, no BN                                  | Runtime properties and release JAR version                                                                                                                                                |
+| 0.79.0   | Upgrade to local build: BOTH / FILE_AND_GRPC, mock signatures, TSS off, wrapped-record streaming and disk writing on, no BN | Runtime properties and local JAR version; hashes file exists and grows on every CN                                                                                                        |
+| 0.79.1   | Jumpstart, live wrapped records, TSS enabled, mock signatures; then add the pinned BN                                       | Offline jumpstart matches every CN's saved hashes; migration consumes the file; every migration vote matches an offline replay and every live chain syncs to it; WRAPS constructs a proof |
+| 0.80.0   | BLOCKS / GRPC, cutover enabled, real signatures                                                                             | Runtime properties and local JAR version; WRAPS proof construction; BN verifies and persists new blocks; CN restart has no SELF_ISS                                                       |
 
 The jumpstart flow uses `cutover-jumpstart.sh`:
 discover record files through mirror REST, download records and signatures from Solo MinIO,
