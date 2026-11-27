@@ -156,8 +156,8 @@ public class SingleNodeConsensusResultAssert
      * either reached consensus or become stale, but not both. Only the results since the last
      * {@link SingleNodeConsensusResult#clear()} are checked.
      *
-     * <p>The check is only valid while the node runs without a restart, reconnect or freeze. If the node has one of
-     * them, call {@link SingleNodeConsensusResult#clear()} after it, so that only the results after it are checked.
+     * <p>The check holds across restarts and freezes, but not across a reconnect. If the node reconnects, call
+     * {@link SingleNodeConsensusResult#clear()} after the reconnect, so that only the later results are checked.
      *
      * @return this assertion object for method chaining
      */
@@ -210,7 +210,8 @@ public class SingleNodeConsensusResultAssert
      *
      * <p>{@link SingleNodeConsensusResult#clear()} discards pre-consensus events that may still reach consensus or
      * become stale afterward. Therefore, this assertion needs all results since the node started, and it fails if
-     * {@link SingleNodeConsensusResult#clear()} has been called on the result.
+     * {@link SingleNodeConsensusResult#clear()} has been called on the result. The check holds across restarts and
+     * freezes.
      *
      * @return this assertion object for method chaining
      */
