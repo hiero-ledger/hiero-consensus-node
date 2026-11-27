@@ -68,7 +68,8 @@ public class BlockNodeTlsSuite {
                             "blockStream.streamWrappedRecordBlocks", "false",
                             "blockNode.globalCoolDownSeconds", "1",
                             "blockNode.basicNodeCoolDownSeconds", "1",
-                            "blockNode.extendedNodeCoolDownSeconds", "1"
+                            "blockNode.extendedNodeCoolDownSeconds", "1",
+                            "blockStream.buffer.minAcksRequiredPerBlock", "1"
                         })
             })
     @Order(1)
@@ -93,7 +94,8 @@ public class BlockNodeTlsSuite {
                             "blockStream.streamWrappedRecordBlocks", "false",
                             "blockNode.globalCoolDownSeconds", "1",
                             "blockNode.basicNodeCoolDownSeconds", "1",
-                            "blockNode.extendedNodeCoolDownSeconds", "1"
+                            "blockNode.extendedNodeCoolDownSeconds", "1",
+                            "blockStream.buffer.minAcksRequiredPerBlock", "1"
                         })
             })
     @Order(2)
@@ -121,7 +123,8 @@ public class BlockNodeTlsSuite {
                             "blockStream.streamWrappedRecordBlocks", "false",
                             "blockNode.globalCoolDownSeconds", "1",
                             "blockNode.basicNodeCoolDownSeconds", "1",
-                            "blockNode.extendedNodeCoolDownSeconds", "1"
+                            "blockNode.extendedNodeCoolDownSeconds", "1",
+                            "blockStream.buffer.minAcksRequiredPerBlock", "1"
                         })
             })
     @Order(3)
@@ -156,7 +159,8 @@ public class BlockNodeTlsSuite {
                             "blockStream.streamWrappedRecordBlocks", "false",
                             "blockNode.globalCoolDownSeconds", "1",
                             "blockNode.basicNodeCoolDownSeconds", "1",
-                            "blockNode.extendedNodeCoolDownSeconds", "1"
+                            "blockNode.extendedNodeCoolDownSeconds", "1",
+                            "blockStream.buffer.minAcksRequiredPerBlock", "1"
                         })
             })
     @Order(4)
@@ -213,7 +217,8 @@ public class BlockNodeTlsSuite {
                             "blockStream.streamWrappedRecordBlocks", "false",
                             "blockNode.globalCoolDownSeconds", "1",
                             "blockNode.basicNodeCoolDownSeconds", "1",
-                            "blockNode.extendedNodeCoolDownSeconds", "1"
+                            "blockNode.extendedNodeCoolDownSeconds", "1",
+                            "blockStream.buffer.minAcksRequiredPerBlock", "1"
                         })
             })
     @Order(5)
@@ -243,7 +248,8 @@ public class BlockNodeTlsSuite {
                             "blockStream.streamWrappedRecordBlocks", "false",
                             "blockNode.globalCoolDownSeconds", "1",
                             "blockNode.basicNodeCoolDownSeconds", "1",
-                            "blockNode.extendedNodeCoolDownSeconds", "1"
+                            "blockNode.extendedNodeCoolDownSeconds", "1",
+                            "blockStream.buffer.minAcksRequiredPerBlock", "1"
                         })
             })
     @Order(6)

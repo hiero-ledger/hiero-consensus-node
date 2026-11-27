@@ -155,16 +155,12 @@ public class BlockNodeSimSuite {
                         blockNodeIds = {0, 1},
                         blockNodePriorities = {0, 1},
                         applicationPropertiesOverrides = {
-                            "blockStream.buffer.maxBlocks",
-                            "30",
-                            "blockStream.blockPeriod",
-                            BLOCK_PERIOD_SECONDS + "s",
-                            "blockStream.streamMode",
-                            "BLOCKS",
-                            "blockNode.forcedSwitchRescheduleDelay",
-                            "30s",
-                            "blockStream.streamWrappedRecordBlocks",
-                            "false"
+                            "blockStream.buffer.maxBlocks", "30",
+                            "blockStream.blockPeriod", BLOCK_PERIOD_SECONDS + "s",
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockNode.forcedSwitchRescheduleDelay", "30s",
+                            "blockStream.streamWrappedRecordBlocks", "false",
+                            "blockStream.buffer.minAcksRequiredPerBlock", "1"
                         })
             })
     @Order(2)
@@ -216,20 +212,14 @@ public class BlockNodeSimSuite {
                         blockNodeIds = {0},
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
-                            "blockStream.streamMode",
-                            "BLOCKS",
-                            "blockStream.buffer.maxBlocks",
-                            "60",
-                            "blockStream.buffer.isBufferPersistenceEnabled",
-                            "true",
-                            "blockStream.blockPeriod",
-                            BLOCK_PERIOD_SECONDS + "s",
-                            "blockNode.streamResetPeriod",
-                            "20s",
-                            "blockNode.streamResetPeriodJitter",
-                            "0s",
-                            "blockStream.streamWrappedRecordBlocks",
-                            "false"
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.buffer.maxBlocks", "60",
+                            "blockStream.buffer.isBufferPersistenceEnabled", "true",
+                            "blockStream.blockPeriod", BLOCK_PERIOD_SECONDS + "s",
+                            "blockNode.streamResetPeriod", "20s",
+                            "blockNode.streamResetPeriodJitter", "0s",
+                            "blockStream.streamWrappedRecordBlocks", "false",
+                            "blockStream.buffer.minAcksRequiredPerBlock", "1"
                         })
             })
     @Order(3)
@@ -293,7 +283,8 @@ public class BlockNodeSimSuite {
                             "blockNode.maxEndOfStreamsAllowed", "50",
                             "blockNode.globalCoolDownSeconds", "0",
                             "blockNode.basicNodeCoolDownSeconds", "1",
-                            "blockNode.extendedNodeCoolDownSeconds", "1"
+                            "blockNode.extendedNodeCoolDownSeconds", "1",
+                            "blockStream.buffer.minAcksRequiredPerBlock", "1"
                         })
             })
     @Order(4)
@@ -420,7 +411,8 @@ public class BlockNodeSimSuite {
                             "blockStream.buffer.maxBlocks", "15",
                             "blockNode.globalCoolDownSeconds", "0",
                             "blockNode.basicNodeCoolDownSeconds", "1",
-                            "blockNode.extendedNodeCoolDownSeconds", "1"
+                            "blockNode.extendedNodeCoolDownSeconds", "1",
+                            "blockStream.buffer.minAcksRequiredPerBlock", "1"
                         })
             })
     @Order(5)
@@ -481,7 +473,8 @@ public class BlockNodeSimSuite {
                             "blockStream.streamWrappedRecordBlocks", "false",
                             "blockNode.globalCoolDownSeconds", "0",
                             "blockNode.basicNodeCoolDownSeconds", "1",
-                            "blockNode.extendedNodeCoolDownSeconds", "1"
+                            "blockNode.extendedNodeCoolDownSeconds", "1",
+                            "blockStream.buffer.minAcksRequiredPerBlock", "1"
                         })
             })
     @Order(6)
@@ -544,7 +537,8 @@ public class BlockNodeSimSuite {
                             "blockNode.highLatencyEventsBeforeSwitching", "3",
                             "blockNode.globalCoolDownSeconds", "0",
                             "blockNode.basicNodeCoolDownSeconds", "1",
-                            "blockNode.extendedNodeCoolDownSeconds", "1"
+                            "blockNode.extendedNodeCoolDownSeconds", "1",
+                            "blockStream.buffer.minAcksRequiredPerBlock", "1"
                         })
             })
     @Order(7)

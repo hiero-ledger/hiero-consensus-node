@@ -729,6 +729,14 @@ public class SimulatedBlockNodeServer {
 
                             // Reset currentBlockNumber for this stream, as it finished sending this block
                             currentBlockNumber = null;
+                        } else if (request.hasAcknowledgeOnly()) {
+                            final Long externalLastVerifiedBlock = externalLastVerifiedBlockNumberSupplier == null
+                                    ? null
+                                    : externalLastVerifiedBlockNumberSupplier.get();
+                            final long lastVerifiedBlock = externalLastVerifiedBlock == null
+                                    ? lastVerifiedBlockNumber.get()
+                                    : Math.max(lastVerifiedBlockNumber.get(), externalLastVerifiedBlock);
+                            buildAndSendBlockAcknowledgement(lastVerifiedBlock, replies);
                         }
                     } catch (InterruptedException e) {
                         log.warn("Interrupted while waiting for BlockAcknowledgement", e);

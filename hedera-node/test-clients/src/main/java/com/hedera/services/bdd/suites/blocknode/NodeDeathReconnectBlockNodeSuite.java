@@ -15,6 +15,8 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
 import static com.hedera.services.bdd.suites.regression.system.MixedOperations.burstOfTps;
 
 import com.hedera.services.bdd.HapiBlockNode;
+import com.hedera.services.bdd.HapiBlockNode.BlockNodeConfig;
+import com.hedera.services.bdd.HapiBlockNode.SubProcessNodeConfig;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
@@ -36,25 +38,27 @@ public class NodeDeathReconnectBlockNodeSuite implements LifecycleTest {
     @HapiBlockNode(
             networkSize = 4,
             blockNodeConfigs = {
-                @HapiBlockNode.BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL),
+                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL),
+                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.REAL),
+                @BlockNodeConfig(nodeId = 2, mode = BlockNodeMode.REAL)
             },
             subProcessNodeConfigs = {
-                @HapiBlockNode.SubProcessNodeConfig(
+                @SubProcessNodeConfig(
                         nodeId = 0,
-                        blockNodeIds = {0},
-                        blockNodePriorities = {0}),
-                @HapiBlockNode.SubProcessNodeConfig(
+                        blockNodeIds = {0, 1, 2},
+                        blockNodePriorities = {0, 0, 0}),
+                @SubProcessNodeConfig(
                         nodeId = 1,
-                        blockNodeIds = {0},
-                        blockNodePriorities = {0}),
-                @HapiBlockNode.SubProcessNodeConfig(
+                        blockNodeIds = {0, 1, 2},
+                        blockNodePriorities = {0, 0, 0}),
+                @SubProcessNodeConfig(
                         nodeId = 2,
-                        blockNodeIds = {0},
-                        blockNodePriorities = {0}),
-                @HapiBlockNode.SubProcessNodeConfig(
+                        blockNodeIds = {0, 1, 2},
+                        blockNodePriorities = {0, 0, 0}),
+                @SubProcessNodeConfig(
                         nodeId = 3,
-                        blockNodeIds = {0},
-                        blockNodePriorities = {0})
+                        blockNodeIds = {0, 1, 2},
+                        blockNodePriorities = {0, 0, 0})
             })
     @Order(1)
     final Stream<DynamicTest> nodeDeathReconnectBlocksAndFileAndGrpc() {
@@ -84,15 +88,17 @@ public class NodeDeathReconnectBlockNodeSuite implements LifecycleTest {
     // Pinned to the testnet (cutover) values: the only configuration this scenario has been validated with
     @HapiTest
     @HapiBlockNode(
-            networkSize = 2,
+            networkSize = 3,
             blockNodeConfigs = {
-                @HapiBlockNode.BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL),
+                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL),
+                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.REAL),
+                @BlockNodeConfig(nodeId = 2, mode = BlockNodeMode.REAL)
             },
             subProcessNodeConfigs = {
-                @HapiBlockNode.SubProcessNodeConfig(
+                @SubProcessNodeConfig(
                         nodeId = 0,
-                        blockNodeIds = {0},
-                        blockNodePriorities = {0},
+                        blockNodeIds = {0, 1, 2},
+                        blockNodePriorities = {0, 1, 2},
                         applicationPropertiesOverrides = {
                             "blockStream.buffer.maxBlocks", "15",
                             "blockStream.streamMode", "BLOCKS",
@@ -102,10 +108,23 @@ public class NodeDeathReconnectBlockNodeSuite implements LifecycleTest {
                             "blockStream.buffer.isBufferPersistenceEnabled", "true",
                             "tss.forceMockSignatures", "false"
                         }),
-                @HapiBlockNode.SubProcessNodeConfig(
+                @SubProcessNodeConfig(
                         nodeId = 1,
-                        blockNodeIds = {0},
-                        blockNodePriorities = {0},
+                        blockNodeIds = {1, 2, 0},
+                        blockNodePriorities = {0, 1, 2},
+                        applicationPropertiesOverrides = {
+                            "blockStream.buffer.maxBlocks", "15",
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.writerMode", "GRPC",
+                            "blockStream.enableCutover", "true",
+                            "blockStream.streamWrappedRecordBlocks", "false",
+                            "blockStream.buffer.isBufferPersistenceEnabled", "true",
+                            "tss.forceMockSignatures", "false"
+                        }),
+                @SubProcessNodeConfig(
+                        nodeId = 2,
+                        blockNodeIds = {2, 0, 1},
+                        blockNodePriorities = {0, 1, 2},
                         applicationPropertiesOverrides = {
                             "blockStream.buffer.maxBlocks", "15",
                             "blockStream.streamMode", "BLOCKS",
