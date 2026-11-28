@@ -66,6 +66,11 @@ public class HapiHookStore extends HapiTxnOp<HapiHookStore> {
         return entries(mappingSlot, List.of(MappingKey.key(key)), List.of(value));
     }
 
+    public HapiHookStore putMappingEntriesWithKeys(
+            @NonNull final Bytes mappingSlot, @NonNull final List<Bytes> keys, @NonNull final List<Bytes> values) {
+        return entries(mappingSlot, keys.stream().map(MappingKey::key).toList(), values);
+    }
+
     public HapiHookStore putMappingEntryWithPreimage(
             @NonNull final Bytes mappingSlot, @NonNull final Bytes preimage, @NonNull final Bytes value) {
         return entries(mappingSlot, List.of(MappingKey.preimage(preimage)), List.of(value));
@@ -128,20 +133,19 @@ public class HapiHookStore extends HapiTxnOp<HapiHookStore> {
 
     @Override
     protected List<Function<HapiSpec, Key>> defaultSigners() {
-        final Function<HapiSpec, Key> ownerSigner =
-                switch (ownerType) {
-                    case ACCOUNT_ID, CONTRACT_ID ->
-                        spec -> {
-                            final var ownerKey = spec.registry().getKey(ownerName);
-                            final var payerKey = spec.registry().getKey(effectivePayer(spec));
-                            if (ownerKey.equals(payerKey)) {
-                                return Key.getDefaultInstance();
-                            } else {
-                                return ownerKey;
-                            }
-                        };
-                    default -> throw new IllegalArgumentException("Unsupported owner type: " + ownerType);
+        final Function<HapiSpec, Key> ownerSigner = switch (ownerType) {
+            case ACCOUNT_ID, CONTRACT_ID ->
+                spec -> {
+                    final var ownerKey = spec.registry().getKey(ownerName);
+                    final var payerKey = spec.registry().getKey(effectivePayer(spec));
+                    if (ownerKey.equals(payerKey)) {
+                        return Key.getDefaultInstance();
+                    } else {
+                        return ownerKey;
+                    }
                 };
+            default -> throw new IllegalArgumentException("Unsupported owner type: " + ownerType);
+        };
         return List.of(spec -> spec.registry().getKey(effectivePayer(spec)), ownerSigner);
     }
 
