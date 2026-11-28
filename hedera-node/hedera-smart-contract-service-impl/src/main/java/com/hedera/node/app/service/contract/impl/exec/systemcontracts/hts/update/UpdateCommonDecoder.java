@@ -159,10 +159,50 @@ public abstract class UpdateCommonDecoder {
         return tokenKeys;
     }
 
+    /** keyType bits updateTokenKeys can apply at 0x167 (admin..pause; metadata 0x80 is not applied there). */
+    protected static final int UPDATE_KEYS_SUPPORTED_MASK_167 = 0x7F;
+    /** keyType bits updateTokenKeys can apply at 0x16c (adds the metadata key, 0x80). */
+    protected static final int UPDATE_KEYS_SUPPORTED_MASK_16C = 0xFF;
+
+    /**
+     * True iff the raw key list is non-empty and every entry is meaningful: its keyType is a positive value that fits
+     * in an int (checked on the full uint256, before any int narrowing), it selects at least one key slot within
+     * {@code supportedMask}, and it does not ask to inherit the account key. {@code inheritAccountKey} has no meaning
+     * for an update (the inherited key is only resolved when a token is created). Anything else would dispatch an
+     * update that changes nothing yet reports SUCCESS (GHSA-q776-f4m7-g642).
+     *
+     * <p>For compatibility with existing callers, bits outside {@code supportedMask} are ignored as long as at least
+     * one supported bit is set (e.g. {@code 0xFF} at 0x167), and entries addressing the same slot are applied in
+     * order, so the last one wins.
+     */
+    protected static boolean isMeaningfulKeyUpdate(@NonNull final Tuple[] tokenKeysTuples, final int supportedMask) {
+        if (tokenKeysTuples.length == 0) {
+            return false;
+        }
+        for (final var tokenKeyTuple : tokenKeysTuples) {
+            final var rawKeyType = (BigInteger) tokenKeyTuple.get(KEY_TYPE);
+            if (rawKeyType.signum() <= 0 || rawKeyType.bitLength() > 31) {
+                return false;
+            }
+            final Tuple keyValueTuple = tokenKeyTuple.get(KEY_VALUE);
+            if ((Boolean) keyValueTuple.get(INHERIT_ACCOUNT_KEY)) {
+                return false;
+            }
+            final int keyType = rawKeyType.intValue();
+            if ((keyType & supportedMask) == 0) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     @Nullable
     public TransactionBody decodeTokenUpdateKeys(@NonNull final HtsCallAttempt attempt) {
 
         final var call = decodeCall(attempt);
+        if (!isMeaningfulKeyUpdate(call.get(TOKEN_KEYS), UPDATE_KEYS_SUPPORTED_MASK_167)) {
+            return null;
+        }
 
         final var tokenId =
                 ConversionUtils.asTokenId(attempt.nativeOperations().entityIdFactory(), call.get(TOKEN_ADDRESS));
