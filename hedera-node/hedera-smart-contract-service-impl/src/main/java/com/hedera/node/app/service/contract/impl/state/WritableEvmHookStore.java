@@ -467,6 +467,14 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
                     storage.put(slot.key(), slotValue);
                     yield firstKey;
                 }
+                case ZERO_INTO_EMPTY_SLOT -> {
+                    // A hook's EVM execution may have written this new slot and zeroed it again; remove the
+                    // zero entry it left in state, since it is in neither the storage list nor the slot counts
+                    if (byListMembership && storage.get(slot.key()) != null) {
+                        storage.remove(slot.key());
+                    }
+                    yield firstKey;
+                }
                 default -> firstKey;
             };
         }
