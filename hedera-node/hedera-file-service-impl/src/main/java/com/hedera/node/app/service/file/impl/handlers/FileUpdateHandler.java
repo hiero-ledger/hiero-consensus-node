@@ -14,6 +14,7 @@ import static com.hedera.node.app.service.file.impl.utils.FileServiceUtils.valid
 import static com.hedera.node.app.spi.validation.AttributeValidator.isWithinNestedKeyLimit;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.CHILD;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.PRECEDING;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
@@ -123,6 +124,7 @@ public class FileUpdateHandler implements TransactionHandler {
         final var fileUpdate = handleContext.body().fileUpdateOrThrow();
 
         final var fileServiceConfig = handleContext.configuration().getConfigData(FilesConfig.class);
+        final var ledgerConfig = handleContext.configuration().getConfigData(LedgerConfig.class);
 
         if (fileUpdate.fileID() == null) {
             throw new HandleException(INVALID_FILE_ID);
@@ -130,9 +132,22 @@ public class FileUpdateHandler implements TransactionHandler {
 
         // the update file always will be for the node, not a particular ledger that's why we just compare the fileNum
         // and ignore shard and realm
-        FileID fileID = fileUpdate.fileIDOrThrow();
-        LongPair upgradeFileRange = fileServiceConfig.softwareUpdateRange();
-        if (fileID.fileNum() >= upgradeFileRange.left() && fileID.fileNum() <= upgradeFileRange.right()) {
+        final FileID fileID = fileUpdate.fileIDOrThrow();
+        final long fileNum = fileID.fileNum();
+        final boolean isUpgradeFile = fileServiceConfig.softwareUpdateRange().containsInclusive(fileNum);
+        final boolean isSystemFile =
+                (fileNum >= 1 && fileNum <= ledgerConfig.numReservedSystemEntities()) || isUpgradeFile;
+
+        if (isSystemFile) {
+            final var category = handleContext
+                    .savepointStack()
+                    .getBaseBuilder(StreamBuilder.class)
+                    .category();
+            validateTrue(category == USER, UNAUTHORIZED);
+            validateTrue(handleContext.hasPrivilegedAuthorization() == SystemPrivilege.AUTHORIZED, UNAUTHORIZED);
+        }
+
+        if (isUpgradeFile) {
             handleUpdateUpgradeFile(fileUpdate, handleContext);
             return;
         }

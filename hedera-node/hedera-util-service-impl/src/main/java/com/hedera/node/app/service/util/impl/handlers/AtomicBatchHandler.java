@@ -27,6 +27,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
@@ -48,6 +49,8 @@ import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.AtomicBatchConfig;
+import com.hedera.node.config.data.FilesConfig;
+import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -136,12 +139,16 @@ public class AtomicBatchHandler implements TransactionHandler {
         final var atomicBatchTransactionBody = context.body().atomicBatchOrThrow();
         final var config = context.configuration();
         final var atomicBatchConfig = config.getConfigData(AtomicBatchConfig.class);
+        final var ledgerConfig = config.getConfigData(LedgerConfig.class);
+        final var filesConfig = config.getConfigData(FilesConfig.class);
 
         final var txns = atomicBatchTransactionBody.transactions();
         // not using a stream below as throwing exception in the middle of a functional pipeline is a terrible idea
         for (final var txnBytes : txns) {
             final var innerTxBody = innerTxnCache.computeIfAbsent(txnBytes);
-            validateTruePreCheck(isAllowedFunction(innerTxBody, atomicBatchConfig), BATCH_TRANSACTION_IN_BLACKLIST);
+            validateTruePreCheck(
+                    isAllowedFunction(innerTxBody, atomicBatchConfig, ledgerConfig, filesConfig),
+                    BATCH_TRANSACTION_IN_BLACKLIST);
             context.requireKeyOrThrow(innerTxBody.batchKey(), INVALID_BATCH_KEY);
             // the inner prehandle of each inner transaction happens in the prehandle workflow.
         }
@@ -272,16 +279,52 @@ public class AtomicBatchHandler implements TransactionHandler {
      *
      * @param transactionBody the transaction body to check
      * @param config          the atomic batch configuration
+     * @param ledgerConfig    the ledger configuration
+     * @param filesConfig     the files configuration
      * @return true if the transaction type is allowed, false otherwise
      */
     private boolean isAllowedFunction(
-            @NonNull final TransactionBody transactionBody, @NonNull final AtomicBatchConfig config) {
+            @NonNull final TransactionBody transactionBody,
+            @NonNull final AtomicBatchConfig config,
+            @NonNull final LedgerConfig ledgerConfig,
+            @NonNull final FilesConfig filesConfig) {
         try {
             final var hederaFunctionality = HapiUtils.functionOf(transactionBody);
-            return config.whitelist().functionalitySet().contains(hederaFunctionality);
+            if (!config.whitelist().functionalitySet().contains(hederaFunctionality)) {
+                return false;
+            }
+            return !isPrivilegedFileOperation(transactionBody, ledgerConfig, filesConfig);
         } catch (final UnknownHederaFunctionality e) {
             return false;
         }
+    }
+
+    private boolean isPrivilegedFileOperation(
+            @NonNull final TransactionBody body,
+            @NonNull final LedgerConfig ledgerConfig,
+            @NonNull final FilesConfig filesConfig) {
+        if (body.hasFileUpdate()) {
+            return isPrivileged(body.fileUpdateOrThrow().fileID(), ledgerConfig, filesConfig);
+        }
+        if (body.hasFileAppend()) {
+            return isPrivileged(body.fileAppendOrThrow().fileID(), ledgerConfig, filesConfig);
+        }
+        if (body.hasFileDelete()) {
+            return isPrivileged(body.fileDeleteOrThrow().fileID(), ledgerConfig, filesConfig);
+        }
+        return false;
+    }
+
+    private boolean isPrivileged(
+            @Nullable final FileID fileId,
+            @NonNull final LedgerConfig ledgerConfig,
+            @NonNull final FilesConfig filesConfig) {
+        if (fileId == null) {
+            return false;
+        }
+        final long fileNum = fileId.fileNum();
+        return (fileNum >= 1 && fileNum <= ledgerConfig.numReservedSystemEntities())
+                || filesConfig.softwareUpdateRange().containsInclusive(fileNum);
     }
 
     /**

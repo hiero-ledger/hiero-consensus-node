@@ -14,6 +14,7 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.authorization.Authorizer;
+import com.hedera.node.app.spi.authorization.SystemPrivilege;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -44,6 +45,38 @@ public class AuthorizationChecker {
      * if the operation is authorized, requires no privilege, or is not one of the enforced operations. This is the
      * single decision used by both ingest and pre-handle.
      *
+     * <p>Privileged file operations require top-level transactions; if an inner transaction attempts an operation
+     * that requires privilege (i.e. not {@link SystemPrivilege#UNNECESSARY}), {@code AUTHORIZATION_FAILED} is returned.
+     *
+     * @param payerId the payer account
+     * @param functionality the transaction functionality
+     * @param txBody the transaction body
+     * @param innerTransaction whether the transaction is an inner transaction
+     * @return {@code AUTHORIZATION_FAILED}, {@code ENTITY_NOT_ALLOWED_TO_DELETE}, or {@code null} if there is no failure
+     */
+    @Nullable
+    public ResponseCodeEnum failureFor(
+            @NonNull final AccountID payerId,
+            @NonNull final HederaFunctionality functionality,
+            @NonNull final TransactionBody txBody,
+            @NonNull final InnerTransaction innerTransaction) {
+        if (!isPrivilegedFileOperation(functionality)) {
+            return null;
+        }
+        final var privilege = authorizer.hasPrivilegedAuthorization(payerId, functionality, txBody);
+        if (innerTransaction == InnerTransaction.YES && privilege != SystemPrivilege.UNNECESSARY) {
+            return AUTHORIZATION_FAILED;
+        }
+        return switch (privilege) {
+            case UNAUTHORIZED -> AUTHORIZATION_FAILED;
+            case IMPERMISSIBLE -> ENTITY_NOT_ALLOWED_TO_DELETE;
+            case AUTHORIZED, UNNECESSARY -> null;
+        };
+    }
+
+    /**
+     * Overload defaulting to {@link InnerTransaction#NO}.
+     *
      * @param payerId the payer account
      * @param functionality the transaction functionality
      * @param txBody the transaction body
@@ -54,19 +87,34 @@ public class AuthorizationChecker {
             @NonNull final AccountID payerId,
             @NonNull final HederaFunctionality functionality,
             @NonNull final TransactionBody txBody) {
-        if (!isPrivilegedFileOperation(functionality)) {
-            return null;
-        }
-        return switch (authorizer.hasPrivilegedAuthorization(payerId, functionality, txBody)) {
-            case UNAUTHORIZED -> AUTHORIZATION_FAILED;
-            case IMPERMISSIBLE -> ENTITY_NOT_ALLOWED_TO_DELETE;
-            case AUTHORIZED, UNNECESSARY -> null;
-        };
+        return failureFor(payerId, functionality, txBody, InnerTransaction.NO);
     }
 
     /**
      * Rejects a transaction whose payer lacks the privilege required for an enforced operation (for example, updating
      * a system file such as the exchange-rate file 0.0.112). A no-op for any other functionality.
+     *
+     * @param payerId the payer account
+     * @param functionality the transaction functionality
+     * @param txBody the transaction body
+     * @param innerTransaction whether the transaction is an inner transaction
+     * @throws PreCheckException AUTHORIZATION_FAILED if the payer lacks a required privilege or the operation is nested,
+     *                           or ENTITY_NOT_ALLOWED_TO_DELETE if the operation is impermissible
+     */
+    public void enforce(
+            @NonNull final AccountID payerId,
+            @NonNull final HederaFunctionality functionality,
+            @NonNull final TransactionBody txBody,
+            @NonNull final InnerTransaction innerTransaction)
+            throws PreCheckException {
+        final var failure = failureFor(payerId, functionality, txBody, innerTransaction);
+        if (failure != null) {
+            throw new PreCheckException(failure);
+        }
+    }
+
+    /**
+     * Overload defaulting to {@link InnerTransaction#NO}.
      *
      * @param payerId the payer account
      * @param functionality the transaction functionality
@@ -79,10 +127,7 @@ public class AuthorizationChecker {
             @NonNull final HederaFunctionality functionality,
             @NonNull final TransactionBody txBody)
             throws PreCheckException {
-        final var failure = failureFor(payerId, functionality, txBody);
-        if (failure != null) {
-            throw new PreCheckException(failure);
-        }
+        enforce(payerId, functionality, txBody, InnerTransaction.NO);
     }
 
     private static boolean isPrivilegedFileOperation(@NonNull final HederaFunctionality functionality) {
