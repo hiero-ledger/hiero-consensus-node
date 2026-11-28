@@ -18,8 +18,8 @@ public final class ClprPeerManifestPolicy {
     /** Maximum characters in a peer chain id. */
     public static final int MAX_CHAIN_ID_LENGTH = 128;
 
-    /** Visible characters: basic Latin letters, digits and punctuation, without spaces or control characters. */
-    private static final CharMatcher VISIBLE_CHARACTERS = CharMatcher.inRange('!', '~');
+    /** Characters allowed in peer hosts and chain ids: basic Latin letters, digits and punctuation. */
+    private static final CharMatcher VALID_CHARACTERS = CharMatcher.inRange('!', '~');
 
     private ClprPeerManifestPolicy() {}
 
@@ -55,12 +55,7 @@ public final class ClprPeerManifestPolicy {
             storedBytes += framedBytes;
             retained++;
         }
-        for (int i = 0; i < retained; i++) {
-            final var serviceEndpoint = endpoints.get(i).serviceEndpoint();
-            if (serviceEndpoint == null || !isValidHost(serviceEndpoint.ipAddress())) {
-                throw new IllegalArgumentException("Peer manifest endpoint host is not an IP address or DNS hostname");
-            }
-        }
+        validateEndpoints(endpoints, retained);
         return retained == endpoints.size()
                 ? manifest
                 : manifest.copyBuilder()
@@ -78,7 +73,7 @@ public final class ClprPeerManifestPolicy {
      */
     public static boolean isValidHost(@NonNull final String host) {
         requireNonNull(host);
-        if (host.isEmpty() || !VISIBLE_CHARACTERS.matchesAllOf(host) || host.indexOf('%') >= 0) {
+        if (host.isEmpty() || !VALID_CHARACTERS.matchesAllOf(host) || host.indexOf('%') >= 0) {
             return false;
         }
         return InetAddresses.isInetAddress(host) || ClprEndpointBuilder.isDnsHostname(host);
@@ -86,16 +81,31 @@ public final class ClprPeerManifestPolicy {
 
     /**
      * Whether a peer chain id may be stored: non-empty, at most {@value #MAX_CHAIN_ID_LENGTH} characters, and
-     * visible characters only.
+     * basic Latin letters, digits and punctuation only.
      *
      * @param chainId the peer-supplied chain id
      * @return whether the chain id is well formed
      */
     public static boolean isValidChainId(@NonNull final String chainId) {
         requireNonNull(chainId);
-        return !chainId.isEmpty()
-                && chainId.length() <= MAX_CHAIN_ID_LENGTH
-                && VISIBLE_CHARACTERS.matchesAllOf(chainId);
+        return !chainId.isEmpty() && chainId.length() <= MAX_CHAIN_ID_LENGTH && VALID_CHARACTERS.matchesAllOf(chainId);
+    }
+
+    /**
+     * Checks the first {@code count} endpoints. The message names the endpoint index and the failed check, never the
+     * peer-supplied host.
+     */
+    private static void validateEndpoints(@NonNull final List<ClprEndpoint> endpoints, final int count) {
+        for (int i = 0; i < count; i++) {
+            final var serviceEndpoint = endpoints.get(i).serviceEndpoint();
+            if (serviceEndpoint == null) {
+                throw new IllegalArgumentException("Peer manifest endpoint " + i + " has no service endpoint");
+            }
+            if (!isValidHost(serviceEndpoint.ipAddress())) {
+                throw new IllegalArgumentException(
+                        "Peer manifest endpoint " + i + " host is not an IP address or DNS hostname");
+            }
+        }
     }
 
     private static int varintSize(int value) {

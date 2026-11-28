@@ -136,7 +136,16 @@ class ClprPeerManifestPolicyTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"10.0.0.1", "2001:db8::1", "::ffff:10.0.0.1", "node1.example.com", "localhost"})
+    @ValueSource(
+            strings = {
+                "10.0.0.1",
+                "2001:db8::1",
+                "::ffff:10.0.0.1",
+                "node1.example.com",
+                "NODE1.EXAMPLE.COM",
+                "example.com.",
+                "localhost"
+            })
     void wellFormedHostsAreValid(final String host) {
         assertThat(isValidHost(host)).isTrue();
     }
@@ -155,10 +164,23 @@ class ClprPeerManifestPolicyTest {
                 "peer_1.example.com",
                 "pëer.example.com",
                 "10.0.0.1:50211",
-                "-peer.example.com"
+                "-peer.example.com",
+                "[::1]",
+                "1.2.3",
+                "010.0.0.1",
+                "0x7f.0.0.1"
             })
     void malformedHostsAreInvalid(final String host) {
         assertThat(isValidHost(host)).isFalse();
+    }
+
+    @Test
+    void hostLengthIsBoundedByDnsLimit() {
+        // Four labels of up to 63 characters separated by dots: 253 characters is the DNS maximum.
+        final var maxLength = "a".repeat(63) + "." + "b".repeat(63) + "." + "c".repeat(63) + "." + "d".repeat(61);
+        assertThat(maxLength).hasSize(253);
+        assertThat(isValidHost(maxLength)).isTrue();
+        assertThat(isValidHost(maxLength + "d")).isFalse();
     }
 
     @Test
@@ -166,14 +188,14 @@ class ClprPeerManifestPolicyTest {
         final var nul = endpointWithHost("\u0000");
         assertThatThrownBy(() -> boundedManifest(manifest(List.of(ENDPOINT, nul)), 0))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Peer manifest endpoint host is not an IP address or DNS hostname");
+                .hasMessage("Peer manifest endpoint 1 host is not an IP address or DNS hostname");
     }
 
     @Test
     void retainedEndpointWithoutServiceEndpointRejectsTheManifest() {
         assertThatThrownBy(() -> boundedManifest(manifest(List.of(ENDPOINT, ClprEndpoint.DEFAULT)), 0))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Peer manifest endpoint host is not an IP address or DNS hostname");
+                .hasMessage("Peer manifest endpoint 1 has no service endpoint");
     }
 
     @Test

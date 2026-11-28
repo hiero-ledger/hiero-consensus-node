@@ -773,7 +773,7 @@ class ClprCreateChannelHandlerTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"hedera:\u0000testnet", "hedera:testnet\n", "hedera testnet", "hedera:tëstnet"})
+    @ValueSource(strings = {"", "hedera:\u0000testnet", "hedera:testnet\n", "hedera testnet", "hedera:tëstnet"})
     void rejectsPeerConfigWithMalformedChainId(final String chainId) {
         final var peerConfig = PEER_CONFIG.copyBuilder().chainId(chainId).build();
         setupHandleContext(validOpenTxnWithPeerConfig(peerConfig));
@@ -786,7 +786,8 @@ class ClprCreateChannelHandlerTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"\u0000", "10.0.0.1\u0000", "peer\u0000.example.com", "fe80::1%eth0", "peer_1.example.com"})
+    @ValueSource(
+            strings = {"", "\u0000", "10.0.0.1\u0000", "peer\u0000.example.com", "fe80::1%eth0", "peer_1.example.com"})
     void rejectsPeerManifestWithMalformedEndpointHost(final String host) {
         final var manifest = ClprEndpointManifest.newBuilder()
                 .version(1L)
