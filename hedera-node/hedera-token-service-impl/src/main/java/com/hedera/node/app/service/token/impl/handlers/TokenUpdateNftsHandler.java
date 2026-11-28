@@ -9,6 +9,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.MISSING_SERIAL_NUMBERS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_METADATA_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_METADATA_OR_SUPPLY_KEY;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isEmpty;
+import static com.hedera.node.app.service.token.impl.util.TokenHandlerHelper.getIfUsable;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
@@ -102,6 +103,8 @@ public class TokenUpdateNftsHandler implements TransactionHandler {
         final var tokenId = op.tokenOrThrow();
         final var storeFactory = context.storeFactory();
         final var nftStore = storeFactory.writableStore(WritableNftStore.class);
+        // A paused or deleted token's NFTs must not be modified, as for every other token operation
+        getIfUsable(tokenId, storeFactory.readableStore(ReadableTokenStore.class));
 
         validateSemantics(context, op);
 

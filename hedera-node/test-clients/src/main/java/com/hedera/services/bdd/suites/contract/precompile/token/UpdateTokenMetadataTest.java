@@ -8,6 +8,9 @@ import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.ADMIN_KEY;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.METADATA_KEY;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.PAUSE_KEY;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.SUPPLY_KEY;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenDelete;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenPause;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUnpause;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.utils.MiscEETUtils.metadata;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
@@ -47,6 +50,11 @@ public class UpdateTokenMetadataTest {
             keys = {SUPPLY_KEY, PAUSE_KEY, ADMIN_KEY, METADATA_KEY})
     static SpecNonFungibleToken nft;
 
+    @NonFungibleToken(
+            numPreMints = 1,
+            keys = {SUPPLY_KEY, PAUSE_KEY, ADMIN_KEY, METADATA_KEY})
+    static SpecNonFungibleToken pausableNft;
+
     @Account(maxAutoAssociations = 100, tinybarBalance = ONE_HUNDRED_HBARS)
     static SpecAccount treasury;
 
@@ -58,6 +66,10 @@ public class UpdateTokenMetadataTest {
         static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
             nft.setTreasury(treasury);
             testLifecycle.doAdhoc(nft.authorizeContracts(updateTokenMetadata)
+                    .alsoAuthorizing(TokenKeyType.METADATA_KEY, TokenKeyType.SUPPLY_KEY));
+            pausableNft.setTreasury(treasury);
+            testLifecycle.doAdhoc(pausableNft
+                    .authorizeContracts(updateTokenMetadata)
                     .alsoAuthorizing(TokenKeyType.METADATA_KEY, TokenKeyType.SUPPLY_KEY));
         }
 
@@ -108,6 +120,28 @@ public class UpdateTokenMetadataTest {
                     .call("callUpdateNFTsMetadata", nft, new long[] {1}, largeMetadata)
                     .gas(1_000_000L)
                     .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, METADATA_TOO_LONG)));
+        }
+
+        @HapiTest
+        @DisplayName("use updateMetadataForNFTs on a paused or deleted token fails and keeps the metadata")
+        public Stream<DynamicTest> failToUseUpdateMetadataForNFTsOfPausedOrDeletedToken() {
+            final var pauseKey = pausableNft.name() + "_" + PAUSE_KEY;
+            // authorizeContracts replaced the admin key with a key managed for the contract
+            final var adminKey = pausableNft.name() + "_" + updateTokenMetadata.name() + "ManagedKey";
+            return hapiTest(
+                    tokenPause(pausableNft.name()).signedByPayerAnd(pauseKey),
+                    updateTokenMetadata
+                            .call("callUpdateNFTsMetadata", pausableNft, new long[] {1}, "Paused".getBytes())
+                            .gas(1_000_000L)
+                            .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)),
+                    pausableNft.getInfo(1).andAssert(info -> info.hasMetadata(metadata("SN#1"))),
+                    tokenUnpause(pausableNft.name()).signedByPayerAnd(pauseKey),
+                    tokenDelete(pausableNft.name()).signedByPayerAnd(adminKey),
+                    updateTokenMetadata
+                            .call("callUpdateNFTsMetadata", pausableNft, new long[] {1}, "Deleted".getBytes())
+                            .gas(1_000_000L)
+                            .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)),
+                    pausableNft.getInfo(1).andAssert(info -> info.hasMetadata(metadata("SN#1"))));
         }
     }
 }
