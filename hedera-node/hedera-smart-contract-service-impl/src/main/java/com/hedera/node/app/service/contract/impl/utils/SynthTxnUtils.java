@@ -188,7 +188,7 @@ public class SynthTxnUtils {
                 .gas(ethTxData.gasLimit())
                 .initialBalance(ethTxData.effectiveTinybarValue())
                 .autoRenewPeriod(Duration.newBuilder().seconds(autoRenewPeriod))
-                .initcode(Bytes.wrap(ethTxData.callData()))
+                .initcode(ethTxData.hasCallData() ? Bytes.wrap(ethTxData.callData()) : Bytes.EMPTY)
                 .build();
     }
 

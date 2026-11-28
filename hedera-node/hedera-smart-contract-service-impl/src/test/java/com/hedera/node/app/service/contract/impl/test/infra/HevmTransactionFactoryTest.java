@@ -13,7 +13,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.ERROR_DECODING_BYTESTRI
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FILE_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_AUTORENEW_ACCOUNT;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_FILE_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_RENEWAL_PERIOD;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_STAKING_ID;
@@ -219,8 +218,9 @@ class HevmTransactionFactoryTest {
     void fromHapiCallFailsOverMaxGas() {
         given(gasCalculator.transactionGasRequirements(anyInt(), anyInt(), anyBoolean(), any(), any()))
                 .willReturn(BASE_COST_CHARGING_RESULT);
-        assertCallFailsWith(MAX_GAS_LIMIT_EXCEEDED, b -> b.contractID(CALLED_CONTRACT_ID)
-                .gas(DEFAULT_CONTRACTS_CONFIG.maxGasPerSec() + 1));
+        assertCallFailsWith(
+                MAX_GAS_LIMIT_EXCEEDED,
+                b -> b.contractID(CALLED_CONTRACT_ID).gas(DEFAULT_CONTRACTS_CONFIG.maxGasPerSec() + 1));
     }
 
     @Test
@@ -274,10 +274,12 @@ class HevmTransactionFactoryTest {
     @Test
     void fromHapiCallThrowsOnDeletedContractIfFeatureFlagNotEnabled() {
         given(accountStore.getContractById(CALLED_CONTRACT_ID)).willReturn(A_DELETED_CONTRACT);
-        assertCallFailsWith(CONTRACT_DELETED, b -> b.amount(123L)
-                .functionParameters(CALL_DATA)
-                .contractID(CALLED_CONTRACT_ID)
-                .gas(CONFIG_THROTTLE_BY_GAS.maxGasPerSec()));
+        assertCallFailsWith(
+                CONTRACT_DELETED,
+                b -> b.amount(123L)
+                        .functionParameters(CALL_DATA)
+                        .contractID(CALLED_CONTRACT_ID)
+                        .gas(CONFIG_THROTTLE_BY_GAS.maxGasPerSec()));
     }
 
     @Test
@@ -378,25 +380,30 @@ class HevmTransactionFactoryTest {
 
     @Test
     void fromHapiCreationFailsOnExcessGas() {
-        assertCreateFailsWith(MAX_GAS_LIMIT_EXCEEDED, b -> b.initialBalance(1)
-                .gas(DEFAULT_CONTRACTS_CONFIG.maxGasPerSec() + 1)
-                .autoRenewPeriod(SOME_DURATION));
+        assertCreateFailsWith(
+                MAX_GAS_LIMIT_EXCEEDED,
+                b -> b.initialBalance(1)
+                        .gas(DEFAULT_CONTRACTS_CONFIG.maxGasPerSec() + 1)
+                        .autoRenewPeriod(SOME_DURATION));
     }
 
     @Test
     void fromHapiCreationDoesNotPermitExcessAutoAssociations() {
         givenInsteadHydratedEthTx(null);
-        assertCreateFailsWith(REQUESTED_NUM_AUTOMATIC_ASSOCIATIONS_EXCEEDS_ASSOCIATION_LIMIT, b -> b.gas(
-                        CONFIG_THROTTLE_BY_GAS.maxGasPerSec())
-                .maxAutomaticTokenAssociations(DEFAULT_LEDGER_CONFIG.maxAutoAssociations() + 1)
-                .autoRenewPeriod(SOME_DURATION));
+        assertCreateFailsWith(
+                REQUESTED_NUM_AUTOMATIC_ASSOCIATIONS_EXCEEDS_ASSOCIATION_LIMIT,
+                b -> b.gas(CONFIG_THROTTLE_BY_GAS.maxGasPerSec())
+                        .maxAutomaticTokenAssociations(DEFAULT_LEDGER_CONFIG.maxAutoAssociations() + 1)
+                        .autoRenewPeriod(SOME_DURATION));
     }
 
     @Test
     void fromHapiCreationDoesNotPermitNonDefaultProxyField() {
-        assertCreateFailsWith(PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED, b -> b.gas(CONFIG_THROTTLE_BY_GAS.maxGasPerSec())
-                .proxyAccountID(NON_SYSTEM_ACCOUNT_ID)
-                .autoRenewPeriod(SOME_DURATION));
+        assertCreateFailsWith(
+                PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED,
+                b -> b.gas(CONFIG_THROTTLE_BY_GAS.maxGasPerSec())
+                        .proxyAccountID(NON_SYSTEM_ACCOUNT_ID)
+                        .autoRenewPeriod(SOME_DURATION));
     }
 
     @Test
@@ -404,29 +411,35 @@ class HevmTransactionFactoryTest {
         doThrow(new HandleException(INVALID_STAKING_ID))
                 .when(tokenServiceApi)
                 .assertValidStakingElectionForCreation(false, "STAKED_NODE_ID", null, 123L, accountStore, networkInfo);
-        assertCreateFailsWith(INVALID_STAKING_ID, b -> b.stakedNodeId(123)
-                .gas(CONFIG_THROTTLE_BY_GAS.maxGasPerSec())
-                .proxyAccountID(AccountID.DEFAULT)
-                .autoRenewPeriod(SOME_DURATION));
+        assertCreateFailsWith(
+                INVALID_STAKING_ID,
+                b -> b.stakedNodeId(123)
+                        .gas(CONFIG_THROTTLE_BY_GAS.maxGasPerSec())
+                        .proxyAccountID(AccountID.DEFAULT)
+                        .autoRenewPeriod(SOME_DURATION));
     }
 
     @Test
     void fromHapiCreationValidatesMemo() {
         doThrow(new HandleException(MEMO_TOO_LONG)).when(attributeValidator).validateMemo(SOME_MEMO);
-        assertCreateFailsWith(MEMO_TOO_LONG, b -> b.memo(SOME_MEMO)
-                .gas(CONFIG_THROTTLE_BY_GAS.maxGasPerSec())
-                .proxyAccountID(AccountID.DEFAULT)
-                .autoRenewPeriod(SOME_DURATION));
+        assertCreateFailsWith(
+                MEMO_TOO_LONG,
+                b -> b.memo(SOME_MEMO)
+                        .gas(CONFIG_THROTTLE_BY_GAS.maxGasPerSec())
+                        .proxyAccountID(AccountID.DEFAULT)
+                        .autoRenewPeriod(SOME_DURATION));
     }
 
     @Test
     void fromHapiCreationValidatesKeyWithSerializationFailedStatus() {
         doThrow(new HandleException(BAD_ENCODING)).when(attributeValidator).validateKey(AN_ED25519_KEY);
-        assertCreateFailsWith(SERIALIZATION_FAILED, b -> b.memo(SOME_MEMO)
-                .adminKey(AN_ED25519_KEY)
-                .gas(CONFIG_THROTTLE_BY_GAS.maxGasPerSec())
-                .proxyAccountID(AccountID.DEFAULT)
-                .autoRenewPeriod(SOME_DURATION));
+        assertCreateFailsWith(
+                SERIALIZATION_FAILED,
+                b -> b.memo(SOME_MEMO)
+                        .adminKey(AN_ED25519_KEY)
+                        .gas(CONFIG_THROTTLE_BY_GAS.maxGasPerSec())
+                        .proxyAccountID(AccountID.DEFAULT)
+                        .autoRenewPeriod(SOME_DURATION));
     }
 
     @Test
@@ -435,71 +448,83 @@ class HevmTransactionFactoryTest {
         doThrow(new HandleException(INVALID_AUTORENEW_ACCOUNT))
                 .when(expiryValidator)
                 .resolveCreationAttempt(true, createMeta, HederaFunctionality.CONTRACT_CREATE);
-        assertCreateFailsWith(INVALID_AUTORENEW_ACCOUNT, b -> b.memo(SOME_MEMO)
-                .adminKey(AN_ED25519_KEY)
-                .autoRenewAccountId(NON_SYSTEM_ACCOUNT_ID)
-                .gas(CONFIG_THROTTLE_BY_GAS.maxGasPerSec())
-                .proxyAccountID(AccountID.DEFAULT)
-                .autoRenewPeriod(SOME_DURATION));
+        assertCreateFailsWith(
+                INVALID_AUTORENEW_ACCOUNT,
+                b -> b.memo(SOME_MEMO)
+                        .adminKey(AN_ED25519_KEY)
+                        .autoRenewAccountId(NON_SYSTEM_ACCOUNT_ID)
+                        .gas(CONFIG_THROTTLE_BY_GAS.maxGasPerSec())
+                        .proxyAccountID(AccountID.DEFAULT)
+                        .autoRenewPeriod(SOME_DURATION));
     }
 
     @Test
     void fromHapiCreationValidatesInitcodeFileId() {
-        assertCreateFailsWith(INVALID_FILE_ID, b -> b.memo(SOME_MEMO)
-                .adminKey(AN_ED25519_KEY)
-                .fileID(INITCODE_FILE_ID)
-                .autoRenewAccountId(NON_SYSTEM_ACCOUNT_ID)
-                .gas(CONFIG_THROTTLE_BY_GAS.maxGasPerSec())
-                .proxyAccountID(AccountID.DEFAULT)
-                .autoRenewPeriod(SOME_DURATION));
+        assertCreateFailsWith(
+                INVALID_FILE_ID,
+                b -> b.memo(SOME_MEMO)
+                        .adminKey(AN_ED25519_KEY)
+                        .fileID(INITCODE_FILE_ID)
+                        .autoRenewAccountId(NON_SYSTEM_ACCOUNT_ID)
+                        .gas(CONFIG_THROTTLE_BY_GAS.maxGasPerSec())
+                        .proxyAccountID(AccountID.DEFAULT)
+                        .autoRenewPeriod(SOME_DURATION));
     }
 
     @Test
     void fromHapiCreationValidatesInitcodeDeletionStatus() {
         given(fileStore.getFileLeaf(INITCODE_FILE_ID))
                 .willReturn(File.newBuilder().deleted(true).build());
-        assertCreateFailsWith(FILE_DELETED, b -> b.memo(SOME_MEMO)
-                .adminKey(AN_ED25519_KEY)
-                .fileID(INITCODE_FILE_ID)
-                .autoRenewAccountId(NON_SYSTEM_ACCOUNT_ID)
-                .gas(CONFIG_THROTTLE_BY_GAS.maxGasPerSec())
-                .proxyAccountID(AccountID.DEFAULT)
-                .autoRenewPeriod(SOME_DURATION));
+        assertCreateFailsWith(
+                FILE_DELETED,
+                b -> b.memo(SOME_MEMO)
+                        .adminKey(AN_ED25519_KEY)
+                        .fileID(INITCODE_FILE_ID)
+                        .autoRenewAccountId(NON_SYSTEM_ACCOUNT_ID)
+                        .gas(CONFIG_THROTTLE_BY_GAS.maxGasPerSec())
+                        .proxyAccountID(AccountID.DEFAULT)
+                        .autoRenewPeriod(SOME_DURATION));
     }
 
     @Test
     void fromHapiCreationValidatesInitcodeNotEmpty() {
         given(fileStore.getFileLeaf(INITCODE_FILE_ID))
                 .willReturn(File.newBuilder().build());
-        assertCreateFailsWith(CONTRACT_FILE_EMPTY, b -> b.memo(SOME_MEMO)
-                .adminKey(AN_ED25519_KEY)
-                .fileID(INITCODE_FILE_ID)
-                .autoRenewAccountId(NON_SYSTEM_ACCOUNT_ID)
-                .gas(CONFIG_THROTTLE_BY_GAS.maxGasPerSec())
-                .proxyAccountID(AccountID.DEFAULT)
-                .autoRenewPeriod(SOME_DURATION));
+        assertCreateFailsWith(
+                CONTRACT_FILE_EMPTY,
+                b -> b.memo(SOME_MEMO)
+                        .adminKey(AN_ED25519_KEY)
+                        .fileID(INITCODE_FILE_ID)
+                        .autoRenewAccountId(NON_SYSTEM_ACCOUNT_ID)
+                        .gas(CONFIG_THROTTLE_BY_GAS.maxGasPerSec())
+                        .proxyAccountID(AccountID.DEFAULT)
+                        .autoRenewPeriod(SOME_DURATION));
     }
 
     @Test
     void fromHapiCreationValidatesInlineInitcodeNotEmpty() {
-        assertCreateFailsWith(CONTRACT_BYTECODE_EMPTY, b -> b.memo(SOME_MEMO)
-                .adminKey(AN_ED25519_KEY)
-                .initcode(Bytes.EMPTY)
-                .autoRenewAccountId(NON_SYSTEM_ACCOUNT_ID)
-                .gas(CONFIG_THROTTLE_BY_GAS.maxGasPerSec())
-                .proxyAccountID(AccountID.DEFAULT)
-                .autoRenewPeriod(SOME_DURATION));
+        assertCreateFailsWith(
+                CONTRACT_BYTECODE_EMPTY,
+                b -> b.memo(SOME_MEMO)
+                        .adminKey(AN_ED25519_KEY)
+                        .initcode(Bytes.EMPTY)
+                        .autoRenewAccountId(NON_SYSTEM_ACCOUNT_ID)
+                        .gas(CONFIG_THROTTLE_BY_GAS.maxGasPerSec())
+                        .proxyAccountID(AccountID.DEFAULT)
+                        .autoRenewPeriod(SOME_DURATION));
     }
 
     @Test
     void fromHapiCreationValidatesInlineInitcodeSize() {
-        assertCreateFailsWith(CONTRACT_SIZE_LIMIT_EXCEEDED, b -> b.memo(SOME_MEMO)
-                .adminKey(AN_ED25519_KEY)
-                .initcode(Bytes.wrap(new byte[MAX_INITCODE_SIZE + 2]))
-                .autoRenewAccountId(NON_SYSTEM_ACCOUNT_ID)
-                .gas(CONFIG_THROTTLE_BY_GAS.maxGasPerSec())
-                .proxyAccountID(AccountID.DEFAULT)
-                .autoRenewPeriod(SOME_DURATION));
+        assertCreateFailsWith(
+                CONTRACT_SIZE_LIMIT_EXCEEDED,
+                b -> b.memo(SOME_MEMO)
+                        .adminKey(AN_ED25519_KEY)
+                        .initcode(Bytes.wrap(new byte[MAX_INITCODE_SIZE + 2]))
+                        .autoRenewAccountId(NON_SYSTEM_ACCOUNT_ID)
+                        .gas(CONFIG_THROTTLE_BY_GAS.maxGasPerSec())
+                        .proxyAccountID(AccountID.DEFAULT)
+                        .autoRenewPeriod(SOME_DURATION));
     }
 
     @Test
@@ -509,28 +534,32 @@ class HevmTransactionFactoryTest {
                         .contents(
                                 Bytes.wrap("0".repeat(MAX_INITCODE_SIZE * 2 + 2).getBytes()))
                         .build());
-        assertCreateFailsWith(CONTRACT_SIZE_LIMIT_EXCEEDED, b -> b.memo(SOME_MEMO)
-                .adminKey(AN_ED25519_KEY)
-                .constructorParameters(Bytes.wrap(new byte[] {(byte) 0xab}))
-                .fileID(INITCODE_FILE_ID)
-                .autoRenewAccountId(NON_SYSTEM_ACCOUNT_ID)
-                .gas(CONFIG_THROTTLE_BY_GAS.maxGasPerSec())
-                .proxyAccountID(AccountID.DEFAULT)
-                .autoRenewPeriod(SOME_DURATION));
+        assertCreateFailsWith(
+                CONTRACT_SIZE_LIMIT_EXCEEDED,
+                b -> b.memo(SOME_MEMO)
+                        .adminKey(AN_ED25519_KEY)
+                        .constructorParameters(Bytes.wrap(new byte[] {(byte) 0xab}))
+                        .fileID(INITCODE_FILE_ID)
+                        .autoRenewAccountId(NON_SYSTEM_ACCOUNT_ID)
+                        .gas(CONFIG_THROTTLE_BY_GAS.maxGasPerSec())
+                        .proxyAccountID(AccountID.DEFAULT)
+                        .autoRenewPeriod(SOME_DURATION));
     }
 
     @Test
     void fromHapiCreationTranslatesHexParsingException() {
         given(fileStore.getFileLeaf(INITCODE_FILE_ID))
                 .willReturn(File.newBuilder().contents(CALL_DATA).build());
-        assertCreateFailsWith(ERROR_DECODING_BYTESTRING, b -> b.memo(SOME_MEMO)
-                .adminKey(AN_ED25519_KEY)
-                .constructorParameters(Bytes.wrap(new byte[] {(byte) 0xab}))
-                .fileID(INITCODE_FILE_ID)
-                .autoRenewAccountId(NON_SYSTEM_ACCOUNT_ID)
-                .gas(CONFIG_THROTTLE_BY_GAS.maxGasPerSec())
-                .proxyAccountID(AccountID.DEFAULT)
-                .autoRenewPeriod(SOME_DURATION));
+        assertCreateFailsWith(
+                ERROR_DECODING_BYTESTRING,
+                b -> b.memo(SOME_MEMO)
+                        .adminKey(AN_ED25519_KEY)
+                        .constructorParameters(Bytes.wrap(new byte[] {(byte) 0xab}))
+                        .fileID(INITCODE_FILE_ID)
+                        .autoRenewAccountId(NON_SYSTEM_ACCOUNT_ID)
+                        .gas(CONFIG_THROTTLE_BY_GAS.maxGasPerSec())
+                        .proxyAccountID(AccountID.DEFAULT)
+                        .autoRenewPeriod(SOME_DURATION));
     }
 
     @Test
@@ -645,9 +674,33 @@ class HevmTransactionFactoryTest {
     }
 
     @Test
-    void fromHapiEthFailsImmediatelyWithoutToAddressButNoCallData() {
-        givenInsteadHydratedEthTxWithRightChainId(ETH_DATA_WITHOUT_TO_ADDRESS.replaceCallData(new byte[0]));
-        assertEthTxFailsWith(INVALID_ETHEREUM_TRANSACTION, _ -> {});
+    void fromHapiEthRepresentsCreateWithEmptyInitcodeAsExpected() {
+        given(gasCalculator.transactionGasRequirements(anyInt(), anyInt(), anyBoolean(), any(), any()))
+                .willReturn(BASE_COST_CHARGING_RESULT);
+        final var dataToUse = ETH_DATA_WITHOUT_TO_ADDRESS.replaceCallData(new byte[0]);
+        givenInsteadHydratedEthTxWithRightChainId(dataToUse);
+        final var sig = EthTxSigs.extractSignatures(dataToUse);
+        given(ethereumSignatures.computeIfAbsent(dataToUse)).willReturn(sig);
+        final var transaction = getManufacturedEthTx(b -> b.maxGasAllowance(MAX_GAS_ALLOWANCE));
+        final var expectedSenderId =
+                AccountID.newBuilder().alias(Bytes.wrap(sig.address())).build();
+        assertEquals(expectedSenderId, transaction.senderId());
+        assertEquals(RELAYER_ID, transaction.relayerId());
+        assertNull(transaction.contractId());
+        assertTrue(transaction.isCreate());
+        assertEquals(Bytes.EMPTY, transaction.payload());
+
+        final var minAutoRenewPeriod = Duration.newBuilder()
+                .seconds(DEFAULT_LEDGER_CONFIG.autoRenewPeriodMinDuration())
+                .build();
+        final var expectedCreation = ContractCreateTransactionBody.newBuilder()
+                .autoRenewPeriod(minAutoRenewPeriod)
+                .gas(dataToUse.gasLimit())
+                .initialBalance(dataToUse.effectiveTinybarValue())
+                .initcode(Bytes.EMPTY)
+                .build();
+        assertEquals(expectedCreation, transaction.hapiCreation());
+        assertFalse(transaction.needsInitcodeExternalizedOnFailure());
     }
 
     @Test
@@ -804,18 +857,27 @@ class HevmTransactionFactoryTest {
     }
 
     @Test
-    void fromContractTxExceptionWithEthereumTransactionInvalidData() {
+    void fromContractTxExceptionWithEthereumCreationWithEmptyInitcode() {
         final var ethTxData = ETH_DATA_WITHOUT_TO_ADDRESS.replaceCallData(new byte[0]);
         givenInsteadHydratedEthTxWithRightChainId(ethTxData);
+        final var sig = EthTxSigs.extractSignatures(ethTxData);
+        given(ethereumSignatures.computeIfAbsent(ethTxData)).willReturn(sig);
 
         final var transactionBody = TransactionBody.newBuilder()
                 .transactionID(TransactionID.newBuilder().accountID(RELAYER_ID))
                 .ethereumTransaction(ethTxWith(b -> b.maxGasAllowance(MAX_GAS_ALLOWANCE)))
                 .build();
 
-        final var exception = new HandleException(ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION);
+        final var exception = new HandleException(ResponseCodeEnum.TRANSACTION_OVERSIZE);
 
-        assertThrows(HandleException.class, () -> subject.fromContractTxException(transactionBody, exception));
+        final var result = subject.fromContractTxException(transactionBody, exception);
+
+        final var expectedSenderId =
+                AccountID.newBuilder().alias(Bytes.wrap(sig.address())).build();
+        assertEquals(expectedSenderId, result.senderId());
+        assertEquals(RELAYER_ID, result.relayerId());
+        assertEquals(ethTxData.gasLimit(), result.gasLimit());
+        assertEquals(exception, result.exception());
     }
 
     private void assertCreateFailsWith(
