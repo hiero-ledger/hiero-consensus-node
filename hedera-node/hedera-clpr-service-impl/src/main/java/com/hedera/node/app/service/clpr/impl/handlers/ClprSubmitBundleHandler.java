@@ -132,6 +132,8 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
     private final ClprBundleValidator bundleValidator;
     private final RateLimitedLogger oversizedReplyLog =
             new RateLimitedLogger(log, Time.getCurrent(), MESSAGE_WARN_LOG_PERIOD);
+    private final RateLimitedLogger rejectedManifestLog =
+            new RateLimitedLogger(log, Time.getCurrent(), MESSAGE_WARN_LOG_PERIOD);
 
     @Inject
     public ClprSubmitBundleHandler(
@@ -291,6 +293,15 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                     storedManifest =
                             ClprPeerManifestPolicy.boundedManifest(newEndpointManifest, throttles.maxPeerEndpoints());
                 } catch (final IllegalArgumentException e) {
+                    rejectedManifestLog.warn(
+                            CLPR_MARKER,
+                            "[ClprSubmitBundle] peer endpoint manifest rejected conn={} version={}->{} entries={} "
+                                    + "reason={}",
+                            channelId,
+                            channel.endpointManifestVersion(),
+                            newEndpointManifest.version(),
+                            newEndpointManifest.endpoints().size(),
+                            e.getMessage());
                     throw new HandleException(CLPR_BUNDLE_VERIFICATION_FAILED);
                 }
                 final var truncatedEndpoints = storedManifest.endpoints();

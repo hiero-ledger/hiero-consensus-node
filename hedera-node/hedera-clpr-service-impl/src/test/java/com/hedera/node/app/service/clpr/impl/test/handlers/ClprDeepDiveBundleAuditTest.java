@@ -3230,7 +3230,12 @@ class ClprDeepDiveBundleAuditTest {
     private static List<ClprEndpoint> endpointList(final int count) {
         final var endpoints = new ArrayList<ClprEndpoint>();
         for (int i = 0; i < count; i++) {
-            endpoints.add(ClprEndpoint.newBuilder().build());
+            endpoints.add(ClprEndpoint.newBuilder()
+                    .serviceEndpoint(ClprServiceEndpoint.newBuilder()
+                            .ipAddress("10.0.0." + i)
+                            .port(50211)
+                            .build())
+                    .build());
         }
         return endpoints;
     }

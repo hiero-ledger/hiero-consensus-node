@@ -213,7 +213,19 @@ public final class ClprCreateChannelHandler extends AbstractClprHandler {
         final var localConfig = context.storeFactory()
                 .readableStore(ReadableLedgerConfigurationStore.class)
                 .getConfiguration();
-        validateTrue(!localConfig.chainId().isEmpty() && !peerConfig.chainId().isEmpty(), CLPR_VERIFIER_CONFIG_FAILED);
+        validateTrue(!localConfig.chainId().isEmpty(), CLPR_VERIFIER_CONFIG_FAILED);
+        // The peer chain id is verifier-supplied and stored in state, so it must be well formed.
+        if (!ClprPeerManifestPolicy.isValidChainId(peerConfig.chainId())) {
+            // Log the length and a hash only; the raw value may contain control characters.
+            log.warn(
+                    "[ClprCreateChannel] verified config rejected: malformed peer chain id channelId={} "
+                            + "chainIdLength={} chainIdHash={}",
+                    shortHex(op.channelId()),
+                    peerConfig.chainId().length(),
+                    shortHex(MiscCryptoUtils.keccak256DigestOf(
+                            Bytes.wrap(peerConfig.chainId().getBytes(UTF_8)))));
+            throw new HandleException(CLPR_VERIFIER_CONFIG_FAILED);
+        }
         final var expectedId = ClprChannelId.derive(
                 localConfig.chainId(),
                 CLPR_EVM_ADDRESS_BYTES,
@@ -284,6 +296,12 @@ public final class ClprCreateChannelHandler extends AbstractClprHandler {
         try {
             storedManifest = ClprPeerManifestPolicy.boundedManifest(peerManifest, rawPeerLimit);
         } catch (final IllegalArgumentException e) {
+            log.warn(
+                    "[ClprCreateChannel] peer endpoint manifest rejected channelId={} version={} entries={} reason={}",
+                    shortHex(op.channelId()),
+                    peerManifest.version(),
+                    peerEndpoints.size(),
+                    e.getMessage());
             throw new HandleException(CLPR_VERIFIER_CONFIG_FAILED);
         }
         final List<ClprEndpoint> truncatedPeerEndpoints = storedManifest.endpoints();

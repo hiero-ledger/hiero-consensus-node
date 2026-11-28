@@ -2067,6 +2067,21 @@ class ClprSubmitBundleHandlerTest {
         assertThat(updated.endpointManifestOrThrow()).isEqualTo(newManifest);
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"", "\u0000", "10.0.0.5\u0000", "peer\u0000.example.com"})
+    @DisplayName("manifest with a malformed endpoint host is rejected and nothing is stored")
+    void manifestWithMalformedEndpointHostIsRejected(final String host) {
+        putChannelWithManifestVersion(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH, 1L);
+        final var before = channelStore.getChannel(CHANNEL_ID);
+        final var bundleContent = buildBundleWithManifest(buildManifest(3L, host), List.of(dataPayload()));
+        setupHandleContextWithFlags(bundleTxn(bundleContent), true);
+
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(CLPR_BUNDLE_VERIFICATION_FAILED));
+        assertThat(channelStore.getChannel(CHANNEL_ID)).isEqualTo(before);
+    }
+
     @Test
     @DisplayName("#333: stale manifest silently skipped, bundle still processes")
     void staleManifestSilentlySkipped() {

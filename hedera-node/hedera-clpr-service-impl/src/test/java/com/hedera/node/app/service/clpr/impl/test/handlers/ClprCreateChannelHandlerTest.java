@@ -772,6 +772,43 @@ class ClprCreateChannelHandlerTest {
                 .has(responseCode(CLPR_VERIFIER_CONFIG_FAILED));
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"", "hedera:\u0000testnet", "hedera:testnet\n", "hedera testnet", "hedera:tëstnet"})
+    void rejectsPeerConfigWithMalformedChainId(final String chainId) {
+        final var peerConfig = PEER_CONFIG.copyBuilder().chainId(chainId).build();
+        setupHandleContext(validOpenTxnWithPeerConfig(peerConfig));
+        setupVerifierAccount(true);
+
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(CLPR_VERIFIER_CONFIG_FAILED));
+        assertThat(channelStore.getChannel(CHANNEL_ID)).isNull();
+    }
+
+    @ParameterizedTest
+    @ValueSource(
+            strings = {"", "\u0000", "10.0.0.1\u0000", "peer\u0000.example.com", "fe80::1%eth0", "peer_1.example.com"})
+    void rejectsPeerManifestWithMalformedEndpointHost(final String host) {
+        final var manifest = ClprEndpointManifest.newBuilder()
+                .version(1L)
+                .serviceAddress(PEER_CONFIG.serviceAddress())
+                .endpoints(ClprEndpoint.newBuilder()
+                        .serviceEndpoint(ClprServiceEndpoint.newBuilder()
+                                .ipAddress(host)
+                                .port(50211)
+                                .build())
+                        .build())
+                .build();
+        setupHandleContext(validOpenTxnWithManifest(manifest));
+        setupVerifierAccount(true);
+
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(CLPR_VERIFIER_CONFIG_FAILED));
+        assertThat(channelStore.getChannel(CHANNEL_ID)).isNull();
+        then(channelLifecycle).should(never()).seedPeerEndpoints(any(), any());
+    }
+
     @Test
     void createChannelAcceptsCantonBuiltInVerifier() {
         final var cantonCid = ContractID.newBuilder().contractNum(0x173L).build();
